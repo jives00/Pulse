@@ -1,0 +1,18 @@
+{
+  "name": "pulse-health",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/server",
+    "apps/web",
+    "packages/api-client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/web\"",
+    "build": "npm run build --workspace=packages/api-client && npm run build --workspace=apps/server && npm run build --workspace=apps/web",
+    "migrate": "npm run migrate --workspace=apps/server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

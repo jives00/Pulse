@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/jbrom/SynologyDrive/Coding and Design/dram/**)",
+      "Read(//c/Users/jbrom/SynologyDrive/Coding and Design/FoodTracker/**)",
+      "Bash(find 'C:\\\\Users\\\\jbrom\\\\SynologyDrive\\\\Coding and Design\\\\dram' -maxdepth 2 -type f \\\\\\(-name vite.config* -o -name tsconfig* -o -name dockerfile* -o -name .gitlab* -o -name .github \\\\\\))",
+      "Bash(find 'C:\\\\Users\\\\jbrom\\\\SynologyDrive\\\\Coding and Design\\\\dram\\\\apps\\\\web\\\\src\\\\pages' -type f -name *.tsx)",
+      "Read(//c/Users/jbrom/SynologyDrive/Coding and Design//**)",
+      "Read(//c/Users/jbrom/SynologyDrive/Development//**)",
+      "Read(//c/Users/jbrom//**)",
+      "Bash(python3 -c \"import sys,json; lines=[l.strip\\(\\) for l in sys.stdin if l.strip\\(\\)]; [print\\(json.loads\\(l\\).get\\(''''message'''',{}\\).get\\(''''role'''',''''?''''\\), '''':'''', str\\(json.loads\\(l\\).get\\(''''message'''',{}\\).get\\(''''content'''',''''''''\\)\\)[:300]\\) for l in lines if json.loads\\(l\\).get\\(''''message'''',{}\\).get\\(''''role''''\\) in \\(''''user'''',''''assistant''''\\)]\")",
+      "Bash(start \"\" \"C:\\\\Users\\\\jbrom\\\\.claude\\\\plans\\\\drifting-dancing-sundae.md\")",
+      "Bash(code \"C:\\\\Users\\\\jbrom\\\\.claude\\\\plans\\\\drifting-dancing-sundae.md\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\jbrom\\.claude\\projects\\c--Users-jbrom-SynologyDrive-Coding-and-Design-EverythingApp\\memory"
+    ]
+  }
+}
