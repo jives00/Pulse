@@ -120,7 +120,7 @@ export default function NutritionHistoryCharts({ calorieGoal, proteinGoal }: Pro
           const d = new Date(start);
           d.setDate(start.getDate() + i);
           const key = dateStr(d);
-          filled.push(byDate.get(key) ?? { date: key, calories: 0, proteinG: 0, carbsG: 0, fatG: 0 });
+          filled.push(byDate.get(key) ?? { date: key, calories: 0, proteinG: 0, carbsG: 0, fatG: 0, entryCount: 0 });
         }
         setData(filled);
       })

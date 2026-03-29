@@ -24,9 +24,9 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
   const totals = entries.reduce(
     (acc, e) => ({
       calories: acc.calories + (e.nutrition.calories  ?? 0),
-      protein:  acc.protein  + (e.nutrition.proteinG  ?? 0),
-      carbs:    acc.carbs    + (e.nutrition.carbsG    ?? 0),
-      fat:      acc.fat      + (e.nutrition.fatG      ?? 0),
+      protein:  acc.protein  + (e.nutrition.protein  ?? 0),
+      carbs:    acc.carbs    + (e.nutrition.carbs    ?? 0),
+      fat:      acc.fat      + (e.nutrition.fat      ?? 0),
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
