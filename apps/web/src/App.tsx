@@ -10,6 +10,7 @@ import NutritionHistoryPage from './pages/NutritionHistoryPage';
 import FoodsPage from './pages/FoodsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
 import WorkoutDetailPage from './pages/WorkoutDetailPage';
+import GoalsPage from './pages/GoalsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -59,7 +60,7 @@ export default function App() {
           <Route path="workouts/:id" element={<WorkoutDetailPage />} />
 
           {/* Goals — Phase 4 */}
-          <Route path="goals" element={<ComingSoon label="Goals" />} />
+          <Route path="goals" element={<GoalsPage />} />
 
           {/* Settings */}
           <Route path="settings" element={<ComingSoon label="Settings" />} />

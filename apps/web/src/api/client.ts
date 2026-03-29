@@ -247,6 +247,58 @@ export async function getSuggestions(token: string, prompt?: string): Promise<Re
   return handle<RecipeSuggestion[]>(res);
 }
 
+// ─── Goals ───────────────────────────────────────────────────
+
+export interface GoalsSummary {
+  date: string;
+  weekStart: string;
+  weekEnd: string;
+  nutrition: {
+    goals: { calories: number; carbsG: number; proteinG: number; fatG: number } | null;
+    actual: { calories: number; carbsG: number; proteinG: number; fatG: number };
+  };
+  workouts: {
+    goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null } | null;
+    actual: { workoutCount: number; totalMinutes: number };
+  };
+}
+
+export interface ExerciseGoals {
+  id?: number;
+  workoutsPerWeek: number | null;
+  minutesPerWeek: number | null;
+}
+
+export async function getGoalsSummary(token: string, date?: string): Promise<GoalsSummary> {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  const res = await fetch(`${BASE}/api/goals/summary?${params}`, { headers: headers(token) });
+  return handle<GoalsSummary>(res);
+}
+
+export async function getExerciseGoals(token: string): Promise<ExerciseGoals> {
+  const res = await fetch(`${BASE}/api/goals/exercise`, { headers: headers(token) });
+  return handle<ExerciseGoals>(res);
+}
+
+export async function saveExerciseGoals(token: string, data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null }): Promise<ExerciseGoals> {
+  const res = await fetch(`${BASE}/api/goals/exercise`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  });
+  return handle<ExerciseGoals>(res);
+}
+
+export async function saveNutritionGoals(token: string, data: { calories: number; carbsG: number; proteinG: number; fatG: number }): Promise<void> {
+  const res = await fetch(`${BASE}/api/goals`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  });
+  await handle(res);
+}
+
 // ─── Workout / Exercise types ────────────────────────────────
 
 export interface Exercise {
