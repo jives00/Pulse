@@ -8,6 +8,8 @@ import Links from './pages/Links';
 import TodayPage from './pages/TodayPage';
 import NutritionHistoryPage from './pages/NutritionHistoryPage';
 import FoodsPage from './pages/FoodsPage';
+import WorkoutsPage from './pages/WorkoutsPage';
+import WorkoutDetailPage from './pages/WorkoutDetailPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -53,7 +55,8 @@ export default function App() {
           <Route path="nutrition/foods" element={<FoodsPage />} />
 
           {/* Workouts — Phase 3 */}
-          <Route path="workouts/*" element={<ComingSoon label="Workouts" />} />
+          <Route path="workouts" element={<WorkoutsPage />} />
+          <Route path="workouts/:id" element={<WorkoutDetailPage />} />
 
           {/* Goals — Phase 4 */}
           <Route path="goals" element={<ComingSoon label="Goals" />} />
