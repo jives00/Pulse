@@ -59,6 +59,27 @@ async function migrate() {
       }
     }
 
+    // Post-migration hooks for schema changes that can't use IF NOT EXISTS in SQL
+    if (file === '005_food_log_dram_recipe_id.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'food_log'
+           AND COLUMN_NAME  = 'dram_recipe_id'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE food_log
+             ADD COLUMN dram_recipe_id INT UNSIGNED NULL,
+             ADD CONSTRAINT fk_food_log_recipe
+               FOREIGN KEY (dram_recipe_id) REFERENCES recipes(id) ON DELETE SET NULL`
+        );
+        console.log('  Added food_log.dram_recipe_id column.');
+      } else {
+        console.log('  food_log.dram_recipe_id already exists, skipping ALTER.');
+      }
+    }
+
     await conn.query('INSERT INTO schema_migrations (name) VALUES (?)', [file]);
     console.log(`  done.`);
   }
