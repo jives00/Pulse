@@ -1,48 +1,114 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
-const navItems = [
-  { to: '/recipes',   label: 'Recipes',   icon: '🍽️' },
-  { to: '/nutrition', label: 'Nutrition', icon: '🥗' },
-  { to: '/workouts',  label: 'Workouts',  icon: '💪' },
-  { to: '/goals',     label: 'Goals',     icon: '🎯' },
-  { to: '/settings',  label: 'Settings',  icon: '⚙️' },
+const FOOD_SUBS = [
+  { label: 'Main Dishes', sub: 'main' },
+  { label: 'Side Dishes', sub: 'side' },
+  { label: 'Breakfast',   sub: 'breakfast' },
+  { label: 'Desserts',    sub: 'dessert' },
 ];
 
-export default function Layout() {
-  const logout = useAuthStore((s) => s.logout);
+const TOP_SECTIONS = [
+  { prefix: '/food',      label: 'Food',      icon: '🍴' },
+  { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
+  { prefix: '/nutrition', label: 'Nutrition', icon: '🥗' },
+  { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
+  { prefix: '/goals',     label: 'Goals',     icon: '🎯' },
+  { prefix: '/history',   label: 'History',   icon: '📋' },
+  { prefix: '/links',     label: 'Links',     icon: '🔗' },
+  { prefix: '/settings',  label: 'Settings',  icon: '⚙️' },
+];
+
+function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const activeSub = params.get('sub') ?? '';
+
+  const inFood   = location.pathname.startsWith('/food');
+  const inDrinks = location.pathname.startsWith('/drinks');
+
+  const linkCls = (active: boolean) =>
+    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+      active
+        ? 'bg-dram-accent/10 text-dram-accent font-medium'
+        : 'text-gray-400 hover:bg-dram-border hover:text-white'
+    }`;
+
+  const subLinkCls = (active: boolean) =>
+    `flex items-center pl-8 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+      active
+        ? 'text-dram-accent font-medium'
+        : 'text-gray-500 hover:text-gray-200'
+    }`;
+
+  function go(path: string) {
+    navigate(path);
+    onNavigate?.();
+  }
 
   return (
-    <div className="flex min-h-screen bg-slate-900">
-      {/* Sidebar — desktop */}
-      <aside className="hidden lg:flex flex-col w-48 bg-slate-800 border-r border-slate-700 shrink-0">
-        <div className="px-4 py-5 border-b border-slate-700">
-          <span className="text-lg font-semibold text-slate-100">Pulse</span>
-        </div>
-
-        <nav className="flex-1 py-4 space-y-1 px-2">
-          {navItems.map(({ to, label, icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-brand-600/20 text-brand-400 font-medium'
-                    : 'text-slate-400 hover:bg-slate-700 hover:text-slate-100'
-                }`
-              }
+    <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
+      {TOP_SECTIONS.map(({ prefix, label, icon }) => {
+        const isActive = location.pathname.startsWith(prefix);
+        return (
+          <div key={prefix}>
+            <button
+              onClick={() => go(prefix)}
+              className={linkCls(isActive) + ' w-full text-left'}
             >
               <span>{icon}</span>
               {label}
-            </NavLink>
-          ))}
-        </nav>
+            </button>
 
-        <div className="p-2 border-t border-slate-700">
+            {/* Food sub-nav */}
+            {prefix === '/food' && inFood && (
+              <div className="mt-0.5 space-y-0.5 mb-1">
+                <button
+                  onClick={() => go('/food')}
+                  className={subLinkCls(!activeSub)}
+                >
+                  All Food
+                </button>
+                {FOOD_SUBS.map(({ label: subLabel, sub }) => (
+                  <button
+                    key={sub}
+                    onClick={() => go(`/food?sub=${sub}`)}
+                    className={subLinkCls(activeSub === sub)}
+                  >
+                    {subLabel}
+                  </button>
+                ))}
+              </div>
+            )}
+
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+export default function Layout() {
+  const logout = useAuthStore((s) => s.logout);
+  const location = useLocation();
+
+  const mobileItems = TOP_SECTIONS;
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-dram-bg">
+      {/* Sidebar — desktop */}
+      <aside className="hidden lg:flex flex-col w-48 bg-dram-card border-r border-dram-border shrink-0">
+        <div className="px-4 py-5 border-b border-dram-border">
+          <span className="text-lg font-semibold text-white">Pulse</span>
+        </div>
+
+        <SidebarNav />
+
+        <div className="p-2 border-t border-dram-border">
           <button
             onClick={logout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-slate-100 transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-dram-border hover:text-white transition-colors"
           >
             <span>🚪</span> Sign out
           </button>
@@ -50,20 +116,20 @@ export default function Layout() {
       </aside>
 
       {/* Bottom nav — mobile */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 bg-slate-800 border-t border-slate-700 z-50">
-        <nav className="flex">
-          {navItems.map(({ to, label, icon }) => (
+      <div className="lg:hidden fixed bottom-0 inset-x-0 bg-dram-card border-t border-dram-border z-50">
+        <nav className="flex overflow-x-auto">
+          {mobileItems.map(({ prefix, label, icon }) => (
             <NavLink
-              key={to}
-              to={to}
+              key={prefix}
+              to={prefix}
               className={({ isActive }) =>
-                `flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
-                  isActive ? 'text-brand-400' : 'text-slate-400'
+                `flex-1 min-w-[3.5rem] flex flex-col items-center py-2 text-xs transition-colors ${
+                  isActive ? 'text-dram-accent' : 'text-gray-400'
                 }`
               }
             >
               <span className="text-lg">{icon}</span>
-              {label}
+              <span className="truncate">{label}</span>
             </NavLink>
           ))}
         </nav>

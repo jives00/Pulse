@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../api/client';
 import type { RecipeDetail as RecipeDetailType } from '../../../../packages/api-client/src/index';
@@ -45,7 +44,6 @@ function groupByDate(entries: HistoryEntry[]): { label: string; entries: History
 
 export default function History() {
   const token = useAuthStore((s) => s.token)!;
-  const logout = useAuthStore((s) => s.logout);
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<PanelState>({ mode: 'none' });
@@ -101,33 +99,7 @@ export default function History() {
   const groups = groupByDate(entries);
 
   return (
-    <div className="flex h-screen bg-dram-bg text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-44 flex-shrink-0 border-r border-dram-border flex flex-col p-4">
-        <div className="mb-8">
-          <Link to="/"><img src="/logo.png" alt="dram" className="w-24 mx-auto" /></Link>
-        </div>
-        <nav className="flex flex-col gap-1 flex-1">
-          <Link to="/" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Library
-          </Link>
-          <Link to="/history" className="px-3 py-2 rounded-lg bg-dram-card text-white text-sm">
-            History
-          </Link>
-          <Link to="/links" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Links
-          </Link>
-          <Link to="/settings" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Settings
-          </Link>
-        </nav>
-        <button onClick={logout} className="text-xs text-gray-600 hover:text-gray-400 text-left">
-          Sign out
-        </button>
-      </aside>
-
-      {/* Main */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${panelOpen ? 'mr-[420px]' : ''}`}>
+    <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
           <h1 className="text-lg font-semibold">History</h1>
         </div>
@@ -204,7 +176,6 @@ export default function History() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Side panel */}
       {panelOpen && (

@@ -42,12 +42,26 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/recipes" replace />} />
+          <Route index element={<Navigate to="/food" replace />} />
 
-          {/* Recipes */}
-          <Route path="recipes" element={<Library />} />
-          <Route path="recipes/history" element={<RecipeHistory />} />
-          <Route path="recipes/links" element={<Links />} />
+          {/* Food */}
+          <Route path="food" element={<Library />} />
+
+          {/* Drinks */}
+          <Route path="drinks" element={<Library />} />
+
+          {/* History & Links — top-level */}
+          <Route path="history" element={<RecipeHistory />} />
+          <Route path="links" element={<Links />} />
+
+          {/* Legacy redirects */}
+          <Route path="recipes" element={<Navigate to="/food" replace />} />
+          <Route path="recipes/history" element={<Navigate to="/history" replace />} />
+          <Route path="recipes/links" element={<Navigate to="/links" replace />} />
+          <Route path="food/history" element={<Navigate to="/history" replace />} />
+          <Route path="food/links" element={<Navigate to="/links" replace />} />
+          <Route path="drinks/history" element={<Navigate to="/history" replace />} />
+          <Route path="drinks/links" element={<Navigate to="/links" replace />} />
 
           {/* Nutrition */}
           <Route path="nutrition" element={<Navigate to="/nutrition/today" replace />} />

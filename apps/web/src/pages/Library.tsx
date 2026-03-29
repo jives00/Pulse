@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import { getRecipes, getTags } from '../api/client';
@@ -29,8 +29,19 @@ type PanelState =
 
 export default function Library() {
   const token = useAuthStore((s) => s.token)!;
-  const logout = useAuthStore((s) => s.logout);
   const defaultSort = useSettingsStore((s) => s.defaultSort);
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const isFood   = location.pathname.startsWith('/food');
+  const isDrinks = location.pathname.startsWith('/drinks');
+  const sub = (searchParams.get('sub') ?? '') as Exclude<CategoryFilter, '' | 'cocktail' | 'food'> | '';
+
+  // Derived from URL — not internal state
+  const categoryFilter: CategoryFilter =
+    isDrinks ? 'cocktail' :
+    (isFood && sub) ? sub :
+    isFood ? 'food' : '';
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +51,6 @@ export default function Library() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('');
   const [showFavorites, setShowFavorites] = useState(false);
   const [madeFilter, setMadeFilter] = useState<'all' | 'made' | 'not_made'>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -74,7 +84,7 @@ export default function Library() {
       if (append) setLoadingMore(false);
       else setLoading(false);
     }
-  }, [token, categoryFilter, search, showFavorites, madeFilter, selectedTags, sort]);
+  }, [token, location.pathname, sub, search, showFavorites, madeFilter, selectedTags, sort]);
 
   // N8: fetch recipes and tags in parallel on every filter change
   useEffect(() => {
@@ -136,73 +146,7 @@ export default function Library() {
   }, [panel.mode]);
 
   return (
-    <div className="flex h-screen bg-dram-bg text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-44 flex-shrink-0 border-r border-dram-border flex flex-col p-4">
-        <div className="mb-8">
-          <Link to="/"><img src="/logo.png" alt="dram" className="w-24 mx-auto" /></Link>
-        </div>
-        <nav className="flex flex-col gap-1 flex-1">
-          <Link to="/" className="px-3 py-2 rounded-lg bg-dram-card text-white text-sm">
-            Library
-          </Link>
-          <Link to="/history" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            History
-          </Link>
-          <Link to="/links" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Links
-          </Link>
-          <Link to="/settings" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Settings
-          </Link>
-
-          <div className="mt-4 mb-1">
-            <p className="px-3 text-xs text-gray-600 uppercase tracking-wide">Category</p>
-          </div>
-
-          <button
-            onClick={() => setCategoryFilter(categoryFilter === 'cocktail' ? '' : 'cocktail')}
-            className={`text-left text-sm pl-3 py-1.5 border-l-2 transition ${
-              categoryFilter === 'cocktail'
-                ? 'border-dram-accent text-dram-accent'
-                : 'border-transparent text-gray-500 hover:text-white'
-            }`}
-          >
-            Cocktails
-          </button>
-
-          <button
-            onClick={() => setCategoryFilter(categoryFilter === 'food' ? '' : 'food')}
-            className={`text-left text-sm pl-3 py-1.5 border-l-2 transition ${
-              (categoryFilter === 'food' || FOOD_SUBCATEGORIES.some(([v]) => v === categoryFilter))
-                ? 'border-dram-accent text-dram-accent'
-                : 'border-transparent text-gray-500 hover:text-white'
-            }`}
-          >
-            Food
-          </button>
-
-          {FOOD_SUBCATEGORIES.map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setCategoryFilter(categoryFilter === val ? '' : val)}
-                className={`text-left text-sm pl-6 py-1 border-l-2 transition ${
-                  categoryFilter === val
-                    ? 'border-dram-accent text-dram-accent'
-                    : 'border-transparent text-gray-500 hover:text-white'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-        </nav>
-        <button onClick={logout} className="text-xs text-gray-600 hover:text-gray-400 text-left">
-          Sign out
-        </button>
-      </aside>
-
-      {/* Main content */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${panelOpen ? 'mr-[420px]' : ''}`}>
+    <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
         {/* Toolbar */}
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
           {/* Row 1: Search + Add */}
@@ -284,7 +228,6 @@ export default function Library() {
             </>
           )}
         </div>
-      </div>
 
       {/* Side panel */}
       {panelOpen && (

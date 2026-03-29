@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../api/client';
 import Spinner from '../components/Spinner';
@@ -25,7 +24,6 @@ function FaviconImg({ src, title }: { src: string | null; title: string }) {
 
 export default function Links() {
   const token = useAuthStore((s) => s.token)!;
-  const logout = useAuthStore((s) => s.logout);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
@@ -85,33 +83,7 @@ export default function Links() {
   }
 
   return (
-    <div className="flex h-screen bg-dram-bg text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-44 flex-shrink-0 border-r border-dram-border flex flex-col p-4">
-        <div className="mb-8">
-          <Link to="/"><img src="/logo.png" alt="dram" className="w-24 mx-auto" /></Link>
-        </div>
-        <nav className="flex flex-col gap-1 flex-1">
-          <Link to="/" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Library
-          </Link>
-          <Link to="/history" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            History
-          </Link>
-          <Link to="/links" className="px-3 py-2 rounded-lg bg-dram-card text-white text-sm">
-            Links
-          </Link>
-          <Link to="/settings" className="px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dram-card text-sm">
-            Settings
-          </Link>
-        </nav>
-        <button onClick={logout} className="text-xs text-gray-600 hover:text-gray-400 text-left">
-          Sign out
-        </button>
-      </aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
           <h1 className="text-lg font-semibold mb-3">Links</h1>
           <form onSubmit={handleAdd} className="flex gap-2">
@@ -179,7 +151,6 @@ export default function Links() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Edit modal */}
       {editTarget && (
