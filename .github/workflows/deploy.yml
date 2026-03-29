@@ -3,10 +3,9 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch: # allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
-  # ── Job 1: Deploy server + web to EC2 ────────────────────────────────────
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
@@ -18,75 +17,47 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e  # fail fast — any command error fails the whole deploy
+            set -e
 
-            # Load production env vars from /etc/environment
-            set -a; source /etc/environment; set +a
+            # Load app env vars
+            set -a; source /etc/pulse.env; set +a
 
-            # Prepend nvm Node 20 AFTER sourcing /etc/environment (which resets PATH)
-            export PATH="/home/ubuntu/.nvm/versions/node/v20.20.1/bin:$PATH"
+            export PATH="/home/ubuntu/.nvm/versions/node/v20.20.2/bin:$PATH"
 
-            cd ~/dram-app
+            cd ~/pulse-app
             git pull origin main
 
-            # Install all deps (devDeps needed for tsc + vite builds)
+            # Install all deps
             npm ci
 
-            # Build Express server (TypeScript → dist/)
+            # Run DB migrations (idempotent — safe to run on every deploy)
+            npm run migrate --workspace=apps/server
+
+            # Build server and web
             npm run build --workspace=apps/server
+            npm run build --workspace=apps/web
 
-            # Build React web app (Vite → apps/web/dist/)
-            npm run build:web
-
-            # Restart Express server and pick up any new env vars
-            pm2 restart dram-server --update-env
+            # Restart server
+            pm2 restart pulse-server --update-env
 
             echo "Deployed at $(date)"
 
-  # ── Job 2: Build Android APK via EAS ─────────────────────────────────────
-  # Runs automatically when apps/mobile/** changes, or manually via workflow_dispatch.
-  # Produces an internal-distribution APK; install via Expo Orbit on your phone.
-  detect-mobile-changes:
-    name: Check for mobile changes
-    if: false # temporarily disabled — EAS free tier limit
-    runs-on: ubuntu-latest
-    outputs:
-      mobile: ${{ steps.filter.outputs.mobile }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        # On workflow_dispatch there's no diff; treat as changed so you can force a build
-        if: github.event_name == 'push'
-        with:
-          filters: |
-            mobile:
-              - 'apps/mobile/**'
-
+  # EAS mobile build — disabled until Phase 5
   build-apk:
     name: Build Android APK (EAS)
-    if: false # temporarily disabled — EAS free tier limit
+    if: false
     runs-on: ubuntu-latest
-    needs: detect-mobile-changes
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
+      - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build APK (internal distribution)
+      - run: npm ci
+      - name: Build APK
         working-directory: apps/mobile
         run: eas build --platform android --profile preview --non-interactive
-        # When done: install via Expo Orbit on your phone, or download the link
-        # printed in the build output / visible on expo.dev/builds

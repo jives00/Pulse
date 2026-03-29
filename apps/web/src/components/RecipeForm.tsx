@@ -1,5 +1,5 @@
 import { useState, FormEvent, useRef } from 'react';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore } from '../store/authStore';
 import {
   createRecipe,
   updateRecipe,

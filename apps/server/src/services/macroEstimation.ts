@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env';
-import type { MacroEstimatePayload, MacroEstimateResult } from '@food-tracker/api-client';
+import type { MacroEstimatePayload, MacroEstimateResult } from '../types';
 
 const client = env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY }) : null;
 

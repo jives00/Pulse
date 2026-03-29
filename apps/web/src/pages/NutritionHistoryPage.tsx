@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '@food-tracker/api-client';
+import { apiClient } from '@pulse/api-client';
 import {
   ResponsiveContainer,
   LineChart, Line,
@@ -10,8 +10,8 @@ import {
   ReferenceLine,
   Legend,
 } from 'recharts';
-import { historyApi, goalsApi } from '@food-tracker/api-client';
-import type { DailyHistoryEntry, WeeklyHistoryEntry, UserGoals } from '@food-tracker/api-client';
+import { historyApi, goalsApi } from '@pulse/api-client';
+import type { DailyHistoryEntry, WeeklyHistoryEntry, UserGoals } from '@pulse/api-client';
 
 type Range = '14d' | '30d' | '90d';
 

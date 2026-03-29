@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { logApi, waterApi } from '@food-tracker/api-client';
-import type { DailyLog, WaterDay, AddLogEntryPayload, MealSlot } from '@food-tracker/api-client';
+import { logApi, waterApi } from '@pulse/api-client';
+import type { DailyLog, WaterDay, AddLogEntryPayload, MealSlot } from '@pulse/api-client';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);

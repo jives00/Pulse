@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { DailyHistoryEntry, WeeklyHistoryEntry } from '../types';
+import type { DailyHistoryEntry, WeeklyHistoryEntry } from '../nutrition';
 
 export const historyApi = {
   daily: (start: string, end: string) =>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import { getRecipes, getTags } from '../api/client';
 import type { Recipe, RecipeDetail as RecipeDetailType } from '../../../../packages/api-client/src/index';

@@ -4,7 +4,7 @@ import type {
   CreateTemplatePayload,
   CreateTemplateFromLogPayload,
   LogTemplatePayload,
-} from '../types';
+} from '../nutrition';
 
 export const templatesApi = {
   list: () =>

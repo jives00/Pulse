@@ -1,5 +1,9 @@
 {
   "name": "@pulse/api-client",
   "version": "1.0.0",
-  "private": true
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "axios": "^1.7.0"
+  }
 }

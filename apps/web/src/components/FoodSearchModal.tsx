@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { foodsApi } from '@food-tracker/api-client';
+import { foodsApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
-import type { Food, MealSlot } from '@food-tracker/api-client';
+import type { Food, MealSlot } from '@pulse/api-client';
 
 type View = 'search' | 'pick' | 'create';
 

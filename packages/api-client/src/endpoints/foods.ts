@@ -4,11 +4,14 @@ import type {
   CreateFoodPayload,
   MacroEstimatePayload,
   MacroEstimateResult,
-} from '../types';
+} from '../nutrition';
 
 export const foodsApi = {
   search: (q: string, limit = 20) =>
     apiClient.get<Food[]>('/foods/search', { params: { q, limit } }).then((r) => r.data),
+
+  listCustom: () =>
+    apiClient.get<Food[]>('/foods/custom').then((r) => r.data),
 
   lookupBarcode: (barcode: string) =>
     apiClient.get<Food>(`/foods/barcode/${barcode}`).then((r) => r.data),

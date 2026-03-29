@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -10,14 +11,14 @@ router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
 
   if (
-    username !== process.env.AUTH_USERNAME ||
-    password !== process.env.AUTH_PASSWORD
+    username !== env.AUTH_USERNAME ||
+    password !== env.AUTH_PASSWORD
   ) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
 
-  const token = jwt.sign({ username }, process.env.JWT_SECRET!, {
+  const token = jwt.sign({ username }, env.JWT_SECRET, {
     expiresIn: '7d',
   });
 

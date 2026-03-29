@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore } from '../store/authStore';
 import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../api/client';
 import type { RecipeDetail as RecipeDetailType } from '../../../../packages/api-client/src/index';
 import RecipeDetail from '../components/RecipeDetail';

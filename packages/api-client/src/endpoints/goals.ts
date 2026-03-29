@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { UserGoals, SaveGoalsPayload } from '../types';
+import type { UserGoals, SaveGoalsPayload } from '../nutrition';
 
 export const goalsApi = {
   get: () =>

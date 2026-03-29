@@ -81,6 +81,27 @@ router.post('/estimate-macros', async (req, res) => {
   }
 });
 
+router.get('/custom', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM foods WHERE is_custom = 1 ORDER BY created_at DESC LIMIT 200'
+    );
+    const foods = await Promise.all(
+      rows.map(async (row) => {
+        const [servings] = await pool.query<RowDataPacket[]>(
+          'SELECT * FROM serving_sizes WHERE food_id = ? ORDER BY is_default DESC, id ASC',
+          [row.id]
+        );
+        return toFood(row, servings as RowDataPacket[]);
+      })
+    );
+    res.json(foods);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch custom foods' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const food = await getFoodWithServings(Number(req.params.id));

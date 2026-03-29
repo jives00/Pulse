@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { WaterDay } from '../types';
+import type { WaterDay } from '../nutrition';
 
 export const waterApi = {
   getDay: (date: string) =>

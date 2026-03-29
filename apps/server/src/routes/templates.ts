@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
-import type { MealSlot } from '@food-tracker/api-client';
+import type { MealSlot } from '../types';
 
 const router = Router();
 router.use(requireAuth);

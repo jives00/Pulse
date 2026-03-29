@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore } from '../store/authStore';
 import { getRecipe, logRecipe, updateRecipe, deleteRecipe, getRecipeLog, deleteLogEntry, deleteAllLog } from '../api/client';
 import type { RecipeDetail as RecipeDetailType, MakeLogEntry } from '../../../../packages/api-client/src/index';
 import Spinner from './Spinner';

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore } from '../store/authStore';
 import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../api/client';
 import Spinner from '../components/Spinner';
 

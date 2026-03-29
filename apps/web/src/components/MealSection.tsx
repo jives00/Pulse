@@ -1,4 +1,4 @@
-import type { LogEntry, MealSlot } from '@food-tracker/api-client';
+import type { LogEntry, MealSlot } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
 
 const MEAL_LABELS: Record<MealSlot, string> = {

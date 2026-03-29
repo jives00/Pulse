@@ -3,7 +3,7 @@ import { useLogStore } from '../store/logStore';
 import MacroBar from '../components/MacroBar';
 import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
-import type { MealSlot } from '@food-tracker/api-client';
+import type { MealSlot } from '@pulse/api-client';
 
 const MEALS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 

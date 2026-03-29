@@ -5,7 +5,7 @@ import type {
   AddLogEntryPayload,
   UpdateLogEntryPayload,
   CopyLogPayload,
-} from '../types';
+} from '../nutrition';
 
 export const logApi = {
   getDay: (date: string) =>
