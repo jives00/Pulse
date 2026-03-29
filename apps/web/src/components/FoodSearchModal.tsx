@@ -3,10 +3,11 @@ import { foodsApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
 import type { Food, MealSlot } from '@pulse/api-client';
 
-type View = 'search' | 'pick' | 'create';
+type View = 'meal' | 'search' | 'pick' | 'create';
 
 interface Props {
-  meal: MealSlot;
+  meal?: MealSlot;
+  mode?: 'create'; // open directly to custom food creation, no logging
   onClose: () => void;
 }
 
@@ -17,14 +18,24 @@ const MEAL_LABELS: Record<MealSlot, string> = {
   snack: 'Snacks',
 };
 
+const MEAL_META: Record<MealSlot, { emoji: string; color: string }> = {
+  breakfast: { emoji: '🍳', color: '#f59e0b' },
+  lunch:     { emoji: '🥗', color: '#22c55e' },
+  dinner:    { emoji: '🍽️', color: '#60a5fa' },
+  snack:     { emoji: '🍎', color: '#f87171' },
+};
+
 const CONFIDENCE_COLORS = {
   high: 'text-emerald-400',
   medium: 'text-yellow-400',
   low: 'text-red-400',
 };
 
-export default function FoodSearchModal({ meal, onClose }: Props) {
-  const [view, setView] = useState<View>('search');
+export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props) {
+  const { currentDate, addEntry } = useLogStore();
+
+  const [view, setView] = useState<View>(mode === 'create' ? 'create' : mealProp ? 'search' : 'meal');
+  const [selectedMeal, setSelectedMeal] = useState<MealSlot | null>(mealProp ?? null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
   const [searching, setSearching] = useState(false);
@@ -33,6 +44,7 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [servingSizeId, setServingSizeId] = useState(0);
   const [quantity, setQuantity] = useState('1');
+  const [logDate, setLogDate] = useState(currentDate);
   const [adding, setAdding] = useState(false);
 
   // Custom food state
@@ -51,7 +63,6 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
   const [confidence, setConfidence] = useState<'high' | 'medium' | 'low' | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
 
-  const { currentDate, addEntry } = useLogStore();
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchId = useRef(0);
 
@@ -90,12 +101,12 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
   }
 
   async function handleAdd() {
-    if (!selectedFood || !servingSizeId) return;
+    if (!selectedFood || !servingSizeId || !selectedMeal) return;
     setAdding(true);
     try {
       await addEntry({
-        logDate: currentDate,
-        meal,
+        logDate,
+        meal: selectedMeal,
         foodId: selectedFood.id,
         servingSizeId,
         quantity: Number(quantity) || 1,
@@ -154,6 +165,7 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
           isDefault: true,
         }],
       });
+      if (mode === 'create') { onClose(); return; }
       selectFood(food);
     } catch {
       // ignore
@@ -179,27 +191,40 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
           <div className="flex items-center gap-2">
-            {view !== 'search' && (
-              <button
-                onClick={() => setView('search')}
-                className="text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                ←
-              </button>
+            {(view === 'search' || view === 'create') && !mealProp && mode !== 'create' && (
+              <button onClick={() => setView('meal')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
+            )}
+            {view === 'pick' && (
+              <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
             <h2 className="text-sm font-semibold text-slate-200">
-              {view === 'search' && `Add to ${MEAL_LABELS[meal]}`}
-              {view === 'pick' && (selectedFood?.name ?? '')}
+              {view === 'meal'   && 'Add to log'}
+              {view === 'search' && `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+              {view === 'pick'   && (selectedFood?.name ?? '')}
               {view === 'create' && 'Create custom food'}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors"
-          >
-            ×
-          </button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors">×</button>
         </div>
+
+        {/* ── Meal picker ──────────────────────────────────────── */}
+        {view === 'meal' && (
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((m) => {
+              const meta = MEAL_META[m];
+              return (
+                <button
+                  key={m}
+                  onClick={() => { setSelectedMeal(m); setView('search'); }}
+                  className="flex items-center gap-3 bg-slate-700/50 hover:bg-slate-700 rounded-xl px-4 py-3 text-left transition-colors border border-slate-700 hover:border-slate-500"
+                >
+                  <span className="text-2xl">{meta.emoji}</span>
+                  <span className="text-sm font-medium text-slate-200">{MEAL_LABELS[m]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Search view ──────────────────────────────────────── */}
         {view === 'search' && (
@@ -328,12 +353,23 @@ export default function FoodSearchModal({ meal, onClose }: Props) {
               )}
             </div>
 
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <input
+                type="date"
+                value={logDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setLogDate(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
             <button
               onClick={handleAdd}
-              disabled={adding || servingSizeId === 0 || Number(quantity) <= 0}
+              disabled={adding || servingSizeId === 0 || Number(quantity) <= 0 || !selectedMeal}
               className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors mt-auto"
             >
-              {adding ? 'Adding…' : `Add to ${MEAL_LABELS[meal]}`}
+              {adding ? 'Adding…' : `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
             </button>
           </div>
         )}

@@ -14,154 +14,187 @@ function Ring({ pct, color, size = 80 }: { pct: number; color: string; size?: nu
   const filled = Math.min(pct, 1) * circ;
   return (
     <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#334155" strokeWidth={8} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={9} />
       <circle
         cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={color} strokeWidth={8}
+        stroke={color} strokeWidth={9}
         strokeDasharray={`${filled} ${circ}`}
         strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 0.4s ease' }}
+        style={{ transition: 'stroke-dasharray 0.5s ease' }}
       />
     </svg>
   );
 }
 
-function MacroRing({ label, actual, goal, color }: {
-  label: string; actual: number; goal: number | null; color: string;
+function MacroTile({
+  icon, label, actual, goal, color, leftBorder,
+}: {
+  icon: string; label: string; actual: number; goal?: number; color: string; leftBorder?: boolean;
 }) {
-  const pct = goal ? actual / goal : 0;
-  const over = goal ? actual > goal : false;
+  const pct = goal ? Math.min(actual / goal, 1) : 0;
+  const over = goal != null && actual > goal;
+  const remaining = goal != null ? Math.round(goal - actual) : null;
+
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative">
-        <Ring pct={pct} color={over ? '#f87171' : color} size={68} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-semibold text-slate-200">
-            {goal ? `${Math.round(pct * 100)}%` : '—'}
-          </span>
-        </div>
+    <div className="flex flex-col gap-1.5 px-4 py-4">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xl leading-none">{icon}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+          {label}
+        </span>
       </div>
-      <div className="text-center">
-        <div className="text-sm font-medium text-slate-300">{label}</div>
-        <div className="text-xs text-slate-500">
-          {Math.round(actual)}g{goal != null ? ` / ${Math.round(goal)}g` : ''}
-        </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-bold text-white">{Math.round(actual)}</span>
+        <span className="text-xs text-slate-500">/ {goal ?? '—'}g</span>
       </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: `${color}22` }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct * 100}%`, backgroundColor: over ? '#f87171' : color }}
+        />
+      </div>
+      {remaining != null && (
+        <div className="text-xs font-medium" style={{ color: over ? '#f87171' : color }}>
+          {over ? `${Math.abs(remaining)}g over` : `${Math.abs(remaining)}g left`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WaterTile({
+  waterMl, waterGoalMl, onAddWater,
+}: {
+  waterMl: number; waterGoalMl: number; onAddWater?: (ml: number) => void;
+}) {
+  const [showInput, setShowInput] = useState(false);
+  const [input, setInput] = useState('');
+  const pct = waterGoalMl > 0 ? Math.min(waterMl / waterGoalMl, 1) : 0;
+  const remaining = Math.round((waterGoalMl - waterMl) / 100) / 10; // L, 1 decimal
+
+  function submit() {
+    const ml = Number(input);
+    if (ml > 0 && onAddWater) { onAddWater(ml); setInput(''); setShowInput(false); }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 px-4 py-4">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xl leading-none">💧</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">Water</span>
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-bold text-white">{(waterMl / 1000).toFixed(1)}</span>
+        <span className="text-xs text-slate-500">/ {(waterGoalMl / 1000).toFixed(1)} L</span>
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden bg-cyan-400/10">
+        <div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
+      </div>
+      {remaining > 0 ? (
+        <div className="text-xs font-medium text-cyan-400">{remaining.toFixed(1)} L left</div>
+      ) : (
+        <div className="text-xs font-medium text-green-400">Goal reached!</div>
+      )}
+      {onAddWater && (
+        <div className="mt-0.5">
+          {showInput ? (
+            <div className="flex items-center gap-1 flex-wrap">
+              <input
+                type="number"
+                placeholder="ml"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
+                className="w-16 bg-slate-700 border border-slate-600 rounded px-1.5 py-0.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
+                autoFocus
+              />
+              <button onClick={submit} className="text-xs text-cyan-400 hover:text-cyan-300">Add</button>
+              {[250, 500].map((ml) => (
+                <button key={ml} onClick={() => { onAddWater(ml); setShowInput(false); }}
+                  className="text-xs text-slate-400 hover:text-slate-200 bg-slate-700 px-1.5 py-0.5 rounded">
+                  +{ml}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => setShowInput(true)} className="text-xs text-cyan-400 hover:text-cyan-300">
+              + Add water
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function NutritionSummaryCard({ actual, goals, waterMl, waterGoalMl, onAddWater }: Props) {
-  const [showWaterInput, setShowWaterInput] = useState(false);
-  const [waterInput, setWaterInput] = useState('');
-
   const calPct = goals ? actual.calories / goals.calories : 0;
   const calOver = goals ? actual.calories > goals.calories : false;
-  const calColor = calOver ? '#f87171' : calPct >= 0.9 ? '#34d399' : '#60a5fa';
   const remaining = goals ? Math.round(goals.calories - actual.calories) : null;
-  const waterPct = waterGoalMl > 0 ? Math.min(waterMl / waterGoalMl, 1) : 0;
-
-  function handleAddWater() {
-    const ml = Number(waterInput);
-    if (ml > 0 && onAddWater) {
-      onAddWater(ml);
-      setWaterInput('');
-      setShowWaterInput(false);
-    }
-  }
+  const ringColor = calOver ? '#f87171' : calPct >= 0.9 ? '#34d399' : '#D4A843';
 
   return (
-    <div className="bg-slate-800 rounded-xl p-4 space-y-4">
-      {/* Top row: big calorie ring + macro rings */}
-      <div className="flex items-center gap-4">
-        {/* Calorie ring */}
-        <div className="relative shrink-0">
-          <Ring pct={calPct} color={calColor} size={100} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-bold text-slate-100 leading-tight">
-              {Math.round(actual.calories)}
-            </span>
-            <span className="text-xs text-slate-500">kcal</span>
+    <div className="bg-dram-card rounded-2xl overflow-hidden">
+      {/* Gold top accent bar */}
+      <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
+
+      {/* ── Hero: Calories ─────────────────────────────────── */}
+      <div className="relative px-6 py-5">
+        <div className="flex items-center gap-4">
+
+          {/* Left: donut ring */}
+          <div className="relative shrink-0 mr-2">
+            <Ring pct={calPct} color={ringColor} size={108} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+              <span className="text-2xl font-bold text-white leading-none">
+                {Math.abs(remaining ?? Math.round(actual.calories)).toLocaleString()}
+              </span>
+              <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                kcal<br />{remaining != null ? (calOver ? 'over' : 'left') : 'eaten'}
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Goal + remaining */}
-        <div className="flex-1 space-y-1">
-          {goals ? (
-            <>
-              <div className="text-sm text-slate-400">
-                Goal: <span className="text-slate-200 font-medium">{goals.calories} kcal</span>
+          {/* Right: title + progress */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl leading-none">🔥</span>
+              <span className="text-base font-bold text-white">Calories</span>
+            </div>
+
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-3xl font-bold text-white">{Math.round(actual.calories).toLocaleString()}</span>
+              <span className="text-sm text-slate-400">
+                {goals ? ` / ${goals.calories.toLocaleString()} kcal` : ' kcal'}
+              </span>
+            </div>
+
+            {/* Calorie bar */}
+            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(calPct, 1) * 100}%`, backgroundColor: ringColor }}
+              />
+            </div>
+
+            {remaining != null && (
+              <div className="mt-1.5 text-xs font-medium" style={{ color: calOver ? '#f87171' : '#D4A843' }}>
+                {calOver
+                  ? `${Math.abs(remaining).toLocaleString()} kcal over goal`
+                  : `${remaining.toLocaleString()} kcal remaining`}
               </div>
-              <div className="text-sm text-slate-400">
-                {remaining != null && remaining >= 0 ? 'Remaining: ' : 'Over by: '}
-                <span className={`font-medium ${(remaining ?? 0) < 0 ? 'text-red-400' : 'text-slate-200'}`}>
-                  {Math.abs(remaining ?? 0)} kcal
-                </span>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-slate-500">No calorie goal set.</p>
-          )}
-        </div>
-      </div>
-
-      {/* Macro rings */}
-      <div className="grid grid-cols-3 gap-2">
-        <MacroRing label="Protein" actual={actual.proteinG} goal={goals?.proteinG ?? null} color="#818cf8" />
-        <MacroRing label="Carbs"   actual={actual.carbsG}   goal={goals?.carbsG   ?? null} color="#fb923c" />
-        <MacroRing label="Fat"     actual={actual.fatG}     goal={goals?.fatG     ?? null} color="#facc15" />
-      </div>
-
-      {/* Water */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-400">Water</span>
-          <span className="text-slate-400">
-            {(waterMl / 1000).toFixed(1)} / {(waterGoalMl / 1000).toFixed(1)} L
-          </span>
-        </div>
-        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full bg-cyan-400 transition-all duration-500"
-            style={{ width: `${waterPct * 100}%` }}
-          />
-        </div>
-
-        {onAddWater && (
-          <div className="flex items-center gap-2 pt-0.5">
-            {showWaterInput ? (
-              <>
-                <input
-                  type="number"
-                  placeholder="ml"
-                  value={waterInput}
-                  onChange={(e) => setWaterInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddWater()}
-                  className="w-20 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
-                  autoFocus
-                />
-                <button onClick={handleAddWater} className="text-xs text-cyan-400 hover:text-cyan-300">Add</button>
-                <button onClick={() => setShowWaterInput(false)} className="text-xs text-slate-500 hover:text-slate-400">Cancel</button>
-                {[250, 500].map((ml) => (
-                  <button
-                    key={ml}
-                    onClick={() => { onAddWater(ml); setShowWaterInput(false); }}
-                    className="text-xs text-slate-400 hover:text-slate-200 bg-slate-700 px-2 py-1 rounded transition-colors"
-                  >
-                    +{ml}ml
-                  </button>
-                ))}
-              </>
-            ) : (
-              <button
-                onClick={() => setShowWaterInput(true)}
-                className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-              >
-                + Add water
-              </button>
             )}
           </div>
-        )}
+
+        </div>
+      </div>
+
+      {/* ── Macro + Water row ──────────────────────────────── */}
+      <div className="grid grid-cols-4">
+        <MacroTile icon="💪" label="Protein" actual={actual.proteinG} goal={goals?.proteinG} color="#818cf8" />
+        <MacroTile icon="🌾" label="Carbs"   actual={actual.carbsG}   goal={goals?.carbsG}   color="#fb923c" leftBorder />
+        <MacroTile icon="🥑" label="Fat"     actual={actual.fatG}     goal={goals?.fatG}     color="#facc15" leftBorder />
+        <WaterTile waterMl={waterMl} waterGoalMl={waterGoalMl} onAddWater={onAddWater} />
       </div>
     </div>
   );
