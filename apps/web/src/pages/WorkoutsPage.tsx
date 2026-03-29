@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { getWorkouts, createWorkout, deleteWorkout } from '../api/client';
-import type { WorkoutSummary } from '../api/client';
+import { workoutsApi, type WorkoutSummary } from '@pulse/api-client';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -10,7 +8,6 @@ function formatDate(dateStr: string) {
 }
 
 export default function WorkoutsPage() {
-  const token = useAuthStore((s) => s.token)!;
   const navigate = useNavigate();
 
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -19,16 +16,16 @@ export default function WorkoutsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
-    getWorkouts(token, { limit: 50 })
+    workoutsApi.getAll({ limit: 50 })
       .then(setWorkouts)
       .catch(() => {/* ignore */})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, []);
 
   async function handleStart() {
     setStarting(true);
     try {
-      const workout = await createWorkout(token);
+      const workout = await workoutsApi.create();
       navigate(`/workouts/${workout.id}`);
     } catch {
       setStarting(false);
@@ -40,7 +37,7 @@ export default function WorkoutsPage() {
     if (!confirm('Delete this workout?')) return;
     setDeletingId(id);
     try {
-      await deleteWorkout(token, id);
+      await workoutsApi.delete(id);
       setWorkouts((prev) => prev.filter((w) => w.id !== id));
     } catch {
       // ignore

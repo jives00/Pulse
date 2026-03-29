@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../store/authStore';
-import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../api/client';
-import type { RecipeDetail as RecipeDetailType } from '../../../../packages/api-client/src/index';
+import { recipesApi, type HistoryEntry, type RecipeDetail as RecipeDetailType } from '@pulse/api-client';
 import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
@@ -43,7 +41,6 @@ function groupByDate(entries: HistoryEntry[]): { label: string; entries: History
 }
 
 export default function History() {
-  const token = useAuthStore((s) => s.token)!;
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<PanelState>({ mode: 'none' });
@@ -55,8 +52,8 @@ export default function History() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getHistory(token).then(setEntries).finally(() => setLoading(false));
-  }, [token]);
+    recipesApi.getHistory().then(setEntries).finally(() => setLoading(false));
+  }, []);
 
   function openEdit(e: React.MouseEvent, entry: HistoryEntry) {
     e.stopPropagation();
@@ -70,7 +67,7 @@ export default function History() {
     setSaving(true);
     try {
       const iso = new Date(`${editDate}T${editTime}`).toISOString();
-      await updateLogEntry(token, editTarget.recipe_id, editTarget.log_id, iso);
+      await recipesApi.updateLogEntry(editTarget.recipe_id, editTarget.log_id, iso);
       setEntries((prev) =>
         prev
           .map((e) => e.log_id === editTarget.log_id ? { ...e, made_at: iso } : e)
@@ -86,7 +83,7 @@ export default function History() {
 
   async function handleDelete(e: React.MouseEvent, entry: HistoryEntry) {
     e.stopPropagation();
-    await deleteLogEntry(token, entry.recipe_id, entry.log_id).catch(() => {});
+    await recipesApi.deleteLogEntry(entry.recipe_id, entry.log_id).catch(() => {});
     setEntries((prev) => prev.filter((x) => x.log_id !== entry.log_id));
     // Close panel if it was showing this recipe and no other entries remain for it
     if (panel.mode === 'detail' && panel.recipeId === entry.recipe_id) {

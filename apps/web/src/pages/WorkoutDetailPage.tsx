@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import {
-  getWorkout, updateWorkout, deleteWorkout,
-  getExercises, getExerciseCategories, createCustomExercise,
-  addExerciseToWorkout, removeExerciseFromWorkout,
-  addSet, updateSet, deleteSet,
-} from '../api/client';
-import type { WorkoutDetail, WorkoutExercise, ExerciseSet, Exercise } from '../api/client';
+import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -19,12 +12,11 @@ function fmtWeight(kg: number | null) {
 // ─── Set row ─────────────────────────────────────────────────────────────────
 
 function SetRow({
-  set, weId, workoutId, token, onUpdated, onDeleted,
+  set, weId, workoutId, onUpdated, onDeleted,
 }: {
   set: ExerciseSet;
   weId: number;
   workoutId: number;
-  token: string;
   onUpdated: (s: ExerciseSet) => void;
   onDeleted: (id: number) => void;
 }) {
@@ -39,7 +31,7 @@ function SetRow({
     if (newReps === set.reps && newWeight === set.weightKg) return;
     setSaving(true);
     try {
-      await updateSet(token, workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeight ?? undefined, completed: true });
+      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeight ?? undefined, completed: true });
       onUpdated({ ...set, reps: newReps, weightKg: newWeight });
     } catch {
       // revert
@@ -52,7 +44,7 @@ function SetRow({
 
   async function handleDelete() {
     try {
-      await deleteSet(token, workoutId, weId, set.id);
+      await workoutsApi.deleteSet(workoutId, weId, set.id);
       onDeleted(set.id);
     } catch {
       // ignore
@@ -96,11 +88,10 @@ function SetRow({
 // ─── Exercise block ──────────────────────────────────────────────────────────
 
 function ExerciseBlock({
-  we, workoutId, token, onRemove, onSetsChanged,
+  we, workoutId, onRemove, onSetsChanged,
 }: {
   we: WorkoutExercise;
   workoutId: number;
-  token: string;
   onRemove: (weId: number) => void;
   onSetsChanged: (weId: number, sets: ExerciseSet[]) => void;
 }) {
@@ -117,7 +108,7 @@ function ExerciseBlock({
     try {
       // Copy last set values as default
       const last = sets[sets.length - 1];
-      const s = await addSet(token, workoutId, we.id, {
+      const s = await workoutsApi.addSet(workoutId, we.id, {
         reps: last?.reps ?? undefined,
         weightKg: last?.weightKg ?? undefined,
       });
@@ -167,7 +158,7 @@ function ExerciseBlock({
               set={s}
               weId={we.id}
               workoutId={workoutId}
-              token={token}
+
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
             />
@@ -189,9 +180,8 @@ function ExerciseBlock({
 // ─── Exercise picker modal ───────────────────────────────────────────────────
 
 function ExercisePicker({
-  token, onSelect, onClose,
+  onSelect, onClose,
 }: {
-  token: string;
   onSelect: (exercise: Exercise) => void;
   onClose: () => void;
 }) {
@@ -208,13 +198,13 @@ function ExercisePicker({
 
   useEffect(() => {
     Promise.all([
-      getExercises(token),
-      getExerciseCategories(token),
+      exercisesApi.getAll(),
+      exercisesApi.getCategories(),
     ]).then(([exs, cats]) => {
       setExercises(exs);
       setCategories(cats);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [token]);
+  }, []);
 
   const filtered = exercises.filter((e) => {
     const matchCat = !category || e.category === category;
@@ -226,7 +216,7 @@ function ExercisePicker({
     if (!newName.trim() || !newCat.trim()) return;
     setCreating(true);
     try {
-      const ex = await createCustomExercise(token, { name: newName.trim(), category: newCat.trim(), exerciseType: newType });
+      const ex = await exercisesApi.createCustom({ name: newName.trim(), category: newCat.trim(), exerciseType: newType });
       onSelect(ex);
     } catch {
       setCreating(false);
@@ -351,7 +341,6 @@ function ExercisePicker({
 
 export default function WorkoutDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const token = useAuthStore((s) => s.token)!;
   const navigate = useNavigate();
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
@@ -367,7 +356,7 @@ export default function WorkoutDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    getWorkout(token, Number(id))
+    workoutsApi.get(Number(id))
       .then((w) => {
         setWorkout(w);
         setName(w.name ?? '');
@@ -375,7 +364,7 @@ export default function WorkoutDetailPage() {
       })
       .catch(() => navigate('/workouts'))
       .finally(() => setLoading(false));
-  }, [token, id]);
+  }, [id]);
 
   useEffect(() => {
     if (editingName) nameRef.current?.focus();
@@ -388,7 +377,7 @@ export default function WorkoutDetailPage() {
     const newDur = duration !== '' ? Number(duration) : null;
     if (newName === workout.name && newDur === workout.durationMinutes) return;
     try {
-      await updateWorkout(token, workout.id, {
+      await workoutsApi.update(workout.id, {
         name: newName ?? undefined,
         durationMinutes: newDur ?? undefined,
       });
@@ -403,7 +392,7 @@ export default function WorkoutDetailPage() {
     setShowPicker(false);
     setAddingExercise(true);
     try {
-      const we = await addExerciseToWorkout(token, workout.id, exercise.id);
+      const we = await workoutsApi.addExercise(workout.id, exercise.id);
       setWorkout((prev) => prev ? { ...prev, exercises: [...prev.exercises, we] } : prev);
     } catch {
       // ignore
@@ -415,7 +404,7 @@ export default function WorkoutDetailPage() {
   async function handleRemoveExercise(weId: number) {
     if (!workout) return;
     try {
-      await removeExerciseFromWorkout(token, workout.id, weId);
+      await workoutsApi.removeExercise(workout.id, weId);
       setWorkout((prev) => prev ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== weId) } : prev);
     } catch {
       // ignore
@@ -432,7 +421,7 @@ export default function WorkoutDetailPage() {
   async function handleDelete() {
     if (!workout || !confirm('Delete this workout?')) return;
     try {
-      await deleteWorkout(token, workout.id);
+      await workoutsApi.delete(workout.id);
       navigate('/workouts');
     } catch {
       // ignore
@@ -510,7 +499,6 @@ export default function WorkoutDetailPage() {
           key={we.id}
           we={we}
           workoutId={workout.id}
-          token={token}
           onRemove={handleRemoveExercise}
           onSetsChanged={handleSetsChanged}
         />
@@ -527,7 +515,6 @@ export default function WorkoutDetailPage() {
 
       {showPicker && (
         <ExercisePicker
-          token={token}
           onSelect={handleSelectExercise}
           onClose={() => setShowPicker(false)}
         />

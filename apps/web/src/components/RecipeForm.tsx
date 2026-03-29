@@ -1,19 +1,12 @@
-import { useState, FormEvent, useRef } from 'react';
-import { useAuthStore } from '../store/authStore';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import {
-  createRecipe,
-  updateRecipe,
-  getPhotoUploadUrl,
+  recipesApi,
+  tagsApi,
   uploadPhotoToS3,
-  uploadPhotoFromUrl,
-  scrapeRecipe,
-  parseRecipeText,
-  suggestTags,
-} from '../api/client';
-import type {
-  RecipeDetail,
-  Ingredient,
-} from '../../../../packages/api-client/src/index';
+  type TagDefinitions,
+  type RecipeDetail,
+  type Ingredient,
+} from '@pulse/api-client';
 
 interface Props {
   initialData?: RecipeDetail;
@@ -36,7 +29,6 @@ function toRows(ingredients: Ingredient[]): IngredientRow[] {
 }
 
 export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
-  const token = useAuthStore((s) => s.token)!;
   const isEdit = Boolean(initialData);
 
   const [type, setType] = useState<'cocktail' | 'food'>(initialData?.type || 'cocktail');
@@ -63,7 +55,7 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
     initialData?.steps.length ? initialData.steps.map((s) => s.instruction) : ['']
   );
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
-  const [tagInput, setTagInput] = useState('');
+  const [tagDefs, setTagDefs] = useState<TagDefinitions | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.photo_url || null);
   const [photoUrlInput, setPhotoUrlInput] = useState('');
@@ -73,12 +65,14 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
 
-  const [suggestingTags, setSuggestingTags] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    tagsApi.getDefinitions().then(setTagDefs).catch(() => {});
+  }, []);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -92,7 +86,7 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
     setImporting(true);
     setImportError('');
     try {
-      const data = await scrapeRecipe(token, importUrl.trim(), type);
+      const data = await recipesApi.scrape(importUrl.trim(), type);
       setName(data.name || '');
       setType(data.type || type);
       setDescription(data.description || '');
@@ -131,7 +125,7 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
     setImporting(true);
     setImportError('');
     try {
-      const data = await parseRecipeText(token, pasteText.trim(), type);
+      const data = await recipesApi.parseText(pasteText.trim(), type);
       setName(data.name || '');
       setType(data.type || type);
       setDescription(data.description || '');
@@ -163,33 +157,8 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
     }
   }
 
-  async function handleSuggestTags() {
-    setSuggestingTags(true);
-    try {
-      const suggested = await suggestTags(token, {
-        name,
-        type,
-        ingredients: ingredients.map((i) => i.name).filter(Boolean),
-        steps: steps.filter(Boolean),
-      });
-      setTags((prev) => [...new Set([...prev, ...suggested])]);
-    } catch {
-      // silently fail
-    } finally {
-      setSuggestingTags(false);
-    }
-  }
-
-  function addTag(t: string) {
-    const trimmed = t.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags([...tags, trimmed]);
-    }
-    setTagInput('');
-  }
-
-  function removeTag(t: string) {
-    setTags(tags.filter((x) => x !== t));
+  function toggleTag(t: string) {
+    setTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
   }
 
   function updateIngredient(idx: number, field: keyof IngredientRow, val: string) {
@@ -255,20 +224,20 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
       let recipeId: number;
 
       if (isEdit && initialData) {
-        await updateRecipe(token, initialData.id, payload);
+        await recipesApi.update(initialData.id, payload);
         recipeId = initialData.id;
       } else {
-        const result = await createRecipe(token, payload);
+        const result = await recipesApi.create(payload);
         recipeId = result.id;
       }
 
       // Upload photo if selected
       if (photoFile) {
-        const { uploadUrl, key } = await getPhotoUploadUrl(token, recipeId, photoFile.type);
+        const { uploadUrl, key } = await recipesApi.getPhotoUploadUrl(recipeId, photoFile.type);
         await uploadPhotoToS3(uploadUrl, photoFile);
-        await updateRecipe(token, recipeId, { type, name: name.trim(), photo_key: key });
+        await recipesApi.update(recipeId, { type, name: name.trim(), photo_key: key });
       } else if (photoUrlInput.trim()) {
-        await uploadPhotoFromUrl(token, recipeId, photoUrlInput.trim());
+        await recipesApi.uploadPhotoFromUrl(recipeId, photoUrlInput.trim());
       }
 
       onSaved(recipeId);
@@ -511,51 +480,41 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
         </div>
 
         {/* Tags */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Tags</label>
-            <button
-              type="button"
-              onClick={handleSuggestTags}
-              disabled={suggestingTags || !name.trim()}
-              className="text-xs text-dram-accent hover:brightness-110 disabled:opacity-40"
-            >
-              {suggestingTags ? 'Suggesting…' : '✨ Auto-suggest'}
-            </button>
+        {tagDefs && (
+          <div>
+            <label className="block text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Tags</label>
+            <div className="space-y-3">
+              {([
+                ['Health',   'health'],
+                ['Cuisine',  'cuisine'],
+                ['Category', 'category'],
+              ] as [string, keyof typeof tagDefs][]).map(([label, cat]) => (
+                <div key={cat}>
+                  <p className="text-xs text-gray-500 mb-1.5">{label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tagDefs[cat].map((tag) => {
+                      const active = tags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition capitalize ${
+                            active
+                              ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
+                              : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="flex items-center gap-1 text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5"
-              >
-                {tag}
-                <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Add a tag…"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); }
-              }}
-              className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
-            />
-            <button
-              type="button"
-              onClick={() => addTag(tagInput)}
-              className="text-sm text-dram-accent px-3 border border-dram-border rounded-lg hover:border-dram-accent"
-            >
-              Add
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Cocktail-specific */}
         {type === 'cocktail' && (

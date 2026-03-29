@@ -54,7 +54,7 @@ function RecipeCard({ recipe, onClick }: Props) {
             {recipe.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5"
+                className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize"
               >
                 {tag}
               </span>

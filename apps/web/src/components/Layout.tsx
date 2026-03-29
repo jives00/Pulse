@@ -29,7 +29,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const inDrinks = location.pathname.startsWith('/drinks');
 
   const linkCls = (active: boolean) =>
-    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-base transition-colors ${
+    `flex items-center px-3 py-2 rounded-lg text-base transition-colors ${
       active
         ? 'bg-dram-accent/10 text-dram-accent font-medium'
         : 'text-gray-400 hover:bg-dram-border hover:text-white'
@@ -57,7 +57,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() => go(prefix)}
               className={linkCls(isActive) + ' w-full text-left'}
             >
-              <span>{icon}</span>
               {label}
             </button>
 
@@ -108,9 +107,9 @@ export default function Layout() {
         <div className="p-2 border-t border-dram-border">
           <button
             onClick={logout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-base text-gray-400 hover:bg-dram-border hover:text-white transition-colors"
+            className="w-full flex items-center px-3 py-2 rounded-lg text-base text-gray-400 hover:bg-dram-border hover:text-white transition-colors"
           >
-            <span>🚪</span> Sign out
+            Sign out
           </button>
         </div>
       </aside>

@@ -1,54 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuthStore } from '../store/authStore';
-import {
-  getGoalsSummary, getExerciseGoals, saveExerciseGoals, saveNutritionGoals,
-} from '../api/client';
-import type { GoalsSummary, ExerciseGoals } from '../api/client';
-
-// ─── Ring chart ──────────────────────────────────────────────────────────────
-
-function Ring({ pct, color, size = 80 }: { pct: number; color: string; size?: number }) {
-  const r = (size - 10) / 2;
-  const circ = 2 * Math.PI * r;
-  const filled = Math.min(pct, 1) * circ;
-  return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#334155" strokeWidth={8} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={color} strokeWidth={8}
-        strokeDasharray={`${filled} ${circ}`}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 0.4s ease' }}
-      />
-    </svg>
-  );
-}
-
-function MacroRing({ label, actual, goal, color }: {
-  label: string; actual: number; goal: number | null; color: string;
-}) {
-  const pct = goal ? actual / goal : 0;
-  const pctDisplay = goal ? Math.round(pct * 100) : null;
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative">
-        <Ring pct={pct} color={color} size={72} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-semibold text-slate-200">
-            {pctDisplay != null ? `${pctDisplay}%` : '—'}
-          </span>
-        </div>
-      </div>
-      <div className="text-center">
-        <div className="text-sm font-medium text-slate-300">{label}</div>
-        <div className="text-sm text-slate-500">
-          {Math.round(actual)}g{goal != null ? ` / ${Math.round(goal)}g` : ''}
-        </div>
-      </div>
-    </div>
-  );
-}
+import { goalsApi, type GoalsSummary, type ExerciseGoals } from '@pulse/api-client';
+import NutritionSummaryCard from '../components/NutritionSummaryCard';
+import NutritionHistoryCharts from '../components/NutritionHistoryCharts';
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
@@ -80,7 +33,6 @@ function NutritionGoalEditor({ current, onSaved }: {
   current: GoalsSummary['nutrition']['goals'];
   onSaved: () => void;
 }) {
-  const token = useAuthStore((s) => s.token)!;
   const [open, setOpen] = useState(false);
   const [calories, setCalories] = useState(String(current?.calories ?? ''));
   const [carbsG, setCarbsG] = useState(String(current?.carbsG ?? ''));
@@ -92,7 +44,7 @@ function NutritionGoalEditor({ current, onSaved }: {
     if (!calories || !carbsG || !proteinG || !fatG) return;
     setSaving(true);
     try {
-      await saveNutritionGoals(token, {
+      await goalsApi.saveNutrition({
         calories: Number(calories),
         carbsG: Number(carbsG),
         proteinG: Number(proteinG),
@@ -150,7 +102,6 @@ function ExerciseGoalEditor({ current, onSaved }: {
   current: ExerciseGoals | null;
   onSaved: () => void;
 }) {
-  const token = useAuthStore((s) => s.token)!;
   const [open, setOpen] = useState(false);
   const [workouts, setWorkouts] = useState(String(current?.workoutsPerWeek ?? ''));
   const [minutes, setMinutes] = useState(String(current?.minutesPerWeek ?? ''));
@@ -159,7 +110,7 @@ function ExerciseGoalEditor({ current, onSaved }: {
   async function handleSave() {
     setSaving(true);
     try {
-      await saveExerciseGoals(token, {
+      await goalsApi.saveExercise({
         workoutsPerWeek: workouts !== '' ? Number(workouts) : null,
         minutesPerWeek: minutes !== '' ? Number(minutes) : null,
       });
@@ -211,7 +162,6 @@ function ExerciseGoalEditor({ current, onSaved }: {
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function GoalsPage() {
-  const token = useAuthStore((s) => s.token)!;
   const [summary, setSummary] = useState<GoalsSummary | null>(null);
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [loading, setLoading] = useState(true);
@@ -219,15 +169,15 @@ export default function GoalsPage() {
   function load() {
     const today = new Date().toISOString().slice(0, 10);
     Promise.all([
-      getGoalsSummary(token, today),
-      getExerciseGoals(token).catch(() => null),
+      goalsApi.getSummary(today),
+      goalsApi.getExercise().catch(() => null),
     ]).then(([s, eg]) => {
       setSummary(s);
       setExGoals(eg);
     }).catch(() => {}).finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, [token]);
+  useEffect(() => { load(); }, []);
 
   if (loading) {
     return <div className="text-center text-sm text-slate-500 py-12">Loading…</div>;
@@ -238,56 +188,33 @@ export default function GoalsPage() {
   const workoutGoals = summary?.workouts.goals ?? null;
   const workoutActual = summary?.workouts.actual;
 
-  const calPct = nutritionGoals && nutritionActual ? nutritionActual.calories / nutritionGoals.calories : 0;
-  const calColor = calPct > 1.1 ? '#f87171' : calPct >= 0.9 ? '#34d399' : '#60a5fa';
-
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <h1 className="text-2xl font-semibold text-slate-200">Goals</h1>
 
       {/* Nutrition section */}
-      <div className="bg-slate-800 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
+      <div>
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Nutrition — Today</h2>
           <NutritionGoalEditor current={nutritionGoals} onSaved={load} />
         </div>
-
-        {/* Calories ring */}
-        <div className="flex items-center gap-4 mb-5">
-          <div className="relative shrink-0">
-            <Ring pct={calPct} color={calColor} size={96} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-bold text-slate-100">
-                {Math.round(nutritionActual?.calories ?? 0)}
-              </span>
-              <span className="text-sm text-slate-500">kcal</span>
-            </div>
-          </div>
-          <div className="flex-1">
-            {nutritionGoals ? (
-              <div className="space-y-1">
-                <div className="text-sm text-slate-400">
-                  Goal: <span className="text-slate-200 font-medium">{nutritionGoals.calories} kcal</span>
-                </div>
-                <div className="text-sm text-slate-400">
-                  Remaining: <span className={`font-medium ${(nutritionGoals.calories - (nutritionActual?.calories ?? 0)) < 0 ? 'text-red-400' : 'text-slate-200'}`}>
-                    {Math.round(nutritionGoals.calories - (nutritionActual?.calories ?? 0))} kcal
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">Set a calorie goal to track progress.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Macro rings */}
-        <div className="grid grid-cols-3 gap-3">
-          <MacroRing label="Protein" actual={nutritionActual?.proteinG ?? 0} goal={nutritionGoals?.proteinG ?? null} color="#818cf8" />
-          <MacroRing label="Carbs"   actual={nutritionActual?.carbsG   ?? 0} goal={nutritionGoals?.carbsG   ?? null} color="#fb923c" />
-          <MacroRing label="Fat"     actual={nutritionActual?.fatG     ?? 0} goal={nutritionGoals?.fatG     ?? null} color="#facc15" />
-        </div>
+        <NutritionSummaryCard
+          actual={{
+            calories: nutritionActual?.calories ?? 0,
+            carbsG: nutritionActual?.carbsG ?? 0,
+            proteinG: nutritionActual?.proteinG ?? 0,
+            fatG: nutritionActual?.fatG ?? 0,
+          }}
+          goals={nutritionGoals}
+          waterMl={0}
+          waterGoalMl={2000}
+        />
       </div>
+
+      <NutritionHistoryCharts
+        calorieGoal={nutritionGoals?.calories}
+        proteinGoal={nutritionGoals?.proteinG}
+      />
 
       {/* Workouts section */}
       <div className="bg-slate-800 rounded-lg p-4">

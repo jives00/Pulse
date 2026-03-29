@@ -189,10 +189,31 @@ export async function deleteAllLog(token: string, recipeId: number): Promise<voi
   await handle(res);
 }
 
-export async function getTags(token: string): Promise<string[]> {
-  const res = await fetch(`${BASE}/api/tags`, { headers: headers(token) });
+export async function getTags(token: string, type?: 'food' | 'cocktail'): Promise<string[]> {
+  const url = `${BASE}/api/tags${type ? `?type=${type}` : ''}`;
+  const res = await fetch(url, { headers: headers(token) });
   const data = await handle<{ id: number; name: string }[]>(res);
   return data.map((t) => t.name);
+}
+
+export interface TagDefinitions {
+  health:   string[];
+  cuisine:  string[];
+  category: string[];
+}
+
+export async function getTagDefinitions(token: string): Promise<TagDefinitions> {
+  const res = await fetch(`${BASE}/api/tags/definitions`, { headers: headers(token) });
+  return handle<TagDefinitions>(res);
+}
+
+export async function saveTagDefinitions(token: string, defs: TagDefinitions): Promise<void> {
+  const res = await fetch(`${BASE}/api/tags/definitions`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(defs),
+  });
+  await handle(res);
 }
 
 export async function scrapeRecipe(token: string, url: string, typeHint?: string): Promise<ScrapedRecipe> {

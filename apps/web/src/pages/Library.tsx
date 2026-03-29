@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
-import { getRecipes, getTags } from '../api/client';
-import type { Recipe, RecipeDetail as RecipeDetailType } from '../../../../packages/api-client/src/index';
+import { recipesApi, tagsApi, type Recipe, type RecipeDetail as RecipeDetailType } from '@pulse/api-client';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
@@ -28,7 +26,6 @@ type PanelState =
   | { mode: 'edit'; recipe: RecipeDetailType };
 
 export default function Library() {
-  const token = useAuthStore((s) => s.token)!;
   const defaultSort = useSettingsStore((s) => s.defaultSort);
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -63,7 +60,7 @@ export default function Library() {
     if (append) setLoadingMore(true);
     else { setLoading(true); setFetchError(false); }
     try {
-      const data = await getRecipes(token, {
+      const data = await recipesApi.getAll({
         type: categoryFilter === 'cocktail' ? 'cocktail' : categoryFilter ? 'food' : 'all',
         subcategory: (categoryFilter && categoryFilter !== 'cocktail' && categoryFilter !== 'food') ? categoryFilter : undefined,
         search: search || undefined,
@@ -84,14 +81,14 @@ export default function Library() {
       if (append) setLoadingMore(false);
       else setLoading(false);
     }
-  }, [token, location.pathname, sub, search, showFavorites, madeFilter, selectedTags, sort]);
+  }, [location.pathname, sub, search, showFavorites, madeFilter, selectedTags, sort]);
 
   // N8: fetch recipes and tags in parallel on every filter change
   useEffect(() => {
     setHasMore(true);
     Promise.all([
       fetchRecipes(0, false),
-      getTags(token).then(setAllTags).catch(() => {}),
+      tagsApi.getAll(isFood ? 'food' : 'cocktail').then(setAllTags).catch(() => {}),
     ]);
   }, [fetchRecipes, refreshKey]);
 
@@ -338,7 +335,7 @@ const FilterBar = memo(function FilterBar({
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                  className={`text-xs px-2.5 py-1 rounded-full border transition capitalize ${
                     selectedTags.includes(tag)
                       ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                       : 'border-dram-border text-gray-400 hover:border-gray-500'

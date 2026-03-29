@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../api/client';
+import { authApi } from '@pulse/api-client';
 import { useAuthStore } from '../store/authStore';
 
 export default function Login() {
@@ -17,7 +17,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { token } = await login(username, password);
+      const { token } = await authApi.login({ username, password });
       setToken(token);
       navigate('/');
     } catch {

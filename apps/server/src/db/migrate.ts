@@ -8,6 +8,8 @@ const MIGRATIONS = [
   '001_pulse_initial.sql',
   '002_multi_user_auth.sql',
   '003_seed_exercises.sql',
+  '004_tag_definitions.sql',
+  '005_food_log_dram_recipe_id.sql',
 ];
 
 async function migrate() {

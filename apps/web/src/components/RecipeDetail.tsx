@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../store/authStore';
-import { getRecipe, logRecipe, updateRecipe, deleteRecipe, getRecipeLog, deleteLogEntry, deleteAllLog } from '../api/client';
-import type { RecipeDetail as RecipeDetailType, MakeLogEntry } from '../../../../packages/api-client/src/index';
+import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry } from '@pulse/api-client';
 import Spinner from './Spinner';
 
 interface Props {
@@ -26,7 +24,6 @@ function formatDate(dateStr?: string | null) {
 }
 
 export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onUpdated }: Props) {
-  const token = useAuthStore((s) => s.token)!;
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [servings, setServings] = useState(1);
@@ -38,7 +35,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
 
   useEffect(() => {
     setLoading(true);
-    getRecipe(token, recipeId)
+    recipesApi.get(recipeId)
       .then((r) => {
         setRecipe(r);
         const s = (r as any).servings || 1;
@@ -46,17 +43,17 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
         setBaseServings(s);
       })
       .finally(() => setLoading(false));
-    getRecipeLog(token, recipeId).then((data) => setLog(data.entries)).catch(() => {});
-  }, [recipeId, token]);
+    recipesApi.getLog(recipeId).then((data) => setLog(data.entries)).catch(() => {});
+  }, [recipeId]);
 
   async function handleLog() {
     if (!recipe) return;
     setLogging(true);
     try {
-      await logRecipe(token, recipe.id);
+      await recipesApi.log(recipe.id);
       const [updated, logData] = await Promise.all([
-        getRecipe(token, recipe.id),
-        getRecipeLog(token, recipe.id),
+        recipesApi.get(recipe.id),
+        recipesApi.getLog(recipe.id),
       ]);
       setRecipe(updated);
       setLog(logData.entries);
@@ -68,7 +65,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
 
   async function handleDeleteLogEntry(logId: number) {
     if (!recipe) return;
-    await deleteLogEntry(token, recipe.id, logId);
+    await recipesApi.deleteLogEntry(recipe.id, logId);
     setLog((prev) => prev.filter((e) => e.id !== logId));
     onUpdated();
   }
@@ -77,7 +74,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     if (!recipe) return;
     if (!window.confirm('Clear all made history for this recipe?')) return;
     try {
-      await deleteAllLog(token, recipe.id);
+      await recipesApi.clearLog(recipe.id);
       setLog([]);
       onUpdated();
     } catch (err) {
@@ -90,7 +87,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     setTogglingFav(true);
     const newFav = recipe.is_favorite ? 0 : 1;
     try {
-      await updateRecipe(token, recipe.id, {
+      await recipesApi.update(recipe.id, {
         type: recipe.type,
         name: recipe.name,
         is_favorite: newFav,
@@ -107,7 +104,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     if (!window.confirm(`Delete "${recipe.name}"? This cannot be undone.`)) return;
     setDeleting(true);
     try {
-      await deleteRecipe(token, recipe.id);
+      await recipesApi.delete(recipe.id);
       onDeleted();
     } finally {
       setDeleting(false);
@@ -190,7 +187,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                   {recipe.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5"
+                      className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5 capitalize"
                     >
                       {tag}
                     </span>

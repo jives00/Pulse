@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
-import type { ColorScheme } from '../store/settings';
-import { changeUsername, changePassword, deleteData } from '../api/client';
-import type { DeleteScope } from '../api/client';
+import type { ColorScheme, SortOption } from '../store/settings';
+import { authApi, tagsApi, type DeleteScope, type TagDefinitions } from '@pulse/api-client';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -39,7 +38,7 @@ function ChangeUsername() {
     setError('');
     setSuccess('');
     try {
-      const { token: newToken } = await changeUsername(token!, newUsername.trim(), currentPassword);
+      const { token: newToken } = await authApi.changeUsername({ newUsername: newUsername.trim(), currentPassword });
       setToken(newToken);
       setSuccess('Username updated.');
       setNewUsername('');
@@ -107,7 +106,7 @@ function ChangePassword() {
     setError('');
     setSuccess('');
     try {
-      const { token: newToken } = await changePassword(token!, currentPassword, newPassword);
+      const { token: newToken } = await authApi.changePassword({ currentPassword, newPassword });
       setToken(newToken);
       setSuccess('Password updated.');
       setCurrentPassword('');
@@ -164,6 +163,106 @@ function ChangePassword() {
   );
 }
 
+// ─── Tag definitions ──────────────────────────────────────────
+
+const TAG_CATEGORIES: { key: keyof TagDefinitions; label: string }[] = [
+  { key: 'health',   label: 'Health' },
+  { key: 'cuisine',  label: 'Cuisine' },
+  { key: 'category', label: 'Category' },
+];
+
+function TagDefinitionsSection() {
+  const [defs, setDefs] = useState<TagDefinitions | null>(null);
+  const [newTag, setNewTag] = useState<Record<string, string>>({ health: '', cuisine: '', category: '' });
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    tagsApi.getDefinitions().then(setDefs).catch(() => {});
+  }, []);
+
+  async function handleSave(updated: TagDefinitions) {
+    setSaving(true);
+    setSuccess('');
+    try {
+      await tagsApi.saveDefinitions(updated);
+      setDefs(updated);
+      setSuccess('Saved.');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addTag(cat: keyof TagDefinitions) {
+    const val = newTag[cat].trim();
+    if (!val || !defs) return;
+    if (defs[cat].some((t) => t.toLowerCase() === val.toLowerCase())) return;
+    const updated = { ...defs, [cat]: [...defs[cat], val] };
+    setNewTag((p) => ({ ...p, [cat]: '' }));
+    handleSave(updated);
+  }
+
+  function removeTag(cat: keyof TagDefinitions, tag: string) {
+    if (!defs) return;
+    handleSave({ ...defs, [cat]: defs[cat].filter((t) => t !== tag) });
+  }
+
+  if (!defs) return <p className="text-sm text-gray-500">Loading…</p>;
+
+  return (
+    <div className="space-y-5">
+      {TAG_CATEGORIES.map(({ key, label }) => (
+        <div key={key}>
+          <p className="text-sm font-medium text-gray-300 mb-2">{label}</p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {defs[key].map((tag) => (
+              <span
+                key={tag}
+                className="flex items-center gap-1 text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5 capitalize"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(key, tag)}
+                  className="hover:text-white leading-none"
+                  disabled={saving}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            {defs[key].length === 0 && (
+              <span className="text-sm text-gray-600 italic">No tags yet</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder={`Add ${label.toLowerCase()} tag…`}
+              value={newTag[key]}
+              onChange={(e) => setNewTag((p) => ({ ...p, [key]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(key); } }}
+              className={inputCls}
+            />
+            <button
+              type="button"
+              onClick={() => addTag(key)}
+              disabled={saving || !newTag[key].trim()}
+              className="text-sm text-dram-accent px-3 border border-dram-border rounded-lg hover:border-dram-accent disabled:opacity-40 transition"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      ))}
+      {success && <p className="text-sm text-emerald-400">{success}</p>}
+    </div>
+  );
+}
+
 // ─── Danger zone ──────────────────────────────────────────────
 
 const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string }[] = [
@@ -175,7 +274,6 @@ const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string }
 ];
 
 function DeleteRow({ scope, label, description }: { scope: DeleteScope; label: string; description: string }) {
-  const token = useAuthStore((s) => s.token)!;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState('');
@@ -185,7 +283,7 @@ function DeleteRow({ scope, label, description }: { scope: DeleteScope; label: s
     setDeleting(true);
     setError('');
     try {
-      await deleteData(token, scope);
+      await authApi.deleteData(scope);
       setSuccess('Deleted.');
       setConfirming(false);
     } catch (err: any) {
@@ -244,6 +342,38 @@ function DangerZone() {
   );
 }
 
+// ─── Default sort ─────────────────────────────────────────────
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'created_at',    label: 'Date added' },
+  { value: 'name',          label: 'Name (A–Z)' },
+  { value: 'recently_made', label: 'Recently made' },
+  { value: 'prep_time',     label: 'Prep time' },
+  { value: 'random',        label: 'Random' },
+];
+
+function DefaultSortSection() {
+  const { defaultSort, setDefaultSort } = useSettingsStore();
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {SORT_OPTIONS.map(({ value, label }) => (
+        <button
+          key={value}
+          onClick={() => setDefaultSort(value)}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            defaultSort === value
+              ? 'border-dram-accent text-dram-accent bg-dram-accent/10 font-medium'
+              : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── Color scheme ─────────────────────────────────────────────
 
 const THEMES: { id: ColorScheme; label: string; bg: string; card: string; accent: string }[] = [
@@ -288,6 +418,14 @@ export default function SettingsPage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
       <h1 className="text-xl font-semibold text-white">Settings</h1>
+
+      <Section title="Default Sort">
+        <DefaultSortSection />
+      </Section>
+
+      <Section title="Tags">
+        <TagDefinitionsSection />
+      </Section>
 
       <Section title="Color Scheme">
         <ColorSchemeSection />

@@ -124,3 +124,73 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 ## Deployment
 
 CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm run build` → `pm2 restart`. Server runs behind nginx. Web build is served as static files at `/pulse` base path.
+
+## Key component responsibilities
+
+| Component | Location | Notes |
+|---|---|---|
+| `Layout` | `apps/web/src/components/Layout.tsx` | Desktop sidebar + mobile bottom nav. Sidebar nav has **no icons** (by design). Mobile keeps icons. |
+| `NutritionSummaryCard` | `apps/web/src/components/NutritionSummaryCard.tsx` | Calorie ring, macro rings, water bar. Shared by TodayPage + GoalsPage. `onAddWater` prop optional — omit on GoalsPage. |
+| `NutritionHistoryCharts` | `apps/web/src/components/NutritionHistoryCharts.tsx` | 30-day scrollable bar charts (calories + protein). Shared by TodayPage + GoalsPage. Fetches its own data via `historyApi.daily()`. |
+| `Library` | `apps/web/src/pages/Library.tsx` | Food and Drinks recipe grid. Filter state is URL-driven (`?sub=main` etc.). Tags scoped to current user + page type (food vs cocktail). |
+| `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. |
+| `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Default Sort (persisted in Zustand `settingsStore`), Tag Definitions editor, Color Scheme, username/password, danger zone. |
+| `GoalsPage` | `apps/web/src/pages/GoalsPage.tsx` | Nutrition goals + history charts + workout goals (weekly progress bars). |
+| `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. |
+
+## Database schema
+
+All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIGNED NOT NULL` with FK to `users.id`.
+
+### Auth
+| Table | Key columns |
+|---|---|
+| `users` | `id`, `username`, `password_hash`, `email`, `created_at` |
+| `invite_tokens` | `id`, `token_hash`, `created_by`, `used_at`, `expires_at` |
+
+### Recipes
+| Table | Key columns |
+|---|---|
+| `recipes` | `id`, `user_id`, `type` (food/cocktail), `name`, `subcategory`, `photo_key`, `is_favorite`, `prep_time`, `cook_time`, `servings`, `calories`, `carbs_g`, `protein_g`, `fat_g` |
+| `recipe_ingredients` | `recipe_id`, `ingredient_id`, `quantity`, `unit`, `sort_order` |
+| `recipe_steps` | `recipe_id`, `step_number`, `instruction` |
+| `recipe_log` | `id`, `recipe_id`, `user_id`, `made_at` |
+| `ingredients` | `id`, `name`, `category` |
+| `tags` | `id`, `name` (global, not user-scoped) |
+| `recipe_tags` | `recipe_id`, `tag_id` |
+| `tag_definitions` | `id`, `user_id`, `name`, `category` (ENUM: health/cuisine/category) — per-user predefined tag lists; seeded with defaults on first GET |
+
+### Nutrition
+| Table | Key columns |
+|---|---|
+| `foods` | `id`, `name`, `brand`, `source` (custom/open_food_facts/usda), `calories_per100`, `carbs_per100`, `protein_per100`, `fat_per100`, `is_custom` |
+| `serving_sizes` | `id`, `food_id`, `label`, `grams`, `is_default` |
+| `food_log` | `id`, `user_id`, `log_date`, `meal` (breakfast/lunch/dinner/snack), `food_id`, `serving_size_id`, `quantity`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `dram_recipe_id` (nullable, links to recipes) |
+| `user_goals` | `id`, `user_id`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `water_goal_ml`, `effective_from` |
+| `water_log` | `id`, `user_id`, `log_date`, `amount_ml` |
+| `meal_templates` | `id`, `user_id`, `name` |
+| `meal_template_items` | `id`, `template_id`, `food_id`, `serving_size_id`, `quantity`, `sort_order` |
+| `barcode_cache` | `barcode`, `food_id`, `fetched_at` |
+
+### Workouts
+| Table | Key columns |
+|---|---|
+| `exercises` | `id`, `name`, `category`, `exercise_type` (weight/cardio/bodyweight/duration), `muscles_primary` (JSON), `is_custom` |
+| `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned` |
+| `workout_exercises` | `id`, `workout_log_id`, `exercise_id`, `sort_order` |
+| `exercise_sets` | `id`, `workout_exercise_id`, `set_number`, `reps`, `weight_kg`, `duration_seconds`, `distance_meters` |
+| `exercise_goals` | `id`, `user_id`, `workouts_per_week`, `minutes_per_week`, `calories_per_week`, `effective_from` |
+
+### Links
+| Table | Key columns |
+|---|---|
+| `links` | `id`, `user_id`, `url`, `title`, `favicon_url`, `created_at` |
+
+## Design decisions
+
+- **Tags**: Stored in `tag_definitions` (user-scoped, 3 categories: health/cuisine/category). Auto-seeded with defaults on first `GET /api/tags/definitions`. Tag filter only shows tags used by actual recipes on the current page type (food vs cocktail).
+- **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` (not in a migration file yet) — allows logging a recipe as a meal entry.
+- **Sidebar icons**: Intentionally removed from desktop nav; mobile bottom nav keeps icons.
+- **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
+- **Theming**: CSS variables as bare RGB channels in `index.css`; Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
+- **Nutrition components**: `NutritionSummaryCard` and `NutritionHistoryCharts` are shared between TodayPage and GoalsPage. Water quick-add only shows when `onAddWater` prop is passed.

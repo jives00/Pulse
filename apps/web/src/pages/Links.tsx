@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useAuthStore } from '../store/authStore';
-import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../api/client';
+import { linksApi, type LinkItem } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 
 function FaviconImg({ src, title }: { src: string | null; title: string }) {
@@ -23,7 +22,6 @@ function FaviconImg({ src, title }: { src: string | null; title: string }) {
 }
 
 export default function Links() {
-  const token = useAuthStore((s) => s.token)!;
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
@@ -37,8 +35,8 @@ export default function Links() {
   const [editUrl, setEditUrl] = useState('');
 
   useEffect(() => {
-    getLinks(token).then(setLinks).finally(() => setLoading(false));
-  }, [token]);
+    linksApi.getAll().then(setLinks).finally(() => setLoading(false));
+  }, []);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +44,7 @@ export default function Links() {
     if (!url) return;
     setAdding(true);
     try {
-      const link = await addLink(token, url);
+      const link = await linksApi.add(url);
       setLinks((prev) => [link, ...prev]);
       setInput('');
       inputRef.current?.focus();
@@ -71,14 +69,14 @@ export default function Links() {
     const favicon_url = editFavicon.trim() || null;
     const url = editUrl.trim() || editTarget.url;
     setEditTarget(null);
-    await updateLink(token, editTarget.id, title, favicon_url, url).catch(() => {});
+    await linksApi.update(editTarget.id, { title, favicon_url, url }).catch(() => {});
     setLinks((prev) =>
       prev.map((l) => l.id === editTarget.id ? { ...l, title, favicon_url, url } : l)
     );
   }
 
   async function handleDelete(id: number) {
-    await deleteLink(token, id).catch(() => {});
+    await linksApi.delete(id).catch(() => {});
     setLinks((prev) => prev.filter((l) => l.id !== id));
   }
 
