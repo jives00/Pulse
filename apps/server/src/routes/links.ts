@@ -16,7 +16,6 @@ const BLOCKED_TITLES = ['just a moment', 'attention required', 'are you human', 
 async function fetchSiteMeta(url: string): Promise<{ title: string; favicon_url: string }> {
   const parsed = new URL(url);
   const hostname = parsed.hostname.replace('www.', '');
-  // Google's favicon service is reliable and doesn't require fetching the page
   const favicon_url = `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=128`;
 
   try {
@@ -28,7 +27,6 @@ async function fetchSiteMeta(url: string): Promise<{ title: string; favicon_url:
     const $ = cheerio.load(html);
     const raw = $('title').first().text().trim();
 
-    // Detect Cloudflare / bot challenge pages
     const isBlocked = BLOCKED_TITLES.some((t) => raw.toLowerCase().includes(t));
     const title = (!raw || isBlocked)
       ? hostname
@@ -41,9 +39,9 @@ async function fetchSiteMeta(url: string): Promise<{ title: string; favicon_url:
 }
 
 // GET /api/links
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM links ORDER BY created_at DESC');
+    const [rows] = await pool.query('SELECT * FROM links WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -61,8 +59,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
     const { title, favicon_url } = await fetchSiteMeta(url.trim());
     const [result] = await pool.query(
-      'INSERT INTO links (url, title, favicon_url) VALUES (?, ?, ?)',
-      [url.trim(), title, favicon_url]
+      'INSERT INTO links (user_id, url, title, favicon_url) VALUES (?, ?, ?, ?)',
+      [req.userId, url.trim(), title, favicon_url]
     );
     res.status(201).json({ id: (result as ResultSetHeader).insertId, url: url.trim(), title, favicon_url });
   } catch (err) {
@@ -82,8 +80,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       return;
     }
     const [updateResult] = await pool.query(
-      'UPDATE links SET title = ?, favicon_url = ?, url = COALESCE(NULLIF(?, ""), url) WHERE id = ?',
-      [title.trim(), favicon_url ?? null, url?.trim() ?? '', id]
+      'UPDATE links SET title = ?, favicon_url = ?, url = COALESCE(NULLIF(?, ""), url) WHERE id = ? AND user_id = ?',
+      [title.trim(), favicon_url ?? null, url?.trim() ?? '', id, req.userId]
     );
     if ((updateResult as ResultSetHeader).affectedRows === 0) {
       res.status(404).json({ error: 'Not found' }); return;
@@ -100,7 +98,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    await pool.query('DELETE FROM links WHERE id = ?', [id]);
+    await pool.query('DELETE FROM links WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);

@@ -7,9 +7,9 @@ import type { MealSlot } from '../types';
 const router = Router();
 router.use(requireAuth);
 
-async function getTemplate(id: number) {
+async function getTemplate(id: number, userId: number) {
   const [tmpl] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM meal_templates WHERE id = ?', [id]
+    'SELECT * FROM meal_templates WHERE id = ? AND user_id = ?', [id, userId]
   );
   if (!tmpl.length) return null;
 
@@ -72,12 +72,13 @@ async function getTemplate(id: number) {
   };
 }
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM meal_templates ORDER BY name ASC'
+      'SELECT * FROM meal_templates WHERE user_id = ? ORDER BY name ASC',
+      [req.userId]
     );
-    const templates = await Promise.all(rows.map((r) => getTemplate(r.id)));
+    const templates = await Promise.all(rows.map((r) => getTemplate(r.id, req.userId)));
     res.json(templates.filter(Boolean));
   } catch (err) {
     console.error(err);
@@ -87,7 +88,7 @@ router.get('/', async (_req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const tmpl = await getTemplate(Number(req.params.id));
+    const tmpl = await getTemplate(Number(req.params.id), req.userId);
     if (!tmpl) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(tmpl);
   } catch (err) {
@@ -109,15 +110,15 @@ router.post('/', async (req, res) => {
     };
 
     const [tmplResult] = await conn.execute<ResultSetHeader>(
-      'INSERT INTO meal_templates (name) VALUES (?)', [name]
+      'INSERT INTO meal_templates (user_id, name) VALUES (?, ?)', [req.userId, name]
     );
     const templateId = tmplResult.insertId;
 
     // Create from logged meal
     if (fromDate && meal) {
       const [logRows] = await conn.query<RowDataPacket[]>(
-        'SELECT * FROM food_log WHERE log_date = ? AND meal = ? ORDER BY logged_at ASC',
-        [fromDate, meal]
+        'SELECT * FROM food_log WHERE user_id = ? AND log_date = ? AND meal = ? ORDER BY logged_at ASC',
+        [req.userId, fromDate, meal]
       );
       for (let i = 0; i < logRows.length; i++) {
         const r = logRows[i];
@@ -137,7 +138,7 @@ router.post('/', async (req, res) => {
     }
 
     await conn.commit();
-    const tmpl = await getTemplate(templateId);
+    const tmpl = await getTemplate(templateId, req.userId);
     res.status(201).json(tmpl);
   } catch (err) {
     await conn.rollback();
@@ -150,8 +151,8 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    await pool.execute('UPDATE meal_templates SET name = ? WHERE id = ?', [req.body.name, req.params.id]);
-    const tmpl = await getTemplate(Number(req.params.id));
+    await pool.execute('UPDATE meal_templates SET name = ? WHERE id = ? AND user_id = ?', [req.body.name, req.params.id, req.userId]);
+    const tmpl = await getTemplate(Number(req.params.id), req.userId);
     if (!tmpl) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(tmpl);
   } catch (err) {
@@ -162,7 +163,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.execute('DELETE FROM meal_templates WHERE id = ?', [req.params.id]);
+    await pool.execute('DELETE FROM meal_templates WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -194,10 +195,10 @@ router.post('/:id/log', async (req, res) => {
       const fat  = Math.round(Number(item.fat_per100)      * factor * 10) / 10;
 
       await pool.execute(
-        `INSERT INTO food_log (log_date, meal, food_id, serving_size_id, quantity,
+        `INSERT INTO food_log (user_id, log_date, meal, food_id, serving_size_id, quantity,
           calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [logDate, meal, item.food_id, item.serving_size_id, item.quantity,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, logDate, meal, item.food_id, item.serving_size_id, item.quantity,
          cal, carb, prot, fat,
          item.fiber_per100  != null ? Math.round(Number(item.fiber_per100)  * factor * 10) / 10 : null,
          item.sodium_per100 != null ? Math.round(Number(item.sodium_per100) * factor * 10) / 10 : null]

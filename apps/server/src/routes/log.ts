@@ -95,19 +95,19 @@ router.get('/', async (req, res) => {
        FROM food_log fl
        JOIN foods f ON f.id = fl.food_id
        JOIN serving_sizes ss ON ss.id = fl.serving_size_id
-       WHERE fl.log_date = ?
+       WHERE fl.user_id = ? AND fl.log_date = ?
        ORDER BY fl.logged_at ASC`,
-      [date]
+      [req.userId, date]
     );
 
     const [goalRows] = await pool.query<RowDataPacket[]>(
-      `SELECT * FROM user_goals WHERE effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
-      [date]
+      `SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
+      [req.userId, date]
     );
 
     const [waterRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COALESCE(SUM(amount_ml), 0) AS total FROM water_log WHERE log_date = ?`,
-      [date]
+      `SELECT COALESCE(SUM(amount_ml), 0) AS total FROM water_log WHERE user_id = ? AND log_date = ?`,
+      [req.userId, date]
     );
 
     const goals = goalRows[0] ?? { calories: 2000, carbs_g: 250, protein_g: 150, fat_g: 65, water_goal_ml: 2000 };
@@ -165,10 +165,10 @@ router.post('/', async (req, res) => {
 
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO food_log
-         (log_date, meal, food_id, serving_size_id, quantity,
+         (user_id, log_date, meal, food_id, serving_size_id, quantity,
           calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, notes, dram_recipe_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [logDate, meal, foodId, servingSizeId, quantity,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, logDate, meal, foodId, servingSizeId, quantity,
        nutrition.calories, nutrition.carbs, nutrition.protein, nutrition.fat,
        nutrition.fiber ?? null, nutrition.sodium ?? null,
        notes ?? null, dramRecipeId ?? null]
@@ -205,8 +205,8 @@ router.put('/:id', async (req, res) => {
        FROM food_log fl
        JOIN foods f ON f.id = fl.food_id
        JOIN serving_sizes ss ON ss.id = fl.serving_size_id
-       WHERE fl.id = ?`,
-      [req.params.id]
+       WHERE fl.id = ? AND fl.user_id = ?`,
+      [req.params.id, req.userId]
     );
     if (!existing.length) { res.status(404).json({ error: 'Not found' }); return; }
 
@@ -259,7 +259,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.execute('DELETE FROM food_log WHERE id = ?', [req.params.id]);
+    await pool.execute('DELETE FROM food_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -273,8 +273,8 @@ router.post('/copy', async (req, res) => {
   const { fromDate, toDate, meal } = req.body as { fromDate: string; toDate: string; meal?: MealSlot };
 
   try {
-    let query = 'SELECT * FROM food_log WHERE log_date = ?';
-    const params: unknown[] = [fromDate];
+    let query = 'SELECT * FROM food_log WHERE user_id = ? AND log_date = ?';
+    const params: unknown[] = [req.userId, fromDate];
     if (meal) { query += ' AND meal = ?'; params.push(meal); }
 
     const [rows] = await pool.query<RowDataPacket[]>(query, params);
@@ -283,10 +283,10 @@ router.post('/copy', async (req, res) => {
     for (const row of rows) {
       await pool.execute(
         `INSERT INTO food_log
-           (log_date, meal, food_id, serving_size_id, quantity,
+           (user_id, log_date, meal, food_id, serving_size_id, quantity,
             calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [toDate, row.meal, row.food_id, row.serving_size_id, row.quantity,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, toDate, row.meal, row.food_id, row.serving_size_id, row.quantity,
          row.calories, row.carbs_g, row.protein_g, row.fat_g,
          row.fiber_g, row.sodium_mg, row.notes]
       );

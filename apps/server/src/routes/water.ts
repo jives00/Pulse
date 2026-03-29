@@ -11,12 +11,12 @@ router.get('/', async (req, res) => {
 
   try {
     const [entries] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM water_log WHERE log_date = ? ORDER BY logged_at ASC',
-      [date]
+      'SELECT * FROM water_log WHERE user_id = ? AND log_date = ? ORDER BY logged_at ASC',
+      [req.userId, date]
     );
     const [goalRows] = await pool.query<RowDataPacket[]>(
-      'SELECT water_goal_ml FROM user_goals WHERE effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
-      [date]
+      'SELECT water_goal_ml FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      [req.userId, date]
     );
 
     const totalMl = entries.reduce((sum, e) => sum + Number(e.amount_ml), 0);
@@ -44,8 +44,8 @@ router.post('/', async (req, res) => {
 
   try {
     const [result] = await pool.execute<ResultSetHeader>(
-      'INSERT INTO water_log (log_date, amount_ml) VALUES (?, ?)',
-      [date, amountMl]
+      'INSERT INTO water_log (user_id, log_date, amount_ml) VALUES (?, ?, ?)',
+      [req.userId, date, amountMl]
     );
     res.status(201).json({ id: result.insertId, logDate: date, amountMl, loggedAt: new Date().toISOString() });
   } catch (err) {
@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.execute('DELETE FROM water_log WHERE id = ?', [req.params.id]);
+    await pool.execute('DELETE FROM water_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);

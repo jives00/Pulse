@@ -17,10 +17,10 @@ router.get('/daily', async (req, res) => {
               ROUND(SUM(fat_g),    1) AS fatG,
               COUNT(*) AS entryCount
        FROM food_log
-       WHERE log_date BETWEEN ? AND ?
+       WHERE user_id = ? AND log_date BETWEEN ? AND ?
        GROUP BY log_date
        ORDER BY log_date ASC`,
-      [start, end]
+      [req.userId, start, end]
     );
     res.json(rows.map((r) => ({
       date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
@@ -54,12 +54,12 @@ router.get('/weekly', async (req, res) => {
                 SUM(protein_g) AS daily_prot,
                 SUM(fat_g)     AS daily_fat
          FROM food_log
-         WHERE YEAR(log_date) = ?
+         WHERE user_id = ? AND YEAR(log_date) = ?
          GROUP BY log_date
        ) daily
        GROUP BY year, week
        ORDER BY year ASC, week ASC`,
-      [year]
+      [req.userId, year]
     );
     res.json(rows.map((r) => ({
       year: r.year, week: r.week,

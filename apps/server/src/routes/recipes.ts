@@ -11,6 +11,13 @@ function parseId(param: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+async function ownsRecipe(recipeId: number, userId: number): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT id FROM recipes WHERE id = ? AND user_id = ?', [recipeId, userId]
+  );
+  return rows.length > 0;
+}
+
 /** Block SSRF: reject loopback, RFC-1918, link-local, and AWS metadata addresses. */
 function isSafePhotoUrl(raw: string): boolean {
   try {
@@ -21,10 +28,10 @@ function isSafePhotoUrl(raw: string): boolean {
   } catch { return false; }
 }
 
-// DELETE /api/recipes/history — clear all make log entries
+// DELETE /api/recipes/history — clear all make log entries for this user
 router.delete('/history', async (req: Request, res: Response) => {
   try {
-    await pool.query('DELETE FROM recipe_log');
+    await pool.query('DELETE FROM recipe_log WHERE user_id = ?', [req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -32,24 +39,14 @@ router.delete('/history', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/recipes — delete all recipes (and cascade log entries via FK or explicit delete)
+// DELETE /api/recipes — delete all of this user's recipes (cascades handle child tables)
 router.delete('/', async (req: Request, res: Response) => {
-  const conn = await (pool as any).getConnection();
   try {
-    await conn.beginTransaction();
-    await conn.query('DELETE FROM recipe_log');
-    await conn.query('DELETE FROM recipe_tags');
-    await conn.query('DELETE FROM recipe_ingredients');
-    await conn.query('DELETE FROM recipe_steps');
-    await conn.query('DELETE FROM recipes');
-    await conn.commit();
+    await pool.query('DELETE FROM recipes WHERE user_id = ?', [req.userId]);
     res.json({ success: true });
   } catch (err) {
-    await conn.rollback();
     console.error(err);
     res.status(500).json({ error: 'Server error' });
-  } finally {
-    conn.release();
   }
 });
 
@@ -60,8 +57,9 @@ router.get('/history', async (req: Request, res: Response) => {
       SELECT rl.id AS log_id, rl.made_at, r.id AS recipe_id, r.name, r.photo_key, r.type, r.subcategory
       FROM recipe_log rl
       JOIN recipes r ON rl.recipe_id = r.id
+      WHERE r.user_id = ?
       ORDER BY rl.made_at DESC
-    `);
+    `, [req.userId]);
     const entries = await Promise.all(
       (rows as RowDataPacket[]).map(async (r) => ({
         ...r,
@@ -92,6 +90,9 @@ router.get('/', async (req: Request, res: Response) => {
 
     const conditions: string[] = [];
     const params: any[] = [];
+
+    conditions.push('r.user_id = ?');
+    params.push(req.userId);
 
     if (type && type !== 'all') {
       conditions.push('r.type = ?');
@@ -205,7 +206,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    const [rows] = await pool.query('SELECT * FROM recipes WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT * FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]);
     const recipe = (rows as RowDataPacket[])[0];
     if (!recipe) {
       res.status(404).json({ error: 'Not found' });
@@ -271,10 +272,10 @@ router.post('/', async (req: Request, res: Response) => {
     } = req.body;
 
     const [result] = await conn.query(
-      `INSERT INTO recipes (type, name, subcategory, description, notes, source, prep_time, cook_time, servings, glass_type, abv_level,
+      `INSERT INTO recipes (user_id, type, name, subcategory, description, notes, source, prep_time, cook_time, servings, glass_type, abv_level,
         calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, name, subcategory ?? null, description, notes, source, prep_time, cook_time, servings ?? null, glass_type, abv_level,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, type, name, subcategory ?? null, description, notes, source, prep_time, cook_time, servings ?? null, glass_type, abv_level,
        calories ?? null, carbs_g ?? null, protein_g ?? null, fat_g ?? null, fiber_g ?? null, sodium_mg ?? null]
     );
     const recipeId = (result as ResultSetHeader).insertId;
@@ -358,8 +359,9 @@ router.put('/:id', async (req: Request, res: Response) => {
       calories ?? null, carbs_g ?? null, protein_g ?? null, fat_g ?? null, fiber_g ?? null, sodium_mg ?? null];
     if (photo_key !== undefined) updateParams.push(photo_key);
     updateParams.push(id);
+    updateParams.push(req.userId);
 
-    const [updateResult] = await conn.query(`UPDATE recipes SET ${updateFields} WHERE id=?`, updateParams);
+    const [updateResult] = await conn.query(`UPDATE recipes SET ${updateFields} WHERE id=? AND user_id=?`, updateParams);
     if ((updateResult as ResultSetHeader).affectedRows === 0) {
       await conn.rollback();
       res.status(404).json({ error: 'Not found' }); return;
@@ -423,7 +425,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    await pool.query('DELETE FROM recipes WHERE id = ?', [id]);
+    await pool.query('DELETE FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -435,6 +437,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.post('/:id/photo', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   try {
     const { contentType } = req.body;
     const key = `recipes/${id}/${Date.now()}`;
@@ -450,6 +453,7 @@ router.post('/:id/photo', async (req: Request, res: Response) => {
 router.post('/:id/photo-from-url', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   try {
     const { url } = req.body;
     if (!url) { res.status(400).json({ error: 'url is required' }); return; }
@@ -474,8 +478,9 @@ router.post('/:id/photo-from-url', async (req: Request, res: Response) => {
 router.post('/:id/log', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   try {
-    await pool.query('INSERT INTO recipe_log (recipe_id) VALUES (?)', [id]);
+    await pool.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -487,10 +492,11 @@ router.post('/:id/log', async (req: Request, res: Response) => {
 router.get('/:id/log', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   try {
     const [rows] = await pool.query(
-      'SELECT id, made_at FROM recipe_log WHERE recipe_id = ? ORDER BY made_at DESC',
-      [id]
+      'SELECT id, made_at FROM recipe_log WHERE recipe_id = ? AND user_id = ? ORDER BY made_at DESC',
+      [id, req.userId]
     );
     const entries = rows as RowDataPacket[];
     res.json({ count: entries.length, entries });
@@ -509,8 +515,8 @@ router.patch('/:id/log/:logId', async (req: Request, res: Response) => {
   if (!made_at) { res.status(400).json({ error: 'made_at required' }); return; }
   try {
     const [result] = await pool.query(
-      'UPDATE recipe_log SET made_at = ? WHERE id = ? AND recipe_id = ?',
-      [new Date(made_at), logId, id]
+      'UPDATE recipe_log SET made_at = ? WHERE id = ? AND recipe_id = ? AND user_id = ?',
+      [new Date(made_at), logId, id, req.userId]
     );
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
@@ -527,8 +533,8 @@ router.delete('/:id/log/:logId', async (req: Request, res: Response) => {
   if (!id || !logId) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
     const [result] = await pool.query(
-      'DELETE FROM recipe_log WHERE id = ? AND recipe_id = ?',
-      [logId, id]
+      'DELETE FROM recipe_log WHERE id = ? AND recipe_id = ? AND user_id = ?',
+      [logId, id, req.userId]
     );
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
@@ -543,7 +549,7 @@ router.delete('/:id/log', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    await pool.query('DELETE FROM recipe_log WHERE recipe_id = ?', [id]);
+    await pool.query('DELETE FROM recipe_log WHERE recipe_id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -555,8 +561,9 @@ router.delete('/:id/log', async (req: Request, res: Response) => {
 router.post('/:id/tags/suggest', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   try {
-    const [rows] = await pool.query('SELECT * FROM recipes WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT * FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]);
     const recipe = (rows as RowDataPacket[])[0];
     if (!recipe) {
       res.status(404).json({ error: 'Not found' });
@@ -578,6 +585,7 @@ router.post('/:id/tags/suggest', async (req: Request, res: Response) => {
 router.put('/:id/tags', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();

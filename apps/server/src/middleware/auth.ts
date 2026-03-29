@@ -10,8 +10,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
   const token = header.slice(7);
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET);
-    (req as any).user = payload;
+    const payload = jwt.verify(token, env.JWT_SECRET) as { sub?: number; username: string };
+    if (!payload.sub) {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+    req.userId = payload.sub;
     next();
   } catch {
     res.status(401).json({ error: 'Invalid token' });

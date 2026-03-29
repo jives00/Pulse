@@ -22,12 +22,12 @@ function toGoals(row: RowDataPacket) {
   };
 }
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals WHERE effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
-      [today]
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      [req.userId, today]
     );
     if (!rows.length) { res.status(404).json({ error: 'No goals set' }); return; }
     res.json(toGoals(rows[0]));
@@ -37,10 +37,11 @@ router.get('/', async (_req, res) => {
   }
 });
 
-router.get('/history', async (_req, res) => {
+router.get('/history', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals ORDER BY effective_from DESC'
+      'SELECT * FROM user_goals WHERE user_id = ? ORDER BY effective_from DESC',
+      [req.userId]
     );
     res.json(rows.map(toGoals));
   } catch (err) {
@@ -55,13 +56,13 @@ router.post('/', async (req, res) => {
 
   try {
     await pool.execute(
-      `INSERT INTO user_goals (calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_ml, effective_from)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalMl ?? 2000, today]
+      `INSERT INTO user_goals (user_id, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_ml, effective_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalMl ?? 2000, today]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals WHERE effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
-      [today]
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      [req.userId, today]
     );
     res.status(201).json(toGoals(rows[0]));
   } catch (err) {
