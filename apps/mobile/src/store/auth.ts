@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>()(
       setHydrated: () => set({ hydrated: true }),
     }),
     {
-      name: 'dram-auth',
+      name: 'pulse-auth',
       storage: createJSONStorage(() => secureStorage),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated();

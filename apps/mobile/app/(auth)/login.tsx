@@ -31,8 +31,8 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <Text style={styles.title}>dram</Text>
-      <Text style={styles.subtitle}>Your recipe library</Text>
+      <Text style={styles.title}>Pulse</Text>
+      <Text style={styles.subtitle}>Your health companion</Text>
       <View style={styles.form}>
         <TextInput
           style={styles.input}
