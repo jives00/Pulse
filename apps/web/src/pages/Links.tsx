@@ -85,7 +85,7 @@ export default function Links() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
-          <h1 className="text-lg font-semibold mb-3">Links</h1>
+          <h1 className="text-xl font-semibold mb-3">Links</h1>
           <form onSubmit={handleAdd} className="flex gap-2">
             <input
               ref={inputRef}
@@ -125,9 +125,9 @@ export default function Links() {
 
                   <div className="flex-1 min-w-0">
                     <a href={link.url} target="_blank" rel="noopener noreferrer">
-                      <p className="text-sm font-medium text-white truncate hover:text-dram-accent transition">{link.title}</p>
+                      <p className="text-base font-medium text-white truncate hover:text-dram-accent transition">{link.title}</p>
                     </a>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">{link.url}</p>
+                    <p className="text-sm text-gray-500 truncate mt-0.5">{link.url}</p>
                   </div>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">

@@ -35,14 +35,14 @@ function MacroRing({ label, actual, goal, color }: {
       <div className="relative">
         <Ring pct={pct} color={color} size={72} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-semibold text-slate-200">
+          <span className="text-sm font-semibold text-slate-200">
             {pctDisplay != null ? `${pctDisplay}%` : '—'}
           </span>
         </div>
       </div>
       <div className="text-center">
-        <div className="text-xs font-medium text-slate-300">{label}</div>
-        <div className="text-xs text-slate-500">
+        <div className="text-sm font-medium text-slate-300">{label}</div>
+        <div className="text-sm text-slate-500">
           {Math.round(actual)}g{goal != null ? ` / ${Math.round(goal)}g` : ''}
         </div>
       </div>
@@ -60,7 +60,7 @@ function ProgressBar({ label, actual, goal, unit, color }: {
     <div>
       <div className="flex justify-between items-baseline mb-1.5">
         <span className="text-sm text-slate-300">{label}</span>
-        <span className="text-xs text-slate-500">
+        <span className="text-sm text-slate-500">
           {actual} {unit}{goal != null ? ` / ${goal} ${unit}` : ''}
         </span>
       </div>
@@ -111,7 +111,7 @@ function NutritionGoalEditor({ current, onSaved }: {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+      <button onClick={() => setOpen(true)} className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
         {current ? 'Edit goals' : 'Set goals'}
       </button>
     );
@@ -127,7 +127,7 @@ function NutritionGoalEditor({ current, onSaved }: {
           ['Fat (g)', fatG, setFatG],
         ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
           <div key={label}>
-            <label className="block text-xs text-slate-500 mb-1">{label}</label>
+            <label className="block text-sm text-slate-500 mb-1">{label}</label>
             <input type="number" min="0" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
           </div>
         ))}
@@ -176,7 +176,7 @@ function ExerciseGoalEditor({ current, onSaved }: {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+      <button onClick={() => setOpen(true)} className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
         {current ? 'Edit goals' : 'Set goals'}
       </button>
     );
@@ -186,11 +186,11 @@ function ExerciseGoalEditor({ current, onSaved }: {
     <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Workouts / week</label>
+          <label className="block text-sm text-slate-500 mb-1">Workouts / week</label>
           <input type="number" min="0" value={workouts} onChange={(e) => setWorkouts(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Minutes / week</label>
+          <label className="block text-sm text-slate-500 mb-1">Minutes / week</label>
           <input type="number" min="0" value={minutes} onChange={(e) => setMinutes(e.target.value)} className={inputCls} />
         </div>
       </div>
@@ -243,7 +243,7 @@ export default function GoalsPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-      <h1 className="text-xl font-semibold text-slate-200">Goals</h1>
+      <h1 className="text-2xl font-semibold text-slate-200">Goals</h1>
 
       {/* Nutrition section */}
       <div className="bg-slate-800 rounded-lg p-4">
@@ -260,7 +260,7 @@ export default function GoalsPage() {
               <span className="text-lg font-bold text-slate-100">
                 {Math.round(nutritionActual?.calories ?? 0)}
               </span>
-              <span className="text-xs text-slate-500">kcal</span>
+              <span className="text-sm text-slate-500">kcal</span>
             </div>
           </div>
           <div className="flex-1">

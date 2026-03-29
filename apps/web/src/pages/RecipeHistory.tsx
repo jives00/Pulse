@@ -101,7 +101,7 @@ export default function History() {
   return (
     <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
-          <h1 className="text-lg font-semibold">History</h1>
+          <h1 className="text-xl font-semibold">History</h1>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -117,7 +117,7 @@ export default function History() {
             <div className="flex flex-col gap-6 max-w-2xl">
               {groups.map((group) => (
                 <div key={group.label}>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
                   <div className="flex flex-col gap-2">
                     {group.entries.map((entry) => (
                       <div
@@ -145,8 +145,8 @@ export default function History() {
                           onClick={() => setPanel({ mode: 'detail', recipeId: entry.recipe_id })}
                           className="flex-1 min-w-0 text-left"
                         >
-                          <p className="text-sm font-medium text-white truncate">{entry.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">
+                          <p className="text-base font-medium text-white truncate">{entry.name}</p>
+                          <p className="text-sm text-gray-500 mt-0.5">
                             {new Date(entry.made_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                           </p>
                         </button>

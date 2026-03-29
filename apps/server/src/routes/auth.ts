@@ -96,4 +96,94 @@ router.get('/verify', requireAuth, (req, res) => {
   res.json({ ok: true, userId: req.userId });
 });
 
+// PUT /api/auth/username — change username (requires current password)
+router.put('/username', requireAuth, async (req, res) => {
+  const { newUsername, currentPassword } = req.body as { newUsername: string; currentPassword: string };
+  if (!newUsername?.trim() || !currentPassword) {
+    res.status(400).json({ error: 'New username and current password required' }); return;
+  }
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE id = ?', [req.userId]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(currentPassword, user.password_hash as string))) {
+      res.status(401).json({ error: 'Current password is incorrect' }); return;
+    }
+    const [existing] = await pool.query<RowDataPacket[]>('SELECT id FROM users WHERE username = ? AND id != ?', [newUsername.trim(), req.userId]);
+    if (existing[0]) {
+      res.status(400).json({ error: 'Username already taken' }); return;
+    }
+    await pool.query('UPDATE users SET username = ? WHERE id = ?', [newUsername.trim(), req.userId]);
+    const token = jwt.sign({ sub: req.userId, username: newUsername.trim() }, env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/auth/password — change password (requires current password)
+router.put('/password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: 'Current and new password required' }); return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: 'New password must be at least 8 characters' }); return;
+  }
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE id = ?', [req.userId]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(currentPassword, user.password_hash as string))) {
+      res.status(401).json({ error: 'Current password is incorrect' }); return;
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, req.userId]);
+    const token = jwt.sign({ sub: req.userId, username: user.username }, env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
+router.delete('/data', requireAuth, async (req, res) => {
+  const scope = req.query.scope as string;
+  const uid = req.userId;
+  try {
+    switch (scope) {
+      case 'recipes':
+        // Deleting recipes cascades to recipe_log, recipe_ingredients, etc.
+        await pool.query('DELETE FROM recipes WHERE user_id = ?', [uid]);
+        break;
+      case 'history':
+        await Promise.all([
+          pool.query('DELETE FROM food_log WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM recipe_log WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM water_log WHERE user_id = ?', [uid]),
+        ]);
+        break;
+      case 'workouts':
+        // Cascades to workout_exercises and exercise_sets
+        await pool.query('DELETE FROM workout_logs WHERE user_id = ?', [uid]);
+        break;
+      case 'goals':
+        await Promise.all([
+          pool.query('DELETE FROM user_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM exercise_goals WHERE user_id = ?', [uid]),
+        ]);
+        break;
+      case 'links':
+        await pool.query('DELETE FROM links WHERE user_id = ?', [uid]);
+        break;
+      default:
+        res.status(400).json({ error: 'Invalid scope' }); return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

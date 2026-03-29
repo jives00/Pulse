@@ -2,7 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme variables ──────────────────────────────────────── */
+/* Values are R G B channels (no commas) for Tailwind opacity support */
+:root,
+[data-theme="blue"] {
+  --color-bg:     25 53 73;      /* #193549 */
+  --color-card:   13 33 55;      /* #0d2137 */
+  --color-accent: 212 168 67;   /* #D4A843 */
+  --color-border: 30 74 110;    /* #1e4a6e */
+}
+
+[data-theme="slate"] {
+  --color-bg:     15 23 42;     /* #0f172a */
+  --color-card:   30 41 59;     /* #1e293b */
+  --color-accent: 212 168 67;   /* #D4A843 */
+  --color-border: 51 65 85;     /* #334155 */
+}
+
 @layer base {
-  html { @apply bg-slate-900 text-slate-100; }
-  * { @apply border-slate-700; }
+  html { background-color: rgb(var(--color-bg)); color: white; }
 }

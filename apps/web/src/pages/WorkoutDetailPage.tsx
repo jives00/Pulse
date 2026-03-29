@@ -63,7 +63,7 @@ function SetRow({
 
   return (
     <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 items-center py-1">
-      <span className="text-xs text-slate-500 text-center">{set.setNumber}</span>
+      <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
       <input
         type="number"
         min="0"
@@ -141,8 +141,8 @@ function ExerciseBlock({
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="text-sm font-medium text-slate-200">{we.exercise.name}</div>
-          <div className="text-xs text-slate-500">{we.exercise.category}</div>
+          <div className="text-base font-medium text-slate-200">{we.exercise.name}</div>
+          <div className="text-sm text-slate-500">{we.exercise.category}</div>
         </div>
         <button
           onClick={() => onRemove(we.id)}
@@ -157,8 +157,8 @@ function ExerciseBlock({
         <div className="mb-2">
           <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 mb-1">
             <span />
-            <span className="text-xs text-slate-500 text-center">kg</span>
-            <span className="text-xs text-slate-500 text-center">reps</span>
+            <span className="text-sm text-slate-500 text-center">kg</span>
+            <span className="text-sm text-slate-500 text-center">reps</span>
             <span />
           </div>
           {sets.map((s) => (
@@ -178,7 +178,7 @@ function ExerciseBlock({
       <button
         onClick={handleAddSet}
         disabled={adding}
-        className="w-full text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors py-1.5 border border-dashed border-slate-700 rounded"
+        className="w-full text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors py-1.5 border border-dashed border-slate-700 rounded"
       >
         {adding ? 'Adding…' : '+ Add set'}
       </button>
@@ -256,7 +256,7 @@ function ExercisePicker({
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setCategory('')}
-              className={`shrink-0 text-xs px-3 py-1 rounded-full transition-colors ${!category ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
+              className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${!category ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
             >
               All
             </button>
@@ -264,7 +264,7 @@ function ExercisePicker({
               <button
                 key={c}
                 onClick={() => setCategory(c === category ? '' : c)}
-                className={`shrink-0 text-xs px-3 py-1 rounded-full transition-colors ${category === c ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
+                className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${category === c ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
               >
                 {c}
               </button>
@@ -280,8 +280,8 @@ function ExercisePicker({
               onClick={() => onSelect(ex)}
               className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-700 transition-colors"
             >
-              <div className="text-sm text-slate-200">{ex.name}</div>
-              <div className="text-xs text-slate-500">{ex.category} · {ex.exerciseType}</div>
+              <div className="text-base text-slate-200">{ex.name}</div>
+              <div className="text-sm text-slate-500">{ex.category} · {ex.exerciseType}</div>
             </button>
           ))}
           {!loading && filtered.length === 0 && (
@@ -478,7 +478,7 @@ export default function WorkoutDetailPage() {
             </button>
           )}
           <div className="flex items-center gap-3 mt-1">
-            <span className="text-xs text-slate-500">
+            <span className="text-sm text-slate-500">
               {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''} · {totalSets} set{totalSets !== 1 ? 's' : ''}
             </span>
             <div className="flex items-center gap-1">
@@ -489,9 +489,9 @@ export default function WorkoutDetailPage() {
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 onBlur={saveHeader}
-                className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-300 text-center focus:outline-none focus:border-blue-500"
+                className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
               />
-              <span className="text-xs text-slate-500">min</span>
+              <span className="text-sm text-slate-500">min</span>
             </div>
           </div>
         </div>

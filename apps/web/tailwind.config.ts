@@ -6,10 +6,10 @@ export default {
     extend: {
       colors: {
         dram: {
-          bg:     '#193549',
-          card:   '#0d2137',
-          accent: '#D4A843',
-          border: '#1e4a6e',
+          bg:     'rgb(var(--color-bg) / <alpha-value>)',
+          card:   'rgb(var(--color-card) / <alpha-value>)',
+          accent: 'rgb(var(--color-accent) / <alpha-value>)',
+          border: 'rgb(var(--color-border) / <alpha-value>)',
         },
         brand: {
           50:  '#f0fdf4',

@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { useSettingsStore } from './store/settings';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Library from './pages/Library';
@@ -11,6 +13,7 @@ import FoodsPage from './pages/FoodsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
 import WorkoutDetailPage from './pages/WorkoutDetailPage';
 import GoalsPage from './pages/GoalsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -29,6 +32,11 @@ function ComingSoon({ label }: { label: string }) {
 
 export default function App() {
   const basename = import.meta.env.PROD ? '/pulse' : '/';
+  const colorScheme = useSettingsStore((s) => s.colorScheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorScheme;
+  }, [colorScheme]);
 
   return (
     <BrowserRouter basename={basename}>
@@ -77,7 +85,7 @@ export default function App() {
           <Route path="goals" element={<GoalsPage />} />
 
           {/* Settings */}
-          <Route path="settings" element={<ComingSoon label="Settings" />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/recipes" replace />} />
       </Routes>

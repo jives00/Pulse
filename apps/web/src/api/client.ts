@@ -37,6 +37,34 @@ export async function login(username: string, password: string) {
   return handle<{ token: string }>(res);
 }
 
+export async function changeUsername(token: string, newUsername: string, currentPassword: string) {
+  const res = await fetch(`${BASE}/api/auth/username`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify({ newUsername, currentPassword }),
+  });
+  return handle<{ token: string }>(res);
+}
+
+export async function changePassword(token: string, currentPassword: string, newPassword: string) {
+  const res = await fetch(`${BASE}/api/auth/password`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return handle<{ token: string }>(res);
+}
+
+export type DeleteScope = 'recipes' | 'history' | 'workouts' | 'goals' | 'links';
+
+export async function deleteData(token: string, scope: DeleteScope) {
+  const res = await fetch(`${BASE}/api/auth/data?scope=${scope}`, {
+    method: 'DELETE',
+    headers: headers(token),
+  });
+  return handle<{ ok: boolean }>(res);
+}
+
 export async function getRecipes(
   token: string,
   filters: RecipeFilters = {}

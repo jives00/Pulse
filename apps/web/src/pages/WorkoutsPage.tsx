@@ -81,13 +81,13 @@ export default function WorkoutsPage() {
               className="bg-slate-800 rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-700/80 transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-200">
+                <div className="text-base font-medium text-slate-200">
                   {w.name ?? formatDate(w.workoutDate)}
                 </div>
                 {w.name && (
-                  <div className="text-xs text-slate-500">{formatDate(w.workoutDate)}</div>
+                  <div className="text-sm text-slate-500">{formatDate(w.workoutDate)}</div>
                 )}
-                <div className="text-xs text-slate-400 mt-0.5">
+                <div className="text-sm text-slate-400 mt-0.5">
                   {w.exerciseCount} exercise{w.exerciseCount !== 1 ? 's' : ''}
                   {' · '}
                   {w.setCount} set{w.setCount !== 1 ? 's' : ''}
