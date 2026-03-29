@@ -246,3 +246,140 @@ export async function getSuggestions(token: string, prompt?: string): Promise<Re
   const res = await fetch(`${BASE}/api/recipes/suggest?${params}`, { headers: headers(token) });
   return handle<RecipeSuggestion[]>(res);
 }
+
+// ─── Workout / Exercise types ────────────────────────────────
+
+export interface Exercise {
+  id: number;
+  name: string;
+  category: string;
+  exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration';
+  musclesPrimary: string[];
+  musclesSecondary: string[];
+  isCustom: boolean;
+}
+
+export interface ExerciseSet {
+  id: number;
+  setNumber: number;
+  reps: number | null;
+  weightKg: number | null;
+  durationSeconds: number | null;
+  distanceMeters: number | null;
+  completed: boolean;
+}
+
+export interface WorkoutExercise {
+  id: number;
+  sortOrder: number;
+  notes: string | null;
+  exercise: Exercise;
+  sets: ExerciseSet[];
+}
+
+export interface WorkoutSummary {
+  id: number;
+  workoutDate: string;
+  name: string | null;
+  durationMinutes: number | null;
+  caloriesBurned: number | null;
+  exerciseCount: number;
+  setCount: number;
+  createdAt: string;
+}
+
+export interface WorkoutDetail extends WorkoutSummary {
+  notes: string | null;
+  exercises: WorkoutExercise[];
+}
+
+// ─── Exercise endpoints ──────────────────────────────────────
+
+export async function getExercises(token: string, params?: { search?: string; category?: string }): Promise<Exercise[]> {
+  const q = new URLSearchParams();
+  if (params?.search) q.set('search', params.search);
+  if (params?.category) q.set('category', params.category);
+  const res = await fetch(`${BASE}/api/exercises?${q}`, { headers: headers(token) });
+  return handle<Exercise[]>(res);
+}
+
+export async function getExerciseCategories(token: string): Promise<string[]> {
+  const res = await fetch(`${BASE}/api/exercises/categories`, { headers: headers(token) });
+  return handle<string[]>(res);
+}
+
+export async function createCustomExercise(token: string, data: { name: string; category: string; exerciseType: string }): Promise<Exercise> {
+  const res = await fetch(`${BASE}/api/exercises`, {
+    method: 'POST', headers: headers(token), body: JSON.stringify(data),
+  });
+  return handle<Exercise>(res);
+}
+
+// ─── Workout endpoints ───────────────────────────────────────
+
+export async function getWorkouts(token: string, params?: { limit?: number; offset?: number }): Promise<WorkoutSummary[]> {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set('limit', String(params.limit));
+  if (params?.offset) q.set('offset', String(params.offset));
+  const res = await fetch(`${BASE}/api/workouts?${q}`, { headers: headers(token) });
+  return handle<WorkoutSummary[]>(res);
+}
+
+export async function createWorkout(token: string, data?: { name?: string; workoutDate?: string }): Promise<WorkoutDetail> {
+  const res = await fetch(`${BASE}/api/workouts`, {
+    method: 'POST', headers: headers(token), body: JSON.stringify(data ?? {}),
+  });
+  return handle<WorkoutDetail>(res);
+}
+
+export async function getWorkout(token: string, id: number): Promise<WorkoutDetail> {
+  const res = await fetch(`${BASE}/api/workouts/${id}`, { headers: headers(token) });
+  return handle<WorkoutDetail>(res);
+}
+
+export async function updateWorkout(token: string, id: number, data: Partial<{ name: string; notes: string; durationMinutes: number; caloriesBurned: number; workoutDate: string }>): Promise<WorkoutDetail> {
+  const res = await fetch(`${BASE}/api/workouts/${id}`, {
+    method: 'PUT', headers: headers(token), body: JSON.stringify(data),
+  });
+  return handle<WorkoutDetail>(res);
+}
+
+export async function deleteWorkout(token: string, id: number): Promise<void> {
+  const res = await fetch(`${BASE}/api/workouts/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+export async function addExerciseToWorkout(token: string, workoutId: number, exerciseId: number): Promise<WorkoutExercise> {
+  const res = await fetch(`${BASE}/api/workouts/${workoutId}/exercises`, {
+    method: 'POST', headers: headers(token), body: JSON.stringify({ exerciseId }),
+  });
+  return handle<WorkoutExercise>(res);
+}
+
+export async function removeExerciseFromWorkout(token: string, workoutId: number, weId: number): Promise<void> {
+  const res = await fetch(`${BASE}/api/workouts/${workoutId}/exercises/${weId}`, {
+    method: 'DELETE', headers: headers(token),
+  });
+  await handle(res);
+}
+
+export async function addSet(token: string, workoutId: number, weId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<ExerciseSet> {
+  const res = await fetch(`${BASE}/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+    method: 'POST', headers: headers(token), body: JSON.stringify(data),
+  });
+  return handle<ExerciseSet>(res);
+}
+
+export async function updateSet(token: string, workoutId: number, weId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; completed?: boolean }): Promise<void> {
+  const res = await fetch(`${BASE}/api/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, {
+    method: 'PUT', headers: headers(token), body: JSON.stringify(data),
+  });
+  await handle(res);
+}
+
+export async function deleteSet(token: string, workoutId: number, weId: number, setId: number): Promise<void> {
+  const res = await fetch(`${BASE}/api/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, {
+    method: 'DELETE', headers: headers(token),
+  });
+  await handle(res);
+}
