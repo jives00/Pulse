@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/web\"",
-    "build": "npm run build --workspace=packages/api-client && npm run build --workspace=apps/server && npm run build --workspace=apps/web",
+    "build": "npm run build --workspace=apps/server && npm run build --workspace=apps/web",
     "migrate": "npm run migrate --workspace=apps/server"
   },
   "devDependencies": {
