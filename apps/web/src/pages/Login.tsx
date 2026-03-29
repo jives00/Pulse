@@ -28,44 +28,44 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dram-bg">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="w-full max-w-sm px-4">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="dram" className="w-60 mx-auto" />
-          <p className="text-gray-400 mt-1 text-sm">Your cocktail & recipe library</p>
+          <h1 className="text-3xl font-bold text-slate-100">Pulse</h1>
+          <p className="text-slate-400 mt-1 text-sm">Your health companion</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-dram-card rounded-xl p-6 border border-dram-border"
+          className="bg-slate-800 rounded-xl p-6 border border-slate-700"
         >
           <div className="mb-4">
-            <label className="block text-sm text-gray-400 mb-1">Username</label>
+            <label className="block text-sm text-slate-400 mb-1">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-dram-accent"
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500"
               autoComplete="username"
               required
             />
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
+            <label className="block text-sm text-slate-400 mb-1">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 pr-10 text-white focus:outline-none focus:border-dram-accent"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 pr-10 text-slate-100 focus:outline-none focus:border-blue-500"
                 autoComplete="current-password"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
                 tabIndex={-1}
               >
                 {showPassword ? '🙈' : '👁'}
@@ -80,7 +80,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-dram-accent text-black font-semibold py-2 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg transition disabled:opacity-50"
           >
             {loading ? 'Signing in…' : 'Sign In'}
           </button>

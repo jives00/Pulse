@@ -5,6 +5,12 @@ export default {
   theme: {
     extend: {
       colors: {
+        dram: {
+          bg:     '#193549',
+          card:   '#0d2137',
+          accent: '#D4A843',
+          border: '#1e4a6e',
+        },
         brand: {
           50:  '#f0fdf4',
           100: '#dcfce7',
