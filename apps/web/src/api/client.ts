@@ -9,7 +9,9 @@ import type {
 } from '../../../../packages/api-client/src/index';
 import { buildRecipeParams } from '../../../../packages/api-client/src/index';
 
-const BASE = (import.meta.env.VITE_API_URL as string) || '';
+// In production nginx proxies /pulse/api/ → localhost:3000/api/
+// VITE_API_URL overrides for custom deployments (e.g. mobile dev)
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? '/pulse' : '');
 
 function headers(token: string) {
   return {
