@@ -106,7 +106,7 @@ router.get('/summary', async (req, res) => {
 
     // Exercise goals
     const [exGoalRows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM exercise_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT * FROM exercise_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, date]
     );
     const exGoals = exGoalRows[0] ?? null;
@@ -141,6 +141,7 @@ router.get('/summary', async (req, res) => {
         goals: exGoals ? {
           workoutsPerWeek: exGoals.workouts_per_week ?? null,
           minutesPerWeek: exGoals.minutes_per_week ?? null,
+          volumeLbsPerWeek: exGoals.volume_lbs_per_week ?? null,
         } : null,
         actual: {
           workoutCount: Number(workouts.workoutCount) || 0,
@@ -159,7 +160,7 @@ router.get('/exercise', async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM exercise_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT * FROM exercise_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, today]
     );
     if (!rows.length) { res.status(404).json({ error: 'No exercise goals set' }); return; }
@@ -167,6 +168,7 @@ router.get('/exercise', async (req, res) => {
       id: rows[0].id,
       workoutsPerWeek: rows[0].workouts_per_week ?? null,
       minutesPerWeek: rows[0].minutes_per_week ?? null,
+      volumeLbsPerWeek: rows[0].volume_lbs_per_week ?? null,
       effectiveFrom: rows[0].effective_from instanceof Date
         ? rows[0].effective_from.toISOString().slice(0, 10)
         : String(rows[0].effective_from),
@@ -179,15 +181,19 @@ router.get('/exercise', async (req, res) => {
 
 // POST /api/goals/exercise
 router.post('/exercise', async (req, res) => {
-  const { workoutsPerWeek, minutesPerWeek } = req.body;
+  const { workoutsPerWeek, minutesPerWeek, volumeLbsPerWeek } = req.body;
   const today = new Date().toISOString().slice(0, 10);
   try {
     await pool.execute(
-      `INSERT INTO exercise_goals (user_id, workouts_per_week, minutes_per_week, effective_from)
-       VALUES (?, ?, ?, ?)`,
-      [req.userId, workoutsPerWeek ?? null, minutesPerWeek ?? null, today]
+      `INSERT INTO exercise_goals (user_id, workouts_per_week, minutes_per_week, volume_lbs_per_week, effective_from)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, workoutsPerWeek ?? null, minutesPerWeek ?? null, volumeLbsPerWeek ?? null, today]
     );
-    res.status(201).json({ workoutsPerWeek: workoutsPerWeek ?? null, minutesPerWeek: minutesPerWeek ?? null });
+    res.status(201).json({
+      workoutsPerWeek: workoutsPerWeek ?? null,
+      minutesPerWeek: minutesPerWeek ?? null,
+      volumeLbsPerWeek: volumeLbsPerWeek ?? null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save exercise goals' });

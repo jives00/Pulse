@@ -15,8 +15,9 @@ import waterRoutes     from './routes/water';
 import templatesRoutes from './routes/templates';
 import historyRoutes   from './routes/history';
 import exportRoutes    from './routes/export';
-import workoutsRoutes  from './routes/workouts';
-import exercisesRoutes from './routes/exercises';
+import workoutsRoutes      from './routes/workouts';
+import exercisesRoutes     from './routes/exercises';
+import measurementsRoutes  from './routes/measurements';
 
 const app = express();
 
@@ -49,8 +50,9 @@ app.use('/api/history',   requireAuth, historyRoutes);
 app.use('/api/export',    requireAuth, exportRoutes);
 
 // Workouts
-app.use('/api/workouts',  requireAuth, workoutsRoutes);
-app.use('/api/exercises', requireAuth, exercisesRoutes);
+app.use('/api/workouts',      requireAuth, workoutsRoutes);
+app.use('/api/exercises',     requireAuth, exercisesRoutes);
+app.use('/api/measurements',  requireAuth, measurementsRoutes);
 
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);

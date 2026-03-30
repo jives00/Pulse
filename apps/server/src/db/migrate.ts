@@ -10,6 +10,7 @@ const MIGRATIONS = [
   '003_seed_exercises.sql',
   '004_tag_definitions.sql',
   '005_food_log_dram_recipe_id.sql',
+  '006_body_measurements.sql',
 ];
 
 async function migrate() {
@@ -77,6 +78,24 @@ async function migrate() {
         console.log('  Added food_log.dram_recipe_id column.');
       } else {
         console.log('  food_log.dram_recipe_id already exists, skipping ALTER.');
+      }
+    }
+
+    // Post-migration hook for 006: ALTER TABLE may fail if column already exists
+    if (file === '006_body_measurements.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'exercise_goals'
+           AND COLUMN_NAME  = 'volume_lbs_per_week'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE exercise_goals ADD COLUMN volume_lbs_per_week INT UNSIGNED NULL`
+        );
+        console.log('  Added exercise_goals.volume_lbs_per_week column.');
+      } else {
+        console.log('  exercise_goals.volume_lbs_per_week already exists, skipping ALTER.');
       }
     }
 

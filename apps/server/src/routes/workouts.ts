@@ -77,16 +77,95 @@ async function getWorkoutDetail(workoutId: number) {
   };
 }
 
+// GET /api/workouts/personal-bests
+// Returns heaviest single lift, best session volume, longest session
+router.get('/personal-bests', async (req, res) => {
+  try {
+    // Heaviest single set (weight_kg)
+    const [liftRows] = await pool.query<RowDataPacket[]>(
+      `SELECT e.name AS exercise_name, es.weight_kg, es.reps, wl.workout_date
+       FROM exercise_sets es
+       JOIN workout_exercises we ON we.id = es.workout_exercise_id
+       JOIN workout_logs wl ON wl.id = we.workout_log_id
+       JOIN exercises e ON e.id = we.exercise_id
+       WHERE wl.user_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+       ORDER BY es.weight_kg DESC
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    // Best single-session volume (sum of reps × weight_kg)
+    const [volRows] = await pool.query<RowDataPacket[]>(
+      `SELECT wl.id, wl.name AS workout_name, wl.workout_date,
+              SUM(es.reps * es.weight_kg) AS volume_kg
+       FROM workout_logs wl
+       JOIN workout_exercises we ON we.workout_log_id = wl.id
+       JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       WHERE wl.user_id = ? AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
+       GROUP BY wl.id
+       ORDER BY volume_kg DESC
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    // Longest session (duration)
+    const [durRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name, workout_date, duration_minutes
+       FROM workout_logs
+       WHERE user_id = ? AND duration_minutes IS NOT NULL AND duration_minutes > 0
+       ORDER BY duration_minutes DESC
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    const lift = liftRows[0] ?? null;
+    const vol = volRows[0] ?? null;
+    const dur = durRows[0] ?? null;
+
+    res.json({
+      heaviestLift: lift ? {
+        exerciseName: lift.exercise_name,
+        weightKg: Number(lift.weight_kg),
+        reps: lift.reps ?? null,
+        workoutDate: lift.workout_date instanceof Date
+          ? lift.workout_date.toISOString().slice(0, 10)
+          : String(lift.workout_date),
+      } : null,
+      bestSessionVolume: vol ? {
+        workoutId: vol.id,
+        workoutName: vol.workout_name ?? null,
+        volumeKg: Number(vol.volume_kg),
+        workoutDate: vol.workout_date instanceof Date
+          ? vol.workout_date.toISOString().slice(0, 10)
+          : String(vol.workout_date),
+      } : null,
+      longestSession: dur ? {
+        workoutId: dur.id,
+        workoutName: dur.name ?? null,
+        durationMinutes: dur.duration_minutes,
+        workoutDate: dur.workout_date instanceof Date
+          ? dur.workout_date.toISOString().slice(0, 10)
+          : String(dur.workout_date),
+      } : null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/workouts
 router.get('/', async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const limit = Math.min(Number(req.query.limit) || 20, 500);
   const offset = Number(req.query.offset) || 0;
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT wl.*,
               COUNT(DISTINCT we.id) AS exercise_count,
-              COUNT(DISTINCT es.id) AS set_count
+              COUNT(DISTINCT es.id) AS set_count,
+              COALESCE(SUM(CASE WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
+                                THEN es.reps * es.weight_kg ELSE 0 END), 0) AS total_volume_kg
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
@@ -96,7 +175,8 @@ router.get('/', async (req, res) => {
        LIMIT ? OFFSET ?`,
       [req.userId, limit, offset]
     );
-    res.json(rows.map((r) => ({
+
+    const workouts = rows.map((r) => ({
       id: r.id,
       workoutDate: r.workout_date instanceof Date
         ? r.workout_date.toISOString().slice(0, 10)
@@ -106,8 +186,43 @@ router.get('/', async (req, res) => {
       caloriesBurned: r.calories_burned ?? null,
       exerciseCount: Number(r.exercise_count),
       setCount: Number(r.set_count),
+      totalVolumeKg: Number(r.total_volume_kg),
       createdAt: r.created_at,
-    })));
+    }));
+
+    if (!workouts.length) { res.json([]); return; }
+
+    // Fetch exercise summaries for all returned workouts in one query
+    const ids = workouts.map((w) => w.id);
+    const [exRows] = await pool.query<RowDataPacket[]>(
+      `SELECT we.workout_log_id,
+              e.name AS exercise_name,
+              we.sort_order,
+              COUNT(es.id) AS set_count,
+              ROUND(AVG(es.reps)) AS avg_reps,
+              MAX(es.weight_kg) AS max_weight_kg
+       FROM workout_exercises we
+       JOIN exercises e ON e.id = we.exercise_id
+       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       WHERE we.workout_log_id IN (?)
+       GROUP BY we.id
+       ORDER BY we.workout_log_id, we.sort_order`,
+      [ids]
+    );
+
+    const exercisesByWorkout: Record<number, { name: string; setCount: number; avgReps: number | null; maxWeightKg: number | null }[]> = {};
+    for (const ex of exRows) {
+      const wid = ex.workout_log_id;
+      if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
+      exercisesByWorkout[wid].push({
+        name: ex.exercise_name,
+        setCount: Number(ex.set_count),
+        avgReps: ex.avg_reps != null ? Number(ex.avg_reps) : null,
+        maxWeightKg: ex.max_weight_kg != null ? Number(ex.max_weight_kg) : null,
+      });
+    }
+
+    res.json(workouts.map((w) => ({ ...w, exercises: exercisesByWorkout[w.id] ?? [] })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

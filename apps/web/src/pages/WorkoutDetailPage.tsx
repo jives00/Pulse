@@ -4,9 +4,20 @@ import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, ty
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+const KG_TO_LBS = 2.20462;
+
+function kgToLbs(kg: number): number {
+  return Math.round(kg * KG_TO_LBS * 10) / 10;
+}
+
+function lbsToKg(lbs: number): number {
+  return Math.round((lbs / KG_TO_LBS) * 1000) / 1000;
+}
+
 function fmtWeight(kg: number | null) {
   if (kg == null) return '';
-  return String(kg % 1 === 0 ? kg : kg.toFixed(1));
+  const lbs = kgToLbs(kg);
+  return String(lbs % 1 === 0 ? lbs : lbs.toFixed(1));
 }
 
 // ─── Set row ─────────────────────────────────────────────────────────────────
@@ -27,12 +38,13 @@ function SetRow({
   async function handleBlur() {
     if (saving) return;
     const newReps = reps !== '' ? Number(reps) : null;
-    const newWeight = weight !== '' ? Number(weight) : null;
-    if (newReps === set.reps && newWeight === set.weightKg) return;
+    const newWeightLbs = weight !== '' ? Number(weight) : null;
+    const newWeightKg = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
+    if (newReps === set.reps && newWeightKg === set.weightKg) return;
     setSaving(true);
     try {
-      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeight ?? undefined, completed: true });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeight });
+      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeightKg ?? undefined, completed: true });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg });
     } catch {
       // revert
       setReps(String(set.reps ?? ''));
@@ -59,7 +71,7 @@ function SetRow({
       <input
         type="number"
         min="0"
-        placeholder="kg"
+        placeholder="lbs"
         value={weight}
         onChange={(e) => setWeight(e.target.value)}
         onBlur={handleBlur}
@@ -148,7 +160,7 @@ function ExerciseBlock({
         <div className="mb-2">
           <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 mb-1">
             <span />
-            <span className="text-sm text-slate-500 text-center">kg</span>
+            <span className="text-sm text-slate-500 text-center">lbs</span>
             <span className="text-sm text-slate-500 text-center">reps</span>
             <span />
           </div>

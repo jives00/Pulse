@@ -118,6 +118,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/history/*         Nutrition history charts
 /api/workouts/*        Workout sessions + exercises + sets
 /api/exercises/*       Exercise library + categories
+/api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
 /api/export/*          Excel export
 ```
 
@@ -137,6 +138,8 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Default Sort (persisted in Zustand `settingsStore`), Tag Definitions editor, Color Scheme, username/password, danger zone. |
 | `GoalsPage` | `apps/web/src/pages/GoalsPage.tsx` | Nutrition goals + history charts + workout goals (weekly progress bars). |
 | `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. |
+| `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Weekly summary ring (volume lbs), progress bars, stat tiles, 13-week charts, body measurements card, workout history with inline exercises and infinite scroll. "Edit Goals" modal edits exercise goals + body measurement goals (with target dates). |
+| `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). |
 
 ## Database schema
 
@@ -179,7 +182,9 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned` |
 | `workout_exercises` | `id`, `workout_log_id`, `exercise_id`, `sort_order` |
 | `exercise_sets` | `id`, `workout_exercise_id`, `set_number`, `reps`, `weight_kg`, `duration_seconds`, `distance_meters` |
-| `exercise_goals` | `id`, `user_id`, `workouts_per_week`, `minutes_per_week`, `calories_per_week`, `effective_from` |
+| `exercise_goals` | `id`, `user_id`, `workouts_per_week`, `minutes_per_week`, `calories_per_week`, `volume_lbs_per_week`, `effective_from` |
+| `body_measurements` | `id`, `user_id`, `metric` (weight/waist/bicep/…), `value` DECIMAL, `unit`, `measured_at` DATE, `notes` |
+| `body_measurement_goals` | `id`, `user_id`, `metric`, `target_value`, `unit`, `target_date` DATE — UNIQUE on (user_id, metric) |
 
 ### Links
 | Table | Key columns |
@@ -194,3 +199,6 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 - **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
 - **Theming**: CSS variables as bare RGB channels in `index.css`; Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
 - **Nutrition components**: `NutritionSummaryCard` and `NutritionHistoryCharts` are shared between TodayPage and GoalsPage. Water quick-add only shows when `onAddWater` prop is passed.
+- **Workout weights**: All weights stored in kg in DB (`weight_kg`, `total_volume_kg`). WorkoutsPage and WorkoutDetailPage display/accept in lbs using `KG_TO_LBS = 2.20462`. Always convert at the UI boundary.
+- **Exercise goals secondary sort**: `ORDER BY effective_from DESC, id DESC LIMIT 1` — the secondary `id DESC` is critical to avoid returning an old row with NULL `volume_lbs_per_week` when multiple rows share the same `effective_from` date.
+- **Migration 006**: `006_body_measurements.sql` creates `body_measurements` and `body_measurement_goals`. The `volume_lbs_per_week` column on `exercise_goals` is added via a post-migration hook in `migrate.ts` (checks `information_schema` first — MySQL < 8 doesn't support `ADD COLUMN IF NOT EXISTS`).

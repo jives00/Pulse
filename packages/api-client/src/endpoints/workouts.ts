@@ -1,5 +1,68 @@
 import { apiClient } from '../client';
 
+// ─── Body Measurements ────────────────────────────────────────────────────────
+
+export interface BodyMeasurement {
+  id: number;
+  metric: string;
+  value: number;
+  unit: string;
+  measuredAt: string;
+  notes: string | null;
+}
+
+export interface MeasurementGoal {
+  targetValue: number;
+  unit: string;
+  targetDate: string | null;
+}
+
+export interface PersonalBests {
+  heaviestLift: {
+    exerciseName: string;
+    weightKg: number;
+    reps: number | null;
+    workoutDate: string;
+  } | null;
+  bestSessionVolume: {
+    workoutId: number;
+    workoutName: string | null;
+    volumeKg: number;
+    workoutDate: string;
+  } | null;
+  longestSession: {
+    workoutId: number;
+    workoutName: string | null;
+    durationMinutes: number;
+    workoutDate: string;
+  } | null;
+}
+
+export const measurementsApi = {
+  getAll: () =>
+    apiClient.get<BodyMeasurement[]>('/measurements').then((r) => r.data),
+
+  add: (data: { metric: string; value: number; unit: string; measuredAt?: string; notes?: string }) =>
+    apiClient.post<BodyMeasurement>('/measurements', data).then((r) => r.data),
+
+  update: (id: number, data: { value: number; measuredAt?: string; notes?: string }) =>
+    apiClient.put<BodyMeasurement>(`/measurements/${id}`, data).then((r) => r.data),
+
+  delete: (id: number) =>
+    apiClient.delete(`/measurements/${id}`).then(() => {}),
+
+  getGoals: () =>
+    apiClient.get<Record<string, MeasurementGoal>>('/measurements/goals').then((r) => r.data),
+
+  setGoal: (metric: string, data: { targetValue: number; unit: string; targetDate?: string | null }) =>
+    apiClient.put<MeasurementGoal>(`/measurements/goals/${metric}`, data).then((r) => r.data),
+
+  deleteGoal: (metric: string) =>
+    apiClient.delete(`/measurements/goals/${metric}`).then(() => {}),
+};
+
+// ─── Personal Bests ───────────────────────────────────────────────────────────
+
 export interface Exercise {
   id: number;
   name: string;
@@ -28,6 +91,13 @@ export interface WorkoutExercise {
   sets: ExerciseSet[];
 }
 
+export interface WorkoutExerciseSummary {
+  name: string;
+  setCount: number;
+  avgReps: number | null;
+  maxWeightKg: number | null;
+}
+
 export interface WorkoutSummary {
   id: number;
   workoutDate: string;
@@ -36,7 +106,9 @@ export interface WorkoutSummary {
   caloriesBurned: number | null;
   exerciseCount: number;
   setCount: number;
+  totalVolumeKg: number;
   createdAt: string;
+  exercises: WorkoutExerciseSummary[];
 }
 
 export interface WorkoutDetail extends WorkoutSummary {
@@ -85,4 +157,7 @@ export const workoutsApi = {
 
   deleteSet: (workoutId: number, weId: number, setId: number) =>
     apiClient.delete(`/workouts/${workoutId}/exercises/${weId}/sets/${setId}`).then(() => {}),
+
+  getPersonalBests: () =>
+    apiClient.get<PersonalBests>('/workouts/personal-bests').then((r) => r.data),
 };

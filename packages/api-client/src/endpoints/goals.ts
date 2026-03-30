@@ -10,7 +10,7 @@ export interface GoalsSummary {
     actual: { calories: number; carbsG: number; proteinG: number; fatG: number };
   };
   workouts: {
-    goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null } | null;
+    goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null; volumeLbsPerWeek: number | null } | null;
     actual: { workoutCount: number; totalMinutes: number };
   };
 }
@@ -19,6 +19,7 @@ export interface ExerciseGoals {
   id?: number;
   workoutsPerWeek: number | null;
   minutesPerWeek: number | null;
+  volumeLbsPerWeek: number | null;
 }
 
 export const goalsApi = {
@@ -40,6 +41,6 @@ export const goalsApi = {
   getExercise: () =>
     apiClient.get<ExerciseGoals>('/goals/exercise').then((r) => r.data),
 
-  saveExercise: (data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null }) =>
+  saveExercise: (data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null; volumeLbsPerWeek?: number | null }) =>
     apiClient.post<ExerciseGoals>('/goals/exercise', data).then((r) => r.data),
 };
