@@ -477,7 +477,7 @@ function BodyMeasurementsCard({
 
                 {/* Current */}
                 <div>
-                  <div className="text-[10px] text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
+                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
                   <div className="flex items-baseline gap-1">
                     {latest ? (
                       <>
@@ -488,7 +488,7 @@ function BodyMeasurementsCard({
                       <span className="text-xl font-bold text-slate-500">—</span>
                     )}
                   </div>
-                  {latest && <div className="text-[10px] text-slate-600 mt-0.5">{formatDate(latest.measuredAt)}</div>}
+                  {latest && <div className="text-sm text-slate-600 mt-0.5">{formatDate(latest.measuredAt)}</div>}
                 </div>
 
                 {/* Progress bar */}
@@ -498,22 +498,17 @@ function BodyMeasurementsCard({
 
                 {/* Goal */}
                 <div>
-                  <div className="text-[10px] text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
+                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
                   {goal ? (
-                    <div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-sm font-medium text-slate-300">{goal.targetValue}</span>
-                        <span className="text-xs text-slate-400">{cfg.unit}</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-medium text-slate-300">{goal.targetValue}{cfg.unit}</span>
                       {goal.targetDate && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-[10px] text-slate-500">by {formatDate(goal.targetDate)}</span>
-                          {onTrack !== null && (
-                            <span className={`text-[10px] font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {onTrack ? '✓ on track' : '⚠ behind'}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-xs text-slate-500">by {formatDate(goal.targetDate)}</span>
+                      )}
+                      {onTrack !== null && (
+                        <span className={`text-xs font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {onTrack ? '✓ on track' : '⚠ behind'}
+                        </span>
                       )}
                     </div>
                   ) : (
@@ -525,14 +520,14 @@ function BodyMeasurementsCard({
                 <div className="flex gap-3">
                   <button
                     onClick={() => { setLogForm({ metric: key, value: '', date: today }); setExpandedMetric(null); }}
-                    className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                    className="text-sm text-slate-400 hover:text-slate-200 transition-colors"
                   >
                     + Log
                   </button>
                   {measurements.filter((m) => m.metric === key).length > 0 && (
                     <button
                       onClick={() => setExpandedMetric(expandedMetric === key ? null : key)}
-                      className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                      className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
                     >
                       {expandedMetric === key ? 'Hide' : `History (${measurements.filter((m) => m.metric === key).length})`}
                     </button>
@@ -573,7 +568,7 @@ function BodyMeasurementsCard({
                           </div>
                         </div>
                       ) : (
-                        <div key={m.id} className="flex items-center justify-between gap-2 text-xs py-0.5 group">
+                        <div key={m.id} className="flex items-center justify-between gap-2 text-sm py-0.5 group">
                           <div className="flex items-baseline gap-1.5 min-w-0">
                             <span className="font-medium text-slate-200">{m.value}</span>
                             <span className="text-slate-500">{cfg.unit}</span>
