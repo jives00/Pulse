@@ -41,6 +41,21 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.content}>
+        {/* Navigate */}
+        <Text style={styles.sectionLabel}>Browse</Text>
+        <View style={styles.navCard}>
+          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/history' as any)}>
+            <Text style={styles.navRowText}>📋  Recipe History</Text>
+            <Text style={styles.navChevron}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/links' as any)}>
+            <Text style={styles.navRowText}>🔗  Links</Text>
+            <Text style={styles.navChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Data management */}
         <Text style={styles.sectionLabel}>Data</Text>
 
         <View style={styles.card}>
@@ -127,7 +142,21 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
+    marginTop: 6,
   },
+  // Browse nav card (no flexDirection: 'row' — rows are stacked)
+  navCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  navRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14 },
+  navRowText: { flex: 1, fontSize: fontSize.sm, color: colors.text },
+  navChevron: { fontSize: 18, color: colors.muted },
+  divider: { height: 1, backgroundColor: colors.border },
+  // Data cards (flexDirection: 'row' with cardInfo + button side by side)
   card: {
     flexDirection: 'row',
     alignItems: 'center',

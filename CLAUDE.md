@@ -10,11 +10,13 @@ Pulse is a personal health tracker: food/drink recipes, nutrition logging, worko
 apps/
   server/          Express API (Node + TypeScript)
   web/             React SPA (Vite + Tailwind)
+  mobile/          Android app (Expo SDK 55, React Native)
 packages/
   api-client/      Shared types and API client (used by web and server)
 ```
 
 npm workspaces — install from the root: `npm install`
+**Note**: `apps/mobile` is NOT in the root workspace. Install its deps separately: `cd apps/mobile && npm install`
 
 ## Dev commands
 
@@ -27,6 +29,12 @@ Or individually:
 ```
 npm run dev --workspace=apps/server
 npm run dev --workspace=apps/web
+```
+
+Mobile (Android emulator — start emulator in Android Studio first):
+```
+cd apps/mobile && npx expo start
+# then press 'a' to open in emulator
 ```
 
 Production build:
@@ -43,11 +51,12 @@ npm run migrate --workspace=apps/server
 
 | Layer | Stack |
 |---|---|
-| Frontend | React 18, React Router v6, Zustand, Tailwind CSS v3, Recharts |
+| Frontend (web) | React 18, React Router v6, Zustand, Tailwind CSS v3, Recharts |
+| Mobile | Expo SDK 55, React Native 0.83, expo-router, Zustand + expo-secure-store, StyleSheet (not NativeWind) |
 | Backend | Express 4, mysql2, bcryptjs, jsonwebtoken, Zod |
 | Storage | MySQL, AWS S3 (recipe photos) |
-| Auth | JWT — token stored in Zustand, passed as `Authorization: Bearer` |
-| Build | Vite (web), tsc (server) |
+| Auth | JWT — web: token in Zustand; mobile: token in expo-secure-store (key: `pulse-auth`) |
+| Build | Vite (web), tsc (server), EAS (mobile) |
 
 ## Environment variables (apps/server/.env)
 
@@ -200,6 +209,35 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | Table | Key columns |
 |---|---|
 | `links` | `id`, `user_id`, `url`, `title`, `favicon_url`, `created_at` |
+
+## Mobile app (apps/mobile)
+
+Android-only Expo app. Key conventions:
+
+- **Styling**: Use `StyleSheet.create()` — NOT NativeWind/Tailwind classes (NativeWind is installed but not used in practice)
+- **Theme**: Colors + font sizes from `src/theme.ts` (`colors.bg`, `colors.card`, `colors.accent`, `colors.border`, `colors.text`, `colors.muted`)
+- **API client**: `src/api/client.ts` — fetch-based, token passed explicitly. `API_BASE` from `src/api/config.ts` (defaults to `http://10.0.2.2:3000` for Android emulator; override via `EXPO_PUBLIC_API_BASE`)
+- **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
+- **Routing**: expo-router file-based. Tab screens in `app/(app)/`. Hidden routes (modals/detail) use `href: null` in `_layout.tsx`
+- **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS = 2.20462`
+
+### Mobile tab structure
+| Tab | File | Notes |
+|---|---|---|
+| Recipes | `app/(app)/index.tsx` | Existing library grid |
+| Nutrition | `app/(app)/nutrition.tsx` | Date nav, meal sections, food search modal, water quick-add |
+| Workouts | `app/(app)/workouts.tsx` | List + Start button |
+| Goals | `app/(app)/goals.tsx` | Read-only calorie/macro/workout progress bars |
+| Settings | `app/(app)/settings.tsx` | Nav to History + Links; data management |
+
+Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
+
+### Mobile key files
+| File | Notes |
+|---|---|
+| `app/(app)/workout/[id].tsx` | Active session — timer (startedAt from DB), set input rows (lbs→kg), exercise picker modal |
+| `src/api/client.ts` | All API functions — recipe, nutrition log, water, goals, workouts, exercises, food search |
+| `src/api/config.ts` | `API_BASE` — use `10.0.2.2:3000` for emulator, LAN IP for physical device |
 
 ## Design decisions
 

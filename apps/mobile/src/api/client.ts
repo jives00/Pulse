@@ -238,3 +238,121 @@ export async function deleteLink(token: string, id: number): Promise<void> {
   });
   await handle(res);
 }
+
+// ─── Nutrition / Workouts / Goals ───────────────────────────────────────────
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface ServingSize { id: number; label: string; grams: number; isDefault: boolean; }
+export interface NutritionSnapshot { calories: number; carbs: number; protein: number; fat: number; }
+export interface Food { id: number; name: string; brand?: string; isCustom: boolean; nutrition: { calories: number; carbs: number; protein: number; fat: number; }; servingSizes: ServingSize[]; }
+export interface NutritionLogEntry { id: number; logDate: string; meal: MealSlot; food: Food; servingSize: ServingSize; quantity: number; nutrition: NutritionSnapshot; }
+export interface DailyLog { date: string; meals: Record<MealSlot, NutritionLogEntry[]>; totals: NutritionSnapshot; goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalMl: number; }; waterTotalMl: number; }
+export interface WaterDay { date: string; totalMl: number; goalMl: number; entries: { id: number; amountMl: number; loggedAt: string; }[]; }
+export interface GoalsSummary { date: string; nutrition: { goals: { calories: number; carbsG: number; proteinG: number; fatG: number; } | null; actual: { calories: number; carbsG: number; proteinG: number; fatG: number; }; }; workouts: { goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null; } | null; actual: { workoutCount: number; totalMinutes: number; }; }; }
+export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; }
+export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; completed: boolean; }
+export interface WorkoutExercise { id: number; sortOrder: number; exercise: Exercise; sets: ExerciseSet[]; }
+export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; exercises: { name: string; setCount: number; }[]; }
+export interface WorkoutDetail { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; startedAt: string | null; exercises: WorkoutExercise[]; }
+
+// Nutrition log
+export async function getDailyLog(token: string, date: string): Promise<DailyLog> {
+  const res = await fetch(`${API_BASE}/api/log?date=${encodeURIComponent(date)}`, { headers: headers(token) });
+  return handle<DailyLog>(res);
+}
+export async function addLogEntry(token: string, payload: { logDate: string; meal: MealSlot; foodId: number; servingSizeId: number; quantity: number; }): Promise<NutritionLogEntry> {
+  const res = await fetch(`${API_BASE}/api/log`, { method: 'POST', headers: headers(token), body: JSON.stringify(payload) });
+  return handle<NutritionLogEntry>(res);
+}
+export async function deleteNutritionLogEntry(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// Water
+export async function getWaterDay(token: string, date: string): Promise<WaterDay> {
+  const res = await fetch(`${API_BASE}/api/water?date=${encodeURIComponent(date)}`, { headers: headers(token) });
+  return handle<WaterDay>(res);
+}
+export async function addWater(token: string, date: string, amountMl: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/water`, { method: 'POST', headers: headers(token), body: JSON.stringify({ date, amountMl }) });
+  await handle(res);
+}
+
+// Goals summary
+export async function getGoalsSummary(token: string, date?: string): Promise<GoalsSummary> {
+  const url = date ? `${API_BASE}/api/goals/summary?date=${encodeURIComponent(date)}` : `${API_BASE}/api/goals/summary`;
+  const res = await fetch(url, { headers: headers(token) });
+  return handle<GoalsSummary>(res);
+}
+
+// Workouts
+export async function getWorkouts(token: string, params?: { limit?: number; offset?: number }): Promise<WorkoutSummary[]> {
+  const qs = params ? `?limit=${params.limit ?? 20}&offset=${params.offset ?? 0}` : '';
+  const res = await fetch(`${API_BASE}/api/workouts${qs}`, { headers: headers(token) });
+  return handle<WorkoutSummary[]>(res);
+}
+export async function getWorkout(token: string, id: number): Promise<WorkoutDetail> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}`, { headers: headers(token) });
+  return handle<WorkoutDetail>(res);
+}
+export async function createWorkout(token: string, data?: { name?: string }): Promise<WorkoutDetail> {
+  const res = await fetch(`${API_BASE}/api/workouts`, { method: 'POST', headers: headers(token), body: JSON.stringify(data ?? {}) });
+  return handle<WorkoutDetail>(res);
+}
+export async function updateWorkout(token: string, id: number, data: { name?: string; durationMinutes?: number }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+export async function deleteWorkout(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function startWorkoutTimer(token: string, id: number): Promise<{ startedAt: string }> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}/start-timer`, { method: 'POST', headers: headers(token) });
+  return handle<{ startedAt: string }>(res);
+}
+export async function addWorkoutExercise(token: string, workoutId: number, exerciseId: number): Promise<WorkoutExercise> {
+  const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify({ exerciseId }) });
+  return handle<WorkoutExercise>(res);
+}
+export async function removeWorkoutExercise(token: string, workoutId: number, weId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises/${weId}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function addWorkoutSet(token: string, workoutId: number, weId: number, data: { reps?: number; weightKg?: number }): Promise<ExerciseSet> {
+  const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises/${weId}/sets`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<ExerciseSet>(res);
+}
+export async function updateWorkoutSet(token: string, workoutId: number, weId: number, setId: number, data: { reps?: number; weightKg?: number; completed?: boolean }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+export async function deleteWorkoutSet(token: string, workoutId: number, weId: number, setId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// Exercises
+export async function getExercises(token: string, params?: { search?: string; category?: string }): Promise<Exercise[]> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set('search', params.search);
+  if (params?.category) qs.set('category', params.category);
+  const res = await fetch(`${API_BASE}/api/exercises?${qs}`, { headers: headers(token) });
+  return handle<Exercise[]>(res);
+}
+export async function getExerciseCategories(token: string): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/exercises/categories`, { headers: headers(token) });
+  return handle<string[]>(res);
+}
+export async function createCustomExercise(token: string, data: { name: string; category: string; exerciseType: string }): Promise<Exercise> {
+  const res = await fetch(`${API_BASE}/api/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<Exercise>(res);
+}
+
+// Foods search
+export async function searchFoods(token: string, q: string): Promise<Food[]> {
+  const res = await fetch(`${API_BASE}/api/foods/search?q=${encodeURIComponent(q)}&limit=20`, { headers: headers(token) });
+  return handle<Food[]>(res);
+}
