@@ -25,8 +25,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const params = new URLSearchParams(location.search);
   const activeSub = params.get('sub') ?? '';
 
-  const inFood   = location.pathname.startsWith('/food');
-  const inDrinks = location.pathname.startsWith('/drinks');
+  const inFood     = location.pathname.startsWith('/food');
+  const inDrinks   = location.pathname.startsWith('/drinks');
+  const inWorkouts = location.pathname.startsWith('/workouts');
 
   const linkCls = (active: boolean) =>
     `flex items-center px-3 py-2 rounded-lg text-base transition-colors ${
@@ -78,6 +79,24 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     {subLabel}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Workouts sub-nav */}
+            {prefix === '/workouts' && inWorkouts && (
+              <div className="mt-0.5 space-y-0.5 mb-1">
+                <button
+                  onClick={() => go('/workouts')}
+                  className={subLinkCls(location.pathname === '/workouts')}
+                >
+                  Log
+                </button>
+                <button
+                  onClick={() => go('/workouts/routines')}
+                  className={subLinkCls(location.pathname.startsWith('/workouts/routines'))}
+                >
+                  Routines
+                </button>
               </div>
             )}
 

@@ -12,6 +12,9 @@ import NutritionHistoryPage from './pages/NutritionHistoryPage';
 import FoodsPage from './pages/FoodsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
 import WorkoutDetailPage from './pages/WorkoutDetailPage';
+import ExerciseDetailPage from './pages/ExerciseDetailPage';
+import RoutinesPage from './pages/RoutinesPage';
+import RoutineDetailPage from './pages/RoutineDetailPage';
 import GoalsPage from './pages/GoalsPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -77,8 +80,11 @@ export default function App() {
           <Route path="nutrition/history" element={<NutritionHistoryPage />} />
           <Route path="nutrition/foods" element={<FoodsPage />} />
 
-          {/* Workouts — Phase 3 */}
+          {/* Workouts */}
           <Route path="workouts" element={<WorkoutsPage />} />
+          <Route path="workouts/exercises/:id" element={<ExerciseDetailPage />} />
+          <Route path="workouts/routines" element={<RoutinesPage />} />
+          <Route path="workouts/routines/:id" element={<RoutineDetailPage />} />
           <Route path="workouts/:id" element={<WorkoutDetailPage />} />
 
           {/* Goals — Phase 4 */}

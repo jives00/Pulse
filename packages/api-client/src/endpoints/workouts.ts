@@ -113,7 +113,36 @@ export interface WorkoutSummary {
 
 export interface WorkoutDetail extends WorkoutSummary {
   notes: string | null;
+  startedAt: string | null;
+  routineId: number | null;
   exercises: WorkoutExercise[];
+}
+
+export interface ExerciseStats {
+  exerciseId: number;
+  personalBests: {
+    heaviestWeightKg: number | null;
+    heaviestWeightReps: number | null;
+    estimatedOneRepMaxKg: number | null;
+    bestSetVolumeKg: number | null;
+    bestSessionVolumeKg: number | null;
+  };
+  setRecords: Array<{ reps: number; weightKg: number }>;
+  progressSeries: Array<{ date: string; value: number }>;
+}
+
+export interface ExerciseHistoryEntry {
+  workoutId: number;
+  workoutDate: string;
+  workoutName: string | null;
+  sets: Array<{
+    setNumber: number;
+    reps: number | null;
+    weightKg: number | null;
+    durationSeconds: number | null;
+    distanceMeters: number | null;
+    completed: boolean;
+  }>;
 }
 
 export const exercisesApi = {
@@ -125,10 +154,19 @@ export const exercisesApi = {
 
   createCustom: (data: { name: string; category: string; exerciseType: string }) =>
     apiClient.post<Exercise>('/exercises', data).then((r) => r.data),
+
+  getOne: (id: number) =>
+    apiClient.get<Exercise>(`/exercises/${id}`).then((r) => r.data),
+
+  getStats: (id: number, metric?: string) =>
+    apiClient.get<ExerciseStats>(`/exercises/${id}/stats`, { params: metric ? { metric } : undefined }).then((r) => r.data),
+
+  getHistory: (id: number, params?: { limit?: number; offset?: number }) =>
+    apiClient.get<ExerciseHistoryEntry[]>(`/exercises/${id}/history`, { params }).then((r) => r.data),
 };
 
 export const workoutsApi = {
-  getAll: (params?: { limit?: number; offset?: number }) =>
+  getAll: (params?: { limit?: number; offset?: number; routineId?: number }) =>
     apiClient.get<WorkoutSummary[]>('/workouts', { params }).then((r) => r.data),
 
   get: (id: number) =>
@@ -160,4 +198,7 @@ export const workoutsApi = {
 
   getPersonalBests: () =>
     apiClient.get<PersonalBests>('/workouts/personal-bests').then((r) => r.data),
+
+  startTimer: (id: number) =>
+    apiClient.post<{ startedAt: string }>(`/workouts/${id}/start-timer`).then((r) => r.data),
 };

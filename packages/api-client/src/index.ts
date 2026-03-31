@@ -21,6 +21,7 @@ export { recipesApi, uploadPhotoToS3 } from './endpoints/recipes';
 export { tagsApi }                     from './endpoints/tags';
 export { linksApi }                    from './endpoints/links';
 export { workoutsApi, exercisesApi, measurementsApi } from './endpoints/workouts';
+export { routinesApi } from './endpoints/routines';
 
 // Types from new endpoint modules
 export type { DeleteScope }                                            from './endpoints/auth';
@@ -29,4 +30,6 @@ export type { TagDefinitions }                                         from './e
 export type { HistoryEntry }                                           from './endpoints/recipes';
 export type { LinkItem }                                               from './endpoints/links';
 export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, WorkoutSummary, WorkoutDetail,
-              BodyMeasurement, MeasurementGoal, PersonalBests } from './endpoints/workouts';
+              BodyMeasurement, MeasurementGoal, PersonalBests,
+              ExerciseStats, ExerciseHistoryEntry }                    from './endpoints/workouts';
+export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet } from './endpoints/routines';

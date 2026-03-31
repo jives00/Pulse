@@ -92,6 +92,223 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /api/exercises/:id — single exercise detail
+router.get('/:id', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM exercises WHERE id = ?', [id]
+    );
+    if (!rows[0]) { res.status(404).json({ error: 'Not found' }); return; }
+    const r = rows[0];
+    res.json({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      exerciseType: r.exercise_type,
+      musclesPrimary: r.muscles_primary ?? [],
+      musclesSecondary: r.muscles_secondary ?? [],
+      isCustom: Boolean(r.is_custom),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/exercises/:id/stats?metric=heaviest_weight
+router.get('/:id/stats', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const metric = (req.query.metric as string) || 'heaviest_weight';
+  const userId = req.userId;
+
+  try {
+    // Personal bests — run in parallel
+    const [heaviestRows, ormRows, setVolRows, sessVolRows, setRecordRows] = await Promise.all([
+      // Heaviest single set
+      pool.query<RowDataPacket[]>(
+        `SELECT es.weight_kg, es.reps
+         FROM exercise_sets es
+         JOIN workout_exercises we ON we.id = es.workout_exercise_id
+         JOIN workout_logs wl ON wl.id = we.workout_log_id
+         WHERE wl.user_id = ? AND we.exercise_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+         ORDER BY es.weight_kg DESC LIMIT 1`,
+        [userId, id]
+      ),
+      // Estimated 1RM (Epley)
+      pool.query<RowDataPacket[]>(
+        `SELECT MAX(es.weight_kg * (1 + es.reps / 30.0)) AS orm
+         FROM exercise_sets es
+         JOIN workout_exercises we ON we.id = es.workout_exercise_id
+         JOIN workout_logs wl ON wl.id = we.workout_log_id
+         WHERE wl.user_id = ? AND we.exercise_id = ?
+           AND es.weight_kg IS NOT NULL AND es.reps IS NOT NULL AND es.reps > 0`,
+        [userId, id]
+      ),
+      // Best set volume (reps × weight, single set)
+      pool.query<RowDataPacket[]>(
+        `SELECT MAX(es.reps * es.weight_kg) AS best_set_vol
+         FROM exercise_sets es
+         JOIN workout_exercises we ON we.id = es.workout_exercise_id
+         JOIN workout_logs wl ON wl.id = we.workout_log_id
+         WHERE wl.user_id = ? AND we.exercise_id = ?
+           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL`,
+        [userId, id]
+      ),
+      // Best session volume (sum per session, then max)
+      pool.query<RowDataPacket[]>(
+        `SELECT MAX(session_vol) AS best_session_vol FROM (
+           SELECT SUM(es.reps * es.weight_kg) AS session_vol
+           FROM workout_logs wl
+           JOIN workout_exercises we ON we.workout_log_id = wl.id
+           JOIN exercise_sets es ON es.workout_exercise_id = we.id
+           WHERE wl.user_id = ? AND we.exercise_id = ?
+             AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
+           GROUP BY wl.id
+         ) t`,
+        [userId, id]
+      ),
+      // Set records: best weight per rep count
+      pool.query<RowDataPacket[]>(
+        `SELECT es.reps, MAX(es.weight_kg) AS best_weight_kg
+         FROM exercise_sets es
+         JOIN workout_exercises we ON we.id = es.workout_exercise_id
+         JOIN workout_logs wl ON wl.id = we.workout_log_id
+         WHERE wl.user_id = ? AND we.exercise_id = ?
+           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+         GROUP BY es.reps
+         ORDER BY es.reps ASC`,
+        [userId, id]
+      ),
+    ]);
+
+    // Progress series — aggregate varies by metric
+    let seriesSelect: string;
+    let seriesWhere = 'es.weight_kg IS NOT NULL';
+    switch (metric) {
+      case 'one_rep_max':
+        seriesSelect = 'MAX(es.weight_kg * (1 + es.reps / 30.0)) AS value';
+        seriesWhere = 'es.weight_kg IS NOT NULL AND es.reps IS NOT NULL AND es.reps > 0';
+        break;
+      case 'best_set_volume':
+        seriesSelect = 'MAX(es.reps * es.weight_kg) AS value';
+        seriesWhere = 'es.reps IS NOT NULL AND es.weight_kg IS NOT NULL';
+        break;
+      case 'session_volume':
+        seriesSelect = 'SUM(es.reps * es.weight_kg) AS value';
+        seriesWhere = 'es.reps IS NOT NULL AND es.weight_kg IS NOT NULL';
+        break;
+      case 'total_reps':
+        seriesSelect = 'SUM(es.reps) AS value';
+        seriesWhere = 'es.reps IS NOT NULL';
+        break;
+      default: // heaviest_weight
+        seriesSelect = 'MAX(es.weight_kg) AS value';
+        seriesWhere = 'es.weight_kg IS NOT NULL AND es.weight_kg > 0';
+    }
+
+    const [seriesRows] = await pool.query<RowDataPacket[]>(
+      `SELECT wl.workout_date, ${seriesSelect}
+       FROM workout_logs wl
+       JOIN workout_exercises we ON we.workout_log_id = wl.id
+       JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       WHERE wl.user_id = ? AND we.exercise_id = ? AND ${seriesWhere}
+       GROUP BY wl.id, wl.workout_date
+       ORDER BY wl.workout_date ASC`,
+      [userId, id]
+    );
+
+    const heaviest = heaviestRows[0]?.[0] ?? null;
+    const orm = ormRows[0]?.[0] ?? null;
+    const setVol = setVolRows[0]?.[0] ?? null;
+    const sessVol = sessVolRows[0]?.[0] ?? null;
+    const setRecords = setRecordRows[0] as RowDataPacket[];
+
+    res.json({
+      exerciseId: id,
+      personalBests: {
+        heaviestWeightKg: heaviest?.weight_kg != null ? Number(heaviest.weight_kg) : null,
+        heaviestWeightReps: heaviest?.reps ?? null,
+        estimatedOneRepMaxKg: orm?.orm != null ? Number(orm.orm) : null,
+        bestSetVolumeKg: setVol?.best_set_vol != null ? Number(setVol.best_set_vol) : null,
+        bestSessionVolumeKg: sessVol?.best_session_vol != null ? Number(sessVol.best_session_vol) : null,
+      },
+      setRecords: setRecords.map((r) => ({
+        reps: r.reps,
+        weightKg: Number(r.best_weight_kg),
+      })),
+      progressSeries: (seriesRows as RowDataPacket[]).map((r) => ({
+        date: r.workout_date instanceof Date
+          ? r.workout_date.toISOString().slice(0, 10)
+          : String(r.workout_date),
+        value: Number(r.value),
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/exercises/:id/history?limit=20&offset=0
+router.get('/:id/history', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const offset = Number(req.query.offset) || 0;
+  const userId = req.userId;
+
+  try {
+    const [sessionRows] = await pool.query<RowDataPacket[]>(
+      `SELECT wl.id AS workout_id, wl.workout_date, wl.name AS workout_name, we.id AS we_id
+       FROM workout_logs wl
+       JOIN workout_exercises we ON we.workout_log_id = wl.id
+       WHERE wl.user_id = ? AND we.exercise_id = ?
+       ORDER BY wl.workout_date DESC, wl.id DESC
+       LIMIT ? OFFSET ?`,
+      [userId, id, limit, offset]
+    );
+
+    if (!sessionRows.length) { res.json([]); return; }
+
+    const weIds = sessionRows.map((r) => r.we_id);
+    const [setRows] = await pool.query<RowDataPacket[]>(
+      `SELECT * FROM exercise_sets WHERE workout_exercise_id IN (?) ORDER BY workout_exercise_id, set_number ASC`,
+      [weIds]
+    );
+
+    const setsByWeId: Record<number, RowDataPacket[]> = {};
+    for (const s of setRows) {
+      if (!setsByWeId[s.workout_exercise_id]) setsByWeId[s.workout_exercise_id] = [];
+      setsByWeId[s.workout_exercise_id].push(s);
+    }
+
+    res.json(sessionRows.map((r) => ({
+      workoutId: r.workout_id,
+      workoutDate: r.workout_date instanceof Date
+        ? r.workout_date.toISOString().slice(0, 10)
+        : String(r.workout_date),
+      workoutName: r.workout_name ?? null,
+      sets: (setsByWeId[r.we_id] ?? []).map((s) => ({
+        setNumber: s.set_number,
+        reps: s.reps ?? null,
+        weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
+        durationSeconds: s.duration_seconds ?? null,
+        distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
+        completed: Boolean(s.completed),
+      })),
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE /api/exercises/:id — delete custom exercise (only custom ones)
 router.delete('/:id', async (req, res) => {
   const id = parseId(req.params.id);

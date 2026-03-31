@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -20,14 +20,24 @@ function fmtWeight(kg: number | null) {
   return String(lbs % 1 === 0 ? lbs : lbs.toFixed(1));
 }
 
+function formatElapsed(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 // ─── Set row ─────────────────────────────────────────────────────────────────
 
 function SetRow({
-  set, weId, workoutId, onUpdated, onDeleted,
+  set, weId, workoutId, isActive, onUpdated, onDeleted,
 }: {
   set: ExerciseSet;
   weId: number;
   workoutId: number;
+  isActive: boolean;
   onUpdated: (s: ExerciseSet) => void;
   onDeleted: (id: number) => void;
 }) {
@@ -43,14 +53,23 @@ function SetRow({
     if (newReps === set.reps && newWeightKg === set.weightKg) return;
     setSaving(true);
     try {
-      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeightKg ?? undefined, completed: true });
+      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeightKg ?? undefined, completed: set.completed });
       onUpdated({ ...set, reps: newReps, weightKg: newWeightKg });
     } catch {
-      // revert
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleComplete() {
+    const next = !set.completed;
+    onUpdated({ ...set, completed: next });
+    try {
+      await workoutsApi.updateSet(workoutId, weId, set.id, { completed: next });
+    } catch {
+      onUpdated({ ...set, completed: !next });
     }
   }
 
@@ -64,9 +83,14 @@ function SetRow({
   }
 
   const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
+  const rowCls = isActive && !set.completed ? 'opacity-60' : '';
+
+  const gridCols = isActive
+    ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]'
+    : 'grid-cols-[2rem_1fr_1fr_2rem]';
 
   return (
-    <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 items-center py-1">
+    <div className={`grid ${gridCols} gap-2 items-center py-1 transition-opacity ${rowCls}`}>
       <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
       <input
         type="number"
@@ -86,6 +110,19 @@ function SetRow({
         onBlur={handleBlur}
         className={inputCls}
       />
+      {isActive && (
+        <button
+          onClick={handleToggleComplete}
+          className={`w-7 h-7 rounded border-2 flex items-center justify-center transition-colors shrink-0 mx-auto ${
+            set.completed
+              ? 'bg-green-600 border-green-600 text-white'
+              : 'border-slate-600 text-transparent hover:border-slate-400'
+          }`}
+          title={set.completed ? 'Mark incomplete' : 'Mark complete'}
+        >
+          ✓
+        </button>
+      )}
       <button
         onClick={handleDelete}
         className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none"
@@ -100,10 +137,11 @@ function SetRow({
 // ─── Exercise block ──────────────────────────────────────────────────────────
 
 function ExerciseBlock({
-  we, workoutId, onRemove, onSetsChanged,
+  we, workoutId, isActive, onRemove, onSetsChanged,
 }: {
   we: WorkoutExercise;
   workoutId: number;
+  isActive: boolean;
   onRemove: (weId: number) => void;
   onSetsChanged: (weId: number, sets: ExerciseSet[]) => void;
 }) {
@@ -118,7 +156,6 @@ function ExerciseBlock({
   async function handleAddSet() {
     setAdding(true);
     try {
-      // Copy last set values as default
       const last = sets[sets.length - 1];
       const s = await workoutsApi.addSet(workoutId, we.id, {
         reps: last?.reps ?? undefined,
@@ -140,11 +177,20 @@ function ExerciseBlock({
     updateSets(sets.filter((s) => s.id !== id));
   }
 
+  const gridCols = isActive
+    ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]'
+    : 'grid-cols-[2rem_1fr_1fr_2rem]';
+
   return (
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="text-base font-medium text-slate-200">{we.exercise.name}</div>
+          <Link
+            to={`/workouts/exercises/${we.exercise.id}`}
+            className="text-base font-medium text-slate-200 hover:text-blue-400 transition-colors"
+          >
+            {we.exercise.name}
+          </Link>
           <div className="text-sm text-slate-500">{we.exercise.category}</div>
         </div>
         <button
@@ -158,10 +204,11 @@ function ExerciseBlock({
 
       {sets.length > 0 && (
         <div className="mb-2">
-          <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 mb-1">
+          <div className={`grid ${gridCols} gap-2 mb-1`}>
             <span />
             <span className="text-sm text-slate-500 text-center">lbs</span>
             <span className="text-sm text-slate-500 text-center">reps</span>
+            {isActive && <span className="text-sm text-slate-500 text-center">✓</span>}
             <span />
           </div>
           {sets.map((s) => (
@@ -170,7 +217,7 @@ function ExerciseBlock({
               set={s}
               weId={we.id}
               workoutId={workoutId}
-
+              isActive={isActive}
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
             />
@@ -366,6 +413,18 @@ export default function WorkoutDetailPage() {
   const [duration, setDuration] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
+  // Timer
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startInterval(fromDate: string) {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - new Date(fromDate).getTime()) / 1000));
+    }, 1000);
+  }
+
   useEffect(() => {
     if (!id) return;
     workoutsApi.get(Number(id))
@@ -373,14 +432,46 @@ export default function WorkoutDetailPage() {
         setWorkout(w);
         setName(w.name ?? '');
         setDuration(w.durationMinutes != null ? String(w.durationMinutes) : '');
+        if (w.startedAt) {
+          setStartedAt(w.startedAt);
+          setElapsedSeconds(Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
+          startInterval(w.startedAt);
+        }
       })
       .catch(() => navigate('/workouts'))
       .finally(() => setLoading(false));
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [id]);
 
   useEffect(() => {
     if (editingName) nameRef.current?.focus();
   }, [editingName]);
+
+  async function handleStartTimer() {
+    if (!workout) return;
+    try {
+      const { startedAt: sa } = await workoutsApi.startTimer(workout.id);
+      setStartedAt(sa);
+      setElapsedSeconds(0);
+      startInterval(sa);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleFinish() {
+    if (!workout || !startedAt) return;
+    const durationMinutes = Math.ceil(elapsedSeconds / 60);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setStartedAt(null);
+    setDuration(String(durationMinutes));
+    try {
+      await workoutsApi.update(workout.id, { durationMinutes });
+      setWorkout((prev) => prev ? { ...prev, durationMinutes, startedAt: null } : prev);
+    } catch {
+      // ignore
+    }
+  }
 
   async function saveHeader() {
     if (!workout) return;
@@ -446,7 +537,15 @@ export default function WorkoutDetailPage() {
 
   if (!workout) return null;
 
+  const isActive = startedAt != null;
   const totalSets = workout.exercises.reduce((sum, e) => sum + e.sets.length, 0);
+  const totalVolumeLbs = workout.exercises.reduce((sum, we) =>
+    sum + we.sets.reduce((s2, set) => {
+      if (set.completed && set.reps != null && set.weightKg != null) {
+        return s2 + set.reps * kgToLbs(set.weightKg);
+      }
+      return s2;
+    }, 0), 0);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
@@ -478,31 +577,57 @@ export default function WorkoutDetailPage() {
               {workout.name ?? new Date(workout.workoutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </button>
           )}
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="text-sm text-slate-500">
               {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''} · {totalSets} set{totalSets !== 1 ? 's' : ''}
             </span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min="0"
-                placeholder="min"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                onBlur={saveHeader}
-                className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
-              />
-              <span className="text-sm text-slate-500">min</span>
-            </div>
+            {isActive ? (
+              <>
+                <span className="text-sm font-mono text-green-400">{formatElapsed(elapsedSeconds)}</span>
+                {totalVolumeLbs > 0 && (
+                  <span className="text-sm text-slate-400">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="min"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  onBlur={saveHeader}
+                  className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
+                />
+                <span className="text-sm text-slate-500">min</span>
+              </div>
+            )}
           </div>
         </div>
-        <button
-          onClick={handleDelete}
-          className="text-slate-600 hover:text-red-400 transition-colors text-sm shrink-0 mt-1"
-          title="Delete workout"
-        >
-          Delete
-        </button>
+        <div className="flex items-center gap-2 shrink-0 mt-1">
+          {isActive ? (
+            <button
+              onClick={handleFinish}
+              className="text-sm bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-lg transition-colors"
+            >
+              Finish
+            </button>
+          ) : (
+            <button
+              onClick={handleStartTimer}
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Start Timer
+            </button>
+          )}
+          <button
+            onClick={handleDelete}
+            className="text-slate-600 hover:text-red-400 transition-colors text-sm"
+            title="Delete workout"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Exercises */}
@@ -511,6 +636,7 @@ export default function WorkoutDetailPage() {
           key={we.id}
           we={we}
           workoutId={workout.id}
+          isActive={isActive}
           onRemove={handleRemoveExercise}
           onSetsChanged={handleSetsChanged}
         />

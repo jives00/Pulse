@@ -16,7 +16,7 @@ async function ownsWorkout(workoutId: number, userId: number): Promise<boolean> 
   return rows.length > 0;
 }
 
-async function getWorkoutDetail(workoutId: number) {
+export async function getWorkoutDetail(workoutId: number) {
   const [wRows] = await pool.query<RowDataPacket[]>(
     'SELECT * FROM workout_logs WHERE id = ?', [workoutId]
   );
@@ -72,6 +72,8 @@ async function getWorkoutDetail(workoutId: number) {
     notes: w.notes ?? null,
     durationMinutes: w.duration_minutes ?? null,
     caloriesBurned: w.calories_burned ?? null,
+    startedAt: w.started_at ? (w.started_at instanceof Date ? w.started_at.toISOString() : String(w.started_at)) : null,
+    routineId: w.routine_id ?? null,
     createdAt: w.created_at,
     exercises,
   };
@@ -158,8 +160,16 @@ router.get('/personal-bests', async (req, res) => {
 router.get('/', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 500);
   const offset = Number(req.query.offset) || 0;
+  const routineId = req.query.routineId ? Number(req.query.routineId) : null;
 
   try {
+    const whereClause = routineId
+      ? 'WHERE wl.user_id = ? AND wl.routine_id = ?'
+      : 'WHERE wl.user_id = ?';
+    const queryParams = routineId
+      ? [req.userId, routineId, limit, offset]
+      : [req.userId, limit, offset];
+
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT wl.*,
               COUNT(DISTINCT we.id) AS exercise_count,
@@ -169,11 +179,11 @@ router.get('/', async (req, res) => {
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
-       WHERE wl.user_id = ?
+       ${whereClause}
        GROUP BY wl.id
        ORDER BY wl.workout_date DESC, wl.created_at DESC
        LIMIT ? OFFSET ?`,
-      [req.userId, limit, offset]
+      queryParams
     );
 
     const workouts = rows.map((r) => ({
@@ -241,6 +251,30 @@ router.post('/', async (req, res) => {
     );
     const detail = await getWorkoutDetail(result.insertId);
     res.status(201).json(detail);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/workouts/:id/start-timer — idempotent, only sets started_at if currently NULL
+router.post('/:id/start-timer', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    await pool.query(
+      'UPDATE workout_logs SET started_at = NOW() WHERE id = ? AND user_id = ? AND started_at IS NULL',
+      [id, req.userId]
+    );
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT started_at FROM workout_logs WHERE id = ?', [id]
+    );
+    const startedAt = rows[0]?.started_at;
+    res.json({
+      startedAt: startedAt instanceof Date ? startedAt.toISOString() : String(startedAt),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

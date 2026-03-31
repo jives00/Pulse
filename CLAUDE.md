@@ -91,6 +91,9 @@ USDA_API_KEY        (optional, food database)
 /nutrition/history     → NutritionHistoryPage
 /nutrition/foods       → FoodsPage
 /workouts              → WorkoutsPage
+/workouts/exercises/:id → ExerciseDetailPage
+/workouts/routines     → RoutinesPage
+/workouts/routines/:id → RoutineDetailPage
 /workouts/:id          → WorkoutDetailPage
 /goals                 → GoalsPage
 /history               → RecipeHistory
@@ -116,8 +119,9 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/goals/*           Nutrition + exercise goals, weekly summary
 /api/water/*
 /api/history/*         Nutrition history charts
-/api/workouts/*        Workout sessions + exercises + sets
-/api/exercises/*       Exercise library + categories
+/api/workouts/*        Workout sessions + exercises + sets (includes ?routineId filter on GET /)
+/api/exercises/*       Exercise library + categories + stats + history (GET /:id, GET /:id/stats, GET /:id/history)
+/api/routines/*        Saved workout routines CRUD + start (POST /:id/start creates workout from routine)
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
 /api/export/*          Excel export
 ```
@@ -139,7 +143,10 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `GoalsPage` | `apps/web/src/pages/GoalsPage.tsx` | Nutrition goals + history charts + workout goals (weekly progress bars). |
 | `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. |
 | `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Weekly summary ring (volume lbs), progress bars, stat tiles, 13-week charts, body measurements card, workout history with inline exercises and infinite scroll. "Edit Goals" modal edits exercise goals + body measurement goals (with target dates). |
-| `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). |
+| `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). Timer (started_at from DB), running volume total, set checkboxes, exercise name links to ExerciseDetailPage. |
+| `ExerciseDetailPage` | `apps/web/src/pages/ExerciseDetailPage.tsx` | 3 tabs: Summary (personal bests, set records, progress chart with 5 metric options), History (paginated session cards), How To (muscle tags). |
+| `RoutinesPage` | `apps/web/src/pages/RoutinesPage.tsx` | List of saved routines with create modal. |
+| `RoutineDetailPage` | `apps/web/src/pages/RoutineDetailPage.tsx` | Routine editor — editable name, volume BarChart, exercise blocks with template sets (blur-save), last-performed sets as reference, Start Routine button. |
 
 ## Database schema
 
@@ -179,7 +186,10 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | Table | Key columns |
 |---|---|
 | `exercises` | `id`, `name`, `category`, `exercise_type` (weight/cardio/bodyweight/duration), `muscles_primary` (JSON), `is_custom` |
-| `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned` |
+| `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned`, `started_at` TIMESTAMP NULL, `routine_id` INT NULL (FK to workout_routines) |
+| `workout_routines` | `id`, `user_id`, `name`, `notes`, `created_at`, `updated_at` |
+| `routine_exercises` | `id`, `routine_id`, `exercise_id`, `sort_order`, `notes` |
+| `routine_exercise_sets` | `id`, `routine_exercise_id`, `set_number`, `reps`, `weight_kg`, `duration_seconds`, `distance_meters` |
 | `workout_exercises` | `id`, `workout_log_id`, `exercise_id`, `sort_order` |
 | `exercise_sets` | `id`, `workout_exercise_id`, `set_number`, `reps`, `weight_kg`, `duration_seconds`, `distance_meters` |
 | `exercise_goals` | `id`, `user_id`, `workouts_per_week`, `minutes_per_week`, `calories_per_week`, `volume_lbs_per_week`, `effective_from` |
@@ -202,3 +212,8 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 - **Workout weights**: All weights stored in kg in DB (`weight_kg`, `total_volume_kg`). WorkoutsPage and WorkoutDetailPage display/accept in lbs using `KG_TO_LBS = 2.20462`. Always convert at the UI boundary.
 - **Exercise goals secondary sort**: `ORDER BY effective_from DESC, id DESC LIMIT 1` — the secondary `id DESC` is critical to avoid returning an old row with NULL `volume_lbs_per_week` when multiple rows share the same `effective_from` date.
 - **Migration 006**: `006_body_measurements.sql` creates `body_measurements` and `body_measurement_goals`. The `volume_lbs_per_week` column on `exercise_goals` is added via a post-migration hook in `migrate.ts` (checks `information_schema` first — MySQL < 8 doesn't support `ADD COLUMN IF NOT EXISTS`).
+- **Migration 007**: `007_workout_routines.sql` creates `workout_routines`, `routine_exercises`, `routine_exercise_sets`. The `started_at` and `routine_id` columns on `workout_logs` were added manually via `ALTER TABLE` (not in the migration file).
+- **Routine start pre-fill priority**: `POST /api/routines/:id/start` pre-fills sets from the user's last actual session for each exercise; falls back to template sets from `routine_exercise_sets` if no prior history exists. All pre-filled sets have `completed = 0`.
+- **Exercise stats**: `GET /api/exercises/:id/stats?metric=` supports 5 metrics: `heaviest_weight`, `one_rep_max` (Epley formula: `weight * (1 + reps/30)` computed in SQL), `best_set_volume`, `session_volume`, `total_reps`. Returns personal bests + set records table + progress series.
+- **Workout timer**: `started_at` is persisted in DB (survives page refresh). `POST /api/workouts/:id/start-timer` is idempotent (only sets if NULL). "Finish" computes `durationMinutes = ceil(elapsedSeconds / 60)` and saves via the existing update endpoint.
+- **Sidebar sub-nav**: Workouts section expands to show "Log" (`/workouts`) and "Routines" (`/workouts/routines`) when active, matching the Food sub-nav pattern.
