@@ -235,12 +235,57 @@ function HistoryTab({ exerciseId }: { exerciseId: number }) {
 
 // ─── How To tab ───────────────────────────────────────────────────────────────
 
+function getYouTubeEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') {
+      return `https://www.youtube.com/embed${u.pathname}`;
+    }
+    if (u.hostname.includes('youtube.com') && u.searchParams.get('v')) {
+      return `https://www.youtube.com/embed/${u.searchParams.get('v')}`;
+    }
+  } catch { /* invalid URL */ }
+  return null;
+}
+
+function MediaEmbed({ url }: { url: string }) {
+  const embedUrl = getYouTubeEmbedUrl(url);
+  if (embedUrl) {
+    return (
+      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+        <iframe
+          src={embedUrl}
+          className="absolute inset-0 w-full h-full rounded-lg"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt="Exercise demo"
+      className="w-full rounded-lg object-contain max-h-80"
+    />
+  );
+}
+
 function HowToTab({ exercise }: { exercise: Exercise }) {
   const primary = Array.isArray(exercise.musclesPrimary) ? exercise.musclesPrimary : [];
   const secondary = Array.isArray(exercise.musclesSecondary) ? exercise.musclesSecondary : [];
 
   return (
     <div className="space-y-4">
+      {/* Demo media */}
+      {exercise.mediaUrl && (
+        <div className="bg-slate-800 rounded-lg p-4">
+          <div className="text-xs text-slate-500 mb-3">Demo</div>
+          <MediaEmbed url={exercise.mediaUrl} />
+        </div>
+      )}
+
+      {/* Muscles */}
       <div className="bg-slate-800 rounded-lg p-4 space-y-3">
         <div>
           <div className="text-xs text-slate-500 mb-1.5">Primary Muscles</div>
@@ -265,9 +310,15 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
           </div>
         )}
       </div>
+
+      {/* Instructions */}
       <div className="bg-slate-800 rounded-lg p-4">
         <div className="text-xs text-slate-500 mb-2">Instructions</div>
-        <div className="text-sm text-slate-400">No instructions available for this exercise.</div>
+        {exercise.instructions ? (
+          <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.instructions}</p>
+        ) : (
+          <div className="text-sm text-slate-500">No instructions available.</div>
+        )}
       </div>
     </div>
   );

@@ -71,6 +71,8 @@ export interface Exercise {
   musclesPrimary: string[];
   musclesSecondary: string[];
   isCustom: boolean;
+  instructions: string | null;
+  mediaUrl: string | null;
 }
 
 export interface ExerciseSet {
@@ -163,6 +165,16 @@ export const exercisesApi = {
 
   getHistory: (id: number, params?: { limit?: number; offset?: number }) =>
     apiClient.get<ExerciseHistoryEntry[]>(`/exercises/${id}/history`, { params }).then((r) => r.data),
+
+  update: (id: number, data: {
+    name?: string; category?: string; exerciseType?: string;
+    musclesPrimary?: string[]; musclesSecondary?: string[];
+    instructions?: string | null; mediaUrl?: string | null;
+  }) =>
+    apiClient.put<Exercise>(`/exercises/${id}`, data).then((r) => r.data),
+
+  deleteCustom: (id: number) =>
+    apiClient.delete(`/exercises/${id}`).then(() => {}),
 };
 
 export const workoutsApi = {

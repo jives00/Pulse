@@ -111,6 +111,8 @@ router.get('/:id', async (req, res) => {
       musclesPrimary: r.muscles_primary ?? [],
       musclesSecondary: r.muscles_secondary ?? [],
       isCustom: Boolean(r.is_custom),
+      instructions: r.instructions ?? null,
+      mediaUrl: r.media_url ?? null,
     });
   } catch (err) {
     console.error(err);
@@ -303,6 +305,48 @@ router.get('/:id/history', async (req, res) => {
         completed: Boolean(s.completed),
       })),
     })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/exercises/:id — update any exercise
+router.put('/:id', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { name, category, exerciseType, musclesPrimary, musclesSecondary, instructions, mediaUrl } =
+    req.body as {
+      name?: string; category?: string; exerciseType?: string;
+      musclesPrimary?: string[]; musclesSecondary?: string[];
+      instructions?: string | null; mediaUrl?: string | null;
+    };
+  try {
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (name?.trim() !== undefined && name.trim()) { updates.push('name = ?'); values.push(name.trim()); }
+    if (category?.trim()) { updates.push('category = ?'); values.push(category.trim()); }
+    if (exerciseType) { updates.push('exercise_type = ?'); values.push(exerciseType); }
+    if (musclesPrimary !== undefined) { updates.push('muscles_primary = ?'); values.push(JSON.stringify(musclesPrimary)); }
+    if (musclesSecondary !== undefined) { updates.push('muscles_secondary = ?'); values.push(JSON.stringify(musclesSecondary)); }
+    if (instructions !== undefined) { updates.push('instructions = ?'); values.push(instructions || null); }
+    if (mediaUrl !== undefined) { updates.push('media_url = ?'); values.push(mediaUrl?.trim() || null); }
+    if (updates.length === 0) { res.status(400).json({ error: 'At least one field required' }); return; }
+    values.push(id);
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE exercises SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    if (result.affectedRows === 0) {
+      res.status(404).json({ error: 'Exercise not found' }); return;
+    }
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM exercises WHERE id = ?', [id]);
+    const r = rows[0];
+    res.json({
+      id: r.id, name: r.name, category: r.category, exerciseType: r.exercise_type,
+      musclesPrimary: r.muscles_primary ?? [], musclesSecondary: r.muscles_secondary ?? [],
+      isCustom: Boolean(r.is_custom), instructions: r.instructions ?? null, mediaUrl: r.media_url ?? null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

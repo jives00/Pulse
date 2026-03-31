@@ -250,7 +250,7 @@ export interface NutritionLogEntry { id: number; logDate: string; meal: MealSlot
 export interface DailyLog { date: string; meals: Record<MealSlot, NutritionLogEntry[]>; totals: NutritionSnapshot; goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalMl: number; }; waterTotalMl: number; }
 export interface WaterDay { date: string; totalMl: number; goalMl: number; entries: { id: number; amountMl: number; loggedAt: string; }[]; }
 export interface GoalsSummary { date: string; nutrition: { goals: { calories: number; carbsG: number; proteinG: number; fatG: number; } | null; actual: { calories: number; carbsG: number; proteinG: number; fatG: number; }; }; workouts: { goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null; } | null; actual: { workoutCount: number; totalMinutes: number; }; }; }
-export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; }
+export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; }
 export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; completed: boolean; }
 export interface WorkoutExercise { id: number; sortOrder: number; exercise: Exercise; sets: ExerciseSet[]; }
 export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; exercises: { name: string; setCount: number; }[]; }
@@ -349,6 +349,14 @@ export async function getExerciseCategories(token: string): Promise<string[]> {
 export async function createCustomExercise(token: string, data: { name: string; category: string; exerciseType: string }): Promise<Exercise> {
   const res = await fetch(`${API_BASE}/api/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<Exercise>(res);
+}
+export async function updateExercise(token: string, id: number, data: { name?: string; category?: string; exerciseType?: string; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null }): Promise<Exercise> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle<Exercise>(res);
+}
+export async function deleteExercise(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
 }
 
 // Foods search

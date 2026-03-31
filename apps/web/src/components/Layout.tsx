@@ -97,6 +97,12 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 >
                   Routines
                 </button>
+                <button
+                  onClick={() => go('/workouts/exercises')}
+                  className={subLinkCls(location.pathname.startsWith('/workouts/exercises'))}
+                >
+                  Exercises
+                </button>
               </div>
             )}
 

@@ -11,6 +11,7 @@ const MIGRATIONS = [
   '004_tag_definitions.sql',
   '005_food_log_dram_recipe_id.sql',
   '006_body_measurements.sql',
+  '008_exercise_fields.sql',
 ];
 
 async function migrate() {
@@ -96,6 +97,23 @@ async function migrate() {
         console.log('  Added exercise_goals.volume_lbs_per_week column.');
       } else {
         console.log('  exercise_goals.volume_lbs_per_week already exists, skipping ALTER.');
+      }
+    }
+
+    if (file === '008_exercise_fields.sql') {
+      const [cols] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'exercises'
+           AND COLUMN_NAME IN ('instructions', 'media_url')`
+      );
+      const existing = (cols as any[]).map((r) => r.COLUMN_NAME);
+      if (!existing.includes('instructions')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN instructions TEXT NULL`);
+        console.log('  Added exercises.instructions column.');
+      }
+      if (!existing.includes('media_url')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN media_url VARCHAR(500) NULL`);
+        console.log('  Added exercises.media_url column.');
       }
     }
 
