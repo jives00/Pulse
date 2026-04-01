@@ -364,3 +364,43 @@ export async function searchFoods(token: string, q: string): Promise<Food[]> {
   const res = await fetch(`${API_BASE}/api/foods/search?q=${encodeURIComponent(q)}&limit=20`, { headers: headers(token) });
   return handle<Food[]>(res);
 }
+
+export async function getFoodByBarcode(token: string, barcode: string): Promise<Food | null> {
+  const res = await fetch(`${API_BASE}/api/foods/barcode/${encodeURIComponent(barcode)}`, { headers: headers(token) });
+  if (res.status === 404) return null;
+  return handle<Food>(res);
+}
+
+export interface RecipeSearchResult {
+  id: number;
+  name: string;
+  calories: number | null;
+  carbs_g: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  servings: number | null;
+  photo_url: string | null;
+}
+
+export async function searchRecipes(token: string, q: string): Promise<RecipeSearchResult[]> {
+  const res = await fetch(`${API_BASE}/api/recipes/search?q=${encodeURIComponent(q)}`, { headers: headers(token) });
+  return handle<RecipeSearchResult[]>(res);
+}
+
+export async function getRecipeByBarcode(token: string, barcode: string): Promise<RecipeSearchResult | null> {
+  const res = await fetch(`${API_BASE}/api/recipes/barcode/${encodeURIComponent(barcode)}`, { headers: headers(token) });
+  if (res.status === 404) return null;
+  return handle<RecipeSearchResult>(res);
+}
+
+export async function logRecipeToNutrition(
+  token: string,
+  payload: { recipeId: number; meal: string; servings: number; logDate?: string }
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/recipe`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  await handle(res);
+}

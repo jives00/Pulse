@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
-import type { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
+import type { Pool, RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { suggestTags } from '../services/claude';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
 
@@ -165,6 +165,56 @@ router.get('/', async (req: Request, res: Response) => {
     );
 
     res.json(recipes);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recipes/search?q= — lightweight recipe search for nutrition food picker
+// Returns food-type recipes with nutrition data (calories not null)
+router.get('/search', async (req: Request, res: Response) => {
+  const q = String(req.query.q ?? '').trim();
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name, calories, carbs_g, protein_g, fat_g, fiber_g, servings, photo_key
+       FROM recipes
+       WHERE user_id = ? AND type = 'food' AND calories IS NOT NULL
+         AND (? = '' OR name LIKE ?)
+       ORDER BY name ASC
+       LIMIT 30`,
+      [req.userId, q, `%${q}%`]
+    );
+    const results = await Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        photo_url: r.photo_key ? await getPresignedGetUrl(r.photo_key) : null,
+      }))
+    );
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recipes/barcode/:barcode — look up recipe by barcode
+router.get('/barcode/:barcode', async (req: Request, res: Response) => {
+  const { barcode } = req.params;
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT r.id, r.name, r.calories, r.carbs_g, r.protein_g, r.fat_g, r.fiber_g, r.servings, r.photo_key
+       FROM recipe_barcodes rb
+       JOIN recipes r ON rb.recipe_id = r.id
+       WHERE rb.barcode = ? AND r.user_id = ?`,
+      [barcode, req.userId]
+    );
+    if (!rows.length) { res.status(404).json({ error: 'Not found' }); return; }
+    const r = rows[0];
+    res.json({
+      ...r,
+      photo_url: r.photo_key ? await getPresignedGetUrl(r.photo_key) : null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -474,13 +524,92 @@ router.post('/:id/photo-from-url', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/recipes/:id/barcode — get the current barcode for a recipe
+router.get('/:id/barcode', async (req: Request, res: Response) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT barcode FROM recipe_barcodes WHERE recipe_id = ?', [id]
+    );
+    res.json({ barcode: rows[0]?.barcode ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/recipes/:id/barcode — set or update the barcode for a recipe
+router.put('/:id/barcode', async (req: Request, res: Response) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+  const { barcode } = req.body;
+  if (!barcode || typeof barcode !== 'string' || !barcode.trim()) {
+    res.status(400).json({ error: 'barcode is required' }); return;
+  }
+  try {
+    // Remove any existing barcode for this recipe first
+    await pool.query('DELETE FROM recipe_barcodes WHERE recipe_id = ?', [id]);
+    await pool.query(
+      'INSERT INTO recipe_barcodes (barcode, recipe_id) VALUES (?, ?)',
+      [barcode.trim(), id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({ error: 'Barcode already assigned to another recipe' }); return;
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/recipes/:id/barcode — remove barcode from a recipe
+router.delete('/:id/barcode', async (req: Request, res: Response) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+  try {
+    await pool.query('DELETE FROM recipe_barcodes WHERE recipe_id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/recipes/:id/log
 router.post('/:id/log', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRecipe(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const { meal, servings, logDate } = req.body;
+  const validMeals = ['breakfast', 'lunch', 'dinner', 'snack'];
+
   try {
     await pool.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [id, req.userId]);
+
+    // If meal + servings provided, also log to nutrition
+    if (meal && servings != null) {
+      if (!validMeals.includes(meal)) {
+        res.status(400).json({ error: 'Invalid meal slot' }); return;
+      }
+      const qty = Number(servings);
+      if (!qty || qty <= 0) {
+        res.status(400).json({ error: 'servings must be positive' }); return;
+      }
+      const [recipeRows] = await pool.query<RowDataPacket[]>(
+        'SELECT * FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]
+      );
+      const recipe = recipeRows[0];
+      if (recipe?.calories != null) {
+        await upsertRecipeNutritionLog(pool, recipe, req.userId, meal, qty, logDate ?? null);
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -600,6 +729,84 @@ router.put('/:id/tags', async (req: Request, res: Response) => {
     conn.release();
   }
 });
+
+/**
+ * Upserts a shadow food record for a recipe, then inserts a food_log entry.
+ * Shadow food stores per-serving macros as per-100 values (1 serving = 100 virtual units),
+ * so food_log.quantity = number of servings (0.5, 1, 1.5, etc.).
+ */
+export async function upsertRecipeNutritionLog(
+  db: Pool,
+  recipe: RowDataPacket,
+  userId: number,
+  meal: string,
+  servings: number,
+  logDate: string | null,
+): Promise<void> {
+  // Find or create shadow food record linked to this recipe
+  const [existing] = await db.query<RowDataPacket[]>(
+    'SELECT id FROM foods WHERE recipe_id = ?', [recipe.id]
+  );
+
+  let foodId: number;
+  if (existing.length > 0) {
+    foodId = existing[0].id;
+    // Sync nutrition in case recipe was updated
+    await db.execute(
+      `UPDATE foods SET name=?, calories_per100=?, carbs_per100=?, protein_per100=?,
+       fat_per100=?, fiber_per100=?, sodium_per100=? WHERE id=?`,
+      [recipe.name,
+       recipe.calories, recipe.carbs_g ?? 0, recipe.protein_g ?? 0,
+       recipe.fat_g ?? 0, recipe.fiber_g ?? null, recipe.sodium_mg ?? null,
+       foodId]
+    );
+  } else {
+    const [ins] = await db.execute<ResultSetHeader>(
+      `INSERT INTO foods (name, source, calories_per100, carbs_per100, protein_per100,
+       fat_per100, fiber_per100, sodium_per100, is_custom, recipe_id)
+       VALUES (?, 'custom', ?, ?, ?, ?, ?, ?, 1, ?)`,
+      [recipe.name,
+       recipe.calories, recipe.carbs_g ?? 0, recipe.protein_g ?? 0,
+       recipe.fat_g ?? 0, recipe.fiber_g ?? null, recipe.sodium_mg ?? null,
+       recipe.id]
+    );
+    foodId = ins.insertId;
+  }
+
+  // Find or create the "1 serving" serving size for this food
+  const [ssList] = await db.query<RowDataPacket[]>(
+    'SELECT id FROM serving_sizes WHERE food_id = ? LIMIT 1', [foodId]
+  );
+  let servingSizeId: number;
+  if (ssList.length > 0) {
+    servingSizeId = ssList[0].id;
+  } else {
+    const [ssIns] = await db.execute<ResultSetHeader>(
+      `INSERT INTO serving_sizes (food_id, label, grams, is_default) VALUES (?, '1 serving', 100, 1)`,
+      [foodId]
+    );
+    servingSizeId = ssIns.insertId;
+  }
+
+  // Calculate nutrition: factor = (grams * qty) / 100 = (100 * servings) / 100 = servings
+  const f = servings;
+  const calories = Math.round(Number(recipe.calories) * f * 10) / 10;
+  const carbs    = Math.round(Number(recipe.carbs_g ?? 0) * f * 10) / 10;
+  const protein  = Math.round(Number(recipe.protein_g ?? 0) * f * 10) / 10;
+  const fat      = Math.round(Number(recipe.fat_g ?? 0) * f * 10) / 10;
+  const fiber    = recipe.fiber_g  != null ? Math.round(Number(recipe.fiber_g)  * f * 10) / 10 : null;
+  const sodium   = recipe.sodium_mg != null ? Math.round(Number(recipe.sodium_mg) * f * 10) / 10 : null;
+
+  const date = logDate ?? new Date().toISOString().slice(0, 10);
+  await db.execute(
+    `INSERT INTO food_log
+       (user_id, log_date, meal, food_id, serving_size_id, quantity,
+        calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, dram_recipe_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, date, meal, foodId, servingSizeId, servings,
+     calories, carbs, protein, fat, fiber, sodium, recipe.id]
+  );
+}
 
 async function setTags(conn: PoolConnection, recipeId: number, tagNames: string[]) {
   await conn.query('DELETE FROM recipe_tags WHERE recipe_id = ?', [recipeId]);

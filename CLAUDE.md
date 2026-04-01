@@ -122,10 +122,16 @@ PUT    /api/auth/password
 DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 
 /api/recipes/*         CRUD + scrape + cook log
+                       GET  /api/recipes/search?q=        search food-type recipes with calories
+                       GET  /api/recipes/barcode/:barcode look up recipe by barcode (user-scoped)
+                       GET  /api/recipes/:id/barcode      get barcode for recipe
+                       PUT  /api/recipes/:id/barcode      set/upsert barcode (409 on conflict)
+                       DELETE /api/recipes/:id/barcode    remove barcode
 /api/tags/*
 /api/links/*
 /api/foods/*           USDA food search + custom foods
 /api/log/*             Nutrition log (meals, water)
+                       POST /api/log/recipe               log a recipe to nutrition (creates shadow food if needed)
 /api/goals/*           Nutrition + exercise goals, weekly summary
 /api/water/*
 /api/history/*         Nutrition history charts
@@ -148,10 +154,11 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `NutritionSummaryCard` | `apps/web/src/components/NutritionSummaryCard.tsx` | Calorie ring, macro rings, water bar. Shared by TodayPage + GoalsPage. `onAddWater` prop optional — omit on GoalsPage. |
 | `NutritionHistoryCharts` | `apps/web/src/components/NutritionHistoryCharts.tsx` | 30-day scrollable bar charts (calories + protein). Shared by TodayPage + GoalsPage. Fetches its own data via `historyApi.daily()`. |
 | `Library` | `apps/web/src/pages/Library.tsx` | Food and Drinks recipe grid. Filter state is URL-driven (`?sub=main` etc.). Tags scoped to current user + page type (food vs cocktail). |
-| `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. |
+| `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. Accepts `initialType` prop. Food-type recipes show a barcode field (optional); saved to `recipe_barcodes` on submit. |
+| `FoodSearchModal` | `apps/web/src/components/FoodSearchModal.tsx` | Searches recipes (`GET /recipes/search`) + foods in parallel. "My Recipes" section at top. Selecting a recipe opens a servings picker that logs via `POST /log/recipe`. Accepts `onCreateCustomFood` prop; if provided, "Create custom food" calls it instead of the inline create flow. |
 | `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Default Sort (persisted in Zustand `settingsStore`), Tag Definitions editor, Color Scheme, username/password, danger zone. |
 | `GoalsPage` | `apps/web/src/pages/GoalsPage.tsx` | Nutrition goals + history charts + workout goals (weekly progress bars). |
-| `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. |
+| `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. "Create Custom Food" opens `RecipeForm` in a modal overlay (initialType="food"). `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
 | `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Weekly summary ring (volume lbs), progress bars, stat tiles, 13-week charts, body measurements card, workout history with inline exercises and infinite scroll. "Edit Goals" modal edits exercise goals + body measurement goals (with target dates). |
 | `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). Timer (started_at from DB), running volume total, set checkboxes, exercise name links to ExerciseDetailPage. |
 | `ExercisesPage` | `apps/web/src/pages/ExercisesPage.tsx` | Full exercise library list with search + category filter. Edit button on all exercises; Delete only for custom. Edit modal has tag-chip inputs for muscles, instructions textarea, demo URL field. |
@@ -180,11 +187,12 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | `tags` | `id`, `name` (global, not user-scoped) |
 | `recipe_tags` | `recipe_id`, `tag_id` |
 | `tag_definitions` | `id`, `user_id`, `name`, `category` (ENUM: health/cuisine/category) — per-user predefined tag lists; seeded with defaults on first GET |
+| `recipe_barcodes` | `barcode` VARCHAR(64) PK, `recipe_id` INT UNSIGNED (FK → recipes.id CASCADE), `created_at` — maps a barcode to a food-type recipe; one barcode per recipe |
 
 ### Nutrition
 | Table | Key columns |
 |---|---|
-| `foods` | `id`, `name`, `brand`, `source` (custom/open_food_facts/usda), `calories_per100`, `carbs_per100`, `protein_per100`, `fat_per100`, `is_custom` |
+| `foods` | `id`, `name`, `brand`, `source` (custom/open_food_facts/usda), `calories_per100`, `carbs_per100`, `protein_per100`, `fat_per100`, `is_custom`, `recipe_id` INT NULL (FK → recipes.id, identifies shadow foods) |
 | `serving_sizes` | `id`, `food_id`, `label`, `grams`, `is_default` |
 | `food_log` | `id`, `user_id`, `log_date`, `meal` (breakfast/lunch/dinner/snack), `food_id`, `serving_size_id`, `quantity`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `dram_recipe_id` (nullable, links to recipes) |
 | `user_goals` | `id`, `user_id`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `water_goal_ml`, `effective_from` |
@@ -227,7 +235,7 @@ Android-only Expo app. Key conventions:
 | Tab | File | Notes |
 |---|---|---|
 | Recipes | `app/(app)/index.tsx` | Existing library grid |
-| Nutrition | `app/(app)/nutrition.tsx` | Date nav, meal sections, food search modal, water quick-add |
+| Nutrition | `app/(app)/nutrition.tsx` | Date nav, meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add |
 | Workouts | `app/(app)/workouts.tsx` | List + Start button |
 | Goals | `app/(app)/goals.tsx` | Read-only calorie/macro/workout progress bars |
 | Settings | `app/(app)/settings.tsx` | Nav to History + Links; data management |
@@ -244,7 +252,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
 ## Design decisions
 
 - **Tags**: Stored in `tag_definitions` (user-scoped, 3 categories: health/cuisine/category). Auto-seeded with defaults on first `GET /api/tags/definitions`. Tag filter only shows tags used by actual recipes on the current page type (food vs cocktail).
-- **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` (not in a migration file yet) — allows logging a recipe as a meal entry.
+- **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` in migration 009 post-hook — links a nutrition log entry back to the originating recipe.
 - **Sidebar icons**: Intentionally removed from desktop nav; mobile bottom nav keeps icons.
 - **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
 - **Theming**: CSS variables as bare RGB channels in `index.css`; Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
@@ -254,6 +262,9 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
 - **Migration 006**: `006_body_measurements.sql` creates `body_measurements` and `body_measurement_goals`. The `volume_lbs_per_week` column on `exercise_goals` is added via a post-migration hook in `migrate.ts` (checks `information_schema` first — MySQL < 8 doesn't support `ADD COLUMN IF NOT EXISTS`).
 - **Migration 007**: `007_workout_routines.sql` creates `workout_routines`, `routine_exercises`, `routine_exercise_sets`. The `started_at` and `routine_id` columns on `workout_logs` were added manually via `ALTER TABLE` (not in the migration file).
 - **Migration 008**: `008_exercise_fields.sql` adds `instructions` and `media_url` columns to `exercises` via post-migration hook in `migrate.ts`.
+- **Migration 009**: `009_recipe_nutrition_bridge.sql` creates `recipe_barcodes` table. The `foods.recipe_id` FK column and `food_log.dram_recipe_id` column are added via post-migration hooks in `migrate.ts` (MySQL <8 `ADD COLUMN IF NOT EXISTS` workaround).
+- **Shadow food pattern**: Logging a recipe to nutrition auto-upserts a `foods` row (`source='custom'`, `recipe_id=<recipe.id>`) storing per-serving macros as `calories_per100` etc. (treating 1 serving = 100 virtual grams). A "1 serving" `serving_sizes` row (100g) is also upserted. The `food_log.quantity` field then equals the number of servings. Logic lives in `upsertRecipeNutritionLog()` exported from `apps/server/src/routes/recipes.ts` and shared by both `POST /recipes/:id/log` and `POST /log/recipe`.
+- **Recipe barcode scanning (mobile)**: `expo-camera` (CameraView) is used in `nutrition.tsx`. On scan, checks `recipe_barcodes` first via `GET /api/recipes/barcode/:barcode`, then `barcode_cache` foods via `GET /api/foods/barcode/:barcode`. Routes to recipe-servings picker or food-servings picker accordingly. Camera permission declared in `app.json` plugin config.
 - **Exercise PUT**: `PUT /api/exercises/:id` updates any exercise (not just custom). Accepts `name`, `category`, `exerciseType`, `musclesPrimary`, `musclesSecondary`, `instructions`, `mediaUrl`.
 - **Exercise demo media**: `media_url` stores a YouTube URL, image URL, or GIF URL. `ExerciseDetailPage` How To tab auto-detects YouTube and renders an iframe embed; otherwise renders as `<img>`.
 - **Sidebar sub-nav**: Workouts section expands to show "Log", "Routines", and "Exercises" when active.

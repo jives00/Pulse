@@ -28,6 +28,7 @@ export type { DeleteScope }                                            from './e
 export type { GoalsSummary, ExerciseGoals }                           from './endpoints/goals';
 export type { TagDefinitions }                                         from './endpoints/tags';
 export type { HistoryEntry }                                           from './endpoints/recipes';
+export type { RecipeSearchResult }                                     from './recipes';
 export type { LinkItem }                                               from './endpoints/links';
 export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, WorkoutSummary, WorkoutDetail,
               BodyMeasurement, MeasurementGoal, PersonalBests,

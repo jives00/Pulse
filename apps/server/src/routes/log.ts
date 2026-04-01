@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { upsertRecipeNutritionLog } from './recipes';
 import type { MealSlot, NutritionSnapshot } from '../types';
 
 const router = Router();
@@ -144,6 +145,39 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch log' });
+  }
+});
+
+// ── POST /log/recipe — log a recipe as a nutrition entry ──────
+
+router.post('/recipe', async (req, res) => {
+  const { recipeId, meal, servings, logDate } = req.body;
+
+  if (!MEALS.includes(meal)) {
+    res.status(400).json({ error: 'Invalid meal slot' }); return;
+  }
+  const qty = Number(servings);
+  if (!qty || qty <= 0) {
+    res.status(400).json({ error: 'servings must be positive' }); return;
+  }
+
+  try {
+    const [recipes] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM recipes WHERE id = ? AND user_id = ?',
+      [recipeId, req.userId]
+    );
+    if (!recipes.length) { res.status(404).json({ error: 'Recipe not found' }); return; }
+    const recipe = recipes[0];
+    if (recipe.calories == null) {
+      res.status(400).json({ error: 'Recipe has no nutrition data' }); return;
+    }
+
+    await upsertRecipeNutritionLog(pool as any, recipe, req.userId!, meal, qty, logDate ?? null);
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to log recipe' });
   }
 });
 

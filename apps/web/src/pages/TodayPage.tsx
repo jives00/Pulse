@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLogStore } from '../store/logStore';
 import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
+import RecipeForm from '../components/RecipeForm';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
 import NutritionHistoryCharts from '../components/NutritionHistoryCharts';
 import { recipesApi } from '@pulse/api-client';
@@ -31,7 +32,7 @@ function offsetDate(iso: string, days: number) {
 export default function TodayPage() {
   const { currentDate, dailyLog, waterDay, loading, setDate, fetchDay, addWater, copyFromDate } = useLogStore();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showCustomFoodModal, setShowCustomFoodModal] = useState(false);
+  const [showRecipeFormModal, setShowRecipeFormModal] = useState(false);
   const [mealPhotos, setMealPhotos] = useState<Record<MealSlot, string | null>>({
     breakfast: null, lunch: null, dinner: null, snack: null,
   });
@@ -81,7 +82,7 @@ export default function TodayPage() {
         {/* Right: action buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowCustomFoodModal(true)}
+            onClick={() => setShowRecipeFormModal(true)}
             className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
           >
             Create Custom Food
@@ -143,11 +144,23 @@ export default function TodayPage() {
       </div>
 
       {showAddModal && (
-        <FoodSearchModal onClose={() => setShowAddModal(false)} />
+        <FoodSearchModal
+          onClose={() => setShowAddModal(false)}
+          onCreateCustomFood={() => { setShowAddModal(false); setShowRecipeFormModal(true); }}
+        />
       )}
 
-      {showCustomFoodModal && (
-        <FoodSearchModal mode="create" onClose={() => setShowCustomFoodModal(false)} />
+      {showRecipeFormModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRecipeFormModal(false)} />
+          <div className="relative w-full max-w-lg h-[90vh] rounded-2xl overflow-hidden shadow-2xl">
+            <RecipeForm
+              initialType="food"
+              onSaved={() => setShowRecipeFormModal(false)}
+              onCancel={() => setShowRecipeFormModal(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

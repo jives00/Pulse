@@ -10,6 +10,7 @@ import {
 
 interface Props {
   initialData?: RecipeDetail;
+  initialType?: 'cocktail' | 'food';
   onSaved: (id: number) => void;
   onCancel: () => void;
 }
@@ -28,10 +29,10 @@ function toRows(ingredients: Ingredient[]): IngredientRow[] {
   }));
 }
 
-export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
+export default function RecipeForm({ initialData, initialType, onSaved, onCancel }: Props) {
   const isEdit = Boolean(initialData);
 
-  const [type, setType] = useState<'cocktail' | 'food'>(initialData?.type || 'cocktail');
+  const [type, setType] = useState<'cocktail' | 'food'>(initialData?.type || initialType || 'cocktail');
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
@@ -65,6 +66,7 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
 
+  const [barcode, setBarcode] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,6 +74,11 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
 
   useEffect(() => {
     tagsApi.getDefinitions().then(setTagDefs).catch(() => {});
+    if (isEdit && initialData) {
+      recipesApi.getBarcode(initialData.id)
+        .then((r) => setBarcode(r.barcode ?? ''))
+        .catch(() => {});
+    }
   }, []);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -241,6 +248,11 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
       } else {
         const result = await recipesApi.create(payload);
         recipeId = result.id;
+      }
+
+      // Save barcode if set (food type only)
+      if (type === 'food' && barcode.trim()) {
+        await recipesApi.setBarcode(recipeId, barcode.trim());
       }
 
       // Upload photo if selected
@@ -635,6 +647,20 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {type === 'food' && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
+            <input
+              type="text"
+              placeholder="e.g. 012345678901"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
+            />
+            <p className="text-xs text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
           </div>
         )}
 

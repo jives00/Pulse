@@ -1,14 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
-import { foodsApi } from '@pulse/api-client';
+import { foodsApi, recipesApi, logApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
-import type { Food, MealSlot } from '@pulse/api-client';
+import type { Food, MealSlot, RecipeSearchResult } from '@pulse/api-client';
 
-type View = 'meal' | 'search' | 'pick' | 'create';
+type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create';
 
 interface Props {
   meal?: MealSlot;
   mode?: 'create'; // open directly to custom food creation, no logging
   onClose: () => void;
+  onCreateCustomFood?: () => void; // if provided, overrides built-in create view
+}
+
+function defaultMealByTime(): MealSlot {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return 'breakfast';
+  if (h >= 11 && h < 14) return 'lunch';
+  if (h >= 17 && h < 20) return 'dinner';
+  return 'snack';
 }
 
 const MEAL_LABELS: Record<MealSlot, string> = {
@@ -31,14 +40,21 @@ const CONFIDENCE_COLORS = {
   low: 'text-red-400',
 };
 
-export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props) {
+export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreateCustomFood }: Props) {
   const { currentDate, addEntry } = useLogStore();
 
   const [view, setView] = useState<View>(mode === 'create' ? 'create' : mealProp ? 'search' : 'meal');
-  const [selectedMeal, setSelectedMeal] = useState<MealSlot | null>(mealProp ?? null);
+  const [selectedMeal, setSelectedMeal] = useState<MealSlot | null>(mealProp ?? defaultMealByTime());
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
+  const [recipeResults, setRecipeResults] = useState<RecipeSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Recipe pick state
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeSearchResult | null>(null);
+  const [recipeServings, setRecipeServings] = useState('1');
+  const [recipeLogDate, setRecipeLogDate] = useState(currentDate);
+  const [addingRecipe, setAddingRecipe] = useState(false);
 
   // Serving picker state
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
@@ -66,16 +82,22 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchId = useRef(0);
 
-  // Debounced search
+  // Debounced search — recipes first, then foods
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!query.trim()) { setResults([]); return; }
+    if (!query.trim()) { setResults([]); setRecipeResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       const id = ++searchId.current;
       setSearching(true);
       try {
-        const data = await foodsApi.search(query);
-        if (id === searchId.current) setResults(data);
+        const [foodData, recipeData] = await Promise.all([
+          foodsApi.search(query),
+          recipesApi.search(query),
+        ]);
+        if (id === searchId.current) {
+          setResults(foodData);
+          setRecipeResults(recipeData);
+        }
       } catch {
         // ignore
       } finally {
@@ -98,6 +120,31 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
     setServingSizeId(def?.id ?? 0);
     setQuantity('1');
     setView('pick');
+  }
+
+  function selectRecipe(recipe: RecipeSearchResult) {
+    setSelectedRecipe(recipe);
+    setRecipeServings('1');
+    setRecipeLogDate(currentDate);
+    setView('recipe-pick');
+  }
+
+  async function handleAddRecipe() {
+    if (!selectedRecipe || !selectedMeal) return;
+    setAddingRecipe(true);
+    try {
+      await logApi.logRecipe({
+        recipeId: selectedRecipe.id,
+        meal: selectedMeal,
+        servings: Number(recipeServings) || 1,
+        logDate: recipeLogDate,
+      });
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setAddingRecipe(false);
+    }
   }
 
   async function handleAdd() {
@@ -194,14 +241,15 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
             {(view === 'search' || view === 'create') && !mealProp && mode !== 'create' && (
               <button onClick={() => setView('meal')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
-            {view === 'pick' && (
+            {(view === 'pick' || view === 'recipe-pick') && (
               <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
             <h2 className="text-sm font-semibold text-slate-200">
-              {view === 'meal'   && 'Add to log'}
-              {view === 'search' && `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
-              {view === 'pick'   && (selectedFood?.name ?? '')}
-              {view === 'create' && 'Create custom food'}
+              {view === 'meal'        && 'Add to log'}
+              {view === 'search'      && `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+              {view === 'pick'        && (selectedFood?.name ?? '')}
+              {view === 'recipe-pick' && (selectedRecipe?.name ?? '')}
+              {view === 'create'      && 'Create custom food'}
             </h2>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors">×</button>
@@ -245,36 +293,77 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
                 <div className="px-4 py-8 text-center text-sm text-slate-500">Searching…</div>
               )}
 
-              {!searching && results.length > 0 && (
-                <ul className="divide-y divide-slate-700/50">
-                  {results.map((food) => {
-                    const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0];
-                    const cal = def
-                      ? Math.round(food.nutrition.calories * def.grams / 100)
-                      : Math.round(food.nutrition.calories);
-                    return (
-                      <li key={food.id}>
-                        <button
-                          className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left transition-colors"
-                          onClick={() => selectFood(food)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm text-slate-200 truncate">{food.name}</div>
-                            {food.brand && (
-                              <div className="text-xs text-slate-500 truncate">{food.brand}</div>
-                            )}
-                          </div>
-                          <div className="ml-3 text-xs text-slate-400 shrink-0">
-                            {cal} cal{def ? ` / ${def.label}` : ' / 100g'}
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+              {!searching && (recipeResults.length > 0 || results.length > 0) && (
+                <div>
+                  {/* Recipes section — shown first */}
+                  {recipeResults.length > 0 && (
+                    <>
+                      <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
+                        My Recipes
+                      </div>
+                      <ul className="divide-y divide-slate-700/50">
+                        {recipeResults.map((recipe) => (
+                          <li key={`r-${recipe.id}`}>
+                            <button
+                              className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left transition-colors"
+                              onClick={() => selectRecipe(recipe)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-slate-200 truncate">{recipe.name}</div>
+                                {recipe.servings && (
+                                  <div className="text-xs text-slate-500">{recipe.servings} serving{recipe.servings !== 1 ? 's' : ''}</div>
+                                )}
+                              </div>
+                              <div className="ml-3 text-xs text-slate-400 shrink-0">
+                                {recipe.calories != null ? `${recipe.calories} cal / serving` : '—'}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+
+                  {/* Foods section */}
+                  {results.length > 0 && (
+                    <>
+                      {recipeResults.length > 0 && (
+                        <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
+                          Foods
+                        </div>
+                      )}
+                      <ul className="divide-y divide-slate-700/50">
+                        {results.map((food) => {
+                          const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0];
+                          const cal = def
+                            ? Math.round(food.nutrition.calories * def.grams / 100)
+                            : Math.round(food.nutrition.calories);
+                          return (
+                            <li key={food.id}>
+                              <button
+                                className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left transition-colors"
+                                onClick={() => selectFood(food)}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-slate-200 truncate">{food.name}</div>
+                                  {food.brand && (
+                                    <div className="text-xs text-slate-500 truncate">{food.brand}</div>
+                                  )}
+                                </div>
+                                <div className="ml-3 text-xs text-slate-400 shrink-0">
+                                  {cal} cal{def ? ` / ${def.label}` : ' / 100g'}
+                                </div>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </div>
               )}
 
-              {!searching && query.trim() && results.length === 0 && (
+              {!searching && query.trim() && recipeResults.length === 0 && results.length === 0 && (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
                   No results for "{query}"
                 </div>
@@ -289,7 +378,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
 
             <div className="px-4 py-3 border-t border-slate-700/50 shrink-0">
               <button
-                onClick={() => setView('create')}
+                onClick={() => onCreateCustomFood ? onCreateCustomFood() : setView('create')}
                 className="w-full text-sm text-brand-400 hover:text-brand-300 transition-colors py-1"
               >
                 + Create custom food
@@ -370,6 +459,57 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
               className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors mt-auto"
             >
               {adding ? 'Adding…' : `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+            </button>
+          </div>
+        )}
+
+        {/* ── Recipe serving picker ────────────────────────────── */}
+        {view === 'recipe-pick' && selectedRecipe && (
+          <div className="flex flex-col flex-1 p-4 gap-4 overflow-y-auto">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Servings</label>
+              <input
+                autoFocus
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={recipeServings}
+                onChange={(e) => setRecipeServings(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
+            {selectedRecipe.calories != null && (
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex justify-between text-sm text-slate-300 font-medium">
+                  <span>Calories</span>
+                  <span>{Math.round(selectedRecipe.calories * (Number(recipeServings) || 1))}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400">
+                  {selectedRecipe.carbs_g != null && <div>Carbs: {Math.round(selectedRecipe.carbs_g * (Number(recipeServings) || 1))}g</div>}
+                  {selectedRecipe.protein_g != null && <div>Protein: {Math.round(selectedRecipe.protein_g * (Number(recipeServings) || 1))}g</div>}
+                  {selectedRecipe.fat_g != null && <div>Fat: {Math.round(selectedRecipe.fat_g * (Number(recipeServings) || 1))}g</div>}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <input
+                type="date"
+                value={recipeLogDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setRecipeLogDate(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <button
+              onClick={handleAddRecipe}
+              disabled={addingRecipe || Number(recipeServings) <= 0 || !selectedMeal}
+              className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors mt-auto"
+            >
+              {addingRecipe ? 'Adding…' : `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
             </button>
           </div>
         )}

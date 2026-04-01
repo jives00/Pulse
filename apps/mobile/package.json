@@ -11,6 +11,7 @@
     "babel-preset-expo": "^55.0.12",
     "expo": "~55.0.8",
     "expo-build-properties": "^55.0.10",
+    "expo-camera": "~16.0.18",
     "expo-constants": "~55.0.9",
     "expo-image-picker": "~55.0.13",
     "expo-router": "~55.0.7",

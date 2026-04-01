@@ -4,10 +4,12 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, addWater,
-  searchFoods,
+  searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
+  type RecipeSearchResult,
 } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
 import { colors, fontSize } from '../../src/theme';
@@ -18,6 +20,8 @@ const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'dinner', label: 'Dinner' },
   { slot: 'snack', label: 'Snack' },
 ];
+
+type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'scanning';
 
 function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -40,13 +44,28 @@ export default function NutritionScreen() {
 
   // Add food modal state
   const [addMeal, setAddMeal] = useState<MealSlot | null>(null);
+  const [modalView, setModalView] = useState<ModalView>('search');
+
+  // Food search
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Food[]>([]);
+  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [recipeResults, setRecipeResults] = useState<RecipeSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Food pick
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedServing, setSelectedServing] = useState<ServingSize | null>(null);
   const [quantity, setQuantity] = useState('1');
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Recipe pick
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeSearchResult | null>(null);
+  const [recipeServings, setRecipeServings] = useState('1');
+  const [addingRecipe, setAddingRecipe] = useState(false);
+
+  // Barcode scanner
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const scannedRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,24 +90,34 @@ export default function NutritionScreen() {
   function handleSearch(text: string) {
     setQuery(text);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!text.trim()) { setResults([]); return; }
+    if (!text.trim()) { setFoodResults([]); setRecipeResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const foods = await searchFoods(token, text.trim());
-        setResults(foods);
-      } catch { /* ignore */ }
-      finally { setSearching(false); }
+        const [foods, recipes] = await Promise.all([
+          searchFoods(token, text.trim()).catch(() => [] as Food[]),
+          searchRecipes(token, text.trim()).catch(() => [] as RecipeSearchResult[]),
+        ]);
+        setFoodResults(foods);
+        setRecipeResults(recipes);
+      } finally {
+        setSearching(false);
+      }
     }, 400);
   }
 
   function openAddFood(meal: MealSlot) {
     setAddMeal(meal);
+    setModalView('search');
     setQuery('');
-    setResults([]);
+    setFoodResults([]);
+    setRecipeResults([]);
     setSelectedFood(null);
     setSelectedServing(null);
     setQuantity('1');
+    setSelectedRecipe(null);
+    setRecipeServings('1');
+    scannedRef.current = false;
   }
 
   function selectFood(food: Food) {
@@ -96,6 +125,49 @@ export default function NutritionScreen() {
     const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0] ?? null;
     setSelectedServing(def);
     setQuantity('1');
+    setModalView('food-pick');
+  }
+
+  function selectRecipe(recipe: RecipeSearchResult) {
+    setSelectedRecipe(recipe);
+    setRecipeServings('1');
+    setModalView('recipe-pick');
+  }
+
+  async function openScanner() {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert('Camera permission required', 'Please allow camera access to scan barcodes.');
+        return;
+      }
+    }
+    scannedRef.current = false;
+    setModalView('scanning');
+  }
+
+  async function handleBarcodeScan(barcode: string) {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
+    setModalView('search');
+
+    try {
+      const [recipe, food] = await Promise.all([
+        getRecipeByBarcode(token, barcode).catch(() => null),
+        getFoodByBarcode(token, barcode).catch(() => null),
+      ]);
+      if (recipe) {
+        selectRecipe(recipe);
+      } else if (food) {
+        selectFood(food);
+      } else {
+        Alert.alert('Not found', `No food or recipe found for barcode ${barcode}.`);
+        scannedRef.current = false;
+      }
+    } catch {
+      Alert.alert('Error', 'Could not look up barcode.');
+      scannedRef.current = false;
+    }
   }
 
   async function confirmAdd() {
@@ -114,6 +186,27 @@ export default function NutritionScreen() {
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
+    }
+  }
+
+  async function confirmAddRecipe() {
+    if (!addMeal || !selectedRecipe) return;
+    const qty = parseFloat(recipeServings);
+    if (!qty || qty <= 0) { Alert.alert('Invalid servings'); return; }
+    setAddingRecipe(true);
+    try {
+      await logRecipeToNutrition(token, {
+        recipeId: selectedRecipe.id,
+        meal: addMeal,
+        servings: qty,
+        logDate: date,
+      });
+      setAddMeal(null);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not log recipe.');
+    } finally {
+      setAddingRecipe(false);
     }
   }
 
@@ -142,6 +235,8 @@ export default function NutritionScreen() {
   const waterMl = log?.waterTotalMl ?? 0;
   const waterGoal = goals?.waterGoalMl ?? 2000;
   const waterPct = Math.min(waterMl / waterGoal, 1);
+
+  const mealLabel = MEALS.find((m) => m.slot === addMeal)?.label ?? '';
 
   return (
     <SafeAreaView style={s.container}>
@@ -256,56 +351,121 @@ export default function NutritionScreen() {
       {/* Add Food Modal */}
       <Modal visible={addMeal !== null} animationType="slide" onRequestClose={() => setAddMeal(null)}>
         <SafeAreaView style={s.modal}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>
-              Add to {MEALS.find((m) => m.slot === addMeal)?.label}
-            </Text>
-            <TouchableOpacity onPress={() => setAddMeal(null)}>
-              <Text style={s.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          {selectedFood ? (
-            /* Serving picker */
-            <ScrollView style={s.modalBody}>
-              <TouchableOpacity onPress={() => setSelectedFood(null)} style={s.backBtn}>
-                <Text style={s.backBtnText}>← {selectedFood.name}</Text>
-              </TouchableOpacity>
-              <Text style={s.servingTitle}>Serving size</Text>
-              {selectedFood.servingSizes.map((sv) => (
-                <TouchableOpacity
-                  key={sv.id}
-                  style={[s.servingRow, selectedServing?.id === sv.id && s.servingRowActive]}
-                  onPress={() => setSelectedServing(sv)}
-                >
-                  <Text style={[s.servingLabel, selectedServing?.id === sv.id && { color: colors.accent }]}>
-                    {sv.label} ({sv.grams}g)
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <Text style={s.servingTitle}>Quantity</Text>
-              <TextInput
-                style={s.quantityInput}
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="decimal-pad"
-                selectTextOnFocus
-              />
-              {selectedServing && (
-                <Text style={s.nutritionPreview}>
-                  {Math.round(selectedFood.nutrition.calories * selectedServing.grams * parseFloat(quantity || '0') / 100)} kcal ·{' '}
-                  P: {Math.round(selectedFood.nutrition.protein * selectedServing.grams * parseFloat(quantity || '0') / 100)}g ·{' '}
-                  C: {Math.round(selectedFood.nutrition.carbs * selectedServing.grams * parseFloat(quantity || '0') / 100)}g ·{' '}
-                  F: {Math.round(selectedFood.nutrition.fat * selectedServing.grams * parseFloat(quantity || '0') / 100)}g
-                </Text>
-              )}
-              <TouchableOpacity style={s.confirmBtn} onPress={confirmAdd}>
-                <Text style={s.confirmBtnText}>Add to log</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          ) : (
-            /* Search */
+          {/* Scanner view */}
+          {modalView === 'scanning' ? (
             <>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Scan Barcode</Text>
+                <TouchableOpacity onPress={() => setModalView('search')}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.scannerContainer}>
+                <CameraView
+                  style={StyleSheet.absoluteFillObject}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'] }}
+                  onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
+                />
+                <View style={s.scannerOverlay}>
+                  <View style={s.scannerFrame} />
+                  <Text style={s.scannerHint}>Point at a barcode to scan</Text>
+                </View>
+              </View>
+            </>
+          ) : modalView === 'recipe-pick' && selectedRecipe ? (
+            /* Recipe serving picker */
+            <>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Add to {mealLabel}</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody}>
+                <TouchableOpacity onPress={() => setModalView('search')} style={s.backBtn}>
+                  <Text style={s.backBtnText}>← {selectedRecipe.name}</Text>
+                </TouchableOpacity>
+                <Text style={s.servingTitle}>Servings</Text>
+                <TextInput
+                  style={s.quantityInput}
+                  value={recipeServings}
+                  onChangeText={setRecipeServings}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                />
+                {selectedRecipe.calories != null && (
+                  <Text style={s.nutritionPreview}>
+                    {Math.round(selectedRecipe.calories * parseFloat(recipeServings || '0'))} kcal
+                    {selectedRecipe.protein_g != null ? ` · P: ${Math.round(selectedRecipe.protein_g * parseFloat(recipeServings || '0'))}g` : ''}
+                    {selectedRecipe.carbs_g != null ? ` · C: ${Math.round(selectedRecipe.carbs_g * parseFloat(recipeServings || '0'))}g` : ''}
+                    {selectedRecipe.fat_g != null ? ` · F: ${Math.round(selectedRecipe.fat_g * parseFloat(recipeServings || '0'))}g` : ''}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={[s.confirmBtn, addingRecipe && { opacity: 0.6 }]}
+                  onPress={confirmAddRecipe}
+                  disabled={addingRecipe}
+                >
+                  <Text style={s.confirmBtnText}>{addingRecipe ? 'Adding…' : `Add to ${mealLabel}`}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </>
+          ) : modalView === 'food-pick' && selectedFood ? (
+            /* Food serving picker */
+            <>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Add to {mealLabel}</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody}>
+                <TouchableOpacity onPress={() => setModalView('search')} style={s.backBtn}>
+                  <Text style={s.backBtnText}>← {selectedFood.name}</Text>
+                </TouchableOpacity>
+                <Text style={s.servingTitle}>Serving size</Text>
+                {selectedFood.servingSizes.map((sv) => (
+                  <TouchableOpacity
+                    key={sv.id}
+                    style={[s.servingRow, selectedServing?.id === sv.id && s.servingRowActive]}
+                    onPress={() => setSelectedServing(sv)}
+                  >
+                    <Text style={[s.servingLabel, selectedServing?.id === sv.id && { color: colors.accent }]}>
+                      {sv.label} ({sv.grams}g)
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <Text style={s.servingTitle}>Quantity</Text>
+                <TextInput
+                  style={s.quantityInput}
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                />
+                {selectedServing && (
+                  <Text style={s.nutritionPreview}>
+                    {Math.round(selectedFood.nutrition.calories * selectedServing.grams * parseFloat(quantity || '0') / 100)} kcal ·{' '}
+                    P: {Math.round(selectedFood.nutrition.protein * selectedServing.grams * parseFloat(quantity || '0') / 100)}g ·{' '}
+                    C: {Math.round(selectedFood.nutrition.carbs * selectedServing.grams * parseFloat(quantity || '0') / 100)}g ·{' '}
+                    F: {Math.round(selectedFood.nutrition.fat * selectedServing.grams * parseFloat(quantity || '0') / 100)}g
+                  </Text>
+                )}
+                <TouchableOpacity style={s.confirmBtn} onPress={confirmAdd}>
+                  <Text style={s.confirmBtnText}>Add to log</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </>
+          ) : (
+            /* Search view */
+            <>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Add to {mealLabel}</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
               <View style={s.searchBox}>
                 <TextInput
                   style={s.searchInput}
@@ -316,27 +476,76 @@ export default function NutritionScreen() {
                   autoFocus
                   returnKeyType="search"
                 />
-                {searching && <ActivityIndicator size="small" color={colors.accent} style={{ marginRight: 8 }} />}
-              </View>
-              <FlatList
-                data={results}
-                keyExtractor={(item) => String(item.id)}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={s.resultRow} onPress={() => selectFood(item)}>
-                    <View>
-                      <Text style={s.resultName}>{item.name}</Text>
-                      {item.brand && <Text style={s.resultBrand}>{item.brand}</Text>}
-                    </View>
-                    <Text style={s.resultCals}>{Math.round(item.nutrition.calories * (item.servingSizes.find((sv) => sv.isDefault)?.grams ?? 100) / 100)} kcal</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  query.length > 0 && !searching ? (
-                    <Text style={s.emptyText}>No results for "{query}"</Text>
-                  ) : null
+                {searching
+                  ? <ActivityIndicator size="small" color={colors.accent} style={{ marginRight: 4 }} />
+                  : null
                 }
-                keyboardShouldPersistTaps="handled"
-              />
+                <TouchableOpacity onPress={openScanner} style={s.scanBtn}>
+                  <Text style={s.scanBtnText}>📷</Text>
+                </TouchableOpacity>
+              </View>
+
+              {recipeResults.length === 0 && foodResults.length === 0 && query.length === 0 ? (
+                <View style={s.emptyState}>
+                  <Text style={s.emptyText}>Search by name or scan a barcode</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={[
+                    ...recipeResults.map((r) => ({ type: 'recipe' as const, item: r })),
+                    ...foodResults.map((f) => ({ type: 'food' as const, item: f })),
+                  ]}
+                  keyExtractor={(entry) => `${entry.type}-${entry.item.id}`}
+                  ListHeaderComponent={
+                    recipeResults.length > 0 && foodResults.length > 0 ? null : null
+                  }
+                  renderItem={({ item: entry, index }) => {
+                    const showRecipeHeader = index === 0 && recipeResults.length > 0;
+                    const showFoodHeader = entry.type === 'food' && (index === 0 || (index > 0 && recipeResults.length > 0 && index === recipeResults.length));
+
+                    if (entry.type === 'recipe') {
+                      const r = entry.item as RecipeSearchResult;
+                      return (
+                        <>
+                          {showRecipeHeader && (
+                            <Text style={s.sectionHeader}>My Recipes</Text>
+                          )}
+                          <TouchableOpacity style={s.resultRow} onPress={() => selectRecipe(r)}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={s.resultName}>{r.name}</Text>
+                              {r.servings != null && <Text style={s.resultBrand}>per serving</Text>}
+                            </View>
+                            <Text style={s.resultCals}>{r.calories != null ? `${Math.round(r.calories)} kcal` : '—'}</Text>
+                          </TouchableOpacity>
+                        </>
+                      );
+                    } else {
+                      const f = entry.item as Food;
+                      const defServing = f.servingSizes.find((sv) => sv.isDefault) ?? f.servingSizes[0];
+                      return (
+                        <>
+                          {showFoodHeader && <Text style={s.sectionHeader}>Foods</Text>}
+                          <TouchableOpacity style={s.resultRow} onPress={() => selectFood(f)}>
+                            <View>
+                              <Text style={s.resultName}>{f.name}</Text>
+                              {f.brand && <Text style={s.resultBrand}>{f.brand}</Text>}
+                            </View>
+                            <Text style={s.resultCals}>
+                              {Math.round(f.nutrition.calories * (defServing?.grams ?? 100) / 100)} kcal
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      );
+                    }
+                  }}
+                  ListEmptyComponent={
+                    query.length > 0 && !searching ? (
+                      <Text style={s.emptyText}>No results for "{query}"</Text>
+                    ) : null
+                  }
+                  keyboardShouldPersistTaps="handled"
+                />
+              )}
             </>
           )}
         </SafeAreaView>
@@ -390,11 +599,15 @@ const s = StyleSheet.create({
   modalBody: { flex: 1, padding: 16 },
   searchBox: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 14 },
   searchInput: { flex: 1, paddingVertical: 14, fontSize: fontSize.base, color: colors.text },
+  scanBtn: { padding: 8 },
+  scanBtnText: { fontSize: 22 },
+  sectionHeader: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
   resultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   resultName: { fontSize: fontSize.sm, color: colors.text },
   resultBrand: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
   resultCals: { marginLeft: 'auto', fontSize: fontSize.sm, color: colors.muted },
-  emptyText: { textAlign: 'center', marginTop: 40, color: colors.muted, fontSize: fontSize.sm },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  emptyText: { textAlign: 'center', color: colors.muted, fontSize: fontSize.sm },
   backBtn: { paddingVertical: 12 },
   backBtnText: { color: colors.accent, fontSize: fontSize.sm },
   servingTitle: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
@@ -405,4 +618,9 @@ const s = StyleSheet.create({
   nutritionPreview: { fontSize: fontSize.xs, color: colors.muted, marginTop: 12, textAlign: 'center' },
   confirmBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: colors.bg },
+  // Scanner
+  scannerContainer: { flex: 1, position: 'relative' },
+  scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  scannerFrame: { width: 240, height: 160, borderWidth: 2, borderColor: colors.accent, borderRadius: 12 },
+  scannerHint: { marginTop: 16, color: 'white', fontSize: fontSize.sm, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
 });

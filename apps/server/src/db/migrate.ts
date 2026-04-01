@@ -12,6 +12,7 @@ const MIGRATIONS = [
   '005_food_log_dram_recipe_id.sql',
   '006_body_measurements.sql',
   '008_exercise_fields.sql',
+  '009_recipe_nutrition_bridge.sql',
 ];
 
 async function migrate() {
@@ -114,6 +115,26 @@ async function migrate() {
       if (!existing.includes('media_url')) {
         await conn.query(`ALTER TABLE exercises ADD COLUMN media_url VARCHAR(500) NULL`);
         console.log('  Added exercises.media_url column.');
+      }
+    }
+
+    if (file === '009_recipe_nutrition_bridge.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'foods'
+           AND COLUMN_NAME  = 'recipe_id'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE foods
+             ADD COLUMN recipe_id INT UNSIGNED NULL,
+             ADD CONSTRAINT fk_food_recipe
+               FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE`
+        );
+        console.log('  Added foods.recipe_id column.');
+      } else {
+        console.log('  foods.recipe_id already exists, skipping ALTER.');
       }
     }
 

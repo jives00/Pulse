@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { Recipe, RecipeDetail, RecipeFormData, ScrapedRecipe, RecipeSuggestion, RecipeFilters, MakeLogEntry } from '../recipes';
+import type { Recipe, RecipeDetail, RecipeFormData, ScrapedRecipe, RecipeSuggestion, RecipeFilters, MakeLogEntry, RecipeSearchResult } from '../recipes';
 import { buildRecipeParams } from '../recipes';
 
 export interface HistoryEntry {
@@ -31,8 +31,23 @@ export const recipesApi = {
   delete: (id: number) =>
     apiClient.delete<{ success: boolean }>(`/recipes/${id}`).then((r) => r.data),
 
-  log: (id: number) =>
-    apiClient.post<{ success: boolean }>(`/recipes/${id}/log`).then((r) => r.data),
+  search: (q: string) =>
+    apiClient.get<RecipeSearchResult[]>(`/recipes/search?q=${encodeURIComponent(q)}`).then((r) => r.data),
+
+  getByBarcode: (barcode: string) =>
+    apiClient.get<RecipeSearchResult>(`/recipes/barcode/${encodeURIComponent(barcode)}`).then((r) => r.data),
+
+  getBarcode: (id: number) =>
+    apiClient.get<{ barcode: string | null }>(`/recipes/${id}/barcode`).then((r) => r.data),
+
+  setBarcode: (id: number, barcode: string) =>
+    apiClient.put<{ success: boolean }>(`/recipes/${id}/barcode`, { barcode }).then((r) => r.data),
+
+  deleteBarcode: (id: number) =>
+    apiClient.delete<{ success: boolean }>(`/recipes/${id}/barcode`).then((r) => r.data),
+
+  log: (id: number, payload?: { meal?: string; servings?: number; logDate?: string }) =>
+    apiClient.post<{ success: boolean }>(`/recipes/${id}/log`, payload ?? {}).then((r) => r.data),
 
   getLog: (id: number) =>
     apiClient.get<{ count: number; entries: MakeLogEntry[] }>(`/recipes/${id}/log`).then((r) => r.data),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry } from '@pulse/api-client';
+import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry, type MealSlot } from '@pulse/api-client';
 import Spinner from './Spinner';
 
 interface Props {
@@ -8,6 +8,21 @@ interface Props {
   onEdit: (recipe: RecipeDetailType) => void;
   onDeleted: () => void;
   onUpdated: () => void;
+}
+
+const MEAL_LABELS: Record<MealSlot, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+};
+
+function defaultMealByTime(): MealSlot {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return 'breakfast';
+  if (h >= 11 && h < 14) return 'lunch';
+  if (h >= 17 && h < 20) return 'dinner';
+  return 'snack';
 }
 
 function formatTime(minutes?: number | null) {
@@ -29,6 +44,10 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
   const [servings, setServings] = useState(1);
   const [baseServings, setBaseServings] = useState(1);
   const [logging, setLogging] = useState(false);
+  const [showCookModal, setShowCookModal] = useState(false);
+  const [cookMeal, setCookMeal] = useState<MealSlot>(defaultMealByTime());
+  const [cookServings, setCookServings] = useState('1');
+  const [cookDate, setCookDate] = useState(new Date().toISOString().slice(0, 10));
   const [deleting, setDeleting] = useState(false);
   const [togglingFav, setTogglingFav] = useState(false);
   const [log, setLog] = useState<MakeLogEntry[]>([]);
@@ -50,13 +69,15 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     if (!recipe) return;
     setLogging(true);
     try {
-      await recipesApi.log(recipe.id);
+      const qty = Number(cookServings) || 1;
+      await recipesApi.log(recipe.id, { meal: cookMeal, servings: qty, logDate: cookDate });
       const [updated, logData] = await Promise.all([
         recipesApi.get(recipe.id),
         recipesApi.getLog(recipe.id),
       ]);
       setRecipe(updated);
       setLog(logData.entries);
+      setShowCookModal(false);
       onUpdated();
     } finally {
       setLogging(false);
@@ -114,6 +135,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
   const isFav = Boolean(recipe?.is_favorite);
 
   return (
+    <>
     <div className="h-full flex flex-col bg-dram-card border-l border-dram-border">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-dram-border flex-shrink-0">
@@ -308,11 +330,10 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
 
               {/* Log button */}
               <button
-                onClick={handleLog}
-                disabled={logging}
-                className="w-full mt-6 bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+                onClick={() => { setCookMeal(defaultMealByTime()); setCookServings('1'); setCookDate(new Date().toISOString().slice(0, 10)); setShowCookModal(true); }}
+                className="w-full mt-6 bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition"
               >
-                {logging ? '…' : '✔ I made this!'}
+                ✔ I made this!
               </button>
 
               {/* Made history */}
@@ -350,5 +371,69 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
         )}
       </div>
     </div>
+
+    {/* Cook modal — meal slot + servings + date */}
+    {showCookModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCookModal(false)} />
+        <div className="relative w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+            <h2 className="text-sm font-semibold text-slate-200">I made this!</h2>
+            <button onClick={() => setShowCookModal(false)} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+          </div>
+          <div className="p-4 space-y-4">
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">Meal</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setCookMeal(m)}
+                    className={`py-2 rounded-lg text-sm border transition ${cookMeal === m ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-slate-600 text-slate-400 hover:border-slate-500'}`}
+                  >
+                    {MEAL_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Servings</label>
+              <input
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={cookServings}
+                onChange={(e) => setCookServings(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
+              />
+            </div>
+            {recipe?.calories != null && (
+              <div className="bg-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-400">
+                ≈ {Math.round(recipe.calories * (Number(cookServings) || 1))} cal — will also log to nutrition
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <input
+                type="date"
+                value={cookDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCookDate(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
+              />
+            </div>
+            <button
+              onClick={handleLog}
+              disabled={logging || Number(cookServings) <= 0}
+              className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+            >
+              {logging ? '…' : 'Log it'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -30,6 +30,19 @@ export interface MakeLogEntry {
   made_at: string;
 }
 
+export interface RecipeSearchResult {
+  id: number;
+  name: string;
+  calories: number | null;
+  carbs_g: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  fiber_g: number | null;
+  servings: number | null;
+  photo_key: string | null;
+  photo_url: string | null;
+}
+
 export interface RecipeDetail extends Recipe {
   ingredients: Ingredient[];
   steps: RecipeStep[];
