@@ -9,6 +9,18 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const LOWERCASE_WORDS = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'nor', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'from', 'into', 'up', 'as']);
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return str;
+  return str
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 function toTitleCase(s: string): string {
   if (!s) return s;
   return s.replace(/\w\S*/g, (word, offset) => {
@@ -191,11 +203,11 @@ function parseJsonLd(ld: any, sourceUrl: string): any {
     const steps: string[] = [];
     for (const item of instructions) {
       if (typeof item === 'string') {
-        steps.push(item);
+        steps.push(decodeHtmlEntities(item));
       } else if (item['@type'] === 'HowToSection' && Array.isArray(item.itemListElement)) {
         steps.push(...extractSteps(item.itemListElement));
       } else if (item.text) {
-        steps.push(item.text);
+        steps.push(decodeHtmlEntities(item.text));
       }
     }
     return steps.filter(Boolean);
@@ -266,9 +278,9 @@ function parseJsonLd(ld: any, sourceUrl: string): any {
   }
 
   return {
-    name: cleanRecipeName(ld.name || '<UNKNOWN>'),
+    name: cleanRecipeName(decodeHtmlEntities(ld.name || '<UNKNOWN>')),
     type: inferType(ld),
-    description: ld.description || null,
+    description: ld.description ? decodeHtmlEntities(ld.description) : null,
     prep_time: parseTime(ld.prepTime),
     cook_time: parseTime(ld.cookTime),
     servings: parseServings(ld.recipeYield),
@@ -494,10 +506,18 @@ router.post('/', async (req: Request, res: Response) => {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
     });
     const html = await response.text();
-
     // Detect bot-protection pages before attempting extraction
-    if (html.includes('Enable JavaScript and cookies to continue') || html.includes('cf-browser-verification')) {
-      res.status(422).json({ error: 'This site is protected by Cloudflare and cannot be scraped automatically. Try entering the recipe manually.' });
+    const cfStrings = [
+      'Enable JavaScript and cookies to continue',
+      'cf-browser-verification',
+      'Just a moment...',
+      'Checking if the site connection is secure',
+      'DDoS protection by Cloudflare',
+      'Attention Required! | Cloudflare',
+      'Please turn JavaScript on and reload the page',
+    ];
+    if (cfStrings.some(s => html.includes(s))) {
+      res.status(422).json({ error: 'This site uses bot protection and cannot be scraped automatically. Copy and paste the recipe text instead.' });
       return;
     }
 

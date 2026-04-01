@@ -110,7 +110,13 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
         })));
       }
       if (data.steps.length) setSteps(data.steps);
-      if (data.suggested_tags.length) setTags(data.suggested_tags);
+      if (data.suggested_tags.length && tagDefs) {
+        const allDefined = [...tagDefs.health, ...tagDefs.cuisine, ...tagDefs.category];
+        const matched = data.suggested_tags
+          .map((t: string) => allDefined.find(d => d.toLowerCase() === t.toLowerCase()))
+          .filter(Boolean) as string[];
+        setTags(matched);
+      }
       if (data.photo_url) { setPhotoUrlInput(data.photo_url); setPhotoPreview(null); setPhotoFile(null); }
       setImportUrl('');
     } catch (err: any) {
@@ -148,7 +154,13 @@ export default function RecipeForm({ initialData, onSaved, onCancel }: Props) {
         })));
       }
       if (data.steps.length) setSteps(data.steps);
-      if (data.suggested_tags.length) setTags(data.suggested_tags);
+      if (data.suggested_tags.length && tagDefs) {
+        const allDefined = [...tagDefs.health, ...tagDefs.cuisine, ...tagDefs.category];
+        const matched = data.suggested_tags
+          .map((t: string) => allDefined.find(d => d.toLowerCase() === t.toLowerCase()))
+          .filter(Boolean) as string[];
+        setTags(matched);
+      }
       setPasteText('');
     } catch (err: any) {
       setImportError(err?.message || 'Could not parse recipe text.');

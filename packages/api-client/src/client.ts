@@ -37,6 +37,10 @@ apiClient.interceptors.response.use(
     if (err.response?.status === 401 && _onUnauthorized) {
       _onUnauthorized();
     }
+    const serverMessage = err.response?.data?.error;
+    if (serverMessage) {
+      err.message = serverMessage;
+    }
     return Promise.reject(err);
   }
 );

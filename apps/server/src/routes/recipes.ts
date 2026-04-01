@@ -355,7 +355,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const updateFields = `type=?, name=?, subcategory=?, description=?, notes=?, source=?,
        prep_time=?, cook_time=?, servings=?, glass_type=?, abv_level=?, is_favorite=?,
        calories=?, carbs_g=?, protein_g=?, fat_g=?, fiber_g=?, sodium_mg=?${photo_key !== undefined ? ', photo_key=?' : ''}`;
-    const updateParams = [type, name, subcategory ?? null, description, notes, source, prep_time, cook_time, servings ?? null, glass_type, abv_level, is_favorite,
+    const updateParams = [type, name, subcategory ?? null, description, notes, source, prep_time, cook_time, servings ?? null, glass_type, abv_level, is_favorite ?? false,
       calories ?? null, carbs_g ?? null, protein_g ?? null, fat_g ?? null, fiber_g ?? null, sodium_mg ?? null];
     if (photo_key !== undefined) updateParams.push(photo_key);
     updateParams.push(id);
