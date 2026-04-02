@@ -555,6 +555,11 @@ router.post('/', async (req: Request, res: Response) => {
     const main = $('main, article').first();
     const text = (main.length ? main : $('body')).text().replace(/\s+/g, ' ').trim().slice(0, 15000);
 
+    if (text.length < 200) {
+      res.status(422).json({ error: 'No readable content found on this page. The site may require JavaScript to load content. Try copying and pasting the recipe text instead.' });
+      return;
+    }
+
     const userMessage = typeHint
       ? `Extract the recipe from this page. The type is: ${typeHint}. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`
       : `Extract the recipe from this page. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`;
@@ -610,6 +615,12 @@ router.post('/', async (req: Request, res: Response) => {
     if (recipe.name) recipe.name = recipe.name.replace(/^(the\s+)?(best(\s+ever)?|ultimate|perfect|easiest|most\s+amazing|famous|favorite|favourite|homemade)\s+/i, '').replace(/^my\s+(best|favorite|favourite|homemade|easy|quick)\s+/i, '').trim();
     recipe.ingredients = titleCaseIngredients(recipe.ingredients ?? []);
     console.log('Claude extracted:', recipe.name, '| ingredients:', recipe.ingredients?.length, '| steps:', recipe.steps?.length);
+
+    // If Claude couldn't find a recipe (JS-rendered page or missing content), tell the user to paste manually
+    if ((!recipe.name || recipe.name === 'UNKNOWN') && (!recipe.ingredients?.length) && (!recipe.steps?.length)) {
+      res.status(422).json({ error: 'No recipe found on this page. The site may require JavaScript to load content. Try copying and pasting the recipe text instead.' });
+      return;
+    }
 
 
     await estimateNutrition(recipe);
