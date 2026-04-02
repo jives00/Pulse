@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import Anthropic from '@anthropic-ai/sdk';
 import { suggestTags } from '../services/claude';
+import { pool } from '../config/database';
 
 const router = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -339,9 +340,10 @@ router.post('/parse-text', async (req: Request, res: Response) => {
       return;
     }
 
+    const unitInstruction = 'IMPORTANT: For each ingredient, preserve the unit EXACTLY as written in the source text. Do NOT convert or normalize units (e.g., if the text says "cup", use "cup" — not "oz"; if it says "pound", use "pound" — not "oz").';
     const userMessage = typeHint
-      ? `Extract the recipe from this text. The type is: ${typeHint}.\n\nRecipe text:\n${text.trim().slice(0, 20000)}`
-      : `Extract the recipe from this text. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly.\n\nRecipe text:\n${text.trim().slice(0, 20000)}`;
+      ? `Extract the recipe from this text. The type is: ${typeHint}. ${unitInstruction}\n\nRecipe text:\n${text.trim().slice(0, 20000)}`
+      : `Extract the recipe from this text. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly. ${unitInstruction}\n\nRecipe text:\n${text.trim().slice(0, 20000)}`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -373,7 +375,7 @@ router.post('/parse-text', async (req: Request, res: Response) => {
                 properties: {
                   name: { type: 'string' },
                   quantity: { type: ['number', 'null'] },
-                  unit: { type: ['string', 'null'] },
+                  unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
                 },
                 required: ['name', 'quantity', 'unit'],
               },
@@ -394,7 +396,12 @@ router.post('/parse-text', async (req: Request, res: Response) => {
 
     await estimateNutrition(recipe);
     try {
-      recipe.suggested_tags = await suggestTags(recipe, recipe.ingredients?.map((i: any) => i.name) ?? []);
+      const [tagRows] = await pool.execute<any[]>(
+        'SELECT name FROM tag_definitions WHERE user_id = ?',
+        [req.userId]
+      );
+      const availableTags = tagRows.map((r: any) => r.name);
+      recipe.suggested_tags = await suggestTags(recipe, recipe.ingredients?.map((i: any) => i.name) ?? [], availableTags);
     } catch {
       recipe.suggested_tags = [];
     }
@@ -438,7 +445,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const hint = typeHint ? `The recipe type is: ${typeHint}. ` : '';
-      const userMessage = `${hint}Extract the recipe from this YouTube video description. Respond in English regardless of the description's language. Translate any non-English content. Video title: "${title || 'Unknown'}"\n\nDescription:\n${description.slice(0, 20000)}`;
+      const userMessage = `${hint}Extract the recipe from this YouTube video description. Respond in English regardless of the description's language. Translate any non-English content. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units. Video title: "${title || 'Unknown'}"\n\nDescription:\n${description.slice(0, 20000)}`;
 
       const message = await client.messages.create({
         model: 'claude-sonnet-4-6',
@@ -470,7 +477,7 @@ router.post('/', async (req: Request, res: Response) => {
                   properties: {
                     name: { type: 'string' },
                     quantity: { type: ['number', 'null'] },
-                    unit: { type: ['string', 'null'] },
+                    unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
                   },
                   required: ['name', 'quantity', 'unit'],
                 },
@@ -549,8 +556,8 @@ router.post('/', async (req: Request, res: Response) => {
     const text = (main.length ? main : $('body')).text().replace(/\s+/g, ' ').trim().slice(0, 15000);
 
     const userMessage = typeHint
-      ? `Extract the recipe from this page. The type is: ${typeHint}.\n\nPage content:\n${text}`
-      : `Extract the recipe from this page. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly.\n\nPage content:\n${text}`;
+      ? `Extract the recipe from this page. The type is: ${typeHint}. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`
+      : `Extract the recipe from this page. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -582,7 +589,7 @@ router.post('/', async (req: Request, res: Response) => {
                 properties: {
                   name: { type: 'string' },
                   quantity: { type: ['number', 'null'] },
-                  unit: { type: ['string', 'null'] },
+                  unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
                 },
                 required: ['name', 'quantity', 'unit'],
               },

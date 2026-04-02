@@ -19,13 +19,34 @@ const ABV_OPTIONS = ['Low', 'Medium', 'Strong'];
 const GLASS_OPTIONS = ['Rocks', 'Coupe', 'Highball', 'Martini', 'Flute', 'Nick & Nora', 'Mule', 'Collins', 'Other'];
 const UNIT_OPTIONS = ['oz', 'ml', 'dash', 'tsp', 'tbsp', 'cup', 'g', 'lb', 'piece', 'sprig', 'slice', ''];
 
+const UNIT_NORMALIZE: Record<string, string> = {
+  ounce: 'oz', ounces: 'oz',
+  teaspoon: 'tsp', teaspoons: 'tsp',
+  tablespoon: 'tbsp', tablespoons: 'tbsp',
+  cups: 'cup',
+  pound: 'lb', pounds: 'lb', lbs: 'lb',
+  gram: 'g', grams: 'g',
+  milliliter: 'ml', milliliters: 'ml', millilitre: 'ml', millilitres: 'ml',
+  liter: 'ml', liters: 'ml', litre: 'ml', litres: 'ml',
+  clove: 'piece', cloves: 'piece',
+  can: 'piece', cans: 'piece',
+  pinch: 'dash',
+};
+
+function normalizeUnit(unit: string | null | undefined): string {
+  if (!unit) return '';
+  const lower = unit.toLowerCase().trim();
+  if (UNIT_OPTIONS.includes(lower)) return lower;
+  return UNIT_NORMALIZE[lower] ?? lower;
+}
+
 type IngredientRow = { name: string; quantity: string; unit: string };
 
 function toRows(ingredients: Ingredient[]): IngredientRow[] {
   return ingredients.map((i) => ({
     name: i.name,
     quantity: i.quantity != null ? String(i.quantity) : '',
-    unit: i.unit || '',
+    unit: normalizeUnit(i.unit),
   }));
 }
 
@@ -50,7 +71,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
   const [fiberG, setFiberG] = useState(initialData?.fiber_g ? String(initialData.fiber_g) : '');
   const [sodiumMg, setSodiumMg] = useState(initialData?.sodium_mg ? String(initialData.sodium_mg) : '');
   const [ingredients, setIngredients] = useState<IngredientRow[]>(
-    initialData?.ingredients.length ? toRows(initialData.ingredients) : [{ name: '', quantity: '', unit: 'oz' }]
+    initialData?.ingredients.length ? toRows(initialData.ingredients) : [{ name: '', quantity: '', unit: '' }]
   );
   const [steps, setSteps] = useState<string[]>(
     initialData?.steps.length ? initialData.steps.map((s) => s.instruction) : ['']
@@ -113,7 +134,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
         setIngredients(data.ingredients.map((i) => ({
           name: i.name,
           quantity: i.quantity != null ? String(i.quantity) : '',
-          unit: i.unit || '',
+          unit: normalizeUnit(i.unit),
         })));
       }
       if (data.steps.length) setSteps(data.steps);
@@ -138,7 +159,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
     setImporting(true);
     setImportError('');
     try {
-      const data = await recipesApi.parseText(pasteText.trim(), type);
+      const data = await recipesApi.parseText(pasteText.trim());
       setName(data.name || '');
       setType(data.type || type);
       setDescription(data.description || '');
@@ -157,7 +178,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
         setIngredients(data.ingredients.map((i) => ({
           name: i.name,
           quantity: i.quantity != null ? String(i.quantity) : '',
-          unit: i.unit || '',
+          unit: normalizeUnit(i.unit),
         })));
       }
       if (data.steps.length) setSteps(data.steps);
@@ -185,7 +206,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
   }
 
   function addIngredient() {
-    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: 'oz' }]);
+    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: '' }]);
   }
 
   function removeIngredient(idx: number) {
