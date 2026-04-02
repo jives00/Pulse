@@ -137,7 +137,7 @@ router.get('/:id/stats', async (req, res) => {
          FROM exercise_sets es
          JOIN workout_exercises we ON we.id = es.workout_exercise_id
          JOIN workout_logs wl ON wl.id = we.workout_log_id
-         WHERE wl.user_id = ? AND we.exercise_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+         WHERE wl.user_id = ? AND we.exercise_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0 AND es.completed = 1
          ORDER BY es.weight_kg DESC LIMIT 1`,
         [userId, id]
       ),
@@ -148,7 +148,7 @@ router.get('/:id/stats', async (req, res) => {
          JOIN workout_exercises we ON we.id = es.workout_exercise_id
          JOIN workout_logs wl ON wl.id = we.workout_log_id
          WHERE wl.user_id = ? AND we.exercise_id = ?
-           AND es.weight_kg IS NOT NULL AND es.reps IS NOT NULL AND es.reps > 0`,
+           AND es.weight_kg IS NOT NULL AND es.reps IS NOT NULL AND es.reps > 0 AND es.completed = 1`,
         [userId, id]
       ),
       // Best set volume (reps × weight, single set)
@@ -158,7 +158,7 @@ router.get('/:id/stats', async (req, res) => {
          JOIN workout_exercises we ON we.id = es.workout_exercise_id
          JOIN workout_logs wl ON wl.id = we.workout_log_id
          WHERE wl.user_id = ? AND we.exercise_id = ?
-           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL`,
+           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.completed = 1`,
         [userId, id]
       ),
       // Best session volume (sum per session, then max)
@@ -169,7 +169,7 @@ router.get('/:id/stats', async (req, res) => {
            JOIN workout_exercises we ON we.workout_log_id = wl.id
            JOIN exercise_sets es ON es.workout_exercise_id = we.id
            WHERE wl.user_id = ? AND we.exercise_id = ?
-             AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
+             AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.completed = 1
            GROUP BY wl.id
          ) t`,
         [userId, id]
@@ -181,7 +181,7 @@ router.get('/:id/stats', async (req, res) => {
          JOIN workout_exercises we ON we.id = es.workout_exercise_id
          JOIN workout_logs wl ON wl.id = we.workout_log_id
          WHERE wl.user_id = ? AND we.exercise_id = ?
-           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.weight_kg > 0 AND es.completed = 1
          GROUP BY es.reps
          ORDER BY es.reps ASC`,
         [userId, id]
@@ -218,7 +218,7 @@ router.get('/:id/stats', async (req, res) => {
        FROM workout_logs wl
        JOIN workout_exercises we ON we.workout_log_id = wl.id
        JOIN exercise_sets es ON es.workout_exercise_id = we.id
-       WHERE wl.user_id = ? AND we.exercise_id = ? AND ${seriesWhere}
+       WHERE wl.user_id = ? AND we.exercise_id = ? AND es.completed = 1 AND ${seriesWhere}
        GROUP BY wl.id, wl.workout_date
        ORDER BY wl.workout_date ASC`,
       [userId, id]

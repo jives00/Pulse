@@ -90,7 +90,7 @@ router.get('/personal-bests', async (req, res) => {
        JOIN workout_exercises we ON we.id = es.workout_exercise_id
        JOIN workout_logs wl ON wl.id = we.workout_log_id
        JOIN exercises e ON e.id = we.exercise_id
-       WHERE wl.user_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0
+       WHERE wl.user_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0 AND es.completed = 1
        ORDER BY es.weight_kg DESC
        LIMIT 1`,
       [req.userId]
@@ -103,7 +103,7 @@ router.get('/personal-bests', async (req, res) => {
        FROM workout_logs wl
        JOIN workout_exercises we ON we.workout_log_id = wl.id
        JOIN exercise_sets es ON es.workout_exercise_id = we.id
-       WHERE wl.user_id = ? AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
+       WHERE wl.user_id = ? AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.completed = 1
        GROUP BY wl.id
        ORDER BY volume_kg DESC
        LIMIT 1`,
@@ -178,7 +178,7 @@ router.get('/', async (req, res) => {
                                 THEN es.reps * es.weight_kg ELSE 0 END), 0) AS total_volume_kg
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
-       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
        ${whereClause}
        GROUP BY wl.id
        ORDER BY wl.workout_date DESC, wl.created_at DESC
@@ -213,7 +213,7 @@ router.get('/', async (req, res) => {
               MAX(es.weight_kg) AS max_weight_kg
        FROM workout_exercises we
        JOIN exercises e ON e.id = we.exercise_id
-       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
        WHERE we.workout_log_id IN (?)
        GROUP BY we.id
        ORDER BY we.workout_log_id, we.sort_order`,
@@ -222,11 +222,13 @@ router.get('/', async (req, res) => {
 
     const exercisesByWorkout: Record<number, { name: string; setCount: number; avgReps: number | null; maxWeightKg: number | null }[]> = {};
     for (const ex of exRows) {
+      const setCount = Number(ex.set_count);
+      if (setCount === 0) continue; // skip exercises with no completed sets
       const wid = ex.workout_log_id;
       if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
       exercisesByWorkout[wid].push({
         name: ex.exercise_name,
-        setCount: Number(ex.set_count),
+        setCount,
         avgReps: ex.avg_reps != null ? Number(ex.avg_reps) : null,
         maxWeightKg: ex.max_weight_kg != null ? Number(ex.max_weight_kg) : null,
       });
