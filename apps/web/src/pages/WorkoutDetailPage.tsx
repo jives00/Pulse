@@ -418,10 +418,11 @@ export default function WorkoutDetailPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  function startInterval(fromDate: string) {
+  function startInterval(initialElapsed: number) {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    const clientStart = Date.now();
     intervalRef.current = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - new Date(fromDate).getTime()) / 1000));
+      setElapsedSeconds(initialElapsed + Math.floor((Date.now() - clientStart) / 1000));
     }, 1000);
   }
 
@@ -434,8 +435,9 @@ export default function WorkoutDetailPage() {
         setDuration(w.durationMinutes != null ? String(w.durationMinutes) : '');
         if (w.startedAt) {
           setStartedAt(w.startedAt);
-          setElapsedSeconds(Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
-          startInterval(w.startedAt);
+          const initialElapsed = Math.max(0, Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
+          setElapsedSeconds(initialElapsed);
+          startInterval(initialElapsed);
         }
       })
       .catch(() => navigate('/workouts'))
@@ -453,7 +455,7 @@ export default function WorkoutDetailPage() {
       const { startedAt: sa } = await workoutsApi.startTimer(workout.id);
       setStartedAt(sa);
       setElapsedSeconds(0);
-      startInterval(sa);
+      startInterval(0);
     } catch {
       // ignore
     }
