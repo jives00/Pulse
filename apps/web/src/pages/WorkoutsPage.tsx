@@ -7,8 +7,6 @@ import {
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
 } from '@pulse/api-client';
 
-const HISTORY_PAGE_SIZE = 10;
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string) {
@@ -696,6 +694,14 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const TABS = [
+  { key: 'week',    label: 'Week'    },
+  { key: 'body',    label: 'Body'    },
+  { key: 'records', label: 'Records' },
+] as const;
+
+type Tab = typeof TABS[number]['key'];
+
 export default function WorkoutsPage() {
   const navigate = useNavigate();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -706,10 +712,8 @@ export default function WorkoutsPage() {
   const [personalBests, setPersonalBests] = useState<PersonalBests | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
-  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('week');
 
   function load() {
     Promise.all([
@@ -733,33 +737,12 @@ export default function WorkoutsPage() {
 
   useEffect(() => { load(); }, []);
 
-  // Infinite scroll — expand history as sentinel enters view
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setHistoryLimit((prev) => prev + HISTORY_PAGE_SIZE);
-    }, { threshold: 0.1 });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loading]);
-
   async function handleStart() {
     setStarting(true);
     try {
       const workout = await workoutsApi.create();
       navigate(`/workouts/${workout.id}`);
     } catch { setStarting(false); }
-  }
-
-  async function handleDelete(e: React.MouseEvent, id: number) {
-    e.stopPropagation();
-    if (!confirm('Delete this workout?')) return;
-    setDeletingId(id);
-    try {
-      await workoutsApi.delete(id);
-      setWorkouts((prev) => prev.filter((w) => w.id !== id));
-    } catch { /* ignore */ } finally { setDeletingId(null); }
   }
 
   async function handleAddMeasurement(data: { metric: string; value: number; unit: string; measuredAt: string }) {
@@ -787,9 +770,7 @@ export default function WorkoutsPage() {
     .filter((w) => getWeekStart(w.workoutDate) === currentWeekStart)
     .reduce((sum, w) => {
       if (w.caloriesBurned != null) return sum + w.caloriesBurned;
-      // Estimate ~6 cal/min when duration is logged
       if (w.durationMinutes != null) return sum + Math.round(w.durationMinutes * 6);
-      // Estimate ~0.1 cal/lb from volume when no duration
       if (w.totalVolumeKg != null && w.totalVolumeKg > 0)
         return sum + Math.round(w.totalVolumeKg * 2.20462 * 0.1);
       return sum;
@@ -799,14 +780,13 @@ export default function WorkoutsPage() {
   const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
   const volumePct = volumeGoal ? weekVolumeLbs / volumeGoal : 0;
   const ringColor = volumePct >= 1 ? '#34d399' : volumePct >= 0.5 ? '#D4A843' : '#a78bfa';
-
   const workoutGoal = exGoals?.workoutsPerWeek ?? null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
+        <h1 className="text-xl font-semibold text-slate-200">Progress</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setGoalsOpen(true)}
@@ -833,11 +813,28 @@ export default function WorkoutsPage() {
         />
       )}
 
-      {/* Scrollable body */}
+      {/* Tab bar */}
+      <div className="flex-shrink-0 px-6 border-b border-dram-border flex gap-1">
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === key
+                ? 'border-dram-accent text-dram-accent'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {loading ? (
           <div className="text-center text-slate-400 py-8">Loading…</div>
-        ) : (
+        ) : activeTab === 'week' ? (
           <>
             {/* ── Weekly summary card ─────────────────────────────── */}
             <div className="bg-dram-card rounded-2xl overflow-hidden">
@@ -845,7 +842,6 @@ export default function WorkoutsPage() {
 
               <div className="px-6 py-5">
                 <div className="flex items-center gap-4">
-                  {/* Ring — primary metric: volume */}
                   <div className="relative shrink-0 mr-2">
                     <Ring pct={volumePct} color={ringColor} size={108} />
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
@@ -869,20 +865,13 @@ export default function WorkoutsPage() {
                     </div>
                   </div>
 
-                  {/* Goals */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-2xl leading-none">🏋️</span>
                       <span className="text-base font-bold text-white">This Week</span>
                     </div>
                     <div className="space-y-3">
-                      <ProgressBar
-                        label="Volume"
-                        actual={weekVolumeLbs}
-                        goal={volumeGoal}
-                        unit="lbs"
-                        color="#a78bfa"
-                      />
+                      <ProgressBar label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit="lbs" color="#a78bfa" />
                       <ProgressBar
                         label="Workouts"
                         actual={weekActual.workoutCount}
@@ -895,7 +884,6 @@ export default function WorkoutsPage() {
                 </div>
               </div>
 
-              {/* Stat tiles */}
               <div className="grid grid-cols-4 border-t border-dram-border">
                 <StatTile
                   icon="🔥"
@@ -932,7 +920,7 @@ export default function WorkoutsPage() {
               </div>
             </div>
 
-            {/* ── 13-week history charts ──────────────────────────── */}
+            {/* ── 13-week charts ──────────────────────────────────── */}
             <div className="flex gap-3">
               <WeeklyChart
                 data={weeklyData}
@@ -953,79 +941,17 @@ export default function WorkoutsPage() {
                 unit=""
               />
             </div>
-
-            {/* ── Body measurements ───────────────────────────────── */}
-            <BodyMeasurementsCard
-              measurements={measurements}
-              goals={measurementGoals}
-              onAdd={handleAddMeasurement}
-              onUpdate={handleUpdateMeasurement}
-              onDelete={handleDeleteMeasurement}
-            />
-
-            {/* ── Workout history list ────────────────────────────── */}
-            <div>
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">History</h2>
-
-              {workouts.length === 0 ? (
-                <div className="text-center text-sm text-slate-400 py-8">
-                  No workouts yet. Start your first one!
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {workouts.slice(0, historyLimit).map((w) => (
-                    <div
-                      key={w.id}
-                      onClick={() => navigate(`/workouts/${w.id}`)}
-                      className="bg-dram-card rounded-xl px-4 py-3 cursor-pointer hover:brightness-110 transition-all border border-dram-border/50"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-base font-medium text-slate-200">
-                            {w.name ?? formatDate(w.workoutDate)}
-                          </div>
-                          {w.name && (
-                            <div className="text-sm text-slate-400">{formatDate(w.workoutDate)}</div>
-                          )}
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {w.durationMinutes != null && `${w.durationMinutes} min · `}
-                            {Math.round((w.totalVolumeKg ?? 0) * 2.20462).toLocaleString()} lbs volume
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDelete(e, w.id)}
-                          disabled={deletingId === w.id}
-                          className="text-slate-500 hover:text-red-400 transition-colors text-lg leading-none shrink-0 disabled:opacity-50 mt-0.5"
-                          title="Delete workout"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      {w.exercises.length > 0 && (
-                        <div className="mt-2 space-y-0.5">
-                          {w.exercises.map((ex) => (
-                            <div key={ex.name} className="flex items-baseline gap-2 text-sm">
-                              <span className="text-slate-300 truncate">{ex.name}</span>
-                              <span className="text-slate-500 shrink-0">
-                                {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
-                                {ex.avgReps != null && ` × ${ex.avgReps} reps`}
-                                {ex.maxWeightKg != null && ` · ${Math.round(ex.maxWeightKg * 2.20462 * 10) / 10} lbs`}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {historyLimit < workouts.length && (
-                    <div ref={sentinelRef} className="text-center text-xs text-slate-600 py-2">
-                      Loading more…
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </>
+        ) : activeTab === 'body' ? (
+          <BodyMeasurementsCard
+            measurements={measurements}
+            goals={measurementGoals}
+            onAdd={handleAddMeasurement}
+            onUpdate={handleUpdateMeasurement}
+            onDelete={handleDeleteMeasurement}
+          />
+        ) : (
+          <PersonalBestsCard bests={personalBests} />
         )}
       </div>
     </div>

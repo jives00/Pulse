@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { recipesApi, type HistoryEntry, type RecipeDetail as RecipeDetailType } from '@pulse/api-client';
+import { useNavigate } from 'react-router-dom';
+import {
+  recipesApi, workoutsApi,
+  type HistoryEntry, type RecipeDetail as RecipeDetailType, type WorkoutSummary,
+} from '@pulse/api-client';
 import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
@@ -8,6 +12,8 @@ type PanelState =
   | { mode: 'none' }
   | { mode: 'detail'; recipeId: number }
   | { mode: 'edit'; recipe: RecipeDetailType };
+
+type Tab = 'recipes' | 'workouts';
 
 function toLocalDate(iso: string): string {
   const d = new Date(iso);
@@ -40,19 +46,50 @@ function groupByDate(entries: HistoryEntry[]): { label: string; entries: History
   return Array.from(groups.entries()).map(([label, entries]) => ({ label, entries }));
 }
 
-export default function History() {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [panel, setPanel] = useState<PanelState>({ mode: 'none' });
+function groupWorkoutsByDate(workouts: WorkoutSummary[]): { label: string; workouts: WorkoutSummary[] }[] {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const fmtKey = (d: Date) => d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  const todayKey = fmtKey(today);
+  const yesterdayKey = fmtKey(yesterday);
 
-  // Edit modal state
+  const groups: Map<string, WorkoutSummary[]> = new Map();
+  for (const w of workouts) {
+    const d = new Date(w.workoutDate + 'T12:00:00');
+    const key = fmtKey(d);
+    const label = key === todayKey ? 'Today' : key === yesterdayKey ? 'Yesterday' : key;
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label)!.push(w);
+  }
+  return Array.from(groups.entries()).map(([label, workouts]) => ({ label, workouts }));
+}
+
+function fmtWorkoutDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+export default function History() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>('recipes');
+
+  // Recipe state
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [recipesLoading, setRecipesLoading] = useState(true);
+  const [panel, setPanel] = useState<PanelState>({ mode: 'none' });
   const [editTarget, setEditTarget] = useState<HistoryEntry | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Workout state
+  const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
+  const [workoutsLoading, setWorkoutsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
   useEffect(() => {
-    recipesApi.getHistory().then(setEntries).finally(() => setLoading(false));
+    recipesApi.getHistory().then(setEntries).finally(() => setRecipesLoading(false));
+    workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
   }, []);
 
   function openEdit(e: React.MouseEvent, entry: HistoryEntry) {
@@ -81,30 +118,60 @@ export default function History() {
     }
   }
 
-  async function handleDelete(e: React.MouseEvent, entry: HistoryEntry) {
+  async function handleDeleteRecipe(e: React.MouseEvent, entry: HistoryEntry) {
     e.stopPropagation();
     await recipesApi.deleteLogEntry(entry.recipe_id, entry.log_id).catch(() => {});
     setEntries((prev) => prev.filter((x) => x.log_id !== entry.log_id));
-    // Close panel if it was showing this recipe and no other entries remain for it
     if (panel.mode === 'detail' && panel.recipeId === entry.recipe_id) {
       const remaining = entries.filter((x) => x.log_id !== entry.log_id && x.recipe_id === entry.recipe_id);
       if (remaining.length === 0) setPanel({ mode: 'none' });
     }
   }
 
-  const panelOpen = panel.mode !== 'none';
-  const groups = groupByDate(entries);
+  async function handleDeleteWorkout(e: React.MouseEvent, id: number) {
+    e.stopPropagation();
+    if (!confirm('Delete this workout?')) return;
+    setDeletingId(id);
+    try {
+      await workoutsApi.delete(id);
+      setWorkouts((prev) => prev.filter((w) => w.id !== id));
+    } catch { /* ignore */ } finally { setDeletingId(null); }
+  }
+
+  const panelOpen = panel.mode !== 'none' && activeTab === 'recipes';
+  const recipeGroups = groupByDate(entries);
+  const workoutGroups = groupWorkoutsByDate(workouts);
+  const loading = activeTab === 'recipes' ? recipesLoading : workoutsLoading;
 
   return (
     <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
-        <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
-          <h1 className="text-xl font-semibold">History</h1>
+      {/* Toolbar */}
+      <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
+        <h1 className="text-xl font-semibold mb-3">History</h1>
+        <div className="flex gap-1">
+          {(['recipes', 'workouts'] as Tab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setPanel({ mode: 'none' }); }}
+              className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
+                activeTab === tab
+                  ? 'border-dram-accent text-dram-accent'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {tab === 'recipes' ? 'Recipes' : 'Workouts'}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex justify-center mt-16"><Spinner size={10} /></div>
-          ) : entries.length === 0 ? (
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {loading ? (
+          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+        ) : activeTab === 'recipes' ? (
+          /* ── Recipe history ─────────────────────────────────────── */
+          entries.length === 0 ? (
             <div className="flex flex-col items-center mt-20 text-gray-600">
               <span className="text-5xl mb-3">📋</span>
               <p className="text-lg">No history yet.</p>
@@ -112,7 +179,7 @@ export default function History() {
             </div>
           ) : (
             <div className="flex flex-col gap-6 max-w-2xl">
-              {groups.map((group) => (
+              {recipeGroups.map((group) => (
                 <div key={group.label}>
                   <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
                   <div className="flex flex-col gap-2">
@@ -125,7 +192,6 @@ export default function History() {
                             : 'border-dram-border hover:border-dram-accent/40'
                         }`}
                       >
-                        {/* Thumbnail — click to open detail */}
                         <button
                           onClick={() => setPanel({ mode: 'detail', recipeId: entry.recipe_id })}
                           className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dram-border flex items-center justify-center"
@@ -137,7 +203,6 @@ export default function History() {
                           )}
                         </button>
 
-                        {/* Info — click to open detail */}
                         <button
                           onClick={() => setPanel({ mode: 'detail', recipeId: entry.recipe_id })}
                           className="flex-1 min-w-0 text-left"
@@ -148,7 +213,6 @@ export default function History() {
                           </p>
                         </button>
 
-                        {/* Actions */}
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
                           <button
                             onClick={(e) => openEdit(e, entry)}
@@ -158,7 +222,7 @@ export default function History() {
                             ✎
                           </button>
                           <button
-                            onClick={(e) => handleDelete(e, entry)}
+                            onClick={(e) => handleDeleteRecipe(e, entry)}
                             className="text-gray-500 hover:text-red-400 transition text-lg px-1 leading-none"
                             title="Delete"
                           >
@@ -171,10 +235,73 @@ export default function History() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          )
+        ) : (
+          /* ── Workout history ─────────────────────────────────────── */
+          workouts.length === 0 ? (
+            <div className="flex flex-col items-center mt-20 text-gray-600">
+              <span className="text-5xl mb-3">🏋️</span>
+              <p className="text-lg">No workouts yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6 max-w-2xl">
+              {workoutGroups.map((group) => (
+                <div key={group.label}>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
+                  <div className="flex flex-col gap-2">
+                    {group.workouts.map((w) => (
+                      <div
+                        key={w.id}
+                        onClick={() => navigate(`/workouts/${w.id}`)}
+                        className="bg-dram-card border border-dram-border hover:border-dram-accent/40 rounded-xl px-4 py-3 cursor-pointer group transition"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-medium text-white">
+                              {w.name ?? fmtWorkoutDate(w.workoutDate)}
+                            </p>
+                            {w.name && (
+                              <p className="text-sm text-gray-500">{fmtWorkoutDate(w.workoutDate)}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {w.durationMinutes != null && `${w.durationMinutes} min · `}
+                              {Math.round((w.totalVolumeKg ?? 0) * 2.20462).toLocaleString()} lbs volume
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => handleDeleteWorkout(e, w.id)}
+                            disabled={deletingId === w.id}
+                            className="text-gray-600 hover:text-red-400 transition text-lg leading-none shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-50 mt-0.5"
+                            title="Delete workout"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        {w.exercises.length > 0 && (
+                          <div className="mt-2 space-y-0.5">
+                            {w.exercises.map((ex) => (
+                              <div key={ex.name} className="flex items-baseline gap-2 text-sm">
+                                <span className="text-slate-300 truncate">{ex.name}</span>
+                                <span className="text-slate-500 shrink-0">
+                                  {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
+                                  {ex.avgReps != null && ` × ${ex.avgReps} reps`}
+                                  {ex.maxWeightKg != null && ` · ${Math.round(ex.maxWeightKg * 2.20462 * 10) / 10} lbs`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
 
-      {/* Side panel */}
+      {/* Side panel — recipes only */}
       {panelOpen && (
         <div data-panel className="fixed right-0 top-0 h-full w-[420px] z-10 shadow-2xl">
           {panel.mode === 'detail' && (

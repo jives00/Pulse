@@ -1,6 +1,7 @@
 import { useState, useEffect, KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { exercisesApi, type Exercise } from '@pulse/api-client';
+import Spinner from '../components/Spinner';
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 
@@ -19,6 +20,88 @@ const EMPTY_FORM: FormState = {
   name: '', category: '', customCategory: '', exerciseType: 'weight',
   musclesPrimary: [], musclesSecondary: [], instructions: '', mediaUrl: '',
 };
+
+function getYouTubeThumbnail(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (match) return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
+  return null;
+}
+
+function isDirectImage(url: string): boolean {
+  return /\.(jpe?g|png|gif|webp|svg)(\?|$)/i.test(url);
+}
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  chest: '🫁', back: '🦾', shoulders: '💪', arms: '💪',
+  legs: '🦵', glutes: '🍑', core: '⚡', cardio: '🏃',
+  olympic: '🥇', plyometrics: '🦘', stretching: '🧘',
+};
+
+// ── Exercise card ─────────────────────────────────────────────────────────────
+
+function ExerciseCard({
+  exercise, onEdit, onDelete,
+}: {
+  exercise: Exercise;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const thumbnail = exercise.mediaUrl ? getYouTubeThumbnail(exercise.mediaUrl) : null;
+  const imgSrc = thumbnail ?? (exercise.mediaUrl && isDirectImage(exercise.mediaUrl) ? exercise.mediaUrl : null);
+  const emoji = CATEGORY_EMOJI[exercise.category.toLowerCase()] ?? '🏋️';
+
+  return (
+    <div className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
+      {/* Image / placeholder */}
+      <Link to={`/workouts/exercises/${exercise.id}`} className="block">
+        <div className="aspect-square bg-dram-bg relative overflow-hidden">
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt={exercise.name}
+              loading="lazy"
+              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-4xl opacity-30">{emoji}</span>
+            </div>
+          )}
+        </div>
+      </Link>
+
+      {/* Info */}
+      <div className="p-3">
+        <Link
+          to={`/workouts/exercises/${exercise.id}`}
+          className="font-semibold text-white text-sm leading-snug line-clamp-2 hover:text-dram-accent transition-colors block"
+        >
+          {exercise.name}
+        </Link>
+        <p className="text-gray-500 text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex flex-wrap gap-1">
+            {exercise.musclesPrimary?.slice(0, 2).map((m) => (
+              <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">
+                {m}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-1">
+            <button onClick={onEdit} className="text-xs text-dram-accent/60 hover:text-dram-accent transition-colors">
+              Edit
+            </button>
+            {exercise.isCustom && (
+              <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300 transition-colors">
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Tag chip input ────────────────────────────────────────────────────────────
 
@@ -168,36 +251,32 @@ export default function ExercisesPage() {
     return matchSearch && matchCat;
   });
 
-  if (loading) return <div className="text-center text-sm text-dram-accent/60 py-12">Loading…</div>;
-
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-dram-accent">Exercises</h1>
-        <button
-          onClick={openCreate}
-          className="text-sm bg-dram-accent hover:opacity-90 text-dram-bg px-3 py-1.5 rounded-lg transition-opacity font-medium"
-        >
-          + New Exercise
-        </button>
-      </div>
-
-      {/* Search + category filters */}
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search exercises…"
-          className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/40 focus:outline-none focus:border-dram-accent/50"
-        />
+    <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
+      {/* Toolbar */}
+      <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
+        <div className="flex items-center gap-3 mb-3">
+          <input
+            type="text"
+            placeholder="🔍 Search exercises…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+          />
+          <button
+            onClick={openCreate}
+            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0"
+          >
+            + New Exercise
+          </button>
+        </div>
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setFilterCat('')}
-            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-              !filterCat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
-                : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
+            className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+              !filterCat
+                ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
+                : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
             }`}
           >
             All
@@ -206,9 +285,10 @@ export default function ExercisesPage() {
             <button
               key={cat}
               onClick={() => setFilterCat(filterCat === cat ? '' : cat)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                filterCat === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
-                  : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
+              className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+                filterCat === cat
+                  ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
+                  : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
               }`}
             >
               {cat}
@@ -217,33 +297,28 @@ export default function ExercisesPage() {
         </div>
       </div>
 
-      {/* Exercise list */}
-      {filtered.length === 0 ? (
-        <div className="text-center text-sm text-dram-accent/40 py-12">No exercises found.</div>
-      ) : (
-        <div className="space-y-1">
-          {filtered.map((ex) => (
-            <div key={ex.id} className="flex items-center gap-3 bg-dram-card border border-dram-border rounded-lg px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <Link to={`/workouts/exercises/${ex.id}`} className="text-sm font-medium text-dram-accent hover:underline">
-                  {ex.name}
-                </Link>
-                <p className="text-xs text-dram-accent/50 mt-0.5">{ex.category} · {ex.exerciseType}</p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={() => openEdit(ex)} className="text-xs text-dram-accent/60 hover:text-dram-accent transition-colors">
-                  Edit
-                </button>
-                {ex.isCustom && (
-                  <button onClick={() => handleDelete(ex)} className="text-xs text-red-400 hover:text-red-300 transition-colors">
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {loading ? (
+          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center mt-20 text-gray-600">
+            <span className="text-5xl mb-3">🏋️</span>
+            <p className="text-lg">No exercises found.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            {filtered.map((ex) => (
+              <ExerciseCard
+                key={ex.id}
+                exercise={ex}
+                onEdit={() => openEdit(ex)}
+                onDelete={() => handleDelete(ex)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Create / Edit modal */}
       {showForm && (
@@ -321,14 +396,12 @@ export default function ExercisesPage() {
               </div>
             </div>
 
-            {/* Primary muscles */}
             <TagInput
               label="Primary Muscles"
               tags={form.musclesPrimary}
               onChange={(v) => setForm((f) => ({ ...f, musclesPrimary: v }))}
             />
 
-            {/* Secondary muscles */}
             <TagInput
               label="Secondary Muscles"
               tags={form.musclesSecondary}

@@ -89,7 +89,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   onClick={() => go('/workouts')}
                   className={subLinkCls(location.pathname === '/workouts')}
                 >
-                  Log
+                  Progress
                 </button>
                 <button
                   onClick={() => go('/workouts/routines')}
