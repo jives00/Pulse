@@ -16,7 +16,7 @@ export const pool = mysql.createPool({
 // SET time_zone to MySQL. Send it explicitly so MySQL returns all datetimes in UTC,
 // which matches what mysql2 expects when timezone: '+00:00' is set.
 pool.on('connection', (connection) => {
-  connection.promise().query("SET time_zone = '+00:00'").catch((err) => {
+  void connection.query("SET time_zone = '+00:00'").catch((err: unknown) => {
     console.error('Failed to set MySQL session timezone:', err);
   });
 });
