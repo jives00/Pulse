@@ -7,14 +7,15 @@ import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
 
-type CategoryFilter = '' | 'cocktail' | 'food' | 'main' | 'side' | 'breakfast' | 'dessert';
+type CategoryFilter = '' | 'cocktail' | 'food' | 'main' | 'side' | 'breakfast' | 'dessert' | 'prepackaged';
 import type { SortOption } from '../store/settings';
 
 const FOOD_SUBCATEGORIES: [Exclude<CategoryFilter, '' | 'cocktail' | 'food'>, string][] = [
   ['main', 'Main Dishes'],
   ['side', 'Side Dishes'],
   ['breakfast', 'Breakfast'],
-  ['dessert', 'Desserts'],
+  ['dessert', 'Desserts & Snacks'],
+  ['prepackaged', 'Prepackaged'],
 ];
 
 const PAGE_SIZE = 50;

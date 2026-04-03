@@ -2,16 +2,17 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const FOOD_SUBS = [
-  { label: 'Main Dishes', sub: 'main' },
-  { label: 'Side Dishes', sub: 'side' },
-  { label: 'Breakfast',   sub: 'breakfast' },
-  { label: 'Desserts',    sub: 'dessert' },
+  { label: 'Main Dishes',       sub: 'main' },
+  { label: 'Side Dishes',       sub: 'side' },
+  { label: 'Breakfast',         sub: 'breakfast' },
+  { label: 'Desserts & Snacks', sub: 'dessert' },
+  { label: 'Prepackaged',       sub: 'prepackaged' },
 ];
 
 const TOP_SECTIONS = [
   { prefix: '/food',      label: 'Food',      icon: '🍴' },
   { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
-  { prefix: '/nutrition', label: 'Nutrition', icon: '🥗' },
+  { prefix: '/nutrition', label: 'Food Log', icon: '🥗' },
   { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
   { prefix: '/goals',     label: 'Goals',     icon: '🎯' },
   { prefix: '/history',   label: 'History',   icon: '📋' },

@@ -198,7 +198,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                 {recipe.type === 'cocktail' ? '🍸' : '🍴'} {recipe.type}
                 {(recipe as any).subcategory && (
                   <span className="ml-2 text-xs bg-dram-border px-2 py-0.5 rounded-full">
-                    {(recipe as any).subcategory === 'main' ? 'Main Dish' : (recipe as any).subcategory === 'side' ? 'Side Dish' : (recipe as any).subcategory === 'breakfast' ? 'Breakfast' : 'Dessert'}
+                    {(recipe as any).subcategory === 'main' ? 'Main Dish' : (recipe as any).subcategory === 'side' ? 'Side Dish' : (recipe as any).subcategory === 'breakfast' ? 'Breakfast' : (recipe as any).subcategory === 'prepackaged' ? 'Prepackaged' : 'Desserts & Snacks'}
                   </span>
                 )}
               </p>

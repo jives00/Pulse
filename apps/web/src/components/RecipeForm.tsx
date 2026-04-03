@@ -602,7 +602,8 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
               <option value="main">Main Dish</option>
               <option value="side">Side Dish</option>
               <option value="breakfast">Breakfast</option>
-              <option value="dessert">Dessert</option>
+              <option value="dessert">Desserts & Snacks</option>
+              <option value="prepackaged">Prepackaged</option>
             </select>
           </div>
         )}
@@ -671,8 +672,8 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
           </div>
         )}
 
-        {type === 'food' && (
-          <div>
+        {type === 'food' && (subcategory === 'prepackaged' || barcode) && (
+          <div className={subcategory === 'prepackaged' ? 'border border-dram-accent/30 rounded-lg p-3 bg-dram-accent/5' : ''}>
             <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
             <input
               type="text"

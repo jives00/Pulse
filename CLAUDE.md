@@ -94,7 +94,7 @@ USDA_API_KEY        (optional, food database)
 
 ```
 /food                  → Library (food items)
-/food?sub=main|side|breakfast|dessert → filtered subcategory
+/food?sub=main|side|breakfast|dessert|prepackaged → filtered subcategory
 /drinks                → Library (cocktails)
 /nutrition/today       → TodayPage
 /nutrition/history     → NutritionHistoryPage

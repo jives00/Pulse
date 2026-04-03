@@ -39,7 +39,7 @@ function RecipeCard({ recipe, onClick }: Props) {
           <p className="text-gray-500 text-xs capitalize">
             {recipe.type === 'cocktail' ? 'Cocktail' : 'Food'}
             {recipe.subcategory && (
-              <span> | {recipe.subcategory === 'main' ? 'Main Dish' : recipe.subcategory === 'side' ? 'Side Dish' : recipe.subcategory === 'breakfast' ? 'Breakfast' : 'Dessert'}</span>
+              <span> | {recipe.subcategory === 'main' ? 'Main Dish' : recipe.subcategory === 'side' ? 'Side Dish' : recipe.subcategory === 'breakfast' ? 'Breakfast' : recipe.subcategory === 'prepackaged' ? 'Prepackaged' : 'Desserts & Snacks'}</span>
             )}
           </p>
           {(isFav || recipe.last_made) && (
