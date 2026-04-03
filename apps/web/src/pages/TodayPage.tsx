@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLogStore } from '../store/logStore';
+import { useLogStore, todayStr } from '../store/logStore';
 import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
 import RecipeForm from '../components/RecipeForm';
@@ -73,7 +73,7 @@ export default function TodayPage() {
           <button
             onClick={() => setDate(offsetDate(currentDate, 1))}
             className="p-2 rounded-lg hover:bg-dram-card text-slate-400 hover:text-slate-100 transition-colors"
-            disabled={currentDate >= new Date().toISOString().slice(0, 10)}
+            disabled={currentDate >= todayStr()}
           >
             ▶
           </button>

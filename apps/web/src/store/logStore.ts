@@ -2,8 +2,12 @@ import { create } from 'zustand';
 import { logApi, waterApi } from '@pulse/api-client';
 import type { DailyLog, WaterDay, AddLogEntryPayload, MealSlot } from '@pulse/api-client';
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+export function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 interface LogState {
