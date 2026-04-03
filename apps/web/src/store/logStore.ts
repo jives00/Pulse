@@ -20,7 +20,7 @@ interface LogState {
   addEntry: (payload: AddLogEntryPayload) => Promise<void>;
   removeEntry: (id: number) => Promise<void>;
   copyFromDate: (fromDate: string, meal?: MealSlot) => Promise<void>;
-  addWater: (amountMl: number) => Promise<void>;
+  addWater: (amountOz: number) => Promise<void>;
   removeWater: (id: number) => Promise<void>;
 }
 
@@ -64,8 +64,8 @@ export const useLogStore = create<LogState>((set, get) => ({
     await get().fetchDay();
   },
 
-  addWater: async (amountMl) => {
-    await waterApi.add(get().currentDate, amountMl);
+  addWater: async (amountOz) => {
+    await waterApi.add(get().currentDate, amountOz);
     const water = await waterApi.getDay(get().currentDate);
     set({ waterDay: water });
   },

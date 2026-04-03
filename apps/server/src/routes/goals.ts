@@ -15,7 +15,7 @@ function toGoals(row: RowDataPacket) {
     fatG: row.fat_g,
     fiberG: row.fiber_g ?? undefined,
     sodiumMg: row.sodium_mg ?? undefined,
-    waterGoalMl: row.water_goal_ml,
+    waterGoalOz: row.water_goal_oz,
     effectiveFrom: row.effective_from instanceof Date
       ? row.effective_from.toISOString().slice(0, 10)
       : String(row.effective_from),
@@ -51,14 +51,14 @@ router.get('/history', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { calories, carbsG, proteinG, fatG, fiberG, sodiumMg, waterGoalMl } = req.body;
+  const { calories, carbsG, proteinG, fatG, fiberG, sodiumMg, waterGoalOz } = req.body;
   const today = new Date().toISOString().slice(0, 10);
 
   try {
     await pool.execute(
-      `INSERT INTO user_goals (user_id, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_ml, effective_from)
+      `INSERT INTO user_goals (user_id, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_oz, effective_from)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalMl ?? 2000, today]
+      [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalOz ?? 64, today]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',

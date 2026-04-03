@@ -247,8 +247,8 @@ export interface ServingSize { id: number; label: string; grams: number; isDefau
 export interface NutritionSnapshot { calories: number; carbs: number; protein: number; fat: number; }
 export interface Food { id: number; name: string; brand?: string; isCustom: boolean; nutrition: { calories: number; carbs: number; protein: number; fat: number; }; servingSizes: ServingSize[]; }
 export interface NutritionLogEntry { id: number; logDate: string; meal: MealSlot; food: Food; servingSize: ServingSize; quantity: number; nutrition: NutritionSnapshot; }
-export interface DailyLog { date: string; meals: Record<MealSlot, NutritionLogEntry[]>; totals: NutritionSnapshot; goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalMl: number; }; waterTotalMl: number; }
-export interface WaterDay { date: string; totalMl: number; goalMl: number; entries: { id: number; amountMl: number; loggedAt: string; }[]; }
+export interface DailyLog { date: string; meals: Record<MealSlot, NutritionLogEntry[]>; totals: NutritionSnapshot; goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz: number; }; waterTotalOz: number; }
+export interface WaterDay { date: string; totalOz: number; goalOz: number; entries: { id: number; amountOz: number; loggedAt: string; }[]; }
 export interface GoalsSummary { date: string; nutrition: { goals: { calories: number; carbsG: number; proteinG: number; fatG: number; } | null; actual: { calories: number; carbsG: number; proteinG: number; fatG: number; }; }; workouts: { goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null; } | null; actual: { workoutCount: number; totalMinutes: number; }; }; }
 export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; }
 export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; completed: boolean; }
@@ -275,8 +275,8 @@ export async function getWaterDay(token: string, date: string): Promise<WaterDay
   const res = await fetch(`${API_BASE}/api/water?date=${encodeURIComponent(date)}`, { headers: headers(token) });
   return handle<WaterDay>(res);
 }
-export async function addWater(token: string, date: string, amountMl: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/water`, { method: 'POST', headers: headers(token), body: JSON.stringify({ date, amountMl }) });
+export async function addWater(token: string, date: string, amountOz: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/water`, { method: 'POST', headers: headers(token), body: JSON.stringify({ date, amountOz }) });
   await handle(res);
 }
 

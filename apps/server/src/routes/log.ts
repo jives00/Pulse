@@ -107,11 +107,11 @@ router.get('/', async (req, res) => {
     );
 
     const [waterRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COALESCE(SUM(amount_ml), 0) AS total FROM water_log WHERE user_id = ? AND log_date = ?`,
+      `SELECT COALESCE(SUM(amount_oz), 0) AS total FROM water_log WHERE user_id = ? AND log_date = ?`,
       [req.userId, date]
     );
 
-    const goals = goalRows[0] ?? { calories: 2000, carbs_g: 250, protein_g: 150, fat_g: 65, water_goal_ml: 2000 };
+    const goals = goalRows[0] ?? { calories: 2000, carbs_g: 250, protein_g: 150, fat_g: 65, water_goal_oz: 64 };
 
     const meals: Record<MealSlot, ReturnType<typeof rowToEntry>[]> = {
       breakfast: [], lunch: [], dinner: [], snack: [],
@@ -127,7 +127,7 @@ router.get('/', async (req, res) => {
       date,
       meals,
       totals,
-      waterTotalMl: Number(waterRows[0]?.total ?? 0),
+      waterTotalOz: Number(waterRows[0]?.total ?? 0),
       goals: {
         id: goals.id,
         calories: goals.calories,
@@ -136,7 +136,7 @@ router.get('/', async (req, res) => {
         fatG: goals.fat_g,
         fiberG: goals.fiber_g ?? undefined,
         sodiumMg: goals.sodium_mg ?? undefined,
-        waterGoalMl: goals.water_goal_ml,
+        waterGoalOz: goals.water_goal_oz,
         effectiveFrom: goals.effective_from instanceof Date
           ? goals.effective_from.toISOString().slice(0, 10)
           : String(goals.effective_from),

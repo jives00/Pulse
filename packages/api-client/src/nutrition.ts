@@ -107,7 +107,7 @@ export interface DailyLog {
   meals: Record<MealSlot, LogEntry[]>;
   totals: NutritionSnapshot;
   goals: UserGoals;
-  waterTotalMl: number;
+  waterTotalOz: number;
 }
 
 // ── Goals ────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export interface UserGoals {
   fatG: number;
   fiberG?: number;
   sodiumMg?: number;
-  waterGoalMl: number;
+  waterGoalOz: number;
   effectiveFrom: string;
 }
 
@@ -131,14 +131,14 @@ export type SaveGoalsPayload = Omit<UserGoals, 'id' | 'effectiveFrom'>;
 export interface WaterEntry {
   id: number;
   logDate: string;
-  amountMl: number;
+  amountOz: number;
   loggedAt: string;
 }
 
 export interface WaterDay {
   date: string;
-  totalMl: number;
-  goalMl: number;
+  totalOz: number;
+  goalOz: number;
   entries: WaterEntry[];
 }
 

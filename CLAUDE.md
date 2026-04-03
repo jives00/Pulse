@@ -195,8 +195,8 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | `foods` | `id`, `name`, `brand`, `source` (custom/open_food_facts/usda), `calories_per100`, `carbs_per100`, `protein_per100`, `fat_per100`, `is_custom`, `recipe_id` INT NULL (FK → recipes.id, identifies shadow foods) |
 | `serving_sizes` | `id`, `food_id`, `label`, `grams`, `is_default` |
 | `food_log` | `id`, `user_id`, `log_date`, `meal` (breakfast/lunch/dinner/snack), `food_id`, `serving_size_id`, `quantity`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `dram_recipe_id` (nullable, links to recipes) |
-| `user_goals` | `id`, `user_id`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `water_goal_ml`, `effective_from` |
-| `water_log` | `id`, `user_id`, `log_date`, `amount_ml` |
+| `user_goals` | `id`, `user_id`, `calories`, `carbs_g`, `protein_g`, `fat_g`, `water_goal_oz`, `effective_from` |
+| `water_log` | `id`, `user_id`, `log_date`, `amount_oz` |
 | `meal_templates` | `id`, `user_id`, `name` |
 | `meal_template_items` | `id`, `template_id`, `food_id`, `serving_size_id`, `quantity`, `sort_order` |
 | `barcode_cache` | `barcode`, `food_id`, `fetched_at` |

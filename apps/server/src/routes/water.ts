@@ -15,21 +15,21 @@ router.get('/', async (req, res) => {
       [req.userId, date]
     );
     const [goalRows] = await pool.query<RowDataPacket[]>(
-      'SELECT water_goal_ml FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT water_goal_oz FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
       [req.userId, date]
     );
 
-    const totalMl = entries.reduce((sum, e) => sum + Number(e.amount_ml), 0);
-    const goalMl = goalRows[0]?.water_goal_ml ?? 2000;
+    const totalOz = entries.reduce((sum, e) => sum + Number(e.amount_oz), 0);
+    const goalOz = goalRows[0]?.water_goal_oz ?? 64;
 
     res.json({
       date,
-      totalMl,
-      goalMl,
+      totalOz,
+      goalOz,
       entries: entries.map((e) => ({
         id: e.id,
         logDate: date,
-        amountMl: Number(e.amount_ml),
+        amountOz: Number(e.amount_oz),
         loggedAt: e.logged_at,
       })),
     });
@@ -40,14 +40,14 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { date, amountMl } = req.body as { date: string; amountMl: number };
+  const { date, amountOz } = req.body as { date: string; amountOz: number };
 
   try {
     const [result] = await pool.execute<ResultSetHeader>(
-      'INSERT INTO water_log (user_id, log_date, amount_ml) VALUES (?, ?, ?)',
-      [req.userId, date, amountMl]
+      'INSERT INTO water_log (user_id, log_date, amount_oz) VALUES (?, ?, ?)',
+      [req.userId, date, amountOz]
     );
-    res.status(201).json({ id: result.insertId, logDate: date, amountMl, loggedAt: new Date().toISOString() });
+    res.status(201).json({ id: result.insertId, logDate: date, amountOz, loggedAt: new Date().toISOString() });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to add water entry' });

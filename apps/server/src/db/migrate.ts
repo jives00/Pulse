@@ -13,6 +13,7 @@ const MIGRATIONS = [
   '006_body_measurements.sql',
   '008_exercise_fields.sql',
   '009_recipe_nutrition_bridge.sql',
+  '010_water_oz.sql',
 ];
 
 async function migrate() {
@@ -135,6 +136,40 @@ async function migrate() {
         console.log('  Added foods.recipe_id column.');
       } else {
         console.log('  foods.recipe_id already exists, skipping ALTER.');
+      }
+    }
+
+    if (file === '010_water_oz.sql') {
+      // water_log: amount_ml → amount_oz
+      const [wlCols] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'water_log'
+           AND COLUMN_NAME IN ('amount_ml', 'amount_oz')`
+      );
+      const wlExisting = (wlCols as any[]).map((r) => r.COLUMN_NAME);
+      if (wlExisting.includes('amount_ml') && !wlExisting.includes('amount_oz')) {
+        await conn.query(`ALTER TABLE water_log ADD COLUMN amount_oz INT UNSIGNED NOT NULL DEFAULT 0`);
+        await conn.query(`UPDATE water_log SET amount_oz = ROUND(amount_ml / 29.5735)`);
+        await conn.query(`ALTER TABLE water_log DROP COLUMN amount_ml`);
+        console.log('  Migrated water_log.amount_ml → amount_oz.');
+      } else {
+        console.log('  water_log.amount_oz already exists or amount_ml already removed, skipping.');
+      }
+
+      // user_goals: water_goal_ml → water_goal_oz
+      const [ugCols] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_goals'
+           AND COLUMN_NAME IN ('water_goal_ml', 'water_goal_oz')`
+      );
+      const ugExisting = (ugCols as any[]).map((r) => r.COLUMN_NAME);
+      if (ugExisting.includes('water_goal_ml') && !ugExisting.includes('water_goal_oz')) {
+        await conn.query(`ALTER TABLE user_goals ADD COLUMN water_goal_oz INT UNSIGNED NOT NULL DEFAULT 64`);
+        await conn.query(`UPDATE user_goals SET water_goal_oz = ROUND(water_goal_ml / 29.5735)`);
+        await conn.query(`ALTER TABLE user_goals DROP COLUMN water_goal_ml`);
+        console.log('  Migrated user_goals.water_goal_ml → water_goal_oz.');
+      } else {
+        console.log('  user_goals.water_goal_oz already exists or water_goal_ml already removed, skipping.');
       }
     }
 

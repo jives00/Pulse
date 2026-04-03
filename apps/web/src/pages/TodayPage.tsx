@@ -54,8 +54,8 @@ export default function TodayPage() {
 
   const goals = dailyLog?.goals;
   const totals = dailyLog?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
-  const waterTotal = waterDay?.totalMl ?? 0;
-  const waterGoal = waterDay?.goalMl ?? goals?.waterGoalMl ?? 2000;
+  const waterTotal = waterDay?.totalOz ?? 0;
+  const waterGoal = waterDay?.goalOz ?? goals?.waterGoalOz ?? 64;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
@@ -106,9 +106,9 @@ export default function TodayPage() {
             <NutritionSummaryCard
               actual={{ calories: totals.calories, carbsG: totals.carbs, proteinG: totals.protein, fatG: totals.fat }}
               goals={goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG } : null}
-              waterMl={waterTotal}
-              waterGoalMl={waterGoal}
-              onAddWater={(ml) => addWater(ml)}
+              waterOz={waterTotal}
+              waterGoalOz={waterGoal}
+              onAddWater={(oz) => addWater(oz)}
             />
 
             {/* 30-day history charts */}

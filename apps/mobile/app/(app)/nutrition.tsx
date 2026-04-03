@@ -226,8 +226,8 @@ export default function NutritionScreen() {
     ]);
   }
 
-  async function handleAddWater(ml: number) {
-    try { await addWater(token, date, ml); load(); }
+  async function handleAddWater(oz: number) {
+    try { await addWater(token, date, oz); load(); }
     catch { Alert.alert('Error', 'Could not log water.'); }
   }
 
@@ -235,9 +235,11 @@ export default function NutritionScreen() {
   const totals = log?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
   const calGoal = goals?.calories ?? 2000;
   const calPct = Math.min(totals.calories / calGoal, 1);
-  const waterMl = log?.waterTotalMl ?? 0;
-  const waterGoal = goals?.waterGoalMl ?? 2000;
-  const waterPct = Math.min(waterMl / waterGoal, 1);
+  const waterOz = log?.waterTotalOz ?? 0;
+  const waterGoalOz = goals?.waterGoalOz ?? 64;
+  const waterPct = Math.min(waterOz / waterGoalOz, 1);
+  const waterGlasses = (waterOz / 8).toFixed(1);
+  const waterGoalGlasses = Math.round(waterGoalOz / 8);
 
   const mealLabel = MEALS.find((m) => m.slot === addMeal)?.label ?? '';
 
@@ -333,17 +335,18 @@ export default function NutritionScreen() {
           <View style={s.waterSection}>
             <View style={s.waterHeader}>
               <Text style={s.mealLabel}>Water</Text>
-              <Text style={s.mealCals}>{waterMl >= 1000 ? `${(waterMl / 1000).toFixed(1)}L` : `${waterMl}ml`} / {waterGoal >= 1000 ? `${(waterGoal / 1000).toFixed(1)}L` : `${waterGoal}ml`}</Text>
+              <Text style={s.mealCals}>{waterGlasses} / {waterGoalGlasses} glasses</Text>
             </View>
             <View style={s.progressBg}>
               <View style={[s.progressFill, { width: `${waterPct * 100}%` as any, backgroundColor: '#60a5fa' }]} />
             </View>
             <View style={s.waterBtns}>
-              {[250, 500, 750].map((ml) => (
-                <TouchableOpacity key={ml} style={s.waterBtn} onPress={() => handleAddWater(ml)}>
-                  <Text style={s.waterBtnText}>+{ml}ml</Text>
-                </TouchableOpacity>
-              ))}
+              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(8)}>
+                <Text style={s.waterBtnText}>+ glass (8oz)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(20)}>
+                <Text style={s.waterBtnText}>+ bottle (20oz)</Text>
+              </TouchableOpacity>
             </View>
           </View>
 

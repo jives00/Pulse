@@ -206,8 +206,8 @@ export default function GoalsPage() {
             fatG: nutritionActual?.fatG ?? 0,
           }}
           goals={nutritionGoals}
-          waterMl={0}
-          waterGoalMl={2000}
+          waterOz={0}
+          waterGoalOz={64}
         />
       </div>
 
