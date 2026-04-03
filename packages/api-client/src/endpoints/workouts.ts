@@ -117,7 +117,7 @@ export interface WorkoutSummary {
   exercises: WorkoutExerciseSummary[];
 }
 
-export interface WorkoutDetail extends WorkoutSummary {
+export interface WorkoutDetail extends Omit<WorkoutSummary, 'exercises'> {
   notes: string | null;
   startedAt: string | null;
   routineId: number | null;
