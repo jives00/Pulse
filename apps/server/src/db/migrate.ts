@@ -14,6 +14,7 @@ const MIGRATIONS = [
   '008_exercise_fields.sql',
   '009_recipe_nutrition_bridge.sql',
   '010_water_oz.sql',
+  '011_exercise_extended_fields.sql',
 ];
 
 async function migrate() {
@@ -170,6 +171,31 @@ async function migrate() {
         console.log('  Migrated user_goals.water_goal_ml → water_goal_oz.');
       } else {
         console.log('  user_goals.water_goal_oz already exists or water_goal_ml already removed, skipping.');
+      }
+    }
+
+    if (file === '011_exercise_extended_fields.sql') {
+      const [cols] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'exercises'
+           AND COLUMN_NAME IN ('cover_image_url', 'notes', 'muscle_image_url')`
+      );
+      const existing = (cols as any[]).map((r) => r.COLUMN_NAME);
+      if (!existing.includes('cover_image_url')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN cover_image_url VARCHAR(500) NULL`);
+        console.log('  Added exercises.cover_image_url column.');
+      }
+      if (!existing.includes('notes')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN notes TEXT NULL`);
+        console.log('  Added exercises.notes column.');
+      }
+      if (!existing.includes('muscle_image_url')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN muscle_image_url VARCHAR(500) NULL`);
+        console.log('  Added exercises.muscle_image_url column.');
+      }
+      if (!existing.includes('track_weight')) {
+        await conn.query(`ALTER TABLE exercises ADD COLUMN track_weight TINYINT(1) NOT NULL DEFAULT 1`);
+        console.log('  Added exercises.track_weight column.');
       }
     }
 

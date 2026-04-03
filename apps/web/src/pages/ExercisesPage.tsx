@@ -14,18 +14,17 @@ interface FormState {
   musclesSecondary: string[];
   instructions: string;
   mediaUrl: string;
+  coverImageUrl: string;
+  muscleImageUrl: string;
+  notes: string;
+  trackWeight: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   name: '', category: '', customCategory: '', exerciseType: 'weight',
   musclesPrimary: [], musclesSecondary: [], instructions: '', mediaUrl: '',
+  coverImageUrl: '', muscleImageUrl: '', notes: '', trackWeight: true,
 };
-
-function getYouTubeThumbnail(url: string): string | null {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-  if (match) return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
-  return null;
-}
 
 function isDirectImage(url: string): boolean {
   return /\.(jpe?g|png|gif|webp|svg)(\?|$)/i.test(url);
@@ -46,8 +45,7 @@ function ExerciseCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const thumbnail = exercise.mediaUrl ? getYouTubeThumbnail(exercise.mediaUrl) : null;
-  const imgSrc = thumbnail ?? (exercise.mediaUrl && isDirectImage(exercise.mediaUrl) ? exercise.mediaUrl : null);
+  const imgSrc = exercise.coverImageUrl && isDirectImage(exercise.coverImageUrl) ? exercise.coverImageUrl : null;
   const emoji = CATEGORY_EMOJI[exercise.category.toLowerCase()] ?? '🏋️';
 
   return (
@@ -181,20 +179,45 @@ export default function ExercisesPage() {
     setShowForm(true);
   }
 
-  function openEdit(ex: Exercise) {
+  async function openEdit(ex: Exercise) {
     setEditingId(ex.id);
-    setForm({
-      name: ex.name,
-      category: ex.category,
-      customCategory: '',
-      exerciseType: ex.exerciseType,
-      musclesPrimary: ex.musclesPrimary ?? [],
-      musclesSecondary: ex.musclesSecondary ?? [],
-      instructions: ex.instructions ?? '',
-      mediaUrl: ex.mediaUrl ?? '',
-    });
-    setUseCustomCat(!categories.includes(ex.category));
     setShowForm(true);
+    // Fetch full detail to ensure instructions/mediaUrl/coverImageUrl/notes are populated
+    try {
+      const full = await exercisesApi.getOne(ex.id);
+      setForm({
+        name: full.name,
+        category: full.category,
+        customCategory: '',
+        exerciseType: full.exerciseType,
+        musclesPrimary: full.musclesPrimary ?? [],
+        musclesSecondary: full.musclesSecondary ?? [],
+        instructions: full.instructions ?? '',
+        mediaUrl: full.mediaUrl ?? '',
+        coverImageUrl: full.coverImageUrl ?? '',
+        muscleImageUrl: full.muscleImageUrl ?? '',
+        notes: full.notes ?? '',
+        trackWeight: full.trackWeight ?? true,
+      });
+      setUseCustomCat(!categories.includes(full.category));
+    } catch {
+      // fall back to list data
+      setForm({
+        name: ex.name,
+        category: ex.category,
+        customCategory: '',
+        exerciseType: ex.exerciseType,
+        musclesPrimary: ex.musclesPrimary ?? [],
+        musclesSecondary: ex.musclesSecondary ?? [],
+        instructions: ex.instructions ?? '',
+        mediaUrl: ex.mediaUrl ?? '',
+        coverImageUrl: ex.coverImageUrl ?? '',
+        muscleImageUrl: ex.muscleImageUrl ?? '',
+        notes: ex.notes ?? '',
+        trackWeight: ex.trackWeight ?? true,
+      });
+      setUseCustomCat(!categories.includes(ex.category));
+    }
   }
 
   function closeForm() {
@@ -217,6 +240,10 @@ export default function ExercisesPage() {
         musclesSecondary: form.musclesSecondary,
         instructions: form.instructions.trim() || null,
         mediaUrl: form.mediaUrl.trim() || null,
+        coverImageUrl: form.coverImageUrl.trim() || null,
+        muscleImageUrl: form.muscleImageUrl.trim() || null,
+        notes: form.notes.trim() || null,
+        trackWeight: form.trackWeight,
       };
       if (editingId != null) {
         const updated = await exercisesApi.update(editingId, payload);
@@ -396,6 +423,21 @@ export default function ExercisesPage() {
               </div>
             </div>
 
+            {/* Track weight toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Weight</div>
+                <div className="text-xs text-gray-500 mt-0.5">Uncheck for cardio/bodyweight-only exercises</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, trackWeight: !f.trackWeight }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.trackWeight ? 'bg-dram-accent' : 'bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.trackWeight ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
             <TagInput
               label="Primary Muscles"
               tags={form.musclesPrimary}
@@ -420,15 +462,51 @@ export default function ExercisesPage() {
               />
             </div>
 
-            {/* Demo URL */}
+            {/* Cover Image URL */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Demo URL</label>
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Cover Image URL</label>
+              <input
+                type="text"
+                value={form.coverImageUrl}
+                onChange={(e) => setForm((f) => ({ ...f, coverImageUrl: e.target.value }))}
+                placeholder="Static image URL (JPG, PNG, WebP…)"
+                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+              />
+            </div>
+
+            {/* How-To Media URL */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">How-To Media URL</label>
               <input
                 type="text"
                 value={form.mediaUrl}
                 onChange={(e) => setForm((f) => ({ ...f, mediaUrl: e.target.value }))}
                 placeholder="YouTube link, GIF, or image URL"
                 className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+              />
+            </div>
+
+            {/* Muscle Diagram URL */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Muscle Diagram URL</label>
+              <input
+                type="text"
+                value={form.muscleImageUrl}
+                onChange={(e) => setForm((f) => ({ ...f, muscleImageUrl: e.target.value }))}
+                placeholder="Image URL showing muscle groups"
+                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Notes</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Personal notes about this exercise…"
+                rows={3}
+                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50 resize-none"
               />
             </div>
 

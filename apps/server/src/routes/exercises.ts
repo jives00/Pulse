@@ -40,6 +40,12 @@ router.get('/', async (req, res) => {
       musclesPrimary: r.muscles_primary ?? [],
       musclesSecondary: r.muscles_secondary ?? [],
       isCustom: Boolean(r.is_custom),
+      instructions: r.instructions ?? null,
+      mediaUrl: r.media_url ?? null,
+      coverImageUrl: r.cover_image_url ?? null,
+      muscleImageUrl: r.muscle_image_url ?? null,
+      notes: r.notes ?? null,
+      trackWeight: r.track_weight !== 0,
     })));
   } catch (err) {
     console.error(err);
@@ -113,6 +119,10 @@ router.get('/:id', async (req, res) => {
       isCustom: Boolean(r.is_custom),
       instructions: r.instructions ?? null,
       mediaUrl: r.media_url ?? null,
+      coverImageUrl: r.cover_image_url ?? null,
+      muscleImageUrl: r.muscle_image_url ?? null,
+      notes: r.notes ?? null,
+      trackWeight: r.track_weight !== 0,
     });
   } catch (err) {
     console.error(err);
@@ -315,11 +325,13 @@ router.get('/:id/history', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  const { name, category, exerciseType, musclesPrimary, musclesSecondary, instructions, mediaUrl } =
+  const { name, category, exerciseType, musclesPrimary, musclesSecondary, instructions, mediaUrl, coverImageUrl, muscleImageUrl, notes, trackWeight } =
     req.body as {
       name?: string; category?: string; exerciseType?: string;
       musclesPrimary?: string[]; musclesSecondary?: string[];
       instructions?: string | null; mediaUrl?: string | null;
+      coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null;
+      trackWeight?: boolean;
     };
   try {
     const updates: string[] = [];
@@ -331,6 +343,10 @@ router.put('/:id', async (req, res) => {
     if (musclesSecondary !== undefined) { updates.push('muscles_secondary = ?'); values.push(JSON.stringify(musclesSecondary)); }
     if (instructions !== undefined) { updates.push('instructions = ?'); values.push(instructions || null); }
     if (mediaUrl !== undefined) { updates.push('media_url = ?'); values.push(mediaUrl?.trim() || null); }
+    if (coverImageUrl !== undefined) { updates.push('cover_image_url = ?'); values.push(coverImageUrl?.trim() || null); }
+    if (muscleImageUrl !== undefined) { updates.push('muscle_image_url = ?'); values.push(muscleImageUrl?.trim() || null); }
+    if (notes !== undefined) { updates.push('notes = ?'); values.push(notes || null); }
+    if (trackWeight !== undefined) { updates.push('track_weight = ?'); values.push(trackWeight ? 1 : 0); }
     if (updates.length === 0) { res.status(400).json({ error: 'At least one field required' }); return; }
     values.push(id);
     const [result] = await pool.query<ResultSetHeader>(
@@ -346,6 +362,7 @@ router.put('/:id', async (req, res) => {
       id: r.id, name: r.name, category: r.category, exerciseType: r.exercise_type,
       musclesPrimary: r.muscles_primary ?? [], musclesSecondary: r.muscles_secondary ?? [],
       isCustom: Boolean(r.is_custom), instructions: r.instructions ?? null, mediaUrl: r.media_url ?? null,
+      coverImageUrl: r.cover_image_url ?? null, notes: r.notes ?? null,
     });
   } catch (err) {
     console.error(err);

@@ -32,12 +32,13 @@ function formatElapsed(seconds: number): string {
 // ─── Set row ─────────────────────────────────────────────────────────────────
 
 function SetRow({
-  set, weId, workoutId, isActive, onUpdated, onDeleted,
+  set, weId, workoutId, isActive, trackWeight, onUpdated, onDeleted,
 }: {
   set: ExerciseSet;
   weId: number;
   workoutId: number;
   isActive: boolean;
+  trackWeight: boolean;
   onUpdated: (s: ExerciseSet) => void;
   onDeleted: (id: number) => void;
 }) {
@@ -48,7 +49,7 @@ function SetRow({
   async function handleBlur() {
     if (saving) return;
     const newReps = reps !== '' ? Number(reps) : null;
-    const newWeightLbs = weight !== '' ? Number(weight) : null;
+    const newWeightLbs = trackWeight && weight !== '' ? Number(weight) : null;
     const newWeightKg = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
     if (newReps === set.reps && newWeightKg === set.weightKg) return;
     setSaving(true);
@@ -86,21 +87,23 @@ function SetRow({
   const rowCls = isActive && !set.completed ? 'opacity-60' : '';
 
   const gridCols = isActive
-    ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]'
-    : 'grid-cols-[2rem_1fr_1fr_2rem]';
+    ? (trackWeight ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]' : 'grid-cols-[2rem_1fr_2rem_2rem]')
+    : (trackWeight ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]');
 
   return (
     <div className={`grid ${gridCols} gap-2 items-center py-1 transition-opacity ${rowCls}`}>
       <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
-      <input
-        type="number"
-        min="0"
-        placeholder="lbs"
-        value={weight}
-        onChange={(e) => setWeight(e.target.value)}
-        onBlur={handleBlur}
-        className={inputCls}
-      />
+      {trackWeight && (
+        <input
+          type="number"
+          min="0"
+          placeholder="lbs"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+          onBlur={handleBlur}
+          className={inputCls}
+        />
+      )}
       <input
         type="number"
         min="0"
@@ -177,9 +180,10 @@ function ExerciseBlock({
     updateSets(sets.filter((s) => s.id !== id));
   }
 
+  const tw = we.exercise.trackWeight !== false;
   const gridCols = isActive
-    ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]'
-    : 'grid-cols-[2rem_1fr_1fr_2rem]';
+    ? (tw ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]' : 'grid-cols-[2rem_1fr_2rem_2rem]')
+    : (tw ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]');
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -206,7 +210,7 @@ function ExerciseBlock({
         <div className="mb-2">
           <div className={`grid ${gridCols} gap-2 mb-1`}>
             <span />
-            <span className="text-sm text-slate-500 text-center">lbs</span>
+            {tw && <span className="text-sm text-slate-500 text-center">lbs</span>}
             <span className="text-sm text-slate-500 text-center">reps</span>
             {isActive && <span className="text-sm text-slate-500 text-center">✓</span>}
             <span />
@@ -218,6 +222,7 @@ function ExerciseBlock({
               weId={we.id}
               workoutId={workoutId}
               isActive={isActive}
+              trackWeight={tw}
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
             />

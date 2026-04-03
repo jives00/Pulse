@@ -73,6 +73,10 @@ export interface Exercise {
   isCustom: boolean;
   instructions: string | null;
   mediaUrl: string | null;
+  coverImageUrl: string | null;
+  muscleImageUrl: string | null;
+  notes: string | null;
+  trackWeight: boolean;
 }
 
 export interface ExerciseSet {
@@ -170,6 +174,7 @@ export const exercisesApi = {
     name?: string; category?: string; exerciseType?: string;
     musclesPrimary?: string[]; musclesSecondary?: string[];
     instructions?: string | null; mediaUrl?: string | null;
+    coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackWeight?: boolean;
   }) =>
     apiClient.put<Exercise>(`/exercises/${id}`, data).then((r) => r.data),
 
