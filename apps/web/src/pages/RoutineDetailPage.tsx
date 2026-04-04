@@ -315,7 +315,7 @@ export default function RoutineDetailPage() {
     if (trimmed === (routine.notes ?? '')) { setNotes(routine.notes ?? ''); return; }
     try {
       await routinesApi.update(routine.id, { notes: trimmed || undefined });
-      setRoutine((prev) => prev ? { ...prev, notes: trimmed || undefined } : prev);
+      setRoutine((prev) => prev ? { ...prev, notes: trimmed || null } : prev);
     } catch { setNotes(routine.notes ?? ''); }
   }
 
