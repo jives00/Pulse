@@ -29,7 +29,7 @@ export type { GoalsSummary, ExerciseGoals }                           from './en
 export type { TagDefinitions }                                         from './endpoints/tags';
 export type { HistoryEntry }                                           from './endpoints/recipes';
 export type { RecipeSearchResult }                                     from './recipes';
-export type { LinkItem }                                               from './endpoints/links';
+export type { LinkItem, LinkCategory }                                 from './endpoints/links';
 export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, WorkoutSummary, WorkoutDetail,
               BodyMeasurement, MeasurementGoal, PersonalBests,
               ExerciseStats, ExerciseHistoryEntry }                    from './endpoints/workouts';
