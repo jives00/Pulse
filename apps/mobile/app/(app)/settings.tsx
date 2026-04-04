@@ -1,223 +1,451 @@
-import { useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator, Alert, ScrollView, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { clearAllHistory, deleteAllRecipes } from '../../src/api/client';
+import {
+  changeUsername, changePassword, deleteData, type DeleteScope,
+  saveNutritionGoals, getExerciseGoals, saveExerciseGoals, type ExerciseGoals,
+  getMeasurementGoals, setMeasurementGoal,
+  getGoalsSummary,
+} from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
+import { useSettingsStore, type SortOption } from '../../src/store/settings';
 import { colors, fontSize } from '../../src/theme';
 
-type Confirm = 'history' | 'recipes' | null;
+// ── Shared ────────────────────────────────────────────────────────────────────
 
-export default function SettingsScreen() {
+function SectionHeader({ title }: { title: string }) {
+  return <Text style={s.sectionLabel}>{title}</Text>;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={s.field}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
+function SaveBtn({ onPress, saving, label = 'Save' }: { onPress: () => void; saving: boolean; label?: string }) {
+  return (
+    <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={onPress} disabled={saving}>
+      <Text style={s.saveBtnText}>{saving ? 'Saving…' : label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── Options tab ───────────────────────────────────────────────────────────────
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'created_at',    label: 'Date added' },
+  { value: 'name',          label: 'Name (A–Z)' },
+  { value: 'recently_made', label: 'Recently made' },
+  { value: 'prep_time',     label: 'Prep time' },
+  { value: 'random',        label: 'Random' },
+];
+
+function OptionsTab() {
+  const { defaultSort, setDefaultSort } = useSettingsStore();
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Default Sort (Recipes)" />
+      <View style={s.card}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {SORT_OPTIONS.map(({ value, label }) => (
+            <TouchableOpacity
+              key={value}
+              style={[s.sortPill, defaultSort === value && s.sortPillActive]}
+              onPress={() => setDefaultSort(value)}
+            >
+              <Text style={[s.sortPillText, defaultSort === value && s.sortPillTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Goals tab ─────────────────────────────────────────────────────────────────
+
+const DISPLAYED_METRICS = [
+  { key: 'weight', label: 'Weight', unit: 'lbs' },
+  { key: 'waist',  label: 'Waist',  unit: 'in'  },
+  { key: 'bicep',  label: 'Bicep',  unit: 'in'  },
+] as const;
+
+function GoalsTab() {
   const token = useAuthStore((s) => s.token)!;
-  const logout = useAuthStore((s) => s.logout);
-  const router = useRouter();
-  const [confirm, setConfirm] = useState<Confirm>(null);
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
 
-  async function handleConfirm() {
-    if (!confirm) return;
-    setBusy(true);
-    try {
-      if (confirm === 'history') {
-        await clearAllHistory(token);
-        Alert.alert('Done', 'All history cleared.');
-      } else {
-        await deleteAllRecipes(token);
-        Alert.alert('Done', 'All recipes deleted.');
+  // Nutrition
+  const [calories, setCalories] = useState('');
+  const [carbsG, setCarbsG] = useState('');
+  const [proteinG, setProteinG] = useState('');
+  const [fatG, setFatG] = useState('');
+
+  // Exercise
+  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
+  const [workoutCount, setWorkoutCount] = useState('');
+  const [volume, setVolume] = useState('');
+
+  // Measurements
+  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
+    const init: Record<string, { value: string; date: string }> = {};
+    for (const m of DISPLAYED_METRICS) init[m.key] = { value: '', date: '' };
+    return init;
+  });
+
+  useEffect(() => {
+    Promise.all([
+      getGoalsSummary(token),
+      getExerciseGoals(token),
+      getMeasurementGoals(token),
+    ]).then(([summary, ex, mGoalsData]) => {
+      const n = summary.nutrition.goals;
+      if (n) {
+        setCalories(String(n.calories ?? ''));
+        setCarbsG(String(n.carbsG ?? ''));
+        setProteinG(String(n.proteinG ?? ''));
+        setFatG(String(n.fatG ?? ''));
       }
-      setConfirm(null);
+      setExGoals(ex);
+      setWorkoutCount(String(ex.workoutsPerWeek ?? ''));
+      setVolume(String(ex.volumeLbsPerWeek ?? ''));
+      setMGoals((prev) => {
+        const updated = { ...prev };
+        for (const { key } of DISPLAYED_METRICS) {
+          const g = (mGoalsData as any)[key];
+          updated[key] = { value: g ? String(g.targetValue) : '', date: g?.targetDate ?? '' };
+        }
+        return updated;
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMsg('');
+    try {
+      const tasks: Promise<any>[] = [];
+      if (calories && carbsG && proteinG && fatG) {
+        tasks.push(saveNutritionGoals(token, {
+          calories: Number(calories), carbsG: Number(carbsG),
+          proteinG: Number(proteinG), fatG: Number(fatG),
+        }));
+      }
+      tasks.push(saveExerciseGoals(token, {
+        workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
+        minutesPerWeek: exGoals?.minutesPerWeek ?? null,
+        volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
+      }));
+      for (const { key, unit } of DISPLAYED_METRICS) {
+        const { value, date } = mGoals[key];
+        if (value) tasks.push(setMeasurementGoal(token, key, { targetValue: Number(value), unit, targetDate: date || null }));
+      }
+      await Promise.all(tasks);
+      setMsg('Goals saved.');
+      setTimeout(() => setMsg(''), 3000);
     } catch {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      setMsg('Failed to save goals.');
     } finally {
-      setBusy(false);
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Nutrition (daily)" />
+      <View style={s.card}>
+        <View style={s.twoCol}>
+          {([
+            ['Calories (kcal)', calories, setCalories],
+            ['Carbs (g)',       carbsG,   setCarbsG  ],
+            ['Protein (g)',     proteinG, setProteinG],
+            ['Fat (g)',         fatG,     setFatG    ],
+          ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+            <Field key={label} label={label}>
+              <TextInput
+                style={s.input}
+                value={val}
+                onChangeText={setter}
+                keyboardType="numeric"
+                placeholderTextColor={colors.muted}
+              />
+            </Field>
+          ))}
+        </View>
+      </View>
+
+      <SectionHeader title="Workouts (per week)" />
+      <View style={s.card}>
+        <View style={s.twoCol}>
+          <Field label="Workouts">
+            <TextInput style={s.input} value={workoutCount} onChangeText={setWorkoutCount} keyboardType="numeric" placeholderTextColor={colors.muted} />
+          </Field>
+          <Field label="Volume (lbs)">
+            <TextInput style={s.input} value={volume} onChangeText={setVolume} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={colors.muted} />
+          </Field>
+        </View>
+      </View>
+
+      <SectionHeader title="Body Measurements" />
+      <View style={s.card}>
+        {DISPLAYED_METRICS.map(({ key, label, unit }) => (
+          <View key={key} style={s.measureRow}>
+            <Text style={s.measureLabel}>{label} <Text style={s.measureUnit}>({unit})</Text></Text>
+            <View style={s.twoCol}>
+              <Field label="Target">
+                <TextInput
+                  style={s.input}
+                  value={mGoals[key].value}
+                  onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: v } }))}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.muted}
+                />
+              </Field>
+              <Field label="By date (YYYY-MM-DD)">
+                <TextInput
+                  style={s.input}
+                  value={mGoals[key].date}
+                  onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: v } }))}
+                  placeholder="2026-12-31"
+                  placeholderTextColor={colors.muted}
+                />
+              </Field>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {msg ? <Text style={msg.includes('saved') ? s.msgSuccess : s.msgError}>{msg}</Text> : null}
+      <SaveBtn onPress={handleSave} saving={saving} label="Save Goals" />
+    </ScrollView>
+  );
+}
+
+// ── User tab ──────────────────────────────────────────────────────────────────
+
+function UserTab() {
+  const token = useAuthStore((s) => s.token)!;
+  const setToken = useAuthStore((s) => s.setToken);
+
+  const [newUsername, setNewUsername] = useState('');
+  const [unPwd, setUnPwd] = useState('');
+  const [savingUn, setSavingUn] = useState(false);
+  const [msgUn, setMsgUn] = useState('');
+
+  const [curPwd, setCurPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [savingPwd, setSavingPwd] = useState(false);
+  const [msgPwd, setMsgPwd] = useState('');
+
+  async function handleUpdateUsername() {
+    if (!newUsername.trim() || !unPwd) return;
+    setSavingUn(true);
+    setMsgUn('');
+    try {
+      const { token: newToken } = await changeUsername(token, { newUsername: newUsername.trim(), currentPassword: unPwd });
+      setToken(newToken);
+      setMsgUn('Username updated.');
+      setNewUsername('');
+      setUnPwd('');
+      setTimeout(() => setMsgUn(''), 3000);
+    } catch (err: any) {
+      setMsgUn(err.message || 'Failed to update username.');
+    } finally {
+      setSavingUn(false);
+    }
+  }
+
+  async function handleUpdatePassword() {
+    if (!curPwd || !newPwd) return;
+    if (newPwd !== confirmPwd) { setMsgPwd('Passwords do not match.'); return; }
+    setSavingPwd(true);
+    setMsgPwd('');
+    try {
+      const { token: newToken } = await changePassword(token, { currentPassword: curPwd, newPassword: newPwd });
+      setToken(newToken);
+      setMsgPwd('Password updated.');
+      setCurPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+      setTimeout(() => setMsgPwd(''), 3000);
+    } catch (err: any) {
+      setMsgPwd(err.message || 'Failed to update password.');
+    } finally {
+      setSavingPwd(false);
     }
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
+    <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Change Username" />
+      <View style={s.card}>
+        <Field label="New username">
+          <TextInput style={s.input} value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" autoCorrect={false} placeholderTextColor={colors.muted} />
+        </Field>
+        <Field label="Current password">
+          <TextInput style={s.input} value={unPwd} onChangeText={setUnPwd} secureTextEntry placeholderTextColor={colors.muted} />
+        </Field>
+        {msgUn ? <Text style={msgUn.includes('updated') ? s.msgSuccess : s.msgError}>{msgUn}</Text> : null}
+        <SaveBtn onPress={handleUpdateUsername} saving={savingUn} label="Update username" />
       </View>
 
-      <View style={styles.content}>
-        {/* Navigate */}
-        <Text style={styles.sectionLabel}>Browse</Text>
-        <View style={styles.navCard}>
-          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/history' as any)}>
-            <Text style={styles.navRowText}>📋  Recipe History</Text>
-            <Text style={styles.navChevron}>›</Text>
-          </TouchableOpacity>
-          <View style={styles.divider} />
-          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/links' as any)}>
-            <Text style={styles.navRowText}>🔗  Links</Text>
-            <Text style={styles.navChevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Data management */}
-        <Text style={styles.sectionLabel}>Data</Text>
-
-        <View style={styles.card}>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>Clear all history</Text>
-            <Text style={styles.cardDesc}>Remove all "made" log entries. Recipes are kept.</Text>
-          </View>
-          <TouchableOpacity style={styles.clearBtn} onPress={() => setConfirm('history')}>
-            <Text style={styles.clearBtnText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>Delete all recipes</Text>
-            <Text style={styles.cardDesc}>Permanently removes every recipe and all history.</Text>
-          </View>
-          <TouchableOpacity style={styles.deleteBtn} onPress={() => setConfirm('recipes')}>
-            <Text style={styles.deleteBtnText}>Delete all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.signOutRow} onPress={() => { logout(); router.replace('/(auth)/login'); }}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </TouchableOpacity>
+      <SectionHeader title="Change Password" />
+      <View style={s.card}>
+        <Field label="Current password">
+          <TextInput style={s.input} value={curPwd} onChangeText={setCurPwd} secureTextEntry placeholderTextColor={colors.muted} />
+        </Field>
+        <Field label="New password">
+          <TextInput style={s.input} value={newPwd} onChangeText={setNewPwd} secureTextEntry placeholderTextColor={colors.muted} />
+        </Field>
+        <Field label="Confirm new password">
+          <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholderTextColor={colors.muted} />
+        </Field>
+        {msgPwd ? <Text style={msgPwd.includes('updated') ? s.msgSuccess : s.msgError}>{msgPwd}</Text> : null}
+        <SaveBtn onPress={handleUpdatePassword} saving={savingPwd} label="Update password" />
       </View>
+    </ScrollView>
+  );
+}
 
-      {/* Confirmation modal */}
-      <Modal visible={confirm !== null} transparent animationType="fade" onRequestClose={() => !busy && setConfirm(null)}>
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>
-              {confirm === 'history' ? 'Clear all history?' : 'Delete all recipes?'}
-            </Text>
-            <Text style={styles.modalDesc}>
-              {confirm === 'history'
-                ? 'All made log entries will be permanently deleted. Your recipes will not be affected.'
-                : 'Every recipe and all history will be permanently deleted. This cannot be undone.'}
-            </Text>
-            {confirm === 'recipes' && (
-              <View style={styles.warningBox}>
-                <Text style={styles.warningText}>This will delete everything with no way to recover it.</Text>
+// ── Delete Data tab ───────────────────────────────────────────────────────────
+
+const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string }[] = [
+  { scope: 'recipes',  label: 'Delete all recipes',  description: 'Removes all food and drink recipes, including their cook history.' },
+  { scope: 'history',  label: 'Delete all history',  description: 'Removes all food log entries, recipe cook log, and water log.' },
+  { scope: 'workouts', label: 'Delete all workouts', description: 'Removes all workout sessions and logged sets.' },
+  { scope: 'goals',    label: 'Delete all goals',    description: 'Removes all nutrition and exercise goals.' },
+  { scope: 'links',    label: 'Delete all links',    description: 'Removes all saved links.' },
+];
+
+function DeleteTab() {
+  const token = useAuthStore((s) => s.token)!;
+
+  function handleDelete(scope: DeleteScope, label: string) {
+    Alert.alert(`${label}?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteData(token, scope);
+            Alert.alert('Done', `${label} completed.`);
+          } catch {
+            Alert.alert('Error', 'Something went wrong.');
+          }
+        },
+      },
+    ]);
+  }
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Danger Zone" />
+      <View style={s.card}>
+        {DELETE_OPTIONS.map(({ scope, label, description }, i) => (
+          <View key={scope}>
+            {i > 0 && <View style={s.divider} />}
+            <View style={s.deleteRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.deleteLabel}>{label}</Text>
+                <Text style={s.deleteDesc}>{description}</Text>
               </View>
-            )}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setConfirm(null)}
-                disabled={busy}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, busy && styles.confirmBtnDisabled]}
-                onPress={handleConfirm}
-                disabled={busy}
-              >
-                <Text style={styles.confirmBtnText}>
-                  {busy ? 'Working…' : confirm === 'history' ? 'Clear history' : 'Delete all'}
-                </Text>
+              <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(scope, label)}>
+                <Text style={s.deleteBtnText}>Delete…</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Root screen ───────────────────────────────────────────────────────────────
+
+type Tab = 'options' | 'goals' | 'user' | 'delete';
+
+export default function SettingsScreen() {
+  const logout = useAuthStore((s) => s.logout);
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>('options');
+
+  return (
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>Settings</Text>
+        <TouchableOpacity onPress={() => { logout(); router.replace('/(auth)/login'); }}>
+          <Text style={s.signOut}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={s.tabBar}>
+        {([
+          { id: 'options', label: 'Options' },
+          { id: 'goals',   label: 'Goals'   },
+          { id: 'user',    label: 'User'    },
+          { id: 'delete',  label: 'Delete'  },
+        ] as { id: Tab; label: string }[]).map(({ id, label }) => (
+          <TouchableOpacity key={id} style={[s.tabBtn, tab === id && s.tabBtnActive]} onPress={() => setTab(id)}>
+            <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {tab === 'options' && <OptionsTab />}
+      {tab === 'goals'   && <GoalsTab />}
+      {tab === 'user'    && <UserTab />}
+      {tab === 'delete'  && <DeleteTab />}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  content: { padding: 16, gap: 10 },
-  sectionLabel: {
-    fontSize: fontSize.xs,
-    color: colors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-    marginTop: 6,
-  },
-  // Browse nav card (no flexDirection: 'row' — rows are stacked)
-  navCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  navRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14 },
-  navRowText: { flex: 1, fontSize: fontSize.sm, color: colors.text },
-  navChevron: { fontSize: 18, color: colors.muted },
-  divider: { height: 1, backgroundColor: colors.border },
-  // Data cards (flexDirection: 'row' with cardInfo + button side by side)
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  cardDesc: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  clearBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  clearBtnText: { fontSize: fontSize.sm, color: colors.muted },
-  deleteBtn: {
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
+  signOut: { fontSize: fontSize.sm, color: colors.muted },
+  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border },
+  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
+  tabLabel: { fontSize: fontSize.sm, color: colors.muted, fontWeight: '500' },
+  tabLabelActive: { color: colors.accent, fontWeight: '700' },
+  tabScroll: { padding: 16, gap: 8 },
+  sectionLabel: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
+  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, gap: 12 },
+  twoCol: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  field: { flex: 1, minWidth: '40%', gap: 4 },
+  fieldLabel: { fontSize: fontSize.xs, color: colors.muted },
+  input: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm, color: colors.text },
+  saveBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'flex-start', marginTop: 4 },
+  saveBtnDim: { opacity: 0.5 },
+  saveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
+  msgSuccess: { fontSize: fontSize.sm, color: '#34d399' },
+  msgError: { fontSize: fontSize.sm, color: '#ef4444' },
+  measureRow: { gap: 6 },
+  measureLabel: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  measureUnit: { fontWeight: '400', color: colors.muted },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  deleteLabel: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  deleteDesc: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  deleteBtn: { borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   deleteBtnText: { fontSize: fontSize.sm, color: '#ef4444' },
-  signOutRow: { marginTop: 8, paddingVertical: 10 },
-  signOutText: { fontSize: fontSize.sm, color: colors.muted },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  modal: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    width: '88%',
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  modalTitle: { fontSize: fontSize.base, fontWeight: '700', color: colors.text },
-  modalDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 20 },
-  warningBox: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    borderRadius: 8,
-    padding: 12,
-  },
-  warningText: { fontSize: fontSize.xs, color: '#ef4444' },
-  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
-  cancelBtn: { paddingVertical: 9, paddingHorizontal: 14 },
-  cancelBtnText: { fontSize: fontSize.sm, color: colors.muted },
-  confirmBtn: {
-    backgroundColor: '#ef4444',
-    borderRadius: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 18,
-  },
-  confirmBtnDisabled: { opacity: 0.5 },
-  confirmBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: '#fff' },
+  sortPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 7 },
+  sortPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  sortPillText: { fontSize: fontSize.sm, color: colors.muted },
+  sortPillTextActive: { color: colors.bg, fontWeight: '700' },
 });

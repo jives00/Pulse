@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRecipes, getTags, type Recipe } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
+import { useSettingsStore } from '../../src/store/settings';
 import { colors, fontSize } from '../../src/theme';
 import FilterChip from '../../src/components/FilterChip';
 import RecipeCard from '../../src/components/RecipeCard';
@@ -29,8 +30,8 @@ type DropdownConfig = {
 
 export default function LibraryScreen() {
   const token = useAuthStore((s) => s.token)!;
-  const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
+  const { defaultSort } = useSettingsStore();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +43,7 @@ export default function LibraryScreen() {
   const [showFaves, setShowFaves] = useState(false);
   const [madeFilter, setMadeFilter] = useState<'all' | 'made' | 'not_made'>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [sort, setSort] = useState('created_at');
+  const [sort, setSort] = useState(defaultSort);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [dropdown, setDropdown] = useState<DropdownConfig | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,14 +106,9 @@ export default function LibraryScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Recipes</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => { logout(); router.replace('/(auth)/login'); }} style={styles.logoutBtn}>
-            <Text style={styles.logoutText}>Sign out</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(app)/recipe/edit')} style={styles.addBtn}>
-            <Text style={styles.addBtnText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => router.push('/(app)/recipe/edit')} style={styles.addBtn}>
+          <Text style={styles.addBtnText}>+</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchWrap}>

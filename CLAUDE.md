@@ -228,25 +228,27 @@ Android-only Expo app. Key conventions:
 - **Theme**: Colors + font sizes from `src/theme.ts` (`colors.bg`, `colors.card`, `colors.accent`, `colors.border`, `colors.text`, `colors.muted`)
 - **API client**: `src/api/client.ts` — fetch-based, token passed explicitly. `API_BASE` from `src/api/config.ts` (defaults to `http://10.0.2.2:3000` for Android emulator; override via `EXPO_PUBLIC_API_BASE`)
 - **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
+- **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` for the recipes library.
 - **Routing**: expo-router file-based. Tab screens in `app/(app)/`. Hidden routes (modals/detail) use `href: null` in `_layout.tsx`
 - **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS = 2.20462`
 
 ### Mobile tab structure
 | Tab | File | Notes |
 |---|---|---|
-| Recipes | `app/(app)/index.tsx` | Existing library grid |
+| Recipes | `app/(app)/index.tsx` | 2-col grid, filters, sort. Sort initializes from `settingsStore.defaultSort`. No sign-out button (sign out is in Settings). |
 | Nutrition | `app/(app)/nutrition.tsx` | Date nav, meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add |
-| Workouts | `app/(app)/workouts.tsx` | List + Start button |
-| Goals | `app/(app)/goals.tsx` | Read-only calorie/macro/workout progress bars |
-| Settings | `app/(app)/settings.tsx` | Nav to History + Links; data management |
+| Workouts | `app/(app)/workouts.tsx` | 3 tabs: Log, Routines, Exercises. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. |
+| Links | `app/(app)/links.tsx` | Saved links list |
+| Settings | `app/(app)/settings.tsx` | 4 tabs: Options (default sort), Goals (nutrition/workout/body), User (change username/password), Delete (per-scope danger zone) |
 
-Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
+Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `history`, `goals`
 
 ### Mobile key files
 | File | Notes |
 |---|---|
 | `app/(app)/workout/[id].tsx` | Active session — timer (startedAt from DB), set input rows (lbs→kg), exercise picker modal |
-| `src/api/client.ts` | All API functions — recipe, nutrition log, water, goals, workouts, exercises, food search |
+| `app/(app)/exercise/[id].tsx` | Exercise detail — Summary (PBs, set records, progress), History, How To tabs. Edit button opens sheet modal. Delete button shown for custom exercises only. |
+| `src/api/client.ts` | All API functions — recipe, nutrition log, water, goals, workouts, exercises, routines, food search, auth changes, measurement goals |
 | `src/api/config.ts` | `API_BASE` — use `10.0.2.2:3000` for emulator, LAN IP for physical device |
 
 ## Design decisions

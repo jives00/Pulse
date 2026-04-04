@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, ScrollView,
+  ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import {
   getWorkouts, createWorkout, deleteWorkout, type WorkoutSummary,
   getExercises, getExerciseCategories, createCustomExercise, updateExercise, deleteExercise,
   type Exercise,
+  getRoutines, createRoutine, deleteRoutine, startRoutine, type RoutineSummary,
 } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
 import { colors, fontSize } from '../../src/theme';
@@ -111,6 +112,149 @@ function LogTab() {
         </View>
       }
     />
+  );
+}
+
+// ── Routines tab ─────────────────────────────────────────────────────────────
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  chest: '💪', back: '🏋️', legs: '🦵', shoulders: '🔝', arms: '💪',
+  core: '🔥', cardio: '🏃', glutes: '🍑', default: '🏋️',
+};
+
+function categoryEmoji(cat: string) {
+  return CATEGORY_EMOJI[cat.toLowerCase()] ?? CATEGORY_EMOJI.default;
+}
+
+function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (workoutId: number) => void; createVisible: boolean; onCreateClose: () => void; }) {
+  const token = useAuthStore((s) => s.token)!;
+  const [routines, setRoutines] = useState<RoutineSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState<number | null>(null);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getRoutines(token);
+      setRoutines(data);
+    } catch {
+      Alert.alert('Error', 'Could not load routines.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function handleStart(r: RoutineSummary) {
+    setStarting(r.id);
+    try {
+      const w = await startRoutine(token, r.id);
+      onStarted(w.id);
+    } catch {
+      Alert.alert('Error', 'Could not start routine.');
+    } finally {
+      setStarting(null);
+    }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await createRoutine(token, { name: newName.trim() });
+      setNewName('');
+      onCreateClose();
+      load();
+    } catch {
+      Alert.alert('Error', 'Could not create routine.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleDelete(r: RoutineSummary) {
+    Alert.alert('Delete', `Delete "${r.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try { await deleteRoutine(token, r.id); load(); }
+          catch { Alert.alert('Error', 'Could not delete routine.'); }
+        },
+      },
+    ]);
+  }
+
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={routines}
+        keyExtractor={(item) => String(item.id)}
+        numColumns={2}
+        contentContainerStyle={grid.container}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={grid.card}
+            onPress={() => handleStart(item)}
+            onLongPress={() => handleDelete(item)}
+          >
+            {item.coverImageUrl ? (
+              <Image source={{ uri: item.coverImageUrl }} style={grid.photo} resizeMode="cover" />
+            ) : (
+              <View style={grid.placeholder}>
+                <Text style={grid.placeholderIcon}>🏋️</Text>
+              </View>
+            )}
+            <View style={grid.info}>
+              <Text style={grid.name} numberOfLines={2}>{item.name}</Text>
+              <Text style={grid.meta}>
+                {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
+              </Text>
+              {item.lastVolumeLbs != null && (
+                <Text style={grid.sub} numberOfLines={1}>{Math.round(item.lastVolumeLbs)} lbs last</Text>
+              )}
+              {starting === item.id && (
+                <Text style={grid.starting}>Starting…</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Text style={s.emptyText}>No routines yet.</Text>
+            <Text style={s.emptyHint}>Tap + New to create one.</Text>
+          </View>
+        }
+      />
+
+      <Modal visible={createVisible} animationType="fade" transparent onRequestClose={() => { onCreateClose(); setNewName(''); }}>
+        <View style={grid.overlay}>
+          <View style={grid.dialog}>
+            <Text style={grid.dialogTitle}>New Routine</Text>
+            <TextInput
+              style={grid.dialogInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Routine name"
+              placeholderTextColor={colors.muted}
+              autoFocus
+            />
+            <View style={grid.dialogBtns}>
+              <TouchableOpacity onPress={() => { onCreateClose(); setNewName(''); }}>
+                <Text style={grid.dialogCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleCreate} disabled={creating}>
+                <Text style={[grid.dialogSave, creating && { opacity: 0.4 }]}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -315,15 +459,14 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
 
 // ── Exercises tab ────────────────────────────────────────────────────────────
 
-function ExercisesTab() {
+function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean; onCreateClose: () => void }) {
   const token = useAuthStore((s) => s.token)!;
+  const router = useRouter();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<Exercise | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -342,31 +485,8 @@ function ExercisesTab() {
   }, [token, search, filterCat]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  // re-fetch when search/filter changes
   useEffect(() => { load(); }, [search, filterCat]);
 
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(ex: Exercise) {
-    setEditing(ex);
-    setModalVisible(true);
-  }
-
-  function handleDelete(ex: Exercise) {
-    Alert.alert('Delete Exercise', `Delete "${ex.name}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try { await deleteExercise(token, ex.id); load(); }
-          catch (err: any) { Alert.alert('Error', err?.message ?? 'Could not delete.'); }
-        },
-      },
-    ]);
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -382,10 +502,7 @@ function ExercisesTab() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={e.catScroll} contentContainerStyle={e.catRow}>
-        <TouchableOpacity
-          style={[e.catPill, !filterCat && e.catPillActive]}
-          onPress={() => setFilterCat('')}
-        >
+        <TouchableOpacity style={[e.catPill, !filterCat && e.catPillActive]} onPress={() => setFilterCat('')}>
           <Text style={[e.catText, !filterCat && e.catTextActive]}>All</Text>
         </TouchableOpacity>
         {categories.map((cat) => (
@@ -405,24 +522,26 @@ function ExercisesTab() {
         <FlatList
           data={exercises}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={s.list}
+          numColumns={2}
+          contentContainerStyle={grid.container}
           renderItem={({ item }) => (
-            <View style={[s.card, e.exRow]}>
-              <View style={{ flex: 1 }}>
-                <Text style={e.exName}>{item.name}</Text>
-                <Text style={e.exMeta}>{item.category} · {item.exerciseType}</Text>
+            <TouchableOpacity
+              style={grid.card}
+              onPress={() => router.push(`/exercise/${item.id}` as any)}
+            >
+              {item.coverImageUrl ? (
+                <Image source={{ uri: item.coverImageUrl }} style={grid.photo} resizeMode="cover" />
+              ) : (
+                <View style={grid.placeholder}>
+                  <Text style={grid.placeholderIcon}>{categoryEmoji(item.category)}</Text>
+                </View>
+              )}
+              <View style={grid.info}>
+                <Text style={grid.name} numberOfLines={2}>{item.name}</Text>
+                <Text style={grid.meta}>{item.category}</Text>
+                <Text style={grid.sub}>{item.exerciseType}</Text>
               </View>
-              <View style={e.actions}>
-                <TouchableOpacity style={e.actionBtn} onPress={() => openEdit(item)}>
-                  <Text style={e.actionEdit}>Edit</Text>
-                </TouchableOpacity>
-                {item.isCustom && (
-                  <TouchableOpacity style={e.actionBtn} onPress={() => handleDelete(item)}>
-                    <Text style={e.actionDel}>Delete</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
+            </TouchableOpacity>
           )}
           ListEmptyComponent={
             <View style={s.empty}>
@@ -432,12 +551,13 @@ function ExercisesTab() {
         />
       )}
 
+      {/* Create modal (triggered from header + New button) */}
       <ExerciseFormModal
-        visible={modalVisible}
-        exercise={editing}
+        visible={createVisible}
+        exercise={null}
         categories={categories}
-        onClose={() => setModalVisible(false)}
-        onSaved={load}
+        onClose={onCreateClose}
+        onSaved={() => { onCreateClose(); load(); }}
       />
     </View>
   );
@@ -445,15 +565,15 @@ function ExercisesTab() {
 
 // ── Root screen ──────────────────────────────────────────────────────────────
 
-type Tab = 'log' | 'exercises';
+type Tab = 'log' | 'routines' | 'exercises';
 
 export default function WorkoutsScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('log');
   const [starting, setStarting] = useState(false);
-  const [exModalVisible, setExModalVisible] = useState(false);
-  const [exCategories, setExCategories] = useState<string[]>([]);
+  const [exCreateVisible, setExCreateVisible] = useState(false);
+  const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
 
   async function handleStart() {
     setStarting(true);
@@ -467,49 +587,59 @@ export default function WorkoutsScreen() {
     }
   }
 
-  async function openNewExercise() {
-    try {
-      const cats = await getExerciseCategories(token);
-      setExCategories(cats);
-    } catch { /* ignore */ }
-    setExModalVisible(true);
+  function renderHeaderAction() {
+    if (tab === 'log') {
+      return (
+        <TouchableOpacity style={[s.startBtn, starting && s.startBtnDisabled]} onPress={handleStart} disabled={starting}>
+          <Text style={s.startBtnText}>{starting ? 'Starting…' : '+ Start'}</Text>
+        </TouchableOpacity>
+      );
+    }
+    if (tab === 'routines') {
+      return (
+        <TouchableOpacity style={s.startBtn} onPress={() => setRoutinesCreateVisible(true)}>
+          <Text style={s.startBtnText}>+ New</Text>
+        </TouchableOpacity>
+      );
+    }
+    return (
+      <TouchableOpacity style={s.startBtn} onPress={() => setExCreateVisible(true)}>
+        <Text style={s.startBtnText}>+ New</Text>
+      </TouchableOpacity>
+    );
   }
 
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
         <Text style={s.title}>Workouts</Text>
-        {tab === 'log' ? (
-          <TouchableOpacity style={[s.startBtn, starting && s.startBtnDisabled]} onPress={handleStart} disabled={starting}>
-            <Text style={s.startBtnText}>{starting ? 'Starting…' : '+ Start'}</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={s.startBtn} onPress={openNewExercise}>
-            <Text style={s.startBtnText}>+ New</Text>
-          </TouchableOpacity>
-        )}
+        {renderHeaderAction()}
       </View>
 
       <View style={seg.row}>
-        {(['log', 'exercises'] as Tab[]).map((t) => (
+        {(['log', 'routines', 'exercises'] as Tab[]).map((t) => (
           <TouchableOpacity key={t} style={[seg.btn, tab === t && seg.btnActive]} onPress={() => setTab(t)}>
             <Text style={[seg.label, tab === t && seg.labelActive]}>
-              {t === 'log' ? 'Log' : 'Exercises'}
+              {t === 'log' ? 'Log' : t === 'routines' ? 'Routines' : 'Exercises'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {tab === 'log' ? <LogTab /> : <ExercisesTab />}
-
-      {/* "New exercise" modal triggered from header when on exercises tab */}
-      <ExerciseFormModal
-        visible={exModalVisible}
-        exercise={null}
-        categories={exCategories}
-        onClose={() => setExModalVisible(false)}
-        onSaved={() => setTab('exercises')}
-      />
+      {tab === 'log' && <LogTab />}
+      {tab === 'routines' && (
+        <RoutinesTab
+          onStarted={(workoutId) => router.push(`/workout/${workoutId}` as any)}
+          createVisible={routinesCreateVisible}
+          onCreateClose={() => setRoutinesCreateVisible(false)}
+        />
+      )}
+      {tab === 'exercises' && (
+        <ExercisesTab
+          createVisible={exCreateVisible}
+          onCreateClose={() => setExCreateVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -553,14 +683,27 @@ const e = StyleSheet.create({
   catPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   catText: { fontSize: fontSize.xs, color: colors.muted },
   catTextActive: { color: colors.bg, fontWeight: '700' },
-  exRow: { flexDirection: 'row', alignItems: 'center' },
-  exName: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
-  exMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: 10 },
-  actionBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  actionEdit: { fontSize: fontSize.xs, color: colors.accent, fontWeight: '600' },
-  actionDel: { fontSize: fontSize.xs, color: '#ef4444', fontWeight: '600' },
-  builtIn: { fontSize: fontSize.xs, color: colors.border },
+});
+
+// Shared 2-col grid card styles (exercises + routines)
+const grid = StyleSheet.create({
+  container: { padding: 4 },
+  card: { flex: 1, margin: 4, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  photo: { width: '100%', height: 120 },
+  placeholder: { width: '100%', height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.border },
+  placeholderIcon: { fontSize: fontSize['3xl'] },
+  info: { padding: 8 },
+  name: { color: colors.text, fontWeight: '600', fontSize: fontSize.xs, marginBottom: 4 },
+  meta: { color: colors.muted, fontSize: fontSize.xs },
+  sub: { color: colors.muted, fontSize: fontSize.xs, marginTop: 2 },
+  starting: { color: colors.accent, fontSize: fontSize.xs, marginTop: 2 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  dialog: { backgroundColor: colors.card, borderRadius: 14, padding: 20, width: '80%', gap: 16 },
+  dialogTitle: { fontSize: fontSize.base, fontWeight: '700', color: colors.text },
+  dialogInput: { backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: colors.text },
+  dialogBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20 },
+  dialogCancel: { fontSize: fontSize.base, color: colors.muted },
+  dialogSave: { fontSize: fontSize.base, color: colors.accent, fontWeight: '700' },
 });
 
 const m = StyleSheet.create({

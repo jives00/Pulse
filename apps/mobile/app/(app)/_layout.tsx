@@ -25,8 +25,8 @@ export default function AppLayout() {
         options={{ title: 'Workouts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💪</Text> }}
       />
       <Tabs.Screen
-        name="goals"
-        options={{ title: 'Goals', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🎯</Text> }}
+        name="links"
+        options={{ title: 'Links', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔗</Text> }}
       />
       <Tabs.Screen
         name="settings"
@@ -36,7 +36,8 @@ export default function AppLayout() {
       <Tabs.Screen name="recipe/edit" options={{ href: null }} />
       <Tabs.Screen name="workout/[id]" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
-      <Tabs.Screen name="links" options={{ href: null }} />
+      <Tabs.Screen name="goals" options={{ href: null }} />
+      <Tabs.Screen name="exercise/[id]" options={{ href: null }} />
     </Tabs>
   );
 }
