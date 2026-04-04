@@ -105,7 +105,7 @@ USDA_API_KEY        (optional, food database)
 /workouts/routines     → RoutinesPage
 /workouts/routines/:id → RoutineDetailPage
 /workouts/:id          → WorkoutDetailPage
-/goals                 → GoalsPage
+/goals                 → (removed; redirects to /food)
 /history               → RecipeHistory
 /links                 → Links
 /settings              → SettingsPage
@@ -151,14 +151,13 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | Component | Location | Notes |
 |---|---|---|
 | `Layout` | `apps/web/src/components/Layout.tsx` | Desktop sidebar + mobile bottom nav. Sidebar nav has **no icons** (by design). Mobile keeps icons. |
-| `NutritionSummaryCard` | `apps/web/src/components/NutritionSummaryCard.tsx` | Calorie ring, macro rings, water bar. Shared by TodayPage + GoalsPage. `onAddWater` prop optional — omit on GoalsPage. |
-| `NutritionHistoryCharts` | `apps/web/src/components/NutritionHistoryCharts.tsx` | 30-day scrollable bar charts (calories + protein). Shared by TodayPage + GoalsPage. Fetches its own data via `historyApi.daily()`. |
+| `NutritionSummaryCard` | `apps/web/src/components/NutritionSummaryCard.tsx` | Calorie ring, macro rings, water bar. Used by TodayPage. `onAddWater` prop optional — omit when no water quick-add is needed. |
+| `NutritionHistoryCharts` | `apps/web/src/components/NutritionHistoryCharts.tsx` | 30-day scrollable bar charts (calories + protein). Used by TodayPage. Fetches its own data via `historyApi.daily()`. |
 | `Library` | `apps/web/src/pages/Library.tsx` | Food and Drinks recipe grid. Filter state is URL-driven (`?sub=main` etc.). Tags scoped to current user + page type (food vs cocktail). |
 | `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. Accepts `initialType` prop. Food-type recipes show a barcode field (optional); saved to `recipe_barcodes` on submit. |
 | `FoodSearchModal` | `apps/web/src/components/FoodSearchModal.tsx` | Searches recipes (`GET /recipes/search`) + foods in parallel. "My Recipes" section at top. Selecting a recipe opens a servings picker that logs via `POST /log/recipe`. Accepts `onCreateCustomFood` prop; if provided, "Create custom food" calls it instead of the inline create flow. |
 | `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Default Sort (persisted in Zustand `settingsStore`), Tag Definitions editor, Color Scheme, username/password, danger zone. |
-| `GoalsPage` | `apps/web/src/pages/GoalsPage.tsx` | Nutrition goals + history charts + workout goals (weekly progress bars). |
-| `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. "Create Custom Food" opens `RecipeForm` in a modal overlay (initialType="food"). `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
+| `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. Toolbar has "Edit Goals" (nutrition goal modal), "Create Custom Food", and "Log Food" buttons. `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
 | `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Renamed "Progress" in nav. Three tabs: **Week** (summary ring, progress bars, 4 stat tiles, 13-week charts), **Body** (body measurements card), **Records** (personal bests). "Edit Goals" modal edits exercise goals + body measurement goals (with target dates). Workout history moved to RecipeHistory. |
 | `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). Timer (started_at from DB), running volume total, set checkboxes, exercise name links to ExerciseDetailPage. Weight column hidden when `exercise.trackWeight = false`. |
 | `ExercisesPage` | `apps/web/src/pages/ExercisesPage.tsx` | Library-style grid. Cards use `cover_image_url` (static image) or category emoji fallback. Edit modal has fields for cover image, how-to media (YouTube/GIF/image), muscle diagram image, primary/secondary muscles (tag chips), instructions, notes, and a Track Weight toggle. Delete only for custom exercises. |
@@ -256,7 +255,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
 - **Sidebar icons**: Intentionally removed from desktop nav; mobile bottom nav keeps icons.
 - **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
 - **Theming**: CSS variables as bare RGB channels in `index.css`; Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
-- **Nutrition components**: `NutritionSummaryCard` and `NutritionHistoryCharts` are shared between TodayPage and GoalsPage. Water quick-add only shows when `onAddWater` prop is passed.
+- **Nutrition components**: `NutritionSummaryCard` and `NutritionHistoryCharts` are used by TodayPage. Water quick-add only shows when `onAddWater` prop is passed.
 - **Workout weights**: All weights stored in kg in DB (`weight_kg`, `total_volume_kg`). WorkoutsPage and WorkoutDetailPage display/accept in lbs using `KG_TO_LBS = 2.20462`. Always convert at the UI boundary.
 - **Exercise goals secondary sort**: `ORDER BY effective_from DESC, id DESC LIMIT 1` — the secondary `id DESC` is critical to avoid returning an old row with NULL `volume_lbs_per_week` when multiple rows share the same `effective_from` date.
 - **Migration 006**: `006_body_measurements.sql` creates `body_measurements` and `body_measurement_goals`. The `volume_lbs_per_week` column on `exercise_goals` is added via a post-migration hook in `migrate.ts` (checks `information_schema` first — MySQL < 8 doesn't support `ADD COLUMN IF NOT EXISTS`).

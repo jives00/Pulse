@@ -5,8 +5,78 @@ import FoodSearchModal from '../components/FoodSearchModal';
 import RecipeForm from '../components/RecipeForm';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
 import NutritionHistoryCharts from '../components/NutritionHistoryCharts';
-import { recipesApi } from '@pulse/api-client';
-import type { MealSlot } from '@pulse/api-client';
+import { recipesApi, goalsApi } from '@pulse/api-client';
+import type { MealSlot, GoalsSummary } from '@pulse/api-client';
+
+function NutritionGoalEditor({ current, onClose, onSaved }: {
+  current: GoalsSummary['nutrition']['goals'];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [calories, setCalories] = useState(String(current?.calories ?? ''));
+  const [carbsG, setCarbsG] = useState(String(current?.carbsG ?? ''));
+  const [proteinG, setProteinG] = useState(String(current?.proteinG ?? ''));
+  const [fatG, setFatG] = useState(String(current?.fatG ?? ''));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!calories || !carbsG || !proteinG || !fatG) return;
+    setSaving(true);
+    try {
+      await goalsApi.saveNutrition({
+        calories: Number(calories),
+        carbsG: Number(carbsG),
+        proteinG: Number(proteinG),
+        fatG: Number(fatG),
+      });
+      onClose();
+      onSaved();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-dram-accent';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-dram-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm border border-dram-border p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-200">Nutrition Goals</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            ['Calories (kcal)', calories, setCalories],
+            ['Carbs (g)', carbsG, setCarbsG],
+            ['Protein (g)', proteinG, setProteinG],
+            ['Fat (g)', fatG, setFatG],
+          ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+            <div key={label}>
+              <label className="block text-sm text-slate-500 mb-1">{label}</label>
+              <input type="number" min="0" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-1.5">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !calories || !carbsG || !proteinG || !fatG}
+            className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-1.5 hover:brightness-110 disabled:opacity-50 transition"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MEAL_SUBCATEGORIES: Record<MealSlot, string> = {
   breakfast: 'breakfast',
@@ -33,6 +103,7 @@ export default function TodayPage() {
   const { currentDate, dailyLog, waterDay, loading, setDate, fetchDay, addWater, copyFromDate } = useLogStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRecipeFormModal, setShowRecipeFormModal] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
   const [mealPhotos, setMealPhotos] = useState<Record<MealSlot, string | null>>({
     breakfast: null, lunch: null, dinner: null, snack: null,
   });
@@ -54,6 +125,7 @@ export default function TodayPage() {
 
   const goals = dailyLog?.goals;
   const totals = dailyLog?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
+  const nutritionGoals = goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG } : null;
   const waterTotal = waterDay?.totalOz ?? 0;
   const waterGoal = waterDay?.goalOz ?? goals?.waterGoalOz ?? 64;
 
@@ -82,6 +154,12 @@ export default function TodayPage() {
         {/* Right: action buttons */}
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowGoalsModal(true)}
+            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-3 py-2 text-sm transition-colors"
+          >
+            Edit Goals
+          </button>
+          <button
             onClick={() => setShowRecipeFormModal(true)}
             className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
           >
@@ -105,7 +183,7 @@ export default function TodayPage() {
             {/* Summary card — full width */}
             <NutritionSummaryCard
               actual={{ calories: totals.calories, carbsG: totals.carbs, proteinG: totals.protein, fatG: totals.fat }}
-              goals={goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG } : null}
+              goals={nutritionGoals}
               waterOz={waterTotal}
               waterGoalOz={waterGoal}
               onAddWater={(oz) => addWater(oz)}
@@ -142,6 +220,14 @@ export default function TodayPage() {
           </>
         )}
       </div>
+
+      {showGoalsModal && (
+        <NutritionGoalEditor
+          current={nutritionGoals}
+          onClose={() => setShowGoalsModal(false)}
+          onSaved={() => fetchDay()}
+        />
+      )}
 
       {showAddModal && (
         <FoodSearchModal

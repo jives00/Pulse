@@ -14,7 +14,6 @@ const TOP_SECTIONS = [
   { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
   { prefix: '/nutrition', label: 'Food Log', icon: '🥗' },
   { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
-  { prefix: '/goals',     label: 'Goals',     icon: '🎯' },
   { prefix: '/history',   label: 'History',   icon: '📋' },
   { prefix: '/links',     label: 'Links',     icon: '🔗' },
   { prefix: '/settings',  label: 'Settings',  icon: '⚙️' },

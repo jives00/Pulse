@@ -16,7 +16,6 @@ import ExerciseDetailPage from './pages/ExerciseDetailPage';
 import RoutinesPage from './pages/RoutinesPage';
 import RoutineDetailPage from './pages/RoutineDetailPage';
 import ExercisesPage from './pages/ExercisesPage';
-import GoalsPage from './pages/GoalsPage';
 import SettingsPage from './pages/SettingsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -88,9 +87,6 @@ export default function App() {
           <Route path="workouts/routines" element={<RoutinesPage />} />
           <Route path="workouts/routines/:id" element={<RoutineDetailPage />} />
           <Route path="workouts/:id" element={<WorkoutDetailPage />} />
-
-          {/* Goals — Phase 4 */}
-          <Route path="goals" element={<GoalsPage />} />
 
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />
