@@ -15,6 +15,7 @@ const MIGRATIONS = [
   '009_recipe_nutrition_bridge.sql',
   '010_water_oz.sql',
   '011_exercise_extended_fields.sql',
+  '012_routine_cover_image.sql',
 ];
 
 async function migrate() {
@@ -196,6 +197,21 @@ async function migrate() {
       if (!existing.includes('track_weight')) {
         await conn.query(`ALTER TABLE exercises ADD COLUMN track_weight TINYINT(1) NOT NULL DEFAULT 1`);
         console.log('  Added exercises.track_weight column.');
+      }
+    }
+
+    if (file === '012_routine_cover_image.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'workout_routines'
+           AND COLUMN_NAME  = 'cover_image_key'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(`ALTER TABLE workout_routines ADD COLUMN cover_image_key VARCHAR(500) NULL`);
+        console.log('  Added workout_routines.cover_image_key column.');
+      } else {
+        console.log('  workout_routines.cover_image_key already exists, skipping ALTER.');
       }
     }
 

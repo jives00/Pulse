@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getWorkoutDetail } from './workouts';
+import { getPresignedUploadUrl, getPresignedGetUrl, clearPresignedUrlCache } from '../services/s3';
 
 const router = Router();
 
@@ -99,6 +100,7 @@ async function getRoutineDetail(routineId: number, userId: number) {
     id: r.id,
     name: r.name,
     notes: r.notes ?? null,
+    coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     exercises,
@@ -122,27 +124,44 @@ router.get('/', async (req, res) => {
 
     const ids = rows.map((r) => r.id);
     const [lastUsedRows] = await pool.query<RowDataPacket[]>(
-      `SELECT routine_id, MAX(workout_date) AS last_used
-       FROM workout_logs
-       WHERE user_id = ? AND routine_id IN (?)
-       GROUP BY routine_id`,
-      [req.userId, ids]
+      `SELECT
+         wl.routine_id,
+         wl.workout_date AS last_used,
+         SUM(es.reps * es.weight_kg) AS volume_kg
+       FROM workout_logs wl
+       JOIN workout_exercises we ON we.workout_log_id = wl.id
+       JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       WHERE wl.user_id = ? AND wl.routine_id IN (?)
+         AND wl.id IN (
+           SELECT MAX(id) FROM workout_logs
+           WHERE user_id = ? AND routine_id IN (?)
+           GROUP BY routine_id
+         )
+       GROUP BY wl.routine_id, wl.workout_date`,
+      [req.userId, ids, req.userId, ids]
     );
     const lastUsedMap: Record<number, string> = {};
+    const lastVolumeMap: Record<number, number | null> = {};
     for (const lu of lastUsedRows) {
       lastUsedMap[lu.routine_id] = lu.last_used instanceof Date
         ? lu.last_used.toISOString().slice(0, 10)
         : String(lu.last_used);
+      lastVolumeMap[lu.routine_id] = lu.volume_kg != null
+        ? Math.round(Number(lu.volume_kg) * 2.20462)
+        : null;
     }
 
-    res.json(rows.map((r) => ({
+    const list = await Promise.all(rows.map(async (r) => ({
       id: r.id,
       name: r.name,
       notes: r.notes ?? null,
       exerciseCount: Number(r.exercise_count),
       lastUsedDate: lastUsedMap[r.id] ?? null,
+      lastVolumeLbs: lastVolumeMap[r.id] ?? null,
+      coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
       createdAt: r.created_at,
     })));
+    res.json(list);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -189,11 +208,22 @@ router.put('/:id', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { name, notes } = req.body;
+  const { name, notes, coverImageKey } = req.body;
   try {
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (name !== undefined) { updates.push('name=?'); values.push(name); }
+    if (notes !== undefined) { updates.push('notes=?'); values.push(notes ?? null); }
+    if (coverImageKey !== undefined) {
+      updates.push('cover_image_key=?');
+      values.push(coverImageKey?.trim() || null);
+      if (coverImageKey) clearPresignedUrlCache(coverImageKey);
+    }
+    if (!updates.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
+    values.push(id, req.userId);
     await pool.query(
-      'UPDATE workout_routines SET name=?, notes=? WHERE id = ? AND user_id = ?',
-      [name ?? null, notes ?? null, id, req.userId]
+      `UPDATE workout_routines SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+      values
     );
     const detail = await getRoutineDetail(id, req.userId);
     res.json(detail);
@@ -366,6 +396,22 @@ router.delete('/:id/exercises/:reId/sets/:sId', async (req, res) => {
       'DELETE FROM routine_exercise_sets WHERE id = ? AND routine_exercise_id = ?', [sId, reId]
     );
     res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/routines/:id/photo — get pre-signed S3 upload URL
+router.post('/:id/photo', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+  try {
+    const { contentType } = req.body;
+    const key = `routines/${id}/${Date.now()}`;
+    const uploadUrl = await getPresignedUploadUrl(key, contentType);
+    res.json({ uploadUrl, key });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

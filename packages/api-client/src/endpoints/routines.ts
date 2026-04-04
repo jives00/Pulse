@@ -7,6 +7,8 @@ export interface RoutineSummary {
   notes: string | null;
   exerciseCount: number;
   lastUsedDate: string | null;
+  lastVolumeLbs: number | null;
+  coverImageUrl: string | null;
   createdAt: string;
 }
 
@@ -38,6 +40,7 @@ export interface RoutineDetail {
   id: number;
   name: string;
   notes: string | null;
+  coverImageUrl: string | null;
   createdAt: string;
   updatedAt: string;
   exercises: RoutineExercise[];
@@ -53,8 +56,11 @@ export const routinesApi = {
   create: (data: { name: string; notes?: string }) =>
     apiClient.post<RoutineDetail>('/routines', data).then((r) => r.data),
 
-  update: (id: number, data: { name?: string; notes?: string }) =>
+  update: (id: number, data: { name?: string; notes?: string; coverImageKey?: string | null }) =>
     apiClient.put<RoutineDetail>(`/routines/${id}`, data).then((r) => r.data),
+
+  getPhotoUploadUrl: (id: number, contentType: string) =>
+    apiClient.post<{ uploadUrl: string; key: string }>(`/routines/${id}/photo`, { contentType }).then((r) => r.data),
 
   delete: (id: number) =>
     apiClient.delete(`/routines/${id}`).then(() => {}),

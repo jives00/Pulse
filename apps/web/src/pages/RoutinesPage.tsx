@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { routinesApi, type RoutineSummary } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
@@ -9,33 +9,106 @@ function formatDate(dateStr: string) {
 
 // ── Routine card ──────────────────────────────────────────────────────────────
 
-function RoutineCard({ routine, onClick }: { routine: RoutineSummary; onClick: () => void }) {
+function RoutineCard({
+  routine,
+  onClick,
+  onImageUpdated,
+}: {
+  routine: RoutineSummary;
+  onClick: () => void;
+  onImageUpdated: (id: number, url: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleImageClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { uploadUrl, key } = await routinesApi.getPhotoUploadUrl(routine.id, file.type);
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      await routinesApi.update(routine.id, { coverImageKey: key });
+      // Build a temporary object URL for immediate preview
+      onImageUpdated(routine.id, URL.createObjectURL(file));
+    } catch {
+      // silent — image just won't update
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   return (
     <div
       onClick={onClick}
       className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
     >
-      {/* Stat block — stands in for a photo */}
-      <div className="aspect-square bg-dram-bg flex flex-col items-center justify-center gap-1 group-hover:bg-dram-border/20 transition">
-        <span className="text-4xl font-bold text-dram-accent leading-none">
-          {routine.exerciseCount}
-        </span>
-        <span className="text-xs text-gray-500 uppercase tracking-wide">
-          exercise{routine.exerciseCount !== 1 ? 's' : ''}
-        </span>
-        {routine.notes && (
-          <p className="text-xs text-gray-600 mt-2 px-3 text-center line-clamp-2 italic">
-            {routine.notes}
-          </p>
+      {/* Image / stat area */}
+      <div
+        className="aspect-square bg-dram-bg relative overflow-hidden group/img"
+        onClick={handleImageClick}
+      >
+        {routine.coverImageUrl ? (
+          <img
+            src={routine.coverImageUrl}
+            alt={routine.name}
+            className="w-full h-full object-cover group-hover:opacity-80 transition"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 group-hover:bg-dram-border/20 transition">
+            <span className="text-4xl font-bold text-dram-accent leading-none">
+              {routine.exerciseCount}
+            </span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide">
+              exercise{routine.exerciseCount !== 1 ? 's' : ''}
+            </span>
+          </div>
         )}
+
+        {/* Upload overlay */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition bg-black/40 pointer-events-none">
+          {uploading ? (
+            <Spinner size={6} />
+          ) : (
+            <span className="text-white text-xs font-medium">Change photo</span>
+          )}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+          onClick={(e) => e.stopPropagation()}
+        />
       </div>
 
       {/* Info */}
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
-        <p className="text-gray-500 text-xs mt-0.5">
-          {routine.lastUsedDate ? `Last used ${formatDate(routine.lastUsedDate)}` : 'Never used'}
-        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-gray-500 text-xs">
+            {routine.lastUsedDate ? `Last used ${formatDate(routine.lastUsedDate)}` : 'Never used'}
+          </p>
+          {routine.lastVolumeLbs != null && (
+            <p className="text-gray-500 text-xs">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-dram-accent text-xs font-medium">
+            {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
+          </span>
+          {routine.notes && (
+            <span className="text-gray-600 text-xs line-clamp-1 flex-1">{routine.notes}</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -58,6 +131,12 @@ export default function RoutinesPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  function handleImageUpdated(id: number, previewUrl: string) {
+    setRoutines((prev) =>
+      prev.map((r) => r.id === id ? { ...r, coverImageUrl: previewUrl } : r)
+    );
+  }
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -104,6 +183,7 @@ export default function RoutinesPage() {
                 key={r.id}
                 routine={r}
                 onClick={() => navigate(`/workouts/routines/${r.id}`)}
+                onImageUpdated={handleImageUpdated}
               />
             ))}
           </div>
