@@ -116,7 +116,7 @@ router.get('/', async (req, res) => {
        LEFT JOIN routine_exercises re ON re.routine_id = wr.id
        WHERE wr.user_id = ?
        GROUP BY wr.id
-       ORDER BY wr.updated_at DESC`,
+       ORDER BY wr.name ASC`,
       [req.userId]
     );
 

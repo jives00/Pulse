@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT * FROM exercises ${where} ORDER BY category ASC, name ASC`,
+      `SELECT * FROM exercises ${where} ORDER BY name ASC`,
       params
     );
     res.json(rows.map((r) => ({
