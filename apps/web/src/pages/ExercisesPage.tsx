@@ -298,7 +298,7 @@ export default function ExercisesPage() {
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setFilterCat('')}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${
               !filterCat
                 ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                 : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
@@ -310,7 +310,7 @@ export default function ExercisesPage() {
             <button
               key={cat}
               onClick={() => setFilterCat(filterCat === cat ? '' : cat)}
-              className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+              className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${
                 filterCat === cat
                   ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                   : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
