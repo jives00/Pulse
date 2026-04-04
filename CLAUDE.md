@@ -218,7 +218,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 ### Links
 | Table | Key columns |
 |---|---|
-| `links` | `id`, `user_id`, `url`, `title`, `favicon_url`, `created_at` |
+| `links` | `id`, `user_id`, `url`, `title`, `favicon_url`, `category` ENUM('food','drinks','nutrition','exercise','other') DEFAULT 'other', `created_at` |
 
 ## Mobile app (apps/mobile)
 
@@ -265,6 +265,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `history`, `links`
 - **Migration 009**: `009_recipe_nutrition_bridge.sql` creates `recipe_barcodes` table. The `foods.recipe_id` FK column and `food_log.dram_recipe_id` column are added via post-migration hooks in `migrate.ts` (MySQL <8 `ADD COLUMN IF NOT EXISTS` workaround).
 - **Migration 011**: `011_exercise_extended_fields.sql` adds `cover_image_url`, `muscle_image_url`, `notes`, and `track_weight` columns to `exercises` via post-migration hook. `muscle_image_url` must be run manually on EC2 (`ALTER TABLE exercises ADD COLUMN muscle_image_url VARCHAR(500) NULL; ALTER TABLE exercises ADD COLUMN track_weight TINYINT(1) NOT NULL DEFAULT 1;`) since migration 011 was already marked applied before these columns were added.
 - **Migration 012**: `012_routine_cover_image.sql` adds `cover_image_key VARCHAR(500) NULL` to `workout_routines` via post-migration hook. Column was also applied manually on EC2 (`ALTER TABLE workout_routines ADD COLUMN cover_image_key VARCHAR(500) NULL;`). `POST /api/routines/:id/photo` returns a pre-signed S3 upload URL; client PUTs directly to S3 then calls `PUT /api/routines/:id` with `coverImageKey` to persist. `GET /api/routines` returns `coverImageUrl` (pre-signed get URL) and `lastVolumeLbs` (total volume in lbs from the most recent session for that routine).
+- **Migration 013**: `013_links_category.sql` adds `category ENUM('food','drinks','nutrition','exercise','other') NOT NULL DEFAULT 'other'` to `links` via post-migration hook. Applied manually on EC2: `ALTER TABLE links ADD COLUMN category ENUM('food','drinks','nutrition','exercise','other') NOT NULL DEFAULT 'other'; UPDATE links SET category = 'food';`
 - **Shadow food pattern**: Logging a recipe to nutrition auto-upserts a `foods` row (`source='custom'`, `recipe_id=<recipe.id>`) storing per-serving macros as `calories_per100` etc. (treating 1 serving = 100 virtual grams). A "1 serving" `serving_sizes` row (100g) is also upserted. The `food_log.quantity` field then equals the number of servings. Logic lives in `upsertRecipeNutritionLog()` exported from `apps/server/src/routes/recipes.ts` and shared by both `POST /recipes/:id/log` and `POST /log/recipe`.
 - **Recipe barcode scanning (mobile)**: `expo-camera` (CameraView) is used in `nutrition.tsx`. On scan, checks `recipe_barcodes` first via `GET /api/recipes/barcode/:barcode`, then `barcode_cache` foods via `GET /api/foods/barcode/:barcode`. Routes to recipe-servings picker or food-servings picker accordingly. Camera permission declared in `app.json` plugin config.
 - **Exercise PUT**: `PUT /api/exercises/:id` updates any exercise (not just custom). Accepts `name`, `category`, `exerciseType`, `musclesPrimary`, `musclesSecondary`, `instructions`, `mediaUrl`, `coverImageUrl`, `muscleImageUrl`, `notes`, `trackWeight`.

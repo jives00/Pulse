@@ -1,6 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
-import { linksApi, type LinkItem } from '@pulse/api-client';
+import { linksApi, type LinkItem, type LinkCategory } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
+
+const CATEGORIES: { value: LinkCategory; label: string; icon: string }[] = [
+  { value: 'food',      label: 'Food',      icon: '🍽️' },
+  { value: 'drinks',    label: 'Drinks',    icon: '🍹' },
+  { value: 'nutrition', label: 'Nutrition', icon: '📊' },
+  { value: 'exercise',  label: 'Exercise',  icon: '💪' },
+  { value: 'other',     label: 'Other',     icon: '🔖' },
+];
+
+function categoryIcon(category: LinkCategory | undefined): string {
+  return CATEGORIES.find((c) => c.value === category)?.icon ?? '🔖';
+}
 
 function FaviconImg({ src, title }: { src: string | null; title: string }) {
   const [errored, setErrored] = useState(false);
@@ -25,7 +37,9 @@ export default function Links() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
+  const [newCategory, setNewCategory] = useState<LinkCategory>('other');
   const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<LinkCategory | 'all'>('all');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Edit modal state
@@ -33,6 +47,7 @@ export default function Links() {
   const [editTitle, setEditTitle] = useState('');
   const [editFavicon, setEditFavicon] = useState('');
   const [editUrl, setEditUrl] = useState('');
+  const [editCategory, setEditCategory] = useState<LinkCategory>('other');
 
   useEffect(() => {
     linksApi.getAll().then(setLinks).finally(() => setLoading(false));
@@ -44,7 +59,7 @@ export default function Links() {
     if (!url) return;
     setAdding(true);
     try {
-      const link = await linksApi.add(url);
+      const link = await linksApi.add(url, newCategory);
       setLinks((prev) => [link, ...prev]);
       setInput('');
       inputRef.current?.focus();
@@ -60,6 +75,7 @@ export default function Links() {
     setEditTitle(link.title);
     setEditFavicon(link.favicon_url ?? '');
     setEditUrl(link.url);
+    setEditCategory(link.category ?? 'other');
   }
 
   async function commitEdit() {
@@ -68,10 +84,11 @@ export default function Links() {
     if (!title) return;
     const favicon_url = editFavicon.trim() || null;
     const url = editUrl.trim() || editTarget.url;
+    const category = editCategory;
     setEditTarget(null);
-    await linksApi.update(editTarget.id, { title, favicon_url, url }).catch(() => {});
+    await linksApi.update(editTarget.id, { title, favicon_url, url, category }).catch(() => {});
     setLinks((prev) =>
-      prev.map((l) => l.id === editTarget.id ? { ...l, title, favicon_url, url } : l)
+      prev.map((l) => l.id === editTarget.id ? { ...l, title, favicon_url, url, category } : l)
     );
   }
 
@@ -80,11 +97,14 @@ export default function Links() {
     setLinks((prev) => prev.filter((l) => l.id !== id));
   }
 
+  const sorted = [...links].sort((a, b) => a.title.localeCompare(b.title));
+  const visible = filter === 'all' ? sorted : sorted.filter((l) => (l.category ?? 'other') === filter);
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
           <h1 className="text-xl font-semibold mb-3">Links</h1>
-          <form onSubmit={handleAdd} className="flex gap-2">
+          <form onSubmit={handleAdd} className="flex gap-2 mb-3">
             <input
               ref={inputRef}
               type="url"
@@ -93,6 +113,15 @@ export default function Links() {
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
             />
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value as LinkCategory)}
+              className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+              ))}
+            </select>
             <button
               type="submit"
               disabled={adding || !input.trim()}
@@ -101,20 +130,39 @@ export default function Links() {
               {adding ? 'Adding…' : '+ Add'}
             </button>
           </form>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 flex-wrap">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition ${filter === 'all' ? 'bg-dram-accent text-black' : 'bg-dram-card text-gray-400 hover:text-white'}`}
+            >
+              All
+            </button>
+            {CATEGORIES.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setFilter(c.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition ${filter === c.value ? 'bg-dram-accent text-black' : 'bg-dram-card text-gray-400 hover:text-white'}`}
+              >
+                {c.icon} {c.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex justify-center mt-16"><Spinner size={10} /></div>
-          ) : links.length === 0 ? (
+          ) : visible.length === 0 ? (
             <div className="flex flex-col items-center mt-20 text-gray-600">
               <span className="text-5xl mb-3">🔗</span>
-              <p className="text-lg">No links yet.</p>
-              <p className="text-sm mt-1">Paste a URL above to save a site.</p>
+              <p className="text-lg">{filter === 'all' ? 'No links yet.' : `No ${CATEGORIES.find((c) => c.value === filter)?.label} links yet.`}</p>
+              {filter === 'all' && <p className="text-sm mt-1">Paste a URL above to save a site.</p>}
             </div>
           ) : (
             <div className="flex flex-col gap-2 max-w-2xl">
-              {[...links].sort((a, b) => a.title.localeCompare(b.title)).map((link) => (
+              {visible.map((link) => (
                 <div
                   key={link.id}
                   className="flex items-center gap-3 bg-dram-card border border-dram-border rounded-xl px-4 py-3 group hover:border-dram-accent/40 transition"
@@ -144,6 +192,8 @@ export default function Links() {
                       ×
                     </button>
                   </div>
+
+                  <span className="text-lg flex-shrink-0" title={(link.category ?? 'other')}>{categoryIcon(link.category)}</span>
                 </div>
               ))}
             </div>
@@ -195,6 +245,19 @@ export default function Links() {
                   />
                 )}
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Category</label>
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value as LinkCategory)}
+                className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex gap-2 justify-end">

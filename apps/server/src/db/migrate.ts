@@ -16,6 +16,7 @@ const MIGRATIONS = [
   '010_water_oz.sql',
   '011_exercise_extended_fields.sql',
   '012_routine_cover_image.sql',
+  '013_links_category.sql',
 ];
 
 async function migrate() {
@@ -212,6 +213,23 @@ async function migrate() {
         console.log('  Added workout_routines.cover_image_key column.');
       } else {
         console.log('  workout_routines.cover_image_key already exists, skipping ALTER.');
+      }
+    }
+
+    if (file === '013_links_category.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'links'
+           AND COLUMN_NAME  = 'category'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE links ADD COLUMN category ENUM('food','drinks','nutrition','exercise','other') NOT NULL DEFAULT 'other'`
+        );
+        console.log('  Added links.category column.');
+      } else {
+        console.log('  links.category already exists, skipping ALTER.');
       }
     }
 

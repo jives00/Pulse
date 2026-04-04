@@ -49,20 +49,23 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+const VALID_CATEGORIES = ['food', 'drinks', 'nutrition', 'exercise', 'other'];
+
 // POST /api/links
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { url } = req.body;
+    const { url, category } = req.body;
     if (!url?.trim()) {
       res.status(400).json({ error: 'url is required' });
       return;
     }
+    const cat = VALID_CATEGORIES.includes(category) ? category : 'other';
     const { title, favicon_url } = await fetchSiteMeta(url.trim());
     const [result] = await pool.query(
-      'INSERT INTO links (user_id, url, title, favicon_url) VALUES (?, ?, ?, ?)',
-      [req.userId, url.trim(), title, favicon_url]
+      'INSERT INTO links (user_id, url, title, favicon_url, category) VALUES (?, ?, ?, ?, ?)',
+      [req.userId, url.trim(), title, favicon_url, cat]
     );
-    res.status(201).json({ id: (result as ResultSetHeader).insertId, url: url.trim(), title, favicon_url });
+    res.status(201).json({ id: (result as ResultSetHeader).insertId, url: url.trim(), title, favicon_url, category: cat });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -74,14 +77,15 @@ router.put('/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    const { title, favicon_url, url } = req.body;
+    const { title, favicon_url, url, category } = req.body;
     if (!title?.trim()) {
       res.status(400).json({ error: 'title is required' });
       return;
     }
+    const cat = VALID_CATEGORIES.includes(category) ? category : null;
     const [updateResult] = await pool.query(
-      'UPDATE links SET title = ?, favicon_url = ?, url = COALESCE(NULLIF(?, ""), url) WHERE id = ? AND user_id = ?',
-      [title.trim(), favicon_url ?? null, url?.trim() ?? '', id, req.userId]
+      'UPDATE links SET title = ?, favicon_url = ?, url = COALESCE(NULLIF(?, ""), url), category = COALESCE(?, category) WHERE id = ? AND user_id = ?',
+      [title.trim(), favicon_url ?? null, url?.trim() ?? '', cat, id, req.userId]
     );
     if ((updateResult as ResultSetHeader).affectedRows === 0) {
       res.status(404).json({ error: 'Not found' }); return;
