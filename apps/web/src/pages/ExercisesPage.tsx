@@ -295,7 +295,7 @@ export default function ExercisesPage() {
             + New Exercise
           </button>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           <button
             onClick={() => setFilterCat('')}
             className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${

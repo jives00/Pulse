@@ -13,6 +13,7 @@ import {
 } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
 import { colors, fontSize } from '../../src/theme';
+import FilterChip from '../../src/components/FilterChip';
 
 const KG_TO_LBS = 2.20462;
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
@@ -502,17 +503,9 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={e.catScroll} contentContainerStyle={e.catRow}>
-        <TouchableOpacity style={[e.catPill, !filterCat && e.catPillActive]} onPress={() => setFilterCat('')}>
-          <Text style={[e.catText, !filterCat && e.catTextActive]}>All</Text>
-        </TouchableOpacity>
+        <FilterChip label="All" active={!filterCat} onPress={() => setFilterCat('')} />
         {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[e.catPill, filterCat === cat && e.catPillActive]}
-            onPress={() => setFilterCat(filterCat === cat ? '' : cat)}
-          >
-            <Text style={[e.catText, filterCat === cat && e.catTextActive]}>{cat}</Text>
-          </TouchableOpacity>
+          <FilterChip key={cat} label={cat} active={filterCat === cat} onPress={() => setFilterCat(filterCat === cat ? '' : cat)} />
         ))}
       </ScrollView>
 
@@ -677,9 +670,9 @@ const seg = StyleSheet.create({
 const e = StyleSheet.create({
   searchRow: { paddingHorizontal: 14, paddingVertical: 10 },
   searchInput: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, fontSize: fontSize.sm, color: colors.text },
-  catScroll: { maxHeight: 44 },
-  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 10 },
-  catPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 4 },
+  catScroll: { flexShrink: 0 },
+  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  catPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
   catPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   catText: { fontSize: fontSize.xs, color: colors.muted },
   catTextActive: { color: colors.bg, fontWeight: '700' },
