@@ -269,11 +269,16 @@ export default function RoutineDetailPage() {
   const [name, setName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
+  // Editable notes
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notes, setNotes] = useState('');
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     if (!id) return;
     const numId = Number(id);
     routinesApi.get(numId)
-      .then((r) => { setRoutine(r); setName(r.name); })
+      .then((r) => { setRoutine(r); setName(r.name); setNotes(r.notes ?? ''); })
       .catch(() => navigate('/workouts/routines'))
       .finally(() => setLoading(false));
 
@@ -290,6 +295,7 @@ export default function RoutineDetailPage() {
   }, [id]);
 
   useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
+  useEffect(() => { if (editingNotes) notesRef.current?.focus(); }, [editingNotes]);
 
   async function saveName() {
     if (!routine) return;
@@ -300,6 +306,17 @@ export default function RoutineDetailPage() {
       await routinesApi.update(routine.id, { name: trimmed });
       setRoutine((prev) => prev ? { ...prev, name: trimmed } : prev);
     } catch { setName(routine.name); }
+  }
+
+  async function saveNotes() {
+    if (!routine) return;
+    setEditingNotes(false);
+    const trimmed = notes.trim();
+    if (trimmed === (routine.notes ?? '')) { setNotes(routine.notes ?? ''); return; }
+    try {
+      await routinesApi.update(routine.id, { notes: trimmed || undefined });
+      setRoutine((prev) => prev ? { ...prev, notes: trimmed || undefined } : prev);
+    } catch { setNotes(routine.notes ?? ''); }
   }
 
   async function handleStart() {
@@ -370,6 +387,29 @@ export default function RoutineDetailPage() {
             </button>
           )}
           <div className="text-sm text-slate-500">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</div>
+          {editingNotes ? (
+            <textarea
+              ref={notesRef}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveNotes}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setEditingNotes(false); setNotes(routine.notes ?? ''); } }}
+              rows={3}
+              placeholder="Add notes…"
+              className="w-full mt-1 bg-transparent text-sm text-slate-300 focus:outline-none border-b border-slate-600 resize-none"
+            />
+          ) : (
+            <button
+              onClick={() => setEditingNotes(true)}
+              className="text-left text-sm mt-1 w-full transition-colors"
+            >
+              {notes ? (
+                <span className="text-slate-400 hover:text-slate-200">{notes}</span>
+              ) : (
+                <span className="text-slate-600 hover:text-slate-400 italic">Add notes…</span>
+              )}
+            </button>
+          )}
         </div>
         <button
           onClick={handleDelete}
