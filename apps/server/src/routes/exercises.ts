@@ -370,17 +370,17 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/exercises/:id — delete custom exercise (only custom ones)
+// DELETE /api/exercises/:id — delete any exercise
 router.delete('/:id', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      'DELETE FROM exercises WHERE id = ? AND is_custom = 1',
+      'DELETE FROM exercises WHERE id = ?',
       [id]
     );
     if (result.affectedRows === 0) {
-      res.status(404).json({ error: 'Custom exercise not found' });
+      res.status(404).json({ error: 'Exercise not found' });
       return;
     }
     res.json({ success: true });

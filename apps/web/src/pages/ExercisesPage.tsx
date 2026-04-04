@@ -89,11 +89,9 @@ function ExerciseCard({
             <button onClick={onEdit} className="text-xs text-dram-accent/60 hover:text-dram-accent transition-colors">
               Edit
             </button>
-            {exercise.isCustom && (
-              <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300 transition-colors">
-                Delete
-              </button>
-            )}
+            <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300 transition-colors">
+              Delete
+            </button>
           </div>
         </div>
       </div>
