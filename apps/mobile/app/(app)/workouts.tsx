@@ -560,6 +560,7 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
           data={exercises}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}
+          style={{ flex: 1 }}
           contentContainerStyle={grid.container}
           renderItem={({ item }) => (
             <ExerciseGridCard item={item} onPress={() => router.push(`/exercise/${item.id}` as any)} />
@@ -698,8 +699,8 @@ const seg = StyleSheet.create({
 const e = StyleSheet.create({
   searchRow: { paddingHorizontal: 14, paddingVertical: 10 },
   searchInput: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, fontSize: fontSize.sm, color: colors.text },
-  catScroll: { flexShrink: 0 },
-  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  catScroll: { flexGrow: 0 },
+  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center' },
   catPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
   catPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   catText: { fontSize: fontSize.xs, color: colors.muted },
