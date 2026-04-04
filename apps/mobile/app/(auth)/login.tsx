@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { login } from '../../src/api/client';
-import { API_BASE } from '../../src/api/config';
 import { useAuthStore } from '../../src/store/auth';
 import { colors, fontSize } from '../../src/theme';
 
@@ -10,7 +9,6 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [debugInfo, setDebugInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
@@ -25,7 +23,6 @@ export default function LoginScreen() {
       setToken(token);
       router.replace('/(app)');
     } catch (e: any) {
-      setDebugInfo(`${API_BASE} — ${e?.message ?? String(e)}`);
       setError(e.message || 'Invalid username or password');
     } finally {
       setLoading(false);
@@ -36,7 +33,6 @@ export default function LoginScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <Text style={styles.title}>Pulse</Text>
       <Text style={styles.subtitle}>Your health companion</Text>
-      <Text style={{ color: 'yellow', fontSize: 10, marginBottom: 8 }}>{API_BASE}</Text>
       <View style={styles.form}>
         <TextInput
           style={styles.input}
@@ -60,7 +56,6 @@ export default function LoginScreen() {
             <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
           </Pressable>
         </View>
-        {debugInfo ? <Text style={{ color: 'yellow', fontSize: 10, textAlign: 'center' }}>{debugInfo}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <TouchableOpacity onPress={handleLogin} disabled={loading} style={styles.button}>
           <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign in'}</Text>
