@@ -283,6 +283,7 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
   const [musclesSecondary, setMusclesSecondary] = useState(exercise.musclesSecondary ?? []);
   const [instructions, setInstructions] = useState(exercise.instructions ?? '');
   const [mediaUrl, setMediaUrl] = useState(exercise.mediaUrl ?? '');
+  const [coverImageUrl, setCoverImageUrl] = useState(exercise.coverImageUrl ?? '');
   const [saving, setSaving] = useState(false);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCat, setNewCat] = useState('');
@@ -297,6 +298,7 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
         musclesPrimary, musclesSecondary,
         instructions: instructions.trim() || null,
         mediaUrl: mediaUrl.trim() || null,
+        coverImageUrl: coverImageUrl.trim() || null,
       });
       onSaved(updated);
     } catch (err: any) {
@@ -360,6 +362,10 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
           <View style={ed.field}>
             <Text style={ed.label}>Demo URL</Text>
             <TextInput style={ed.input} value={mediaUrl} onChangeText={setMediaUrl} placeholder="YouTube, GIF, or image URL" placeholderTextColor={colors.muted} autoCapitalize="none" keyboardType="url" />
+          </View>
+          <View style={ed.field}>
+            <Text style={ed.label}>Cover Image URL</Text>
+            <TextInput style={ed.input} value={coverImageUrl} onChangeText={setCoverImageUrl} placeholder="Static image URL (JPG, PNG, WebP…)" placeholderTextColor={colors.muted} autoCapitalize="none" keyboardType="url" />
           </View>
         </ScrollView>
       </SafeAreaView>

@@ -310,6 +310,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
   const [musclesSecondary, setMusclesSecondary] = useState<string[]>([]);
   const [instructions, setInstructions] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [newCat, setNewCat] = useState('');
   const [showNewCat, setShowNewCat] = useState(false);
@@ -323,6 +324,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
       setMusclesSecondary(exercise?.musclesSecondary ?? []);
       setInstructions(exercise?.instructions ?? '');
       setMediaUrl(exercise?.mediaUrl ?? '');
+      setCoverImageUrl(exercise?.coverImageUrl ?? '');
       setNewCat('');
       setShowNewCat(false);
     }
@@ -340,6 +342,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
           musclesPrimary, musclesSecondary,
           instructions: instructions.trim() || null,
           mediaUrl: mediaUrl.trim() || null,
+          coverImageUrl: coverImageUrl.trim() || null,
         });
       } else {
         await createCustomExercise(token, { name: name.trim(), category: finalCategory, exerciseType });
@@ -452,9 +455,50 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
               keyboardType="url"
             />
           </View>
+
+          <View style={m.field}>
+            <Text style={m.label}>Cover Image URL</Text>
+            <TextInput
+              style={m.input}
+              value={coverImageUrl}
+              onChangeText={setCoverImageUrl}
+              placeholder="Static image URL (JPG, PNG, WebP…)"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </Modal>
+  );
+}
+
+// ── Exercise grid card ───────────────────────────────────────────────────────
+
+function ExerciseGridCard({ item, onPress }: { item: Exercise; onPress: () => void }) {
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!item.coverImageUrl && !imgError;
+  return (
+    <TouchableOpacity style={grid.card} onPress={onPress}>
+      {showImage ? (
+        <Image
+          source={{ uri: item.coverImageUrl! }}
+          style={grid.photo}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <View style={grid.placeholder}>
+          <Text style={grid.placeholderIcon}>{categoryEmoji(item.category)}</Text>
+        </View>
+      )}
+      <View style={grid.info}>
+        <Text style={grid.name} numberOfLines={2}>{item.name}</Text>
+        <Text style={grid.meta}>{item.category}</Text>
+        <Text style={grid.sub}>{item.exerciseType}</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -518,23 +562,7 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
           numColumns={2}
           contentContainerStyle={grid.container}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={grid.card}
-              onPress={() => router.push(`/exercise/${item.id}` as any)}
-            >
-              {item.coverImageUrl ? (
-                <Image source={{ uri: item.coverImageUrl }} style={grid.photo} resizeMode="cover" />
-              ) : (
-                <View style={grid.placeholder}>
-                  <Text style={grid.placeholderIcon}>{categoryEmoji(item.category)}</Text>
-                </View>
-              )}
-              <View style={grid.info}>
-                <Text style={grid.name} numberOfLines={2}>{item.name}</Text>
-                <Text style={grid.meta}>{item.category}</Text>
-                <Text style={grid.sub}>{item.exerciseType}</Text>
-              </View>
-            </TouchableOpacity>
+            <ExerciseGridCard item={item} onPress={() => router.push(`/exercise/${item.id}` as any)} />
           )}
           ListEmptyComponent={
             <View style={s.empty}>
