@@ -126,25 +126,8 @@ export default function Library() {
 
   const panelOpen = panel.mode !== 'none';
 
-  useEffect(() => {
-    if (panel.mode !== 'detail') return;
-    const handler = (e: MouseEvent) => {
-      const panelEl = document.querySelector('[data-panel]');
-      if (panelEl && !panelEl.contains(e.target as Node)) {
-        setPanel({ mode: 'none' });
-      }
-    };
-    const id = setTimeout(() => {
-      document.addEventListener('click', handler);
-    }, 0);
-    return () => {
-      clearTimeout(id);
-      document.removeEventListener('click', handler);
-    };
-  }, [panel.mode]);
-
   return (
-    <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
+    <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         {/* Toolbar */}
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
           {/* Row 1: Search + Add */}
@@ -201,13 +184,7 @@ export default function Library() {
             </div>
           ) : (
             <>
-              <div
-                className={`grid gap-4 ${
-                  panelOpen
-                    ? 'grid-cols-2 lg:grid-cols-3'
-                    : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
-                }`}
-              >
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                 {recipes.map((recipe) => (
                   <RecipeCard
                     key={recipe.id}
@@ -227,25 +204,33 @@ export default function Library() {
           )}
         </div>
 
-      {/* Side panel */}
+      {/* Centered modal overlay */}
       {panelOpen && (
-        <div data-panel className="fixed right-0 top-0 h-full w-[420px] z-10 shadow-2xl">
-          {panel.mode === 'detail' && (
-            <RecipeDetail
-              recipeId={panel.recipeId}
-              onClose={() => setPanel({ mode: 'none' })}
-              onEdit={(recipe) => setPanel({ mode: 'edit', recipe })}
-              onDeleted={() => { setPanel({ mode: 'none' }); refresh(); }}
-              onUpdated={refresh}
-            />
-          )}
-          {(panel.mode === 'add' || panel.mode === 'edit') && (
-            <RecipeForm
-              initialData={panel.mode === 'edit' ? panel.recipe : undefined}
-              onSaved={(id) => { setPanel({ mode: 'detail', recipeId: id }); refresh(); }}
-              onCancel={() => setPanel({ mode: 'none' })}
-            />
-          )}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setPanel({ mode: 'none' })}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {panel.mode === 'detail' && (
+              <RecipeDetail
+                recipeId={panel.recipeId}
+                onClose={() => setPanel({ mode: 'none' })}
+                onEdit={(recipe) => setPanel({ mode: 'edit', recipe })}
+                onDeleted={() => { setPanel({ mode: 'none' }); refresh(); }}
+                onUpdated={refresh}
+              />
+            )}
+            {(panel.mode === 'add' || panel.mode === 'edit') && (
+              <RecipeForm
+                initialData={panel.mode === 'edit' ? panel.recipe : undefined}
+                onSaved={(id) => { setPanel({ mode: 'detail', recipeId: id }); refresh(); }}
+                onCancel={() => setPanel({ mode: 'none' })}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
