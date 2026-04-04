@@ -289,6 +289,58 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// ── GET /log/history ─────────────────────────────────────────
+
+router.get('/history', async (req, res) => {
+  const { limit = '90' } = req.query as { limit?: string };
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT fl.id, fl.log_date, fl.meal, fl.calories, fl.carbs_g, fl.protein_g, fl.fat_g,
+              fl.quantity, f.name AS food_name, f.brand,
+              ss.label AS serving_label, fl.serving_size_id
+       FROM food_log fl
+       JOIN foods f ON f.id = fl.food_id
+       JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+       WHERE fl.user_id = ?
+       ORDER BY fl.log_date DESC, fl.logged_at DESC
+       LIMIT ?`,
+      [req.userId, Number(limit)]
+    );
+
+    const byDate: Map<string, { date: string; calories: number; protein: number; entries: object[] }> = new Map();
+    for (const row of rows) {
+      const date = row.log_date instanceof Date
+        ? row.log_date.toISOString().slice(0, 10)
+        : String(row.log_date);
+      if (!byDate.has(date)) byDate.set(date, { date, calories: 0, protein: 0, entries: [] });
+      const day = byDate.get(date)!;
+      day.calories += Number(row.calories);
+      day.protein += Number(row.protein_g);
+      day.entries.push({
+        id: row.id,
+        meal: row.meal,
+        foodName: row.food_name,
+        brand: row.brand ?? null,
+        servingLabel: row.serving_label,
+        quantity: Number(row.quantity),
+        calories: Number(row.calories),
+        proteinG: Number(row.protein_g),
+        carbsG: Number(row.carbs_g),
+        fatG: Number(row.fat_g),
+      });
+    }
+
+    res.json(Array.from(byDate.values()).map((d) => ({
+      ...d,
+      calories: Math.round(d.calories),
+      protein: Math.round(d.protein * 10) / 10,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch food log history' });
+  }
+});
+
 // ── DELETE /log/:id ───────────────────────────────────────────
 
 router.delete('/:id', async (req, res) => {

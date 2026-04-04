@@ -106,7 +106,7 @@ USDA_API_KEY        (optional, food database)
 /workouts/routines/:id → RoutineDetailPage
 /workouts/:id          → WorkoutDetailPage
 /goals                 → (removed; redirects to /food)
-/history               → RecipeHistory
+/history               → RecipeHistory (3 tabs: Recipes, Workouts, Nutrition)
 /links                 → Links
 /settings              → SettingsPage
 ```
@@ -131,6 +131,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/links/*
 /api/foods/*           USDA food search + custom foods
 /api/log/*             Nutrition log (meals, water)
+                       GET  /api/log/history?limit=90     last N days of food log entries grouped by date (per-day totals + per-meal entry list)
                        POST /api/log/recipe               log a recipe to nutrition (creates shadow food if needed)
 /api/goals/*           Nutrition + exercise goals, weekly summary
 /api/water/*

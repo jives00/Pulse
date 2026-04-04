@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  recipesApi, workoutsApi,
+  recipesApi, workoutsApi, logApi,
   type HistoryEntry, type RecipeDetail as RecipeDetailType, type WorkoutSummary,
+  type FoodLogHistoryDay,
 } from '@pulse/api-client';
 import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
@@ -13,7 +14,7 @@ type PanelState =
   | { mode: 'detail'; recipeId: number }
   | { mode: 'edit'; recipe: RecipeDetailType };
 
-type Tab = 'recipes' | 'workouts';
+type Tab = 'recipes' | 'workouts' | 'nutrition';
 
 function toLocalDate(iso: string): string {
   const d = new Date(iso);
@@ -87,9 +88,15 @@ export default function History() {
   const [workoutsLoading, setWorkoutsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  // Nutrition log history state
+  const [foodLogDays, setFoodLogDays] = useState<FoodLogHistoryDay[]>([]);
+  const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     recipesApi.getHistory().then(setEntries).finally(() => setRecipesLoading(false));
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
+    logApi.getHistory(90).then(setFoodLogDays).finally(() => setNutritionLoading(false));
   }, []);
 
   function openEdit(e: React.MouseEvent, entry: HistoryEntry) {
@@ -138,10 +145,18 @@ export default function History() {
     } catch { /* ignore */ } finally { setDeletingId(null); }
   }
 
+  function toggleDate(date: string) {
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date); else next.add(date);
+      return next;
+    });
+  }
+
   const panelOpen = panel.mode !== 'none' && activeTab === 'recipes';
   const recipeGroups = groupByDate(entries);
   const workoutGroups = groupWorkoutsByDate(workouts);
-  const loading = activeTab === 'recipes' ? recipesLoading : workoutsLoading;
+  const loading = activeTab === 'recipes' ? recipesLoading : activeTab === 'workouts' ? workoutsLoading : nutritionLoading;
 
   return (
     <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
@@ -149,7 +164,7 @@ export default function History() {
       <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
         <h1 className="text-xl font-semibold mb-3">History</h1>
         <div className="flex gap-1">
-          {(['recipes', 'workouts'] as Tab[]).map((tab) => (
+          {(['recipes', 'workouts', 'nutrition'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setPanel({ mode: 'none' }); }}
@@ -159,7 +174,7 @@ export default function History() {
                   : 'border-transparent text-gray-400 hover:text-gray-200'
               }`}
             >
-              {tab === 'recipes' ? 'Recipes' : 'Workouts'}
+              {tab === 'recipes' ? 'Recipes' : tab === 'workouts' ? 'Workouts' : 'Nutrition'}
             </button>
           ))}
         </div>
@@ -208,9 +223,6 @@ export default function History() {
                           className="flex-1 min-w-0 text-left"
                         >
                           <p className="text-base font-medium text-white truncate">{entry.name}</p>
-                          <p className="text-sm text-gray-500 mt-0.5">
-                            {new Date(entry.made_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                          </p>
                         </button>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
@@ -236,7 +248,7 @@ export default function History() {
               ))}
             </div>
           )
-        ) : (
+        ) : activeTab === 'workouts' ? (
           /* ── Workout history ─────────────────────────────────────── */
           workouts.length === 0 ? (
             <div className="flex flex-col items-center mt-20 text-gray-600">
@@ -296,6 +308,69 @@ export default function History() {
                   </div>
                 </div>
               ))}
+            </div>
+          )
+        ) : (
+          /* ── Nutrition log history ───────────────────────────────── */
+          foodLogDays.length === 0 ? (
+            <div className="flex flex-col items-center mt-20 text-gray-600">
+              <span className="text-5xl mb-3">🥗</span>
+              <p className="text-lg">No nutrition logs yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 max-w-2xl">
+              {foodLogDays.map((day) => {
+                const expanded = expandedDates.has(day.date);
+                const d = new Date(day.date + 'T12:00:00');
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const fmtKey = (dt: Date) => dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+                const label = fmtKey(d) === fmtKey(today) ? 'Today' : fmtKey(d) === fmtKey(yesterday) ? 'Yesterday' : fmtKey(d);
+                const mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+                const byMeal = day.entries.reduce<Record<string, typeof day.entries>>((acc, e) => {
+                  if (!acc[e.meal]) acc[e.meal] = [];
+                  acc[e.meal].push(e);
+                  return acc;
+                }, {});
+                return (
+                  <div key={day.date} className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => toggleDate(day.date)}
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition text-left"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-white">{label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {day.calories.toLocaleString()} cal · {day.protein}g protein
+                        </p>
+                      </div>
+                      <span className={`text-gray-500 text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+                    {expanded && (
+                      <div className="border-t border-dram-border px-4 py-3 flex flex-col gap-3">
+                        {mealOrder.filter((m) => byMeal[m]?.length).map((meal) => (
+                          <div key={meal}>
+                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5 capitalize">{meal}</p>
+                            <div className="flex flex-col gap-1">
+                              {byMeal[meal].map((e) => (
+                                <div key={e.id} className="flex items-baseline justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm text-white truncate">{e.foodName}</span>
+                                    {e.brand && <span className="text-xs text-gray-500 ml-1">{e.brand}</span>}
+                                    <span className="text-xs text-gray-500 ml-1">· {e.quantity} × {e.servingLabel}</span>
+                                  </div>
+                                  <span className="text-xs text-gray-400 shrink-0">{e.calories} cal</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )
         )}
