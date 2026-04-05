@@ -44,7 +44,7 @@ function MacroTile({
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{Math.round(actual)}</span>
-        <span className="text-xs text-slate-500">/ {goal ?? '—'}g</span>
+        <span className="text-sm text-slate-400">/ {goal ?? '—'}g</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: `${color}22` }}>
         <div
@@ -82,7 +82,7 @@ function WaterTile({
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{glasses}</span>
-        <span className="text-xs text-slate-500">/ {goalGlasses} glasses</span>
+        <span className="text-sm text-slate-400">/ {goalGlasses} glasses</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden bg-cyan-400/10">
         <div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${pct * 100}%` }} />

@@ -70,7 +70,7 @@ function TemplateSetRow({
 
   return (
     <div className={`grid ${cols} gap-2 items-center py-1`}>
-      <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
+      <span className="text-sm text-slate-400 text-center">{set.setNumber}</span>
       {showWeight && (
         <input type="number" min="0" placeholder="lbs" value={weight}
           onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
@@ -137,7 +137,7 @@ function RoutineExerciseBlock({
           >
             {re.exercise.name}
           </Link>
-          <div className="text-sm text-slate-500">{re.exercise.category}</div>
+          <div className="text-sm text-slate-300">{re.exercise.category}</div>
         </div>
         <button
           onClick={() => onRemove(re.id)}
@@ -150,9 +150,9 @@ function RoutineExerciseBlock({
       {/* Last performed reference (read-only when no template sets) */}
       {showLastPerformed && (
         <div className="mb-3 p-2 rounded bg-slate-750 border border-slate-700">
-          <div className="text-xs text-slate-500 mb-1">Last session (reference)</div>
+          <div className="text-sm text-slate-400 mb-1">Last session (reference)</div>
           {re.lastPerformedSets!.map((s) => (
-            <div key={s.setNumber} className="text-xs text-slate-400 py-0.5">
+            <div key={s.setNumber} className="text-sm text-slate-300 py-0.5">
               Set {s.setNumber}:
               {s.weightKg != null && ` ${fmtWeight(s.weightKg)} lbs`}
               {s.reps != null && ` × ${s.reps} reps`}
@@ -166,8 +166,8 @@ function RoutineExerciseBlock({
         <div className="mb-2">
           <div className={`grid ${showWeightHeader ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]'} gap-2 mb-1`}>
             <span />
-            {showWeightHeader && <span className="text-sm text-slate-500 text-center">lbs</span>}
-            <span className="text-sm text-slate-500 text-center">{showDurationHeader ? 'sec' : 'reps'}</span>
+            {showWeightHeader && <span className="text-sm text-slate-400 text-center">lbs</span>}
+            <span className="text-sm text-slate-400 text-center">{showDurationHeader ? 'sec' : 'reps'}</span>
             <span />
           </div>
           {sets.map((s) => (

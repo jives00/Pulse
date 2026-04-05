@@ -94,19 +94,19 @@ function RoutineCard({
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-gray-500 text-xs">
+          <p className="text-slate-400 text-sm">
             {routine.lastUsedDate ? `Last used ${formatDate(routine.lastUsedDate)}` : 'Never used'}
           </p>
           {routine.lastVolumeLbs != null && (
-            <p className="text-gray-500 text-xs">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>
+            <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>
           )}
         </div>
         <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-dram-accent text-xs font-medium">
+          <span className="text-dram-accent text-sm font-medium">
             {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
           </span>
           {routine.notes && (
-            <span className="text-gray-600 text-xs line-clamp-1 flex-1">{routine.notes}</span>
+            <span className="text-slate-400 text-sm line-clamp-1 flex-1">{routine.notes}</span>
           )}
         </div>
       </div>

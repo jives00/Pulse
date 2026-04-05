@@ -84,13 +84,13 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
           {entries.map((entry) => (
             <div key={entry.id} className="flex items-center px-3 py-2 hover:bg-white/5 group">
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-slate-200 truncate">{entry.food.name}</div>
-                <div className="text-xs text-slate-500">
+                <div className="text-sm text-slate-100 truncate">{entry.food.name}</div>
+                <div className="text-sm text-slate-400">
                   {entry.quantity} × {entry.servingSize.label}
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-2 shrink-0">
-                <span className="text-xs text-slate-400">{Math.round(entry.nutrition.calories)} cal</span>
+                <span className="text-sm text-slate-300">{Math.round(entry.nutrition.calories)} cal</span>
                 <button
                   onClick={() => removeEntry(entry.id)}
                   className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all text-xs"

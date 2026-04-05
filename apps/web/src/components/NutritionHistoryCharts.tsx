@@ -76,7 +76,7 @@ function ScrollChart({ data, dataKey, label, icon, color, goal, unit }: {
             <XAxis
               dataKey="date"
               tickFormatter={shortDate}
-              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              tick={{ fontSize: 12, fill: '#cbd5e1' }}
               axisLine={false}
               tickLine={false}
               interval={Math.floor(data.length / 6)}

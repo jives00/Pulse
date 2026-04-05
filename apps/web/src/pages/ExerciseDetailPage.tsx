@@ -38,9 +38,9 @@ type MetricKey = typeof METRICS[number]['key'];
 function PBTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-slate-800 rounded-lg p-3 flex flex-col gap-0.5">
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-sm text-slate-400">{label}</div>
       <div className="text-base font-semibold text-slate-100">{value}</div>
-      {sub && <div className="text-xs text-slate-500">{sub}</div>}
+      {sub && <div className="text-sm text-slate-400">{sub}</div>}
     </div>
   );
 }
@@ -81,17 +81,17 @@ function SummaryTab({ stats, metric, onMetricChange }: {
       {stats.setRecords.length > 0 && (
         <div className="bg-slate-800 rounded-lg overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-700">
-            <span className="text-sm font-medium text-slate-300">Set Records</span>
+            <span className="text-base font-medium text-slate-200">Set Records</span>
           </div>
           <div className="divide-y divide-slate-700/50">
             <div className="grid grid-cols-2 px-3 py-1.5">
-              <span className="text-xs text-slate-500">Reps</span>
-              <span className="text-xs text-slate-500">Best Weight</span>
+              <span className="text-sm text-slate-400">Reps</span>
+              <span className="text-sm text-slate-400">Best Weight</span>
             </div>
             {stats.setRecords.map((r) => (
               <div key={r.reps} className="grid grid-cols-2 px-3 py-1.5">
-                <span className="text-sm text-slate-300">{r.reps}</span>
-                <span className="text-sm text-slate-200">{fmtLbs(r.weightKg)}</span>
+                <span className="text-sm text-slate-200">{r.reps}</span>
+                <span className="text-sm text-slate-100">{fmtLbs(r.weightKg)}</span>
               </div>
             ))}
           </div>
@@ -116,19 +116,19 @@ function SummaryTab({ stats, metric, onMetricChange }: {
       {/* Progress chart */}
       {chartData.length > 0 ? (
         <div className="bg-slate-800 rounded-lg p-3">
-          <div className="text-xs text-slate-500 mb-2">{selectedMetricLabel} over time</div>
+          <div className="text-sm text-slate-400 mb-2">{selectedMetricLabel} over time</div>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 12, fill: '#cbd5e1' }}
                 tickFormatter={shortDate}
                 minTickGap={40}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 12, fill: '#cbd5e1' }}
                 tickFormatter={(v) => `${Math.round(v)}`}
                 axisLine={false}
                 tickLine={false}
@@ -189,26 +189,26 @@ function HistoryTab({ exerciseId }: { exerciseId: number }) {
       {entries.map((entry, i) => (
         <div key={`${entry.workoutId}-${i}`} className="bg-slate-800 rounded-lg overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-700">
-            <div className="text-sm font-medium text-slate-300">{formatDate(entry.workoutDate)}</div>
+            <div className="text-base font-medium text-slate-200">{formatDate(entry.workoutDate)}</div>
             {entry.workoutName && (
-              <div className="text-xs text-slate-500">{entry.workoutName}</div>
+              <div className="text-sm text-slate-400">{entry.workoutName}</div>
             )}
           </div>
           <div className="px-3 py-2 space-y-1">
             {entry.sets.length > 0 ? (
               <>
-                <div className="grid grid-cols-3 text-xs text-slate-500 mb-1">
+                <div className="grid grid-cols-3 text-sm text-slate-400 mb-1">
                   <span>Set</span>
                   <span>Weight</span>
                   <span>Reps</span>
                 </div>
                 {entry.sets.map((s) => (
                   <div key={s.setNumber} className="grid grid-cols-3 text-sm">
-                    <span className="text-slate-500">{s.setNumber}</span>
-                    <span className="text-slate-300">
+                    <span className="text-slate-400">{s.setNumber}</span>
+                    <span className="text-slate-200">
                       {s.weightKg != null ? fmtLbs(s.weightKg) : s.durationSeconds != null ? `${s.durationSeconds}s` : '—'}
                     </span>
-                    <span className="text-slate-300">
+                    <span className="text-slate-200">
                       {s.reps != null ? `${s.reps}` : s.distanceMeters != null ? `${s.distanceMeters}m` : '—'}
                     </span>
                   </div>

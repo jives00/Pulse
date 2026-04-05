@@ -318,7 +318,7 @@ function WeeklyChart({ data, dataKey, label, icon, color, goal, unit }: {
           >
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              tick={{ fontSize: 12, fill: '#cbd5e1' }}
               axisLine={false}
               tickLine={false}
               interval={2}
@@ -686,8 +686,8 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
                 <span className="text-xl font-bold" style={{ color: value !== '—' ? 'white' : '#475569' }}>{value}</span>
                 {unit && <span className="text-xs text-slate-400">{unit}</span>}
               </div>
-              <span className="text-xs text-slate-400">{label}</span>
-              {sub && <span className="text-[11px] text-slate-500 truncate">{sub}</span>}
+              <span className="text-sm text-slate-300">{label}</span>
+              {sub && <span className="text-sm text-slate-400 truncate">{sub}</span>}
             </div>
           ))}
         </div>
