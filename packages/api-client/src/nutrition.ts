@@ -94,6 +94,8 @@ export interface UpdateLogEntryPayload {
   servingSizeId?: number;
   quantity?: number;
   notes?: string;
+  meal?: MealSlot;
+  logDate?: string;
 }
 
 export interface CopyLogPayload {

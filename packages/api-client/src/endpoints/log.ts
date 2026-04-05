@@ -48,4 +48,15 @@ export const logApi = {
 
   logRecipe: (payload: { recipeId: number; meal: string; servings: number; logDate?: string }) =>
     apiClient.post<{ success: boolean }>('/log/recipe', payload).then((r) => r.data),
+
+  copyEntry: (entry: LogEntry, targetMeal: MealSlot, targetDate: string) =>
+    apiClient.post<LogEntry>('/log', {
+      logDate: targetDate,
+      meal: targetMeal,
+      foodId: entry.food.id,
+      servingSizeId: entry.servingSize.id,
+      quantity: entry.quantity,
+      notes: entry.notes,
+      dramRecipeId: entry.dramRecipeId,
+    }).then((r) => r.data),
 };

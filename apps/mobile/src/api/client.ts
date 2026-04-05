@@ -269,6 +269,18 @@ export async function deleteNutritionLogEntry(token: string, id: number): Promis
   const res = await fetch(`${API_BASE}/api/log/${id}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
 }
+export async function moveLogEntry(token: string, id: number, meal: MealSlot, logDate: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify({ meal, logDate }) });
+  await handle(res);
+}
+export async function copyLogEntry(token: string, entry: NutritionLogEntry, meal: MealSlot, logDate: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ logDate, meal, foodId: entry.food.id, servingSizeId: entry.servingSize.id, quantity: entry.quantity }),
+  });
+  await handle(res);
+}
 
 // Water
 export async function getWaterDay(token: string, date: string): Promise<WaterDay> {

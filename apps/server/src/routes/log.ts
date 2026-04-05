@@ -230,7 +230,7 @@ router.post('/', async (req, res) => {
 // ── PUT /log/:id ──────────────────────────────────────────────
 
 router.put('/:id', async (req, res) => {
-  const { quantity, servingSizeId, notes } = req.body;
+  const { quantity, servingSizeId, notes, meal, logDate } = req.body;
 
   try {
     const [existing] = await pool.query<RowDataPacket[]>(
@@ -257,14 +257,16 @@ router.put('/:id', async (req, res) => {
     }
 
     const nutrition = calcNutrition({ ...row, grams: servingGrams }, newQty);
+    const newMeal = meal != null ? meal : row.meal;
+    const newLogDate = logDate != null ? logDate : (row.log_date instanceof Date ? row.log_date.toISOString().slice(0, 10) : String(row.log_date));
 
     await pool.execute(
       `UPDATE food_log SET
-         quantity=?, serving_size_id=?,
+         quantity=?, serving_size_id=?, meal=?, log_date=?,
          calories=?, carbs_g=?, protein_g=?, fat_g=?, fiber_g=?, sodium_mg=?,
          notes=?
        WHERE id=?`,
-      [newQty, servingSizeId ?? row.serving_size_id,
+      [newQty, servingSizeId ?? row.serving_size_id, newMeal, newLogDate,
        nutrition.calories, nutrition.carbs, nutrition.protein, nutrition.fat,
        nutrition.fiber ?? null, nutrition.sodium ?? null,
        notes ?? row.notes ?? null, req.params.id]

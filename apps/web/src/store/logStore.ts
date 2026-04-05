@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { logApi, waterApi } from '@pulse/api-client';
-import type { DailyLog, WaterDay, AddLogEntryPayload, MealSlot } from '@pulse/api-client';
+import type { DailyLog, WaterDay, AddLogEntryPayload, MealSlot, LogEntry } from '@pulse/api-client';
 
 export function todayStr() {
   const d = new Date();
@@ -19,6 +19,8 @@ interface LogState {
   fetchDay: (date?: string) => Promise<void>;
   addEntry: (payload: AddLogEntryPayload) => Promise<void>;
   removeEntry: (id: number) => Promise<void>;
+  moveEntry: (id: number, targetMeal: MealSlot, targetDate: string) => Promise<void>;
+  copyEntry: (entry: LogEntry, targetMeal: MealSlot, targetDate: string) => Promise<void>;
   copyFromDate: (fromDate: string, meal?: MealSlot) => Promise<void>;
   addWater: (amountOz: number) => Promise<void>;
   removeWater: (id: number) => Promise<void>;
@@ -56,6 +58,16 @@ export const useLogStore = create<LogState>((set, get) => ({
 
   removeEntry: async (id) => {
     await logApi.delete(id);
+    await get().fetchDay();
+  },
+
+  moveEntry: async (id, targetMeal, targetDate) => {
+    await logApi.update(id, { meal: targetMeal, logDate: targetDate });
+    await get().fetchDay();
+  },
+
+  copyEntry: async (entry, targetMeal, targetDate) => {
+    await logApi.copyEntry(entry, targetMeal, targetDate);
     await get().fetchDay();
   },
 

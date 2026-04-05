@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { LogEntry, MealSlot } from '@pulse/api-client';
-import { useLogStore } from '../store/logStore';
+import { useLogStore, todayStr } from '../store/logStore';
 
 const MEAL_META: Record<MealSlot, { label: string; emoji: string; from: string; color: string }> = {
   breakfast: { label: 'Breakfast', emoji: '🍳', from: 'from-amber-500/20',  color: '#f59e0b' },
@@ -9,16 +9,197 @@ const MEAL_META: Record<MealSlot, { label: string; emoji: string; from: string; 
   snack:     { label: 'Snacks',    emoji: '🍎', from: 'from-rose-500/20',   color: '#f87171' },
 };
 
+const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+function offsetDate(iso: string, days: number) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function fmtShort(iso: string) {
+  const today = todayStr();
+  const yesterday = offsetDate(today, -1);
+  const tomorrow = offsetDate(today, 1);
+  if (iso === today) return 'Today';
+  if (iso === yesterday) return 'Yesterday';
+  if (iso === tomorrow) return 'Tomorrow';
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+interface MovePickerProps {
+  entry: LogEntry;
+  mode: 'move' | 'copy';
+  currentMeal: MealSlot;
+  currentDate: string;
+  onClose: () => void;
+}
+
+function MoveCopyPicker({ entry, mode, currentMeal, currentDate, onClose }: MovePickerProps) {
+  const { moveEntry, copyEntry } = useLogStore();
+  const [targetMeal, setTargetMeal] = useState<MealSlot>(currentMeal);
+  const [targetDate, setTargetDate] = useState(currentDate);
+  const [saving, setSaving] = useState(false);
+
+  // Quick date options: yesterday, today, tomorrow, +2
+  const dateOptions = [-1, 0, 1, 2].map((d) => offsetDate(todayStr(), d));
+
+  async function confirm() {
+    setSaving(true);
+    try {
+      if (mode === 'move') {
+        await moveEntry(entry.id, targetMeal, targetDate);
+      } else {
+        await copyEntry(entry, targetMeal, targetDate);
+      }
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-dram-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xs border border-dram-border p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-200">
+            {mode === 'move' ? 'Move' : 'Copy'} to…
+          </h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+        </div>
+
+        <div>
+          <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Meal</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {MEAL_SLOTS.map((m) => (
+              <button
+                key={m}
+                onClick={() => setTargetMeal(m)}
+                className={`py-1.5 rounded-lg text-sm border transition-colors ${
+                  targetMeal === m
+                    ? 'bg-dram-accent text-black border-dram-accent font-semibold'
+                    : 'border-dram-border text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                {MEAL_META[m].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Date</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {dateOptions.map((d) => (
+              <button
+                key={d}
+                onClick={() => setTargetDate(d)}
+                className={`py-1.5 rounded-lg text-sm border transition-colors ${
+                  targetDate === d
+                    ? 'bg-dram-accent text-black border-dram-accent font-semibold'
+                    : 'border-dram-border text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                {fmtShort(d)}
+              </button>
+            ))}
+          </div>
+          <input
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className="mt-1.5 w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-1.5">
+            Cancel
+          </button>
+          <button
+            onClick={confirm}
+            disabled={saving}
+            className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-1.5 hover:brightness-110 disabled:opacity-50 transition"
+          >
+            {saving ? 'Saving…' : mode === 'move' ? 'Move' : 'Copy'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface EntryMenuProps {
+  entry: LogEntry;
+  currentMeal: MealSlot;
+  currentDate: string;
+  onClose: () => void;
+}
+
+function EntryMenu({ entry, currentMeal, currentDate, onClose }: EntryMenuProps) {
+  const removeEntry = useLogStore((s) => s.removeEntry);
+  const [pickerMode, setPickerMode] = useState<'move' | 'copy' | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  if (pickerMode) {
+    return (
+      <MoveCopyPicker
+        entry={entry}
+        mode={pickerMode}
+        currentMeal={currentMeal}
+        currentDate={currentDate}
+        onClose={() => { setPickerMode(null); onClose(); }}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-40" onClick={onClose}>
+      <div
+        ref={ref}
+        className="absolute bg-dram-card border border-dram-border rounded-xl shadow-xl overflow-hidden text-sm min-w-[140px]"
+        style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          className="w-full text-left px-4 py-2.5 text-slate-200 hover:bg-white/10 transition-colors"
+          onClick={() => setPickerMode('move')}
+        >
+          Move to…
+        </button>
+        <button
+          className="w-full text-left px-4 py-2.5 text-slate-200 hover:bg-white/10 transition-colors border-t border-dram-border/50"
+          onClick={() => setPickerMode('copy')}
+        >
+          Copy to…
+        </button>
+        <button
+          className="w-full text-left px-4 py-2.5 text-red-400 hover:bg-white/10 transition-colors border-t border-dram-border/50"
+          onClick={() => { removeEntry(entry.id); onClose(); }}
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   meal: MealSlot;
   entries: LogEntry[];
-  onAdd: (meal: MealSlot) => void; // reserved for global add button
+  onAdd: (meal: MealSlot) => void;
   photoUrl?: string | null;
 }
 
 export default function MealSection({ meal, entries, photoUrl }: Props) {
-  const removeEntry = useLogStore((s) => s.removeEntry);
+  const currentDate = useLogStore((s) => s.currentDate);
   const [expanded, setExpanded] = useState(false);
+  const [activeEntry, setActiveEntry] = useState<LogEntry | null>(null);
   const meta = MEAL_META[meal];
 
   const totals = entries.reduce(
@@ -43,9 +224,7 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
             {meta.emoji}
           </div>
         )}
-        {/* Dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
-        {/* Text on top of photo */}
         <div className="absolute bottom-0 left-0 right-0 px-3 pb-2">
           <div className="text-sm font-semibold uppercase tracking-wider text-white/80">{meta.label}</div>
           <div className="text-2xl font-bold text-white leading-tight">{Math.round(totals.calories)} <span className="text-sm font-normal text-white/60">kcal</span></div>
@@ -92,15 +271,25 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
               <div className="flex items-center gap-2 ml-2 shrink-0">
                 <span className="text-sm text-slate-300">{Math.round(entry.nutrition.calories)} cal</span>
                 <button
-                  onClick={() => removeEntry(entry.id)}
-                  className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all text-xs"
+                  onClick={() => setActiveEntry(entry)}
+                  className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-200 transition-all text-base leading-none px-1"
+                  title="Options"
                 >
-                  ✕
+                  ⋯
                 </button>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {activeEntry && (
+        <EntryMenu
+          entry={activeEntry}
+          currentMeal={meal}
+          currentDate={currentDate}
+          onClose={() => setActiveEntry(null)}
+        />
       )}
     </div>
   );

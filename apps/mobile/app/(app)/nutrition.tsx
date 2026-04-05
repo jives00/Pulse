@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
-  getDailyLog, addLogEntry, deleteNutritionLogEntry, addWater,
+  getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult,
@@ -44,6 +44,13 @@ export default function NutritionScreen() {
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<MealSlot, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
+
+  // Move/copy modal state
+  const [moveCopyEntry, setMoveCopyEntry] = useState<NutritionLogEntry | null>(null);
+  const [moveCopyMode, setMoveCopyMode] = useState<'move' | 'copy'>('move');
+  const [targetMeal, setTargetMeal] = useState<MealSlot>('breakfast');
+  const [targetDate, setTargetDate] = useState(toDateStr(new Date()));
+  const [savingMoveCopy, setSavingMoveCopy] = useState(false);
 
   // Add food modal state
   const [addMeal, setAddMeal] = useState<MealSlot | null>(null);
@@ -213,9 +220,26 @@ export default function NutritionScreen() {
     }
   }
 
-  async function handleDeleteEntry(entry: NutritionLogEntry) {
-    Alert.alert('Remove', `Remove ${entry.food.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
+  function handleEntryAction(entry: NutritionLogEntry, currentMeal: MealSlot) {
+    Alert.alert(entry.food.name, undefined, [
+      {
+        text: 'Move to…',
+        onPress: () => {
+          setMoveCopyMode('move');
+          setMoveCopyEntry(entry);
+          setTargetMeal(currentMeal);
+          setTargetDate(date);
+        },
+      },
+      {
+        text: 'Copy to…',
+        onPress: () => {
+          setMoveCopyMode('copy');
+          setMoveCopyEntry(entry);
+          setTargetMeal(currentMeal);
+          setTargetDate(date);
+        },
+      },
       {
         text: 'Remove', style: 'destructive',
         onPress: async () => {
@@ -223,7 +247,26 @@ export default function NutritionScreen() {
           catch { Alert.alert('Error', 'Could not remove entry.'); }
         },
       },
+      { text: 'Cancel', style: 'cancel' },
     ]);
+  }
+
+  async function confirmMoveCopy() {
+    if (!moveCopyEntry) return;
+    setSavingMoveCopy(true);
+    try {
+      if (moveCopyMode === 'move') {
+        await moveLogEntry(token, moveCopyEntry.id, targetMeal, targetDate);
+      } else {
+        await copyLogEntry(token, moveCopyEntry, targetMeal, targetDate);
+      }
+      setMoveCopyEntry(null);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not save.');
+    } finally {
+      setSavingMoveCopy(false);
+    }
   }
 
   async function handleAddWater(oz: number) {
@@ -310,7 +353,7 @@ export default function NutritionScreen() {
                       <TouchableOpacity
                         key={entry.id}
                         style={s.foodRow}
-                        onLongPress={() => handleDeleteEntry(entry)}
+                        onLongPress={() => handleEntryAction(entry, slot)}
                       >
                         <View style={s.foodInfo}>
                           <Text style={s.foodName} numberOfLines={1}>{entry.food.name}</Text>
@@ -353,6 +396,60 @@ export default function NutritionScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
       )}
+
+      {/* Move / Copy Modal */}
+      <Modal visible={moveCopyEntry !== null} animationType="slide" transparent onRequestClose={() => setMoveCopyEntry(null)}>
+        <View style={s.moveCopyOverlay}>
+          <View style={s.moveCopySheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>{moveCopyMode === 'move' ? 'Move' : 'Copy'} to…</Text>
+              <TouchableOpacity onPress={() => setMoveCopyEntry(null)}>
+                <Text style={s.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 16 }}>
+              <Text style={s.moveCopySection}>Meal</Text>
+              <View style={s.mealGrid}>
+                {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[s.mealChip, targetMeal === m && s.mealChipActive]}
+                    onPress={() => setTargetMeal(m)}
+                  >
+                    <Text style={[s.mealChipText, targetMeal === m && s.mealChipTextActive]}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.moveCopySection}>Date</Text>
+              <View style={s.dateChipRow}>
+                {[-1, 0, 1].map((offset) => {
+                  const d = toDateStr(new Date(Date.now() + offset * 86400000));
+                  const label = offset === -1 ? 'Yesterday' : offset === 0 ? 'Today' : 'Tomorrow';
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.dateChip, targetDate === d && s.mealChipActive]}
+                      onPress={() => setTargetDate(d)}
+                    >
+                      <Text style={[s.mealChipText, targetDate === d && s.mealChipTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity
+                style={[s.confirmBtn, { marginTop: 16 }, savingMoveCopy && { opacity: 0.6 }]}
+                onPress={confirmMoveCopy}
+                disabled={savingMoveCopy}
+              >
+                <Text style={s.confirmBtnText}>{savingMoveCopy ? 'Saving…' : moveCopyMode === 'move' ? 'Move' : 'Copy'}</Text>
+              </TouchableOpacity>
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Food Modal */}
       <Modal visible={addMeal !== null} animationType="slide" onRequestClose={() => setAddMeal(null)}>
@@ -624,6 +721,17 @@ const s = StyleSheet.create({
   nutritionPreview: { fontSize: fontSize.xs, color: colors.muted, marginTop: 12, textAlign: 'center' },
   confirmBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: colors.bg },
+  // Move/Copy modal
+  moveCopyOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+  moveCopySheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
+  moveCopySection: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+  mealGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  mealChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  mealChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  mealChipText: { fontSize: fontSize.sm, color: colors.text },
+  mealChipTextActive: { color: colors.bg, fontWeight: '700' },
+  dateChipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  dateChip: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   // Scanner
   scannerContainer: { flex: 1, position: 'relative' },
   scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
