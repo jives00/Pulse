@@ -5,7 +5,7 @@ import FoodSearchModal from '../components/FoodSearchModal';
 import RecipeForm from '../components/RecipeForm';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
 import NutritionHistoryCharts from '../components/NutritionHistoryCharts';
-import { recipesApi, goalsApi } from '@pulse/api-client';
+import { recipesApi, goalsApi, GLASS_OZ } from '@pulse/api-client';
 import type { MealSlot, GoalsSummary } from '@pulse/api-client';
 
 function NutritionGoalEditor({ current, onClose, onSaved }: {
@@ -17,6 +17,9 @@ function NutritionGoalEditor({ current, onClose, onSaved }: {
   const [carbsG, setCarbsG] = useState(String(current?.carbsG ?? ''));
   const [proteinG, setProteinG] = useState(String(current?.proteinG ?? ''));
   const [fatG, setFatG] = useState(String(current?.fatG ?? ''));
+  const [waterGlasses, setWaterGlasses] = useState(
+    current?.waterGoalOz != null ? String(Math.round(current.waterGoalOz / GLASS_OZ)) : ''
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -28,6 +31,7 @@ function NutritionGoalEditor({ current, onClose, onSaved }: {
         carbsG: Number(carbsG),
         proteinG: Number(proteinG),
         fatG: Number(fatG),
+        waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * GLASS_OZ : undefined,
       });
       onClose();
       onSaved();
@@ -62,6 +66,10 @@ function NutritionGoalEditor({ current, onClose, onSaved }: {
               <input type="number" min="0" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
             </div>
           ))}
+          <div>
+            <label className="block text-sm text-slate-500 mb-1">Water (glasses/day)</label>
+            <input type="number" min="0" value={waterGlasses} onChange={(e) => setWaterGlasses(e.target.value)} className={inputCls} placeholder="e.g. 8" />
+          </div>
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-1.5">Cancel</button>
@@ -125,7 +133,7 @@ export default function TodayPage() {
 
   const goals = dailyLog?.goals;
   const totals = dailyLog?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
-  const nutritionGoals = goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG } : null;
+  const nutritionGoals = goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG, waterGoalOz: goals.waterGoalOz } : null;
   const waterTotal = waterDay?.totalOz ?? 0;
   const waterGoal = waterDay?.goalOz ?? goals?.waterGoalOz ?? 64;
 

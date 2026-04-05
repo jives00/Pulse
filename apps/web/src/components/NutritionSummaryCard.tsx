@@ -1,3 +1,4 @@
+import { GLASS_OZ } from '@pulse/api-client';
 
 interface Props {
   actual: { calories: number; carbsG: number; proteinG: number; fatG: number };
@@ -61,7 +62,6 @@ function MacroTile({
   );
 }
 
-const GLASS_OZ = 8;
 const BOTTLE_OZ = 20;
 
 function WaterTile({

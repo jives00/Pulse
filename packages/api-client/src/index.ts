@@ -26,6 +26,7 @@ export { routinesApi } from './endpoints/routines';
 // Types from new endpoint modules
 export type { DeleteScope }                                            from './endpoints/auth';
 export type { GoalsSummary, ExerciseGoals }                           from './endpoints/goals';
+export { GLASS_OZ }                                                    from './endpoints/goals';
 export type { TagDefinitions }                                         from './endpoints/tags';
 export type { HistoryEntry }                                           from './endpoints/recipes';
 export type { RecipeSearchResult }                                     from './recipes';

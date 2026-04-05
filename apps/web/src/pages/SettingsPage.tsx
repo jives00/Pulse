@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi,
+  authApi, tagsApi, goalsApi, measurementsApi, GLASS_OZ,
   type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
 } from '@pulse/api-client';
 
@@ -236,6 +236,7 @@ function GoalsTab() {
   const [carbsG, setCarbsG] = useState('');
   const [proteinG, setProteinG] = useState('');
   const [fatG, setFatG] = useState('');
+  const [waterGlasses, setWaterGlasses] = useState('');
 
   // Exercise goals
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
@@ -265,6 +266,9 @@ function GoalsTab() {
         setCarbsG(String(n.carbsG ?? ''));
         setProteinG(String(n.proteinG ?? ''));
         setFatG(String(n.fatG ?? ''));
+        if (n.waterGoalOz != null) {
+          setWaterGlasses(String(Math.round(n.waterGoalOz / GLASS_OZ)));
+        }
       }
       setExGoals(ex);
       setVolume(String(ex.volumeLbsPerWeek ?? ''));
@@ -292,6 +296,7 @@ function GoalsTab() {
               carbsG: Number(carbsG),
               proteinG: Number(proteinG),
               fatG: Number(fatG),
+              waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * GLASS_OZ : undefined,
             })
           : Promise.resolve(),
         goalsApi.saveExercise({
@@ -336,6 +341,10 @@ function GoalsTab() {
               <input type="number" min="0" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
             </div>
           ))}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Water (glasses/day)</label>
+            <input type="number" min="0" value={waterGlasses} onChange={(e) => setWaterGlasses(e.target.value)} className={inputCls} placeholder="e.g. 8" />
+          </div>
         </div>
       </Section>
 

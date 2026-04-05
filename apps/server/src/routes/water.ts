@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
       [req.userId, date]
     );
     const [goalRows] = await pool.query<RowDataPacket[]>(
-      'SELECT water_goal_oz FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT water_goal_oz FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, date]
     );
 

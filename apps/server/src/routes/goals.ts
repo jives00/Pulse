@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
   try {
     const today = localDateStr();
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, today]
     );
     if (!rows.length) { res.status(404).json({ error: 'No goals set' }); return; }
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
       [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalOz ?? 64, today]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, today]
     );
     res.status(201).json(toGoals(rows[0]));
@@ -92,7 +92,7 @@ router.get('/summary', async (req, res) => {
   try {
     // Nutrition goals
     const [goalRows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, date]
     );
     const goals = goalRows[0] ?? null;
@@ -131,6 +131,7 @@ router.get('/summary', async (req, res) => {
           carbsG: goals.carbs_g,
           proteinG: goals.protein_g,
           fatG: goals.fat_g,
+          waterGoalOz: goals.water_goal_oz,
         } : null,
         actual: {
           calories: Number(nutrition.calories) || 0,

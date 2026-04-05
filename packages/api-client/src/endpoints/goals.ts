@@ -1,12 +1,14 @@
 import { apiClient } from '../client';
 import type { UserGoals, SaveGoalsPayload } from '../nutrition';
 
+export const GLASS_OZ = 8;
+
 export interface GoalsSummary {
   date: string;
   weekStart: string;
   weekEnd: string;
   nutrition: {
-    goals: { calories: number; carbsG: number; proteinG: number; fatG: number } | null;
+    goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz: number } | null;
     actual: { calories: number; carbsG: number; proteinG: number; fatG: number };
   };
   workouts: {
@@ -35,7 +37,7 @@ export const goalsApi = {
   getSummary: (date?: string) =>
     apiClient.get<GoalsSummary>('/goals/summary', { params: date ? { date } : undefined }).then((r) => r.data),
 
-  saveNutrition: (data: { calories: number; carbsG: number; proteinG: number; fatG: number }) =>
+  saveNutrition: (data: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz?: number }) =>
     apiClient.post('/goals', data).then(() => {}),
 
   getExercise: () =>
