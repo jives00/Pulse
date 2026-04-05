@@ -447,7 +447,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               <input
                 type="date"
                 value={logDate}
-                max={new Date().toISOString().slice(0, 10)}
+                max={currentDate}
                 onChange={(e) => setLogDate(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
               />
@@ -498,7 +498,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               <input
                 type="date"
                 value={recipeLogDate}
-                max={new Date().toISOString().slice(0, 10)}
+                max={currentDate}
                 onChange={(e) => setRecipeLogDate(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
               />

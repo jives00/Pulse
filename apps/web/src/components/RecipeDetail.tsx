@@ -47,7 +47,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
   const [showCookModal, setShowCookModal] = useState(false);
   const [cookMeal, setCookMeal] = useState<MealSlot>(defaultMealByTime());
   const [cookServings, setCookServings] = useState('1');
-  const [cookDate, setCookDate] = useState(new Date().toISOString().slice(0, 10));
+  const [cookDate, setCookDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; });
   const [deleting, setDeleting] = useState(false);
   const [togglingFav, setTogglingFav] = useState(false);
   const [log, setLog] = useState<MakeLogEntry[]>([]);
@@ -330,7 +330,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
 
               {/* Log button */}
               <button
-                onClick={() => { setCookMeal(defaultMealByTime()); setCookServings('1'); setCookDate(new Date().toISOString().slice(0, 10)); setShowCookModal(true); }}
+                onClick={() => { const d = new Date(); setCookMeal(defaultMealByTime()); setCookServings('1'); setCookDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); setShowCookModal(true); }}
                 className="w-full mt-6 bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition"
               >
                 ✔ I made this!
@@ -418,7 +418,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               <input
                 type="date"
                 value={cookDate}
-                max={new Date().toISOString().slice(0, 10)}
+                max={cookDate}
                 onChange={(e) => setCookDate(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
               />

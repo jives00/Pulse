@@ -6,6 +6,8 @@ import type { RowDataPacket } from 'mysql2';
 const router = Router();
 router.use(requireAuth);
 
+const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
 function toGoals(row: RowDataPacket) {
   return {
     id: row.id,
@@ -24,7 +26,7 @@ function toGoals(row: RowDataPacket) {
 
 router.get('/', async (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
       [req.userId, today]
@@ -52,7 +54,7 @@ router.get('/history', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const { calories, carbsG, proteinG, fatG, fiberG, sodiumMg, waterGoalOz } = req.body;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
 
   try {
     await pool.execute(
@@ -74,7 +76,7 @@ router.post('/', async (req, res) => {
 // GET /api/goals/summary?date=YYYY-MM-DD
 // Returns today's nutrition actuals vs goals + this week's workout actuals vs exercise goals
 router.get('/summary', async (req, res) => {
-  const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+  const date = (req.query.date as string) || localDateStr();
 
   // Week bounds (Monday–Sunday)
   const d = new Date(date + 'T00:00:00Z');
@@ -158,7 +160,7 @@ router.get('/summary', async (req, res) => {
 // GET /api/goals/exercise
 router.get('/exercise', async (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM exercise_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
       [req.userId, today]
@@ -182,7 +184,7 @@ router.get('/exercise', async (req, res) => {
 // POST /api/goals/exercise
 router.post('/exercise', async (req, res) => {
   const { workoutsPerWeek, minutesPerWeek, volumeLbsPerWeek } = req.body;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   try {
     await pool.execute(
       `INSERT INTO exercise_goals (user_id, workouts_per_week, minutes_per_week, volume_lbs_per_week, effective_from)

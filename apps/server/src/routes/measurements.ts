@@ -4,6 +4,8 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();
 
+const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
 function parseId(param: string): number | null {
   const n = Number(param);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -48,7 +50,7 @@ router.post('/', async (req, res) => {
     return;
   }
 
-  const date = measuredAt ?? new Date().toISOString().slice(0, 10);
+  const date = measuredAt ?? localDateStr();
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
@@ -144,7 +146,7 @@ router.put('/:id', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const { value, measuredAt, notes } = req.body as { value: number; measuredAt?: string; notes?: string };
   if (value == null) { res.status(400).json({ error: 'value is required' }); return; }
-  const date = measuredAt ?? new Date().toISOString().slice(0, 10);
+  const date = measuredAt ?? localDateStr();
   try {
     await pool.query(
       'UPDATE body_measurements SET value = ?, measured_at = ?, notes = ? WHERE id = ? AND user_id = ?',

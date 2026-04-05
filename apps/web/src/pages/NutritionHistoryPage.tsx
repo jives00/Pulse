@@ -22,7 +22,7 @@ const RANGES: { label: string; value: Range; days: number }[] = [
 ];
 
 function dateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function fmtDate(iso: string) {

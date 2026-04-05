@@ -797,7 +797,7 @@ export async function upsertRecipeNutritionLog(
   const fiber    = recipe.fiber_g  != null ? Math.round(Number(recipe.fiber_g)  * f * 10) / 10 : null;
   const sodium   = recipe.sodium_mg != null ? Math.round(Number(recipe.sodium_mg) * f * 10) / 10 : null;
 
-  const date = logDate ?? new Date().toISOString().slice(0, 10);
+  const date = logDate ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   await db.execute(
     `INSERT INTO food_log
        (user_id, log_date, meal, food_id, serving_size_id, quantity,

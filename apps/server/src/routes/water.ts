@@ -6,8 +6,10 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 const router = Router();
 router.use(requireAuth);
 
+const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
 router.get('/', async (req, res) => {
-  const date = String(req.query.date ?? new Date().toISOString().slice(0, 10));
+  const date = String(req.query.date ?? localDateStr());
 
   try {
     const [entries] = await pool.query<RowDataPacket[]>(

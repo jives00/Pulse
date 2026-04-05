@@ -6,6 +6,8 @@ import { getPresignedUploadUrl, getPresignedGetUrl, clearPresignedUrlCache } fro
 
 const router = Router();
 
+const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
 function parseId(param: string): number | null {
   const n = Number(param);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -448,7 +450,7 @@ router.post('/:id/start', async (req, res) => {
     );
 
     // Create workout log
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const [wResult] = await conn.query<ResultSetHeader>(
       `INSERT INTO workout_logs (user_id, workout_date, name, started_at, routine_id)
        VALUES (?, ?, ?, NOW(), ?)`,

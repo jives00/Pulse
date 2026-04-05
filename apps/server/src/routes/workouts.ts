@@ -4,6 +4,8 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();
 
+const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
 function parseId(param: string): number | null {
   const n = Number(param);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -244,7 +246,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/workouts
 router.post('/', async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   const { name, workoutDate } = req.body as { name?: string; workoutDate?: string };
 
   try {
@@ -312,7 +314,7 @@ router.put('/:id', async (req, res) => {
       `UPDATE workout_logs SET name=?, notes=?, duration_minutes=?, calories_burned=?, workout_date=?
        WHERE id = ? AND user_id = ?`,
       [name ?? null, notes ?? null, durationMinutes ?? null, caloriesBurned ?? null,
-       workoutDate ?? new Date().toISOString().slice(0, 10), id, req.userId]
+       workoutDate ?? localDateStr(), id, req.userId]
     );
     const detail = await getWorkoutDetail(id);
     res.json(detail);

@@ -84,7 +84,7 @@ function rowToEntry(row: RowDataPacket) {
 // ── GET /log?date=YYYY-MM-DD ──────────────────────────────────
 
 router.get('/', async (req, res) => {
-  const date = String(req.query.date ?? new Date().toISOString().slice(0, 10));
+  const date = String(req.query.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }));
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(

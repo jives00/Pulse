@@ -96,7 +96,7 @@ function fmtDate(iso: string) {
 function offsetDate(iso: string, days: number) {
   const d = new Date(iso + 'T12:00:00');
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 export default function TodayPage() {

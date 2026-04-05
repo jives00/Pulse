@@ -9,6 +9,10 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function localDateStr(d: Date = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -18,7 +22,7 @@ function getWeekStart(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 type WeekBucket = { weekStart: string; label: string; workouts: number; minutes: number; calories: number; volumeLbs: number };
@@ -29,7 +33,7 @@ function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
   for (let i = 12; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i * 7);
-    const ws = getWeekStart(d.toISOString().slice(0, 10));
+    const ws = getWeekStart(localDateStr(d));
     const weekDate = new Date(ws + 'T12:00:00');
     weeks.push({
       weekStart: ws,
@@ -56,12 +60,12 @@ function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
 function computeDayStreak(workouts: WorkoutSummary[]): number {
   if (workouts.length === 0) return 0;
   const days = new Set(workouts.map((w) => w.workoutDate));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   let streak = 0;
   let cursor = new Date(today + 'T12:00:00');
   // Allow streak to continue if today has no workout yet (check yesterday as start)
   if (!days.has(today)) cursor.setDate(cursor.getDate() - 1);
-  while (days.has(cursor.toISOString().slice(0, 10))) {
+  while (days.has(localDateStr(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -408,7 +412,7 @@ function BodyMeasurementsCard({
   onUpdate: (id: number, data: { value: number; measuredAt: string }) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   const [logForm, setLogForm] = useState<LogMeasurementFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
@@ -765,7 +769,7 @@ export default function WorkoutsPage() {
   const weeklyData = buildWeeklyData(workouts);
   const weekStreak = computeDayStreak(workouts);
 
-  const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  const currentWeekStart = getWeekStart(localDateStr());
   const weekCalories = workouts
     .filter((w) => getWeekStart(w.workoutDate) === currentWeekStart)
     .reduce((sum, w) => {
