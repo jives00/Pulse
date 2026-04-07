@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getWorkout, updateWorkout, startWorkoutTimer,
   addWorkoutExercise, removeWorkoutExercise,
-  addWorkoutSet, deleteWorkoutSet,
+  addWorkoutSet, updateWorkoutSet, deleteWorkoutSet,
   getExercises, getExerciseCategories, createCustomExercise,
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
 } from '../../../src/api/client';
@@ -190,6 +190,36 @@ export default function WorkoutDetailScreen() {
     } catch { Alert.alert('Error', 'Could not delete set.'); }
   }
 
+  async function handleToggleSet(we: WorkoutExercise, set: ExerciseSet) {
+    const newCompleted = !set.completed;
+    // Optimistic update
+    setWorkout((prev) => prev ? {
+      ...prev,
+      exercises: prev.exercises.map((e) =>
+        e.id === we.id ? { ...e, sets: e.sets.map((s) => s.id === set.id ? { ...s, completed: newCompleted } : s) } : e
+      ),
+    } : prev);
+    try {
+      await updateWorkoutSet(token, workoutId, we.id, set.id, { completed: newCompleted });
+    } catch {
+      // Revert on failure
+      setWorkout((prev) => prev ? {
+        ...prev,
+        exercises: prev.exercises.map((e) =>
+          e.id === we.id ? { ...e, sets: e.sets.map((s) => s.id === set.id ? { ...s, completed: set.completed } : s) } : e
+        ),
+      } : prev);
+    }
+  }
+
+  // Running volume: sum of weight_lbs × reps for completed sets
+  const runningVolumeLbs = workout?.exercises.reduce((total, we) => {
+    return total + we.sets.reduce((sum, set) => {
+      if (!set.completed || set.weightKg == null || set.reps == null) return sum;
+      return sum + kgToLbs(set.weightKg) * set.reps;
+    }, 0);
+  }, 0) ?? 0;
+
   const filteredEx = allExercises.filter((e) => {
     const matchSearch = !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase());
     const matchCat = !exCategory || e.category === exCategory;
@@ -213,6 +243,13 @@ export default function WorkoutDetailScreen() {
         </TouchableOpacity>
         <View style={s.timerWrap}>
           <Text style={s.timer}>{formatTimer(elapsed)}</Text>
+          {runningVolumeLbs > 0 && (
+            <Text style={s.volumeLabel}>
+              {runningVolumeLbs >= 1000
+                ? `${(runningVolumeLbs / 1000).toFixed(1)}k lbs`
+                : `${Math.round(runningVolumeLbs)} lbs`}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           style={[s.finishBtn, finishing && s.finishBtnDisabled]}
@@ -240,15 +277,21 @@ export default function WorkoutDetailScreen() {
                 <Text style={[s.setCol, s.setColNum]}>#</Text>
                 <Text style={[s.setCol, s.setColWeight]}>lbs</Text>
                 <Text style={[s.setCol, s.setColReps]}>reps</Text>
+                <View style={s.setColCheck} />
                 <View style={s.setColDel} />
               </View>
               {we.sets.map((set) => (
-                <View key={set.id} style={s.setRow}>
+                <View key={set.id} style={[s.setRow, set.completed && s.setRowDone]}>
                   <Text style={[s.setCol, s.setColNum, { color: colors.muted }]}>{set.setNumber}</Text>
-                  <Text style={[s.setCol, s.setColWeight]}>
+                  <Text style={[s.setCol, s.setColWeight, set.completed && s.setTextDone]}>
                     {set.weightKg != null ? Math.round(kgToLbs(set.weightKg) * 10) / 10 : '—'}
                   </Text>
-                  <Text style={[s.setCol, s.setColReps]}>{set.reps ?? '—'}</Text>
+                  <Text style={[s.setCol, s.setColReps, set.completed && s.setTextDone]}>{set.reps ?? '—'}</Text>
+                  <TouchableOpacity style={s.setColCheck} onPress={() => handleToggleSet(we, set)}>
+                    <View style={[s.checkBox, set.completed && s.checkBoxDone]}>
+                      {set.completed && <Text style={s.checkMark}>✓</Text>}
+                    </View>
+                  </TouchableOpacity>
                   <TouchableOpacity style={s.setColDel} onPress={() => handleDeleteSet(we, set)}>
                     <Text style={s.setDelText}>✕</Text>
                   </TouchableOpacity>
@@ -384,6 +427,7 @@ const s = StyleSheet.create({
   backBtnText: { color: colors.accent, fontSize: fontSize.sm },
   timerWrap: { flex: 1, alignItems: 'center' },
   timer: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
+  volumeLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
   finishBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
   finishBtnDisabled: { opacity: 0.5 },
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
@@ -400,8 +444,14 @@ const s = StyleSheet.create({
   setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.xs },
   setColWeight: { flex: 1, textAlign: 'center' },
   setColReps: { flex: 1, textAlign: 'center' },
+  setColCheck: { width: 32, alignItems: 'center' },
   setColDel: { width: 32, alignItems: 'center' },
   setDelText: { color: colors.border, fontSize: 13 },
+  setRowDone: { backgroundColor: 'rgba(52,211,153,0.06)' },
+  setTextDone: { color: colors.muted },
+  checkBox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkBoxDone: { backgroundColor: '#34d399', borderColor: '#34d399' },
+  checkMark: { fontSize: 12, color: colors.bg, fontWeight: '700', lineHeight: 14 },
   setInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 6, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.bg, textAlign: 'center', marginHorizontal: 2 },
   addSetBtn: { backgroundColor: colors.accent, borderRadius: 6, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   addSetBtnText: { color: colors.bg, fontWeight: '700', fontSize: 18, lineHeight: 20 },

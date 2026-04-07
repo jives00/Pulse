@@ -1,43 +1,13 @@
-import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
-import { colors } from '../../src/theme';
+import { Stack } from 'expo-router';
 
 export default function AppLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.border },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Recipes', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🍽️</Text> }}
-      />
-      <Tabs.Screen
-        name="nutrition"
-        options={{ title: 'Nutrition', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🥗</Text> }}
-      />
-      <Tabs.Screen
-        name="workouts"
-        options={{ title: 'Workouts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💪</Text> }}
-      />
-      <Tabs.Screen
-        name="links"
-        options={{ title: 'Links', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔗</Text> }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{ title: 'Settings', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>⚙️</Text> }}
-      />
-      <Tabs.Screen name="recipe/[id]" options={{ href: null }} />
-      <Tabs.Screen name="recipe/edit" options={{ href: null }} />
-      <Tabs.Screen name="workout/[id]" options={{ href: null }} />
-      <Tabs.Screen name="history" options={{ href: null }} />
-      <Tabs.Screen name="goals" options={{ href: null }} />
-      <Tabs.Screen name="exercise/[id]" options={{ href: null }} />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="workout/[id]" />
+      <Stack.Screen name="exercise/[id]" />
+      <Stack.Screen name="recipe/[id]" />
+      <Stack.Screen name="recipe/edit" />
+    </Stack>
   );
 }

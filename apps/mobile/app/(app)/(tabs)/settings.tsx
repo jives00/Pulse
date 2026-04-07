@@ -10,10 +10,11 @@ import {
   saveNutritionGoals, getExerciseGoals, saveExerciseGoals, type ExerciseGoals,
   getMeasurementGoals, setMeasurementGoal,
   getGoalsSummary,
-} from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { useSettingsStore, type SortOption } from '../../src/store/settings';
-import { colors, fontSize } from '../../src/theme';
+  getTagDefinitions, saveTagDefinitions, type TagDefinitions,
+} from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { useSettingsStore, type SortOption } from '../../../src/store/settings';
+import { colors, fontSize } from '../../../src/theme';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -233,6 +234,93 @@ function GoalsTab() {
   );
 }
 
+// ── Tags tab ──────────────────────────────────────────────────────────────────
+
+const TAG_CATEGORIES: { key: keyof TagDefinitions; label: string }[] = [
+  { key: 'health',   label: 'Health'   },
+  { key: 'cuisine',  label: 'Cuisine'  },
+  { key: 'category', label: 'Category' },
+];
+
+function TagsTab() {
+  const token = useAuthStore((s) => s.token)!;
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [defs, setDefs] = useState<TagDefinitions>({ health: [], cuisine: [], category: [] });
+  const [newTag, setNewTag] = useState<Record<string, string>>({ health: '', cuisine: '', category: '' });
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    getTagDefinitions(token)
+      .then(setDefs)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function addTag(cat: keyof TagDefinitions) {
+    const val = newTag[cat].trim();
+    if (!val || defs[cat].includes(val)) return;
+    setDefs((prev) => ({ ...prev, [cat]: [...prev[cat], val] }));
+    setNewTag((prev) => ({ ...prev, [cat]: '' }));
+  }
+
+  function removeTag(cat: keyof TagDefinitions, name: string) {
+    setDefs((prev) => ({ ...prev, [cat]: prev[cat].filter((t) => t !== name) }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setMsg('');
+    try {
+      await saveTagDefinitions(token, defs);
+      setMsg('Tags saved.');
+      setTimeout(() => setMsg(''), 3000);
+    } catch {
+      setMsg('Failed to save tags.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll}>
+      {TAG_CATEGORIES.map(({ key, label }) => (
+        <View key={key}>
+          <SectionHeader title={label} />
+          <View style={s.card}>
+            <View style={t.tagWrap}>
+              {defs[key].map((name) => (
+                <TouchableOpacity key={name} style={t.tag} onPress={() => removeTag(key, name)}>
+                  <Text style={t.tagText}>{name} ×</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={t.addRow}>
+              <TextInput
+                style={[s.input, { flex: 1 }]}
+                value={newTag[key]}
+                onChangeText={(v) => setNewTag((prev) => ({ ...prev, [key]: v }))}
+                placeholder={`Add ${label.toLowerCase()} tag…`}
+                placeholderTextColor={colors.muted}
+                returnKeyType="done"
+                onSubmitEditing={() => addTag(key)}
+              />
+              <TouchableOpacity style={t.addBtn} onPress={() => addTag(key)}>
+                <Text style={t.addBtnText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ))}
+
+      {msg ? <Text style={msg.includes('saved') ? s.msgSuccess : s.msgError}>{msg}</Text> : null}
+      <SaveBtn onPress={handleSave} saving={saving} label="Save Tags" />
+    </ScrollView>
+  );
+}
+
 // ── User tab ──────────────────────────────────────────────────────────────────
 
 function UserTab() {
@@ -374,7 +462,7 @@ function DeleteTab() {
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
-type Tab = 'options' | 'goals' | 'user' | 'delete';
+type Tab = 'options' | 'tags' | 'goals' | 'user' | 'delete';
 
 export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
@@ -390,9 +478,10 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={s.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
         {([
           { id: 'options', label: 'Options' },
+          { id: 'tags',    label: 'Tags'    },
           { id: 'goals',   label: 'Goals'   },
           { id: 'user',    label: 'User'    },
           { id: 'delete',  label: 'Delete'  },
@@ -401,9 +490,10 @@ export default function SettingsScreen() {
             <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {tab === 'options' && <OptionsTab />}
+      {tab === 'tags'    && <TagsTab />}
       {tab === 'goals'   && <GoalsTab />}
       {tab === 'user'    && <UserTab />}
       {tab === 'delete'  && <DeleteTab />}
@@ -418,8 +508,9 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
   signOut: { fontSize: fontSize.sm, color: colors.muted },
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border },
-  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  tabBar: { borderBottomWidth: 1, borderBottomColor: colors.border, flexGrow: 0 },
+  tabBarContent: { flexDirection: 'row' },
+  tabBtn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   tabLabel: { fontSize: fontSize.sm, color: colors.muted, fontWeight: '500' },
   tabLabelActive: { color: colors.accent, fontWeight: '700' },
@@ -448,4 +539,13 @@ const s = StyleSheet.create({
   sortPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   sortPillText: { fontSize: fontSize.sm, color: colors.muted },
   sortPillTextActive: { color: colors.bg, fontWeight: '700' },
+});
+
+const t = StyleSheet.create({
+  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  tagText: { fontSize: fontSize.sm, color: colors.text },
+  addRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  addBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, justifyContent: 'center' },
+  addBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
 });

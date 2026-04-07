@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { getGoalsSummary, type GoalsSummary } from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { colors, fontSize } from '../../src/theme';
+import { getGoalsSummary, type GoalsSummary } from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { colors, fontSize } from '../../../src/theme';
 
 function pct(actual: number, goal: number | null | undefined) {
   if (!goal) return 0;

@@ -15,9 +15,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { colors, fontSize } from '../../src/theme';
+import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { colors, fontSize } from '../../../src/theme';
 
 type Section = { title: string; data: HistoryEntry[] };
 

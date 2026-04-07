@@ -175,6 +175,16 @@ export async function getTags(token: string): Promise<string[]> {
   return data.map((t) => t.name);
 }
 
+export interface TagDefinitions { health: string[]; cuisine: string[]; category: string[]; }
+export async function getTagDefinitions(token: string): Promise<TagDefinitions> {
+  const res = await fetch(`${API_BASE}/api/tags/definitions`, { headers: headers(token) });
+  return handle<TagDefinitions>(res);
+}
+export async function saveTagDefinitions(token: string, defs: TagDefinitions): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/tags/definitions`, { method: 'PUT', headers: headers(token), body: JSON.stringify(defs) });
+  await handle(res);
+}
+
 export async function scrapeRecipe(
   token: string,
   url: string,
@@ -509,6 +519,35 @@ export async function getMeasurementGoals(token: string): Promise<Record<string,
 export async function setMeasurementGoal(token: string, metric: string, data: { targetValue: number; unit: string; targetDate: string | null }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/measurements/goals/${metric}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
+}
+
+// Nutrition history
+export interface DailyHistoryEntry { date: string; calories: number; proteinG: number; carbsG: number; fatG: number; entryCount: number; }
+export async function getDailyHistory(token: string, start: string, end: string): Promise<DailyHistoryEntry[]> {
+  const res = await fetch(`${API_BASE}/api/history/daily?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { headers: headers(token) });
+  return handle<DailyHistoryEntry[]>(res);
+}
+
+// Workout personal bests
+export interface PersonalBests {
+  heaviestLift: { exerciseName: string; weightKg: number; reps: number | null; workoutDate: string } | null;
+  bestSessionVolume: { workoutId: number; workoutName: string | null; volumeKg: number; workoutDate: string } | null;
+  longestSession: { workoutId: number; workoutName: string | null; durationMinutes: number; workoutDate: string } | null;
+}
+export async function getPersonalBests(token: string): Promise<PersonalBests> {
+  const res = await fetch(`${API_BASE}/api/workouts/personal-bests`, { headers: headers(token) });
+  return handle<PersonalBests>(res);
+}
+
+// Body measurements
+export interface BodyMeasurement { id: number; metric: string; value: number; unit: string; measuredAt: string; notes: string | null; }
+export async function getMeasurements(token: string): Promise<BodyMeasurement[]> {
+  const res = await fetch(`${API_BASE}/api/measurements`, { headers: headers(token) });
+  return handle<BodyMeasurement[]>(res);
+}
+export async function addMeasurement(token: string, data: { metric: string; value: number; unit: string; measuredAt: string }): Promise<BodyMeasurement> {
+  const res = await fetch(`${API_BASE}/api/measurements`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<BodyMeasurement>(res);
 }
 
 export async function logRecipeToNutrition(

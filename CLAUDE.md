@@ -229,26 +229,26 @@ Android-only Expo app. Key conventions:
 - **API client**: `src/api/client.ts` — fetch-based, token passed explicitly. `API_BASE` from `src/api/config.ts` (defaults to `http://10.0.2.2:3000` for Android emulator; override via `EXPO_PUBLIC_API_BASE`)
 - **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
 - **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` for the recipes library.
-- **Routing**: expo-router file-based. Tab screens in `app/(app)/`. Hidden routes (modals/detail) use `href: null` in `_layout.tsx`
+- **Routing**: expo-router file-based. Tabs live in `app/(app)/(tabs)/`. `app/(app)/_layout.tsx` is a Stack with `(tabs)` as the first screen and detail screens (`workout/[id]`, `exercise/[id]`, `recipe/[id]`, `recipe/edit`) as sibling Stack.Screens — this gives proper back-navigation to the previous tab screen rather than always going to Recipes. Hidden tab routes (history, goals) use `href: null` in the Tabs layout.
 - **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS = 2.20462`
 
 ### Mobile tab structure
 | Tab | File | Notes |
 |---|---|---|
-| Recipes | `app/(app)/index.tsx` | 2-col grid, filters, sort. Sort initializes from `settingsStore.defaultSort`. No sign-out button (sign out is in Settings). |
-| Nutrition | `app/(app)/nutrition.tsx` | Date nav, meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add |
-| Workouts | `app/(app)/workouts.tsx` | 3 tabs: Log, Routines, Exercises. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. |
-| Links | `app/(app)/links.tsx` | Saved links list |
-| Settings | `app/(app)/settings.tsx` | 4 tabs: Options (default sort), Goals (nutrition/workout/body), User (change username/password), Delete (per-scope danger zone) |
+| Recipes | `app/(app)/(tabs)/index.tsx` | 2-col grid, filters, sort. Sort initializes from `settingsStore.defaultSort`. No sign-out button (sign out is in Settings). |
+| Nutrition | `app/(app)/(tabs)/nutrition.tsx` | Date nav, 30-day calorie+protein bar charts (scroll to newest), meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add |
+| Workouts | `app/(app)/(tabs)/workouts.tsx` | 4 tabs: Log, Routines, Exercises, Progress. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. Progress tab is a single scroll: weekly summary, full-width volume/workout charts, body measurements, personal bests. |
+| Links | `app/(app)/(tabs)/links.tsx` | Saved links list |
+| Settings | `app/(app)/(tabs)/settings.tsx` | 5 tabs: Options (default sort), Tags (add/delete tags per category), Goals (nutrition/workout/body), User (change username/password), Delete (per-scope danger zone) |
 
 Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `history`, `goals`
 
 ### Mobile key files
 | File | Notes |
 |---|---|
-| `app/(app)/workout/[id].tsx` | Active session — timer (startedAt from DB), set input rows (lbs→kg), exercise picker modal |
+| `app/(app)/workout/[id].tsx` | Active session — timer (startedAt from DB), set input rows (lbs→kg), set completion checkmarks, running volume total (completed sets only), exercise picker modal |
 | `app/(app)/exercise/[id].tsx` | Exercise detail — Summary (PBs, set records, progress), History, How To tabs. Edit button opens sheet modal. Delete button shown for custom exercises only. |
-| `src/api/client.ts` | All API functions — recipe, nutrition log, water, goals, workouts, exercises, routines, food search, auth changes, measurement goals |
+| `src/api/client.ts` | All API functions — recipe, nutrition log, water, goals, workouts, exercises, routines, food search, auth changes, measurement goals, daily history (`getDailyHistory`), personal bests (`getPersonalBests`), body measurements (`getMeasurements`, `addMeasurement`) |
 | `src/api/config.ts` | `API_BASE` — use `10.0.2.2:3000` for emulator, LAN IP for physical device |
 
 ## Design decisions
@@ -278,3 +278,5 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `h
 - **Exercise stats**: `GET /api/exercises/:id/stats?metric=` supports 5 metrics: `heaviest_weight`, `one_rep_max` (Epley formula: `weight * (1 + reps/30)` computed in SQL), `best_set_volume`, `session_volume`, `total_reps`. Returns personal bests + set records table + progress series.
 - **Workout timer**: `started_at` is persisted in DB (survives page refresh). `POST /api/workouts/:id/start-timer` is idempotent (only sets if NULL). "Finish" computes `durationMinutes = ceil(elapsedSeconds / 60)` and saves via the existing update endpoint.
 - **Sidebar sub-nav**: Workouts section expands to show "Log" (`/workouts`), "Routines" (`/workouts/routines`), and "Exercises" (`/workouts/exercises`) when active, matching the Food sub-nav pattern.
+- **Mobile routing structure**: `app/(app)/_layout.tsx` is a Stack. The `(tabs)` group is the first child; detail screens (`workout/[id]`, `exercise/[id]`, `recipe/[id]`, `recipe/edit`) are sibling `Stack.Screen` entries. This is required for correct back-gesture behavior — if detail screens were inside the Tabs navigator (via `href: null`), back would cycle tabs instead of popping the stack.
+- **Mobile bar charts**: Nutrition tab shows 30-day calorie + protein bar charts (`MiniBarChart` in `nutrition.tsx`). Uses explicit pixel width via `useWindowDimensions` (NOT `flex: 1`) because `flex: 1` gives zero width inside a horizontal `ScrollView`. `contentContainerStyle` on the ScrollView carries `flexDirection`, `alignItems`, and `height` — not an inner `View`. Auto-scrolls to newest (rightmost) entry via `onContentSizeChange` + `scrollToEnd`.

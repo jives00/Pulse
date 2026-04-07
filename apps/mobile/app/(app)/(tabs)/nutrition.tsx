@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
+  getDailyHistory,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
-  type RecipeSearchResult,
-} from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { colors, fontSize } from '../../src/theme';
+  type RecipeSearchResult, type DailyHistoryEntry,
+} from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { colors, fontSize } from '../../../src/theme';
 
 const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'breakfast', label: 'Breakfast' },
@@ -37,6 +38,133 @@ function formatDate(dateStr: string) {
   if (dateStr === yesterday) return 'Yesterday';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
+
+// ── Nutrition bar charts ─────────────────────────────────────────────────────
+
+function MiniBarChart({ data, dataKey, label, icon, color, goal, cardW }: {
+  data: DailyHistoryEntry[];
+  dataKey: 'calories' | 'proteinG';
+  label: string;
+  icon: string;
+  color: string;
+  goal?: number | null;
+  cardW: number;
+}) {
+  const BAR_W = 5;
+  const GAP = 2;
+  const chartH = 60;
+  const maxVal = Math.max(...data.map((d) => d[dataKey] ?? 0), goal ?? 0, 1);
+  const scrollRef = useRef<ScrollView>(null);
+
+  return (
+    <View style={[ch.card, { width: cardW }]}>
+      <View style={ch.header}>
+        <Text style={ch.icon}>{icon}</Text>
+        <Text style={[ch.label, { color }]}>{label}</Text>
+        {goal != null && <Text style={ch.goal}>/{goal}</Text>}
+      </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ height: chartH }}
+        contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap: GAP, paddingBottom: 2 }}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
+        {data.map((entry) => {
+          const val = entry[dataKey] ?? 0;
+          if (val === 0) {
+            return <View key={entry.date} style={{ width: BAR_W, height: 2, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2 }} />;
+          }
+          const pct = Math.min(val / maxVal, 1);
+          const barH = Math.max(pct * (chartH - 2), 4);
+          const over = goal ? val > goal : false;
+          const dim = goal ? val / goal < 0.85 : false;
+          const barColor = over ? '#f87171' : dim ? `${color}55` : color;
+          return (
+            <View
+              key={entry.date}
+              style={{ width: BAR_W, height: barH, backgroundColor: barColor, borderRadius: 2 }}
+            />
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function NutritionHistoryCharts({ calorieGoal, proteinGoal, token }: {
+  calorieGoal?: number | null;
+  proteinGoal?: number | null;
+  token: string;
+}) {
+  const [data, setData] = useState<DailyHistoryEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 29);
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    getDailyHistory(token, fmt(start), fmt(end))
+      .then((raw) => {
+        const byDate = new Map(raw.map((d) => [d.date, d]));
+        const filled: DailyHistoryEntry[] = [];
+        for (let i = 0; i < 30; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
+          const key = fmt(d);
+          filled.push(byDate.get(key) ?? { date: key, calories: 0, proteinG: 0, carbsG: 0, fatG: 0, entryCount: 0 });
+        }
+        setData(filled);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoaded(true));
+  }, [token]);
+
+  if (!loaded) return (
+    <View style={ch.row}>
+      {['Calories', 'Protein'].map((l) => (
+        <View key={l} style={ch.card}><Text style={{ fontSize: fontSize.xs, color: colors.muted }}>Loading…</Text></View>
+      ))}
+    </View>
+  );
+
+  if (error) return (
+    <View style={ch.row}>
+      {['Calories', 'Protein'].map((l) => (
+        <View key={l} style={[ch.card, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ fontSize: fontSize.xs, color: colors.muted }}>No data</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  return (
+    <NutritionChartRow calorieGoal={calorieGoal} proteinGoal={proteinGoal} data={data} />
+  );
+}
+
+function NutritionChartRow({ calorieGoal, proteinGoal, data }: { calorieGoal?: number | null; proteinGoal?: number | null; data: DailyHistoryEntry[] }) {
+  const { width } = useWindowDimensions();
+  const cardW = (width - 28 - 8) / 2; // 14px padding each side, 8px gap
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <MiniBarChart data={data} dataKey="calories" label="Calories" icon="🔥" color="#60a5fa" goal={calorieGoal} cardW={cardW} />
+      <MiniBarChart data={data} dataKey="proteinG" label="Protein" icon="💪" color="#818cf8" goal={proteinGoal} cardW={cardW} />
+    </View>
+  );
+}
+
+const ch = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8 },
+  card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, height: 110 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  icon: { fontSize: 12 },
+  label: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
+  goal: { fontSize: fontSize.xs, color: colors.muted },
+});
 
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
@@ -331,6 +459,13 @@ export default function NutritionScreen() {
               ))}
             </View>
           </View>
+
+          {/* 30-day history charts */}
+          <NutritionHistoryCharts
+            calorieGoal={goals?.calories}
+            proteinGoal={goals?.proteinG}
+            token={token}
+          />
 
           {/* Meal sections */}
           {MEALS.map(({ slot, label }) => {

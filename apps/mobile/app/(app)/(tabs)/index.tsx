@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRecipes, getTags, type Recipe } from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { useSettingsStore } from '../../src/store/settings';
-import { colors, fontSize } from '../../src/theme';
-import FilterChip from '../../src/components/FilterChip';
-import RecipeCard from '../../src/components/RecipeCard';
-import Spinner from '../../src/components/Spinner';
+import { getRecipes, getTags, type Recipe } from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { useSettingsStore } from '../../../src/store/settings';
+import { colors, fontSize } from '../../../src/theme';
+import FilterChip from '../../../src/components/FilterChip';
+import RecipeCard from '../../../src/components/RecipeCard';
+import Spinner from '../../../src/components/Spinner';
 
 type CategoryFilter = '' | 'cocktail' | 'main' | 'side' | 'breakfast' | 'dessert';
 

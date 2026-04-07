@@ -13,9 +13,9 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../../src/api/client';
-import { useAuthStore } from '../../src/store/auth';
-import { colors, fontSize } from '../../src/theme';
+import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../../../src/api/client';
+import { useAuthStore } from '../../../src/store/auth';
+import { colors, fontSize } from '../../../src/theme';
 
 export default function LinksScreen() {
   const token = useAuthStore((s) => s.token)!;
