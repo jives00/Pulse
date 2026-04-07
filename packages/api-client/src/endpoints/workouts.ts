@@ -72,9 +72,18 @@ export interface Exercise {
   musclesSecondary: string[];
   isCustom: boolean;
   instructions: string | null;
+  /** Presigned S3 URL or legacy external URL (display use only) */
   mediaUrl: string | null;
+  /** Presigned S3 URL or legacy external URL (display use only) */
   coverImageUrl: string | null;
+  /** Presigned S3 URL or legacy external URL (display use only) */
   muscleImageUrl: string | null;
+  /** Raw stored value: S3 key or YouTube/legacy URL (use in edit forms) */
+  mediaKey: string | null;
+  /** Raw stored value: S3 key or legacy URL (use in edit forms) */
+  coverImageKey: string | null;
+  /** Raw stored value: S3 key or legacy URL (use in edit forms) */
+  muscleImageKey: string | null;
   notes: string | null;
   trackWeight: boolean;
 }
@@ -180,6 +189,24 @@ export const exercisesApi = {
 
   deleteCustom: (id: number) =>
     apiClient.delete(`/exercises/${id}`).then(() => {}),
+
+  uploadCoverImageFromUrl: (id: number, url: string) =>
+    apiClient.post<{ key: string }>(`/exercises/${id}/cover-image-from-url`, { url }).then((r) => r.data),
+
+  getCoverImageUploadUrl: (id: number, contentType: string) =>
+    apiClient.post<{ uploadUrl: string; key: string }>(`/exercises/${id}/cover-image`, { contentType }).then((r) => r.data),
+
+  uploadMediaFromUrl: (id: number, url: string) =>
+    apiClient.post<{ key: string; isYouTube?: boolean }>(`/exercises/${id}/media-from-url`, { url }).then((r) => r.data),
+
+  getMediaUploadUrl: (id: number, contentType: string) =>
+    apiClient.post<{ uploadUrl: string; key: string }>(`/exercises/${id}/media`, { contentType }).then((r) => r.data),
+
+  uploadMuscleImageFromUrl: (id: number, url: string) =>
+    apiClient.post<{ key: string }>(`/exercises/${id}/muscle-image-from-url`, { url }).then((r) => r.data),
+
+  getMuscleImageUploadUrl: (id: number, contentType: string) =>
+    apiClient.post<{ uploadUrl: string; key: string }>(`/exercises/${id}/muscle-image`, { contentType }).then((r) => r.data),
 };
 
 export const workoutsApi = {

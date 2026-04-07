@@ -13,22 +13,27 @@ interface FormState {
   musclesPrimary: string[];
   musclesSecondary: string[];
   instructions: string;
-  mediaUrl: string;
-  coverImageUrl: string;
-  muscleImageUrl: string;
+  /** URL input field value (used for upload; not saved directly) */
+  coverImageUrlInput: string;
+  /** URL input field value (used for upload; not saved directly) */
+  mediaUrlInput: string;
+  /** URL input field value (used for upload; not saved directly) */
+  muscleImageUrlInput: string;
+  /** Raw stored value: S3 key or YouTube/legacy URL — sent on save */
+  coverImageKey: string;
+  mediaKey: string;
+  muscleImageKey: string;
   notes: string;
   trackWeight: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   name: '', category: '', customCategory: '', exerciseType: 'weight',
-  musclesPrimary: [], musclesSecondary: [], instructions: '', mediaUrl: '',
-  coverImageUrl: '', muscleImageUrl: '', notes: '', trackWeight: true,
+  musclesPrimary: [], musclesSecondary: [], instructions: '',
+  coverImageUrlInput: '', mediaUrlInput: '', muscleImageUrlInput: '',
+  coverImageKey: '', mediaKey: '', muscleImageKey: '',
+  notes: '', trackWeight: true,
 };
-
-function isDirectImage(url: string): boolean {
-  return /\.(jpe?g|png|gif|webp|svg)(\?|$)/i.test(url);
-}
 
 const CATEGORY_EMOJI: Record<string, string> = {
   chest: '🫁', back: '🦾', shoulders: '💪', arms: '💪',
@@ -45,7 +50,7 @@ function ExerciseCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const imgSrc = exercise.coverImageUrl && isDirectImage(exercise.coverImageUrl) ? exercise.coverImageUrl : null;
+  const imgSrc = exercise.coverImageUrl ?? null;
   const emoji = CATEGORY_EMOJI[exercise.category.toLowerCase()] ?? '🏋️';
 
   return (
@@ -153,6 +158,8 @@ export default function ExercisesPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [useCustomCat, setUseCustomCat] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<'cover' | 'media' | 'muscle' | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function loadAll(params?: { search?: string; category?: string }) {
     return exercisesApi.getAll(params).then(setExercises);
@@ -180,7 +187,7 @@ export default function ExercisesPage() {
   async function openEdit(ex: Exercise) {
     setEditingId(ex.id);
     setShowForm(true);
-    // Fetch full detail to ensure instructions/mediaUrl/coverImageUrl/notes are populated
+    // Fetch full detail to ensure instructions/media keys/notes are populated
     try {
       const full = await exercisesApi.getOne(ex.id);
       setForm({
@@ -191,9 +198,12 @@ export default function ExercisesPage() {
         musclesPrimary: full.musclesPrimary ?? [],
         musclesSecondary: full.musclesSecondary ?? [],
         instructions: full.instructions ?? '',
-        mediaUrl: full.mediaUrl ?? '',
-        coverImageUrl: full.coverImageUrl ?? '',
-        muscleImageUrl: full.muscleImageUrl ?? '',
+        coverImageUrlInput: '',
+        mediaUrlInput: '',
+        muscleImageUrlInput: '',
+        coverImageKey: full.coverImageKey ?? '',
+        mediaKey: full.mediaKey ?? '',
+        muscleImageKey: full.muscleImageKey ?? '',
         notes: full.notes ?? '',
         trackWeight: full.trackWeight ?? true,
       });
@@ -208,9 +218,12 @@ export default function ExercisesPage() {
         musclesPrimary: ex.musclesPrimary ?? [],
         musclesSecondary: ex.musclesSecondary ?? [],
         instructions: ex.instructions ?? '',
-        mediaUrl: ex.mediaUrl ?? '',
-        coverImageUrl: ex.coverImageUrl ?? '',
-        muscleImageUrl: ex.muscleImageUrl ?? '',
+        coverImageUrlInput: '',
+        mediaUrlInput: '',
+        muscleImageUrlInput: '',
+        coverImageKey: ex.coverImageKey ?? '',
+        mediaKey: ex.mediaKey ?? '',
+        muscleImageKey: ex.muscleImageKey ?? '',
         notes: ex.notes ?? '',
         trackWeight: ex.trackWeight ?? true,
       });
@@ -223,6 +236,54 @@ export default function ExercisesPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setUseCustomCat(false);
+    setUploadError(null);
+  }
+
+  async function uploadFromUrl(field: 'cover' | 'media' | 'muscle') {
+    if (!editingId) return;
+    const url = field === 'cover' ? form.coverImageUrlInput : field === 'media' ? form.mediaUrlInput : form.muscleImageUrlInput;
+    if (!url.trim()) return;
+    setUploadingField(field);
+    setUploadError(null);
+    try {
+      let result: { key: string };
+      if (field === 'cover') result = await exercisesApi.uploadCoverImageFromUrl(editingId, url.trim());
+      else if (field === 'media') result = await exercisesApi.uploadMediaFromUrl(editingId, url.trim());
+      else result = await exercisesApi.uploadMuscleImageFromUrl(editingId, url.trim());
+      setForm((f) => ({
+        ...f,
+        ...(field === 'cover' ? { coverImageKey: result.key, coverImageUrlInput: '' } : {}),
+        ...(field === 'media' ? { mediaKey: result.key, mediaUrlInput: '' } : {}),
+        ...(field === 'muscle' ? { muscleImageKey: result.key, muscleImageUrlInput: '' } : {}),
+      }));
+    } catch {
+      setUploadError('Upload failed — check the URL and try again.');
+    } finally {
+      setUploadingField(null);
+    }
+  }
+
+  async function uploadFromFile(field: 'cover' | 'media' | 'muscle', file: File) {
+    if (!editingId) return;
+    setUploadingField(field);
+    setUploadError(null);
+    try {
+      let result: { uploadUrl: string; key: string };
+      if (field === 'cover') result = await exercisesApi.getCoverImageUploadUrl(editingId, file.type || 'image/jpeg');
+      else if (field === 'media') result = await exercisesApi.getMediaUploadUrl(editingId, file.type || 'image/jpeg');
+      else result = await exercisesApi.getMuscleImageUploadUrl(editingId, file.type || 'image/jpeg');
+      await fetch(result.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      setForm((f) => ({
+        ...f,
+        ...(field === 'cover' ? { coverImageKey: result.key } : {}),
+        ...(field === 'media' ? { mediaKey: result.key } : {}),
+        ...(field === 'muscle' ? { muscleImageKey: result.key } : {}),
+      }));
+    } catch {
+      setUploadError('Upload failed — please try again.');
+    } finally {
+      setUploadingField(null);
+    }
   }
 
   async function handleSave() {
@@ -237,9 +298,9 @@ export default function ExercisesPage() {
         musclesPrimary: form.musclesPrimary,
         musclesSecondary: form.musclesSecondary,
         instructions: form.instructions.trim() || null,
-        mediaUrl: form.mediaUrl.trim() || null,
-        coverImageUrl: form.coverImageUrl.trim() || null,
-        muscleImageUrl: form.muscleImageUrl.trim() || null,
+        mediaUrl: form.mediaKey.trim() || null,
+        coverImageUrl: form.coverImageKey.trim() || null,
+        muscleImageUrl: form.muscleImageKey.trim() || null,
         notes: form.notes.trim() || null,
         trackWeight: form.trackWeight,
       };
@@ -460,41 +521,111 @@ export default function ExercisesPage() {
               />
             </div>
 
-            {/* Cover Image URL */}
+            {/* Cover Image */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Cover Image URL</label>
-              <input
-                type="text"
-                value={form.coverImageUrl}
-                onChange={(e) => setForm((f) => ({ ...f, coverImageUrl: e.target.value }))}
-                placeholder="Static image URL (JPG, PNG, WebP…)"
-                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
-              />
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Cover Image</label>
+              {form.coverImageKey && (
+                <div className="flex items-center gap-2 text-xs text-dram-accent/60">
+                  <span className="truncate max-w-[280px]">{form.coverImageKey}</span>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, coverImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
+                </div>
+              )}
+              {editingId != null && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.coverImageUrlInput}
+                    onChange={(e) => setForm((f) => ({ ...f, coverImageUrlInput: e.target.value }))}
+                    placeholder="Paste image URL to upload to S3…"
+                    className="flex-1 bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('cover'); } }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!form.coverImageUrlInput.trim() || uploadingField === 'cover'}
+                    onClick={() => uploadFromUrl('cover')}
+                    className="text-sm bg-dram-accent hover:opacity-90 disabled:opacity-40 text-dram-bg px-3 py-1.5 rounded-lg transition-opacity font-medium shrink-0"
+                  >
+                    {uploadingField === 'cover' ? '…' : 'Upload'}
+                  </button>
+                  <label className="text-sm text-dram-accent/60 hover:text-dram-accent cursor-pointer flex items-center transition-colors shrink-0">
+                    File
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('cover', f); e.target.value = ''; }} />
+                  </label>
+                </div>
+              )}
             </div>
 
-            {/* How-To Media URL */}
+            {/* How-To Media */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">How-To Media URL</label>
-              <input
-                type="text"
-                value={form.mediaUrl}
-                onChange={(e) => setForm((f) => ({ ...f, mediaUrl: e.target.value }))}
-                placeholder="YouTube link, GIF, or image URL"
-                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
-              />
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">How-To Media</label>
+              {form.mediaKey && (
+                <div className="flex items-center gap-2 text-xs text-dram-accent/60">
+                  <span className="truncate max-w-[280px]">{form.mediaKey}</span>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, mediaKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
+                </div>
+              )}
+              {editingId != null && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.mediaUrlInput}
+                    onChange={(e) => setForm((f) => ({ ...f, mediaUrlInput: e.target.value }))}
+                    placeholder="YouTube link, GIF, or image URL…"
+                    className="flex-1 bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('media'); } }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!form.mediaUrlInput.trim() || uploadingField === 'media'}
+                    onClick={() => uploadFromUrl('media')}
+                    className="text-sm bg-dram-accent hover:opacity-90 disabled:opacity-40 text-dram-bg px-3 py-1.5 rounded-lg transition-opacity font-medium shrink-0"
+                  >
+                    {uploadingField === 'media' ? '…' : 'Upload'}
+                  </button>
+                  <label className="text-sm text-dram-accent/60 hover:text-dram-accent cursor-pointer flex items-center transition-colors shrink-0">
+                    File
+                    <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('media', f); e.target.value = ''; }} />
+                  </label>
+                </div>
+              )}
             </div>
 
-            {/* Muscle Diagram URL */}
+            {/* Muscle Diagram */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Muscle Diagram URL</label>
-              <input
-                type="text"
-                value={form.muscleImageUrl}
-                onChange={(e) => setForm((f) => ({ ...f, muscleImageUrl: e.target.value }))}
-                placeholder="Image URL showing muscle groups"
-                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
-              />
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Muscle Diagram</label>
+              {form.muscleImageKey && (
+                <div className="flex items-center gap-2 text-xs text-dram-accent/60">
+                  <span className="truncate max-w-[280px]">{form.muscleImageKey}</span>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, muscleImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
+                </div>
+              )}
+              {editingId != null && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.muscleImageUrlInput}
+                    onChange={(e) => setForm((f) => ({ ...f, muscleImageUrlInput: e.target.value }))}
+                    placeholder="Paste muscle diagram image URL…"
+                    className="flex-1 bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('muscle'); } }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!form.muscleImageUrlInput.trim() || uploadingField === 'muscle'}
+                    onClick={() => uploadFromUrl('muscle')}
+                    className="text-sm bg-dram-accent hover:opacity-90 disabled:opacity-40 text-dram-bg px-3 py-1.5 rounded-lg transition-opacity font-medium shrink-0"
+                  >
+                    {uploadingField === 'muscle' ? '…' : 'Upload'}
+                  </button>
+                  <label className="text-sm text-dram-accent/60 hover:text-dram-accent cursor-pointer flex items-center transition-colors shrink-0">
+                    File
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('muscle', f); e.target.value = ''; }} />
+                  </label>
+                </div>
+              )}
             </div>
+            {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
 
             {/* Notes */}
             <div className="space-y-1.5">

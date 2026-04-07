@@ -8,8 +8,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getExercise, getExerciseStats, getExerciseHistory, getExerciseCategories,
   updateExercise, deleteExercise,
+  uploadExerciseCoverImageFromUrl, getExerciseCoverImageUploadUrl,
+  uploadExerciseMediaFromUrl, getExerciseMediaUploadUrl,
+  uploadExerciseMuscleImageFromUrl, getExerciseMuscleImageUploadUrl,
   type Exercise, type ExerciseStats, type ExerciseHistoryEntry,
 } from '../../../src/api/client';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize } from '../../../src/theme';
 
@@ -282,11 +286,63 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
   const [musclesPrimary, setMusclesPrimary] = useState(exercise.musclesPrimary ?? []);
   const [musclesSecondary, setMusclesSecondary] = useState(exercise.musclesSecondary ?? []);
   const [instructions, setInstructions] = useState(exercise.instructions ?? '');
-  const [mediaUrl, setMediaUrl] = useState(exercise.mediaUrl ?? '');
-  const [coverImageUrl, setCoverImageUrl] = useState(exercise.coverImageUrl ?? '');
+  // URL input fields (for upload; not sent directly on save)
+  const [coverImageUrlInput, setCoverImageUrlInput] = useState('');
+  const [mediaUrlInput, setMediaUrlInput] = useState('');
+  const [muscleImageUrlInput, setMuscleImageUrlInput] = useState('');
+  // Raw stored keys (S3 key or YouTube URL) — sent on save
+  const [coverImageKey, setCoverImageKey] = useState(exercise.coverImageKey ?? exercise.coverImageUrl ?? '');
+  const [mediaKey, setMediaKey] = useState(exercise.mediaKey ?? exercise.mediaUrl ?? '');
+  const [muscleImageKey, setMuscleImageKey] = useState(exercise.muscleImageKey ?? exercise.muscleImageUrl ?? '');
   const [saving, setSaving] = useState(false);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCat, setNewCat] = useState('');
+  const [uploadingField, setUploadingField] = useState<'cover' | 'media' | 'muscle' | null>(null);
+
+  async function uploadFromUrl(field: 'cover' | 'media' | 'muscle') {
+    const url = field === 'cover' ? coverImageUrlInput : field === 'media' ? mediaUrlInput : muscleImageUrlInput;
+    if (!url.trim()) return;
+    setUploadingField(field);
+    try {
+      let result: { key: string };
+      if (field === 'cover') result = await uploadExerciseCoverImageFromUrl(token, exercise.id, url.trim());
+      else if (field === 'media') result = await uploadExerciseMediaFromUrl(token, exercise.id, url.trim());
+      else result = await uploadExerciseMuscleImageFromUrl(token, exercise.id, url.trim());
+      if (field === 'cover') { setCoverImageKey(result.key); setCoverImageUrlInput(''); }
+      else if (field === 'media') { setMediaKey(result.key); setMediaUrlInput(''); }
+      else { setMuscleImageKey(result.key); setMuscleImageUrlInput(''); }
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err?.message ?? 'Could not upload. Check the URL and try again.');
+    } finally {
+      setUploadingField(null);
+    }
+  }
+
+  async function pickAndUpload(field: 'cover' | 'media' | 'muscle') {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission required', 'Allow photo access to upload images.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const contentType = asset.mimeType ?? 'image/jpeg';
+    setUploadingField(field);
+    try {
+      let uploadResult: { uploadUrl: string; key: string };
+      if (field === 'cover') uploadResult = await getExerciseCoverImageUploadUrl(token, exercise.id, contentType);
+      else if (field === 'media') uploadResult = await getExerciseMediaUploadUrl(token, exercise.id, contentType);
+      else uploadResult = await getExerciseMuscleImageUploadUrl(token, exercise.id, contentType);
+      const localRes = await fetch(asset.uri);
+      const blob = await localRes.blob();
+      await fetch(uploadResult.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': contentType } });
+      if (field === 'cover') setCoverImageKey(uploadResult.key);
+      else if (field === 'media') setMediaKey(uploadResult.key);
+      else setMuscleImageKey(uploadResult.key);
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err?.message ?? 'Could not upload.');
+    } finally {
+      setUploadingField(null);
+    }
+  }
 
   async function handleSave() {
     const finalCategory = showNewCat ? newCat.trim() : category;
@@ -297,8 +353,9 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
         name: name.trim(), category: finalCategory, exerciseType,
         musclesPrimary, musclesSecondary,
         instructions: instructions.trim() || null,
-        mediaUrl: mediaUrl.trim() || null,
-        coverImageUrl: coverImageUrl.trim() || null,
+        mediaUrl: mediaKey.trim() || null,
+        coverImageUrl: coverImageKey.trim() || null,
+        muscleImageUrl: muscleImageKey.trim() || null,
       });
       onSaved(updated);
     } catch (err: any) {
@@ -359,13 +416,101 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
             <Text style={ed.label}>Instructions</Text>
             <TextInput style={[ed.input, { height: 100, textAlignVertical: 'top' }]} value={instructions} onChangeText={setInstructions} multiline placeholderTextColor={colors.muted} />
           </View>
+
+          {/* Cover Image */}
           <View style={ed.field}>
-            <Text style={ed.label}>Demo URL</Text>
-            <TextInput style={ed.input} value={mediaUrl} onChangeText={setMediaUrl} placeholder="YouTube, GIF, or image URL" placeholderTextColor={colors.muted} autoCapitalize="none" keyboardType="url" />
+            <Text style={ed.label}>Cover Image</Text>
+            {!!coverImageKey && (
+              <View style={ed.keyRow}>
+                <Text style={ed.keyText} numberOfLines={1}>{coverImageKey}</Text>
+                <TouchableOpacity onPress={() => setCoverImageKey('')}><Text style={ed.removeBtn}>Remove</Text></TouchableOpacity>
+              </View>
+            )}
+            <View style={ed.uploadRow}>
+              <TextInput
+                style={[ed.input, { flex: 1 }]}
+                value={coverImageUrlInput}
+                onChangeText={setCoverImageUrlInput}
+                placeholder="Paste image URL…"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[ed.uploadBtn, (!coverImageUrlInput.trim() || uploadingField === 'cover') && { opacity: 0.4 }]}
+                disabled={!coverImageUrlInput.trim() || uploadingField === 'cover'}
+                onPress={() => uploadFromUrl('cover')}
+              >
+                <Text style={ed.uploadBtnText}>{uploadingField === 'cover' ? '…' : 'Upload'}</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={ed.filePickerBtn} onPress={() => pickAndUpload('cover')} disabled={uploadingField === 'cover'}>
+              <Text style={ed.filePickerText}>Pick from library</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* How-To Media */}
           <View style={ed.field}>
-            <Text style={ed.label}>Cover Image URL</Text>
-            <TextInput style={ed.input} value={coverImageUrl} onChangeText={setCoverImageUrl} placeholder="Static image URL (JPG, PNG, WebP…)" placeholderTextColor={colors.muted} autoCapitalize="none" keyboardType="url" />
+            <Text style={ed.label}>How-To Media</Text>
+            {!!mediaKey && (
+              <View style={ed.keyRow}>
+                <Text style={ed.keyText} numberOfLines={1}>{mediaKey}</Text>
+                <TouchableOpacity onPress={() => setMediaKey('')}><Text style={ed.removeBtn}>Remove</Text></TouchableOpacity>
+              </View>
+            )}
+            <View style={ed.uploadRow}>
+              <TextInput
+                style={[ed.input, { flex: 1 }]}
+                value={mediaUrlInput}
+                onChangeText={setMediaUrlInput}
+                placeholder="YouTube, GIF, or image URL…"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[ed.uploadBtn, (!mediaUrlInput.trim() || uploadingField === 'media') && { opacity: 0.4 }]}
+                disabled={!mediaUrlInput.trim() || uploadingField === 'media'}
+                onPress={() => uploadFromUrl('media')}
+              >
+                <Text style={ed.uploadBtnText}>{uploadingField === 'media' ? '…' : 'Upload'}</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={ed.filePickerBtn} onPress={() => pickAndUpload('media')} disabled={uploadingField === 'media'}>
+              <Text style={ed.filePickerText}>Pick from library</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Muscle Diagram */}
+          <View style={ed.field}>
+            <Text style={ed.label}>Muscle Diagram</Text>
+            {!!muscleImageKey && (
+              <View style={ed.keyRow}>
+                <Text style={ed.keyText} numberOfLines={1}>{muscleImageKey}</Text>
+                <TouchableOpacity onPress={() => setMuscleImageKey('')}><Text style={ed.removeBtn}>Remove</Text></TouchableOpacity>
+              </View>
+            )}
+            <View style={ed.uploadRow}>
+              <TextInput
+                style={[ed.input, { flex: 1 }]}
+                value={muscleImageUrlInput}
+                onChangeText={setMuscleImageUrlInput}
+                placeholder="Paste muscle diagram URL…"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[ed.uploadBtn, (!muscleImageUrlInput.trim() || uploadingField === 'muscle') && { opacity: 0.4 }]}
+                disabled={!muscleImageUrlInput.trim() || uploadingField === 'muscle'}
+                onPress={() => uploadFromUrl('muscle')}
+              >
+                <Text style={ed.uploadBtnText}>{uploadingField === 'muscle' ? '…' : 'Upload'}</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={ed.filePickerBtn} onPress={() => pickAndUpload('muscle')} disabled={uploadingField === 'muscle'}>
+              <Text style={ed.filePickerText}>Pick from library</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -555,4 +700,12 @@ const ed = StyleSheet.create({
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   tag: { backgroundColor: colors.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   tagText: { fontSize: fontSize.xs, color: colors.accent },
+  uploadRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  uploadBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  uploadBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
+  filePickerBtn: { marginTop: 6 },
+  filePickerText: { fontSize: fontSize.sm, color: colors.accent },
+  keyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  keyText: { flex: 1, fontSize: fontSize.xs, color: colors.muted },
+  removeBtn: { fontSize: fontSize.xs, color: '#ef4444', fontWeight: '600' },
 });

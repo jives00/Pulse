@@ -260,7 +260,7 @@ export interface NutritionLogEntry { id: number; logDate: string; meal: MealSlot
 export interface DailyLog { date: string; meals: Record<MealSlot, NutritionLogEntry[]>; totals: NutritionSnapshot; goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz: number; }; waterTotalOz: number; }
 export interface WaterDay { date: string; totalOz: number; goalOz: number; entries: { id: number; amountOz: number; loggedAt: string; }[]; }
 export interface GoalsSummary { date: string; nutrition: { goals: { calories: number; carbsG: number; proteinG: number; fatG: number; } | null; actual: { calories: number; carbsG: number; proteinG: number; fatG: number; }; }; workouts: { goals: { workoutsPerWeek: number | null; minutesPerWeek: number | null; } | null; actual: { workoutCount: number; totalMinutes: number; }; }; }
-export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null; }
+export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackWeight?: boolean; mediaKey?: string | null; coverImageKey?: string | null; muscleImageKey?: string | null; }
 export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; completed: boolean; }
 export interface WorkoutExercise { id: number; sortOrder: number; exercise: Exercise; sets: ExerciseSet[]; }
 export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; exercises: { name: string; setCount: number; }[]; }
@@ -372,9 +372,33 @@ export async function createCustomExercise(token: string, data: { name: string; 
   const res = await fetch(`${API_BASE}/api/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<Exercise>(res);
 }
-export async function updateExercise(token: string, id: number, data: { name?: string; category?: string; exerciseType?: string; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null }): Promise<Exercise> {
+export async function updateExercise(token: string, id: number, data: { name?: string; category?: string; exerciseType?: string; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackWeight?: boolean }): Promise<Exercise> {
   const res = await fetch(`${API_BASE}/api/exercises/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   return handle<Exercise>(res);
+}
+export async function uploadExerciseCoverImageFromUrl(token: string, id: number, url: string): Promise<{ key: string }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/cover-image-from-url`, { method: 'POST', headers: headers(token), body: JSON.stringify({ url }) });
+  return handle<{ key: string }>(res);
+}
+export async function getExerciseCoverImageUploadUrl(token: string, id: number, contentType: string): Promise<{ uploadUrl: string; key: string }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/cover-image`, { method: 'POST', headers: headers(token), body: JSON.stringify({ contentType }) });
+  return handle<{ uploadUrl: string; key: string }>(res);
+}
+export async function uploadExerciseMediaFromUrl(token: string, id: number, url: string): Promise<{ key: string; isYouTube?: boolean }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/media-from-url`, { method: 'POST', headers: headers(token), body: JSON.stringify({ url }) });
+  return handle<{ key: string; isYouTube?: boolean }>(res);
+}
+export async function getExerciseMediaUploadUrl(token: string, id: number, contentType: string): Promise<{ uploadUrl: string; key: string }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/media`, { method: 'POST', headers: headers(token), body: JSON.stringify({ contentType }) });
+  return handle<{ uploadUrl: string; key: string }>(res);
+}
+export async function uploadExerciseMuscleImageFromUrl(token: string, id: number, url: string): Promise<{ key: string }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/muscle-image-from-url`, { method: 'POST', headers: headers(token), body: JSON.stringify({ url }) });
+  return handle<{ key: string }>(res);
+}
+export async function getExerciseMuscleImageUploadUrl(token: string, id: number, contentType: string): Promise<{ uploadUrl: string; key: string }> {
+  const res = await fetch(`${API_BASE}/api/exercises/${id}/muscle-image`, { method: 'POST', headers: headers(token), body: JSON.stringify({ contentType }) });
+  return handle<{ uploadUrl: string; key: string }>(res);
 }
 export async function deleteExercise(token: string, id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/exercises/${id}`, { method: 'DELETE', headers: headers(token) });

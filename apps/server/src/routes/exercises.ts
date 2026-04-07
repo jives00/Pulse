@@ -1,12 +1,37 @@
 import { Router } from 'express';
 import pool from '../db';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
 
 const router = Router();
 
 function parseId(param: string): number | null {
   const n = Number(param);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** Block SSRF: reject loopback, RFC-1918, link-local, and AWS metadata addresses. */
+function isSafePhotoUrl(raw: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(raw);
+    if (!['http:', 'https:'].includes(protocol)) return false;
+    if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1)/i.test(hostname)) return false;
+    return true;
+  } catch { return false; }
+}
+
+function isYouTubeUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return ['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com'].includes(hostname);
+  } catch { return false; }
+}
+
+/** Resolve a stored value (S3 key or legacy URL) to a display URL. */
+async function resolveMediaUrl(stored: string | null): Promise<string | null> {
+  if (!stored) return null;
+  if (stored.startsWith('http')) return stored; // YouTube or legacy external URL
+  return await getPresignedGetUrl(stored); // S3 key → presigned URL
 }
 
 // GET /api/exercises?search=&category=
@@ -32,7 +57,7 @@ router.get('/', async (req, res) => {
       `SELECT * FROM exercises ${where} ORDER BY name ASC`,
       params
     );
-    res.json(rows.map((r) => ({
+    const mapped = await Promise.all(rows.map(async (r) => ({
       id: r.id,
       name: r.name,
       category: r.category,
@@ -41,12 +66,16 @@ router.get('/', async (req, res) => {
       musclesSecondary: r.muscles_secondary ?? [],
       isCustom: Boolean(r.is_custom),
       instructions: r.instructions ?? null,
-      mediaUrl: r.media_url ?? null,
-      coverImageUrl: r.cover_image_url ?? null,
-      muscleImageUrl: r.muscle_image_url ?? null,
+      mediaUrl: await resolveMediaUrl(r.media_url),
+      coverImageUrl: await resolveMediaUrl(r.cover_image_url),
+      muscleImageUrl: await resolveMediaUrl(r.muscle_image_url),
+      mediaKey: r.media_url ?? null,
+      coverImageKey: r.cover_image_url ?? null,
+      muscleImageKey: r.muscle_image_url ?? null,
       notes: r.notes ?? null,
       trackWeight: r.track_weight !== 0,
     })));
+    res.json(mapped);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -118,9 +147,12 @@ router.get('/:id', async (req, res) => {
       musclesSecondary: r.muscles_secondary ?? [],
       isCustom: Boolean(r.is_custom),
       instructions: r.instructions ?? null,
-      mediaUrl: r.media_url ?? null,
-      coverImageUrl: r.cover_image_url ?? null,
-      muscleImageUrl: r.muscle_image_url ?? null,
+      mediaUrl: await resolveMediaUrl(r.media_url),
+      coverImageUrl: await resolveMediaUrl(r.cover_image_url),
+      muscleImageUrl: await resolveMediaUrl(r.muscle_image_url),
+      mediaKey: r.media_url ?? null,
+      coverImageKey: r.cover_image_url ?? null,
+      muscleImageKey: r.muscle_image_url ?? null,
       notes: r.notes ?? null,
       trackWeight: r.track_weight !== 0,
     });
@@ -321,6 +353,123 @@ router.get('/:id/history', async (req, res) => {
   }
 });
 
+// POST /api/exercises/:id/cover-image-from-url — fetch image from URL and upload to S3
+router.post('/:id/cover-image-from-url', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { url } = req.body as { url?: string };
+  if (!url) { res.status(400).json({ error: 'url is required' }); return; }
+  if (!isSafePhotoUrl(url)) { res.status(400).json({ error: 'Invalid or disallowed URL' }); return; }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) { res.status(400).json({ error: 'Could not fetch image from URL' }); return; }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) { res.status(400).json({ error: 'URL does not point to an image' }); return; }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const key = `exercises/${id}/cover/${Date.now()}`;
+    await uploadBuffer(key, buffer, contentType);
+    clearPresignedUrlCache(key);
+    res.json({ key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/exercises/:id/cover-image — get presigned upload URL (file picker)
+router.post('/:id/cover-image', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
+  try {
+    const key = `exercises/${id}/cover/${Date.now()}`;
+    const uploadUrl = await getPresignedUploadUrl(key, contentType);
+    res.json({ uploadUrl, key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/exercises/:id/media-from-url — fetch media from URL and upload to S3 (YouTube pass-through)
+router.post('/:id/media-from-url', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { url } = req.body as { url?: string };
+  if (!url) { res.status(400).json({ error: 'url is required' }); return; }
+  if (isYouTubeUrl(url)) {
+    // YouTube URLs cannot be re-hosted — store the raw URL directly
+    res.json({ key: url, isYouTube: true }); return;
+  }
+  if (!isSafePhotoUrl(url)) { res.status(400).json({ error: 'Invalid or disallowed URL' }); return; }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) { res.status(400).json({ error: 'Could not fetch media from URL' }); return; }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const key = `exercises/${id}/media/${Date.now()}`;
+    await uploadBuffer(key, buffer, contentType);
+    clearPresignedUrlCache(key);
+    res.json({ key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/exercises/:id/media — get presigned upload URL (file picker)
+router.post('/:id/media', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
+  try {
+    const key = `exercises/${id}/media/${Date.now()}`;
+    const uploadUrl = await getPresignedUploadUrl(key, contentType);
+    res.json({ uploadUrl, key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/exercises/:id/muscle-image-from-url — fetch image from URL and upload to S3
+router.post('/:id/muscle-image-from-url', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { url } = req.body as { url?: string };
+  if (!url) { res.status(400).json({ error: 'url is required' }); return; }
+  if (!isSafePhotoUrl(url)) { res.status(400).json({ error: 'Invalid or disallowed URL' }); return; }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) { res.status(400).json({ error: 'Could not fetch image from URL' }); return; }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) { res.status(400).json({ error: 'URL does not point to an image' }); return; }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const key = `exercises/${id}/muscle/${Date.now()}`;
+    await uploadBuffer(key, buffer, contentType);
+    clearPresignedUrlCache(key);
+    res.json({ key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/exercises/:id/muscle-image — get presigned upload URL (file picker)
+router.post('/:id/muscle-image', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
+  try {
+    const key = `exercises/${id}/muscle/${Date.now()}`;
+    const uploadUrl = await getPresignedUploadUrl(key, contentType);
+    res.json({ uploadUrl, key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PUT /api/exercises/:id — update any exercise
 router.put('/:id', async (req, res) => {
   const id = parseId(req.params.id);
@@ -361,8 +510,15 @@ router.put('/:id', async (req, res) => {
     res.json({
       id: r.id, name: r.name, category: r.category, exerciseType: r.exercise_type,
       musclesPrimary: r.muscles_primary ?? [], musclesSecondary: r.muscles_secondary ?? [],
-      isCustom: Boolean(r.is_custom), instructions: r.instructions ?? null, mediaUrl: r.media_url ?? null,
-      coverImageUrl: r.cover_image_url ?? null, notes: r.notes ?? null,
+      isCustom: Boolean(r.is_custom), instructions: r.instructions ?? null,
+      mediaUrl: await resolveMediaUrl(r.media_url),
+      coverImageUrl: await resolveMediaUrl(r.cover_image_url),
+      muscleImageUrl: await resolveMediaUrl(r.muscle_image_url),
+      mediaKey: r.media_url ?? null,
+      coverImageKey: r.cover_image_url ?? null,
+      muscleImageKey: r.muscle_image_url ?? null,
+      notes: r.notes ?? null,
+      trackWeight: r.track_weight !== 0,
     });
   } catch (err) {
     console.error(err);
