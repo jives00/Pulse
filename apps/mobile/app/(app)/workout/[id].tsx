@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  getWorkout, updateWorkout, startWorkoutTimer,
+  getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer,
   addWorkoutExercise, removeWorkoutExercise,
   addWorkoutSet, updateWorkoutSet, deleteWorkoutSet,
   getExercises, getExerciseCategories, createCustomExercise,
@@ -94,6 +94,22 @@ export default function WorkoutDetailScreen() {
     timerRef.current = setInterval(tick, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [workout?.startedAt]);
+
+  function handleCancel() {
+    Alert.alert('Cancel Workout', 'This will delete the session. Are you sure?', [
+      { text: 'Keep Going', style: 'cancel' },
+      {
+        text: 'Cancel Session', style: 'destructive', onPress: async () => {
+          try {
+            await deleteWorkout(token, workoutId);
+            router.back();
+          } catch {
+            Alert.alert('Error', 'Could not cancel workout.');
+          }
+        },
+      },
+    ]);
+  }
 
   async function handleFinish() {
     setFinishing(true);
@@ -336,6 +352,10 @@ export default function WorkoutDetailScreen() {
             <Text style={s.finishBtnText}>{finishing ? 'Finishing…' : 'Finish Workout'}</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={s.cancelSessionBtn} onPress={handleCancel}>
+            <Text style={s.cancelSessionText}>Cancel Session</Text>
+          </TouchableOpacity>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -438,6 +458,8 @@ const s = StyleSheet.create({
   volumeLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
   finishBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
   finishBtnBottom: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  cancelSessionBtn: { alignItems: 'center', paddingVertical: 14 },
+  cancelSessionText: { fontSize: fontSize.sm, color: colors.muted },
   finishBtnDisabled: { opacity: 0.5 },
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
   scroll: { flex: 1 },

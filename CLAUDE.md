@@ -206,7 +206,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 | Table | Key columns |
 |---|---|
 | `exercises` | `id`, `name`, `category`, `exercise_type` (weight/cardio/bodyweight/duration), `muscles_primary` (JSON), `muscles_secondary` (JSON), `is_custom`, `instructions` TEXT NULL, `media_url` VARCHAR(500) NULL, `cover_image_url` VARCHAR(500) NULL, `muscle_image_url` VARCHAR(500) NULL, `notes` TEXT NULL, `track_weight` TINYINT(1) DEFAULT 1 |
-| `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned`, `started_at` TIMESTAMP NULL, `routine_id` INT NULL (FK to workout_routines) |
+| `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned`, `started_at` TIMESTAMP NULL, `routine_id` INT NULL (FK to workout_routines), `completed` TINYINT(1) DEFAULT 0 |
 | `workout_routines` | `id`, `user_id`, `name`, `notes`, `cover_image_key` VARCHAR(500) NULL, `created_at`, `updated_at` |
 | `routine_exercises` | `id`, `routine_id`, `exercise_id`, `sort_order`, `notes` |
 | `routine_exercise_sets` | `id`, `routine_exercise_id`, `set_number`, `reps`, `weight_kg`, `duration_seconds`, `distance_meters` |
@@ -238,7 +238,7 @@ Android-only Expo app. Key conventions:
 |---|---|---|
 | Recipes | `app/(app)/(tabs)/index.tsx` | 2-col grid, filters, sort. Sort initializes from `settingsStore.defaultSort`. No sign-out button (sign out is in Settings). |
 | Nutrition | `app/(app)/(tabs)/nutrition.tsx` | Date nav, 30-day calorie+protein bar charts (scroll to newest), meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add |
-| Workouts | `app/(app)/(tabs)/workouts.tsx` | 4 tabs: Log, Routines, Exercises, Progress. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. Progress tab is a single scroll: weekly summary, full-width volume/workout charts, body measurements, personal bests. |
+| Workouts | `app/(app)/(tabs)/workouts.tsx` | 4 tabs: Progress (default), Log, Routines, Exercises. Log tab shows a "Workout in progress" resume banner when a session is incomplete. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. Progress tab is a single scroll: weekly summary, volume chart, body measurements, personal bests. |
 | Links | `app/(app)/(tabs)/links.tsx` | Saved links list |
 | Settings | `app/(app)/(tabs)/settings.tsx` | 5 tabs: Options (default sort), Tags (add/delete tags per category), Goals (nutrition/workout/body), User (change username/password), Delete (per-scope danger zone) |
 
@@ -278,7 +278,8 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `h
 - **Sidebar sub-nav**: Workouts section expands to show "Log", "Routines", and "Exercises" when active.
 - **Routine start pre-fill priority**: `POST /api/routines/:id/start` pre-fills sets from the user's last actual session for each exercise; falls back to template sets from `routine_exercise_sets` if no prior history exists. All pre-filled sets have `completed = 0`.
 - **Exercise stats**: `GET /api/exercises/:id/stats?metric=` supports 5 metrics: `heaviest_weight`, `one_rep_max` (Epley formula: `weight * (1 + reps/30)` computed in SQL), `best_set_volume`, `session_volume`, `total_reps`. Returns personal bests + set records table + progress series.
-- **Workout timer**: `started_at` is persisted in DB (survives page refresh). `POST /api/workouts/:id/start-timer` is idempotent (only sets if NULL). "Finish" computes `durationMinutes = ceil(elapsedSeconds / 60)` and saves via the existing update endpoint.
+- **Workout timer**: `started_at` is persisted in DB (survives page refresh). `POST /api/workouts/:id/start-timer` is idempotent (only sets if NULL). "Finish" computes `durationMinutes = ceil(elapsedSeconds / 60)` and saves via the existing update endpoint with `completed: true`.
+- **Workout completed flag**: `workout_logs.completed` (TINYINT, default 0) controls log visibility. `GET /api/workouts` only returns `completed = 1` rows. `GET /api/workouts/active` returns the user's single in-progress session (or null). Navigating away from a session without finishing leaves it incomplete and resumable. "Cancel Session" deletes the workout row entirely. `POST /api/routines/:id/start` is idempotent — returns the existing incomplete session for that routine if one exists instead of creating a new one.
 - **Sidebar sub-nav**: Workouts section expands to show "Log" (`/workouts`), "Routines" (`/workouts/routines`), and "Exercises" (`/workouts/exercises`) when active, matching the Food sub-nav pattern.
 - **Mobile routing structure**: `app/(app)/_layout.tsx` is a Stack. The `(tabs)` group is the first child; detail screens (`workout/[id]`, `exercise/[id]`, `recipe/[id]`, `recipe/edit`) are sibling `Stack.Screen` entries. This is required for correct back-gesture behavior — if detail screens were inside the Tabs navigator (via `href: null`), back would cycle tabs instead of popping the stack.
 - **Mobile bar charts**: Nutrition tab shows 30-day calorie + protein bar charts (`MiniBarChart` in `nutrition.tsx`). Uses explicit pixel width via `useWindowDimensions` (NOT `flex: 1`) because `flex: 1` gives zero width inside a horizontal `ScrollView`. `contentContainerStyle` on the ScrollView carries `flexDirection`, `alignItems`, and `height` — not an inner `View`. Auto-scrolls to newest (rightmost) entry via `onContentSizeChange` + `scrollToEnd`.
