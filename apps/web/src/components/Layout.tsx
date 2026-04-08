@@ -6,11 +6,10 @@ const FOOD_SUBS = [
   { label: 'Side Dishes',       sub: 'side' },
   { label: 'Breakfast',         sub: 'breakfast' },
   { label: 'Desserts & Snacks', sub: 'dessert' },
-  { label: 'Prepackaged',       sub: 'prepackaged' },
 ];
 
 const TOP_SECTIONS = [
-  { prefix: '/food',      label: 'Food',      icon: '🍴' },
+  { prefix: '/food',      label: 'Recipes',   icon: '🍴' },
   { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
   { prefix: '/nutrition', label: 'Food Log', icon: '🥗' },
   { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
@@ -68,7 +67,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   onClick={() => go('/food')}
                   className={subLinkCls(!activeSub)}
                 >
-                  All Food
+                  All Recipes
                 </button>
                 {FOOD_SUBS.map(({ label: subLabel, sub }) => (
                   <button
@@ -79,6 +78,12 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     {subLabel}
                   </button>
                 ))}
+                <button
+                  onClick={() => go('/food?sub=prepackaged')}
+                  className={subLinkCls(activeSub === 'prepackaged')}
+                >
+                  Prepackaged
+                </button>
               </div>
             )}
 

@@ -169,7 +169,7 @@ export default function RecipeDetailScreen() {
             </View>
           ))}
 
-          {recipe.type === 'food' && (recipe.calories || recipe.carbs_g || recipe.protein_g || recipe.fat_g) ? (
+          {(recipe.calories || recipe.carbs_g || recipe.protein_g || recipe.fat_g) ? (
             <View style={{ marginTop: 16 }}>
               <Text style={styles.sectionLabel}>Nutrition per serving</Text>
               <View style={styles.nutritionGrid}>

@@ -3,12 +3,12 @@ import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, T
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createRecipe, deleteRecipe, getPhotoUploadUrl, getRecipe, scrapeRecipe, parseRecipeText, updateRecipe, uploadPhotoToS3, uploadPhotoFromUrl, type Ingredient, type RecipeDetail } from '../../../src/api/client';
+import { createRecipe, deleteRecipe, getPhotoUploadUrl, getRecipe, getRecipeBarcode, scrapeRecipe, parseRecipeText, setRecipeBarcode, updateRecipe, uploadPhotoToS3, uploadPhotoFromUrl, type Ingredient, type RecipeDetail } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize } from '../../../src/theme';
 import Spinner from '../../../src/components/Spinner';
 
-const TYPES = ['cocktail', 'food'] as const;
+const TYPES = ['cocktail', 'food', 'prepackaged'] as const;
 const ABV_LEVELS = ['low', 'medium', 'strong'];
 
 export default function EditRecipeScreen() {
@@ -23,7 +23,7 @@ export default function EditRecipeScreen() {
   const [importing, setImporting] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [pasteText, setPasteText] = useState('');
-  const [type, setType] = useState<'cocktail' | 'food'>('cocktail');
+  const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>('cocktail');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
@@ -48,11 +48,15 @@ export default function EditRecipeScreen() {
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [photoUrlInput, setPhotoUrlInput] = useState('');
   const [recipeId, setRecipeId] = useState<number | null>(id ? Number(id) : null);
+  const [barcode, setBarcode] = useState('');
 
   useEffect(() => {
     if (!isNew && id) {
-      getRecipe(token, Number(id)).then((r: RecipeDetail) => {
-        setType(r.type); setName(r.name); setDescription(r.description || ''); setNotes(r.notes || '');
+      Promise.all([
+        getRecipe(token, Number(id)),
+        getRecipeBarcode(token, Number(id)).catch(() => ({ barcode: null })),
+      ]).then(([r, barcodeRes]: [RecipeDetail, { barcode: string | null }]) => {
+        setType(r.type as any); setName(r.name); setDescription(r.description || ''); setNotes(r.notes || '');
         setSource(r.source || ''); setPrepTime(r.prep_time ? String(r.prep_time) : '');
         setCookTime(r.cook_time ? String(r.cook_time) : ''); setServings(r.servings ? String(r.servings) : ''); setGlassType(r.glass_type || '');
         setSubcategory((r as any).subcategory || '');
@@ -62,6 +66,7 @@ export default function EditRecipeScreen() {
         setFiberG(r.fiber_g ? String(r.fiber_g) : ''); setSodiumMg(r.sodium_mg ? String(r.sodium_mg) : '');
         setIngredients(r.ingredients.length ? r.ingredients : [{ name: '', quantity: null, unit: null }]);
         setSteps(r.steps.length ? r.steps.map((s) => s.instruction) : ['']);
+        setBarcode(barcodeRes.barcode ?? '');
       }).catch(() => {}).finally(() => setLoading(false));
     }
   }, [id]);
@@ -135,6 +140,9 @@ export default function EditRecipeScreen() {
       let savedId = recipeId;
       if (isNew || !savedId) { const r = await createRecipe(token, data); savedId = r.id; setRecipeId(savedId); }
       else { await updateRecipe(token, savedId, data); }
+      if ((type === 'prepackaged' || type === 'food') && barcode.trim() && savedId) {
+        await setRecipeBarcode(token, savedId, barcode.trim()).catch(() => {});
+      }
       if (photoUri && savedId) {
         const contentType = 'image/jpeg';
         const { uploadUrl, key } = await getPhotoUploadUrl(token, savedId, contentType);
@@ -287,8 +295,36 @@ export default function EditRecipeScreen() {
             </>
           )}
 
-          {type === 'food' && <>
+          {type === 'prepackaged' && (
+            <>
+              <Text style={styles.label}>Servings</Text>
+              <TextInput style={[styles.input, { width: 100 }]} placeholder="1" placeholderTextColor={colors.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
+              <Text style={styles.label}>Barcode</Text>
+              <TextInput style={styles.input} placeholder="e.g. 012345678901" placeholderTextColor={colors.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
+            </>
+          )}
+
+          {(type === 'food' || type === 'prepackaged') && <>
             <Text style={styles.label}>Nutrition (per serving)</Text>
+            <View style={styles.nutritionGrid}>
+              {([
+                { label: 'Calories (kcal)', value: calories, set: setCalories },
+                { label: 'Carbs (g)', value: carbsG, set: setCarbsG },
+                { label: 'Protein (g)', value: proteinG, set: setProteinG },
+                { label: 'Fat (g)', value: fatG, set: setFatG },
+                { label: 'Fiber (g)', value: fiberG, set: setFiberG },
+                { label: 'Sodium (mg)', value: sodiumMg, set: setSodiumMg },
+              ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
+                <View key={label} style={styles.nutritionCell}>
+                  <Text style={styles.nutritionLabel}>{label}</Text>
+                  <TextInput style={styles.input} placeholder="—" placeholderTextColor={colors.muted} keyboardType="decimal-pad" value={value} onChangeText={set} />
+                </View>
+              ))}
+            </View>
+          </>}
+
+          {type === 'cocktail' && <>
+            <Text style={styles.label}>Nutrition (per serving, optional)</Text>
             <View style={styles.nutritionGrid}>
               {([
                 { label: 'Calories (kcal)', value: calories, set: setCalories },

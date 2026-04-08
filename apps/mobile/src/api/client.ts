@@ -495,6 +495,17 @@ export async function searchRecipes(token: string, q: string): Promise<RecipeSea
   return handle<RecipeSearchResult[]>(res);
 }
 
+export async function getRecipeBarcode(token: string, recipeId: number): Promise<{ barcode: string | null }> {
+  const res = await fetch(`${API_BASE}/api/recipes/${recipeId}/barcode`, { headers: headers(token) });
+  if (res.status === 404) return { barcode: null };
+  return handle<{ barcode: string | null }>(res);
+}
+
+export async function setRecipeBarcode(token: string, recipeId: number, barcode: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/recipes/${recipeId}/barcode`, { method: 'PUT', headers: headers(token), body: JSON.stringify({ barcode }) });
+  await handle<unknown>(res);
+}
+
 export async function getRecipeByBarcode(token: string, barcode: string): Promise<RecipeSearchResult | null> {
   const res = await fetch(`${API_BASE}/api/recipes/barcode/${encodeURIComponent(barcode)}`, { headers: headers(token) });
   if (res.status === 404) return null;

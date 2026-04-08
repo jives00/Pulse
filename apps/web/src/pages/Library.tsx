@@ -7,15 +7,14 @@ import RecipeDetail from '../components/RecipeDetail';
 import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
 
-type CategoryFilter = '' | 'cocktail' | 'food' | 'main' | 'side' | 'breakfast' | 'dessert' | 'prepackaged';
+type CategoryFilter = '' | 'cocktail' | 'food' | 'prepackaged' | 'main' | 'side' | 'breakfast' | 'dessert';
 import type { SortOption } from '../store/settings';
 
-const FOOD_SUBCATEGORIES: [Exclude<CategoryFilter, '' | 'cocktail' | 'food'>, string][] = [
+const FOOD_SUBCATEGORIES: [Exclude<CategoryFilter, '' | 'cocktail' | 'food' | 'prepackaged'>, string][] = [
   ['main', 'Main Dishes'],
   ['side', 'Side Dishes'],
   ['breakfast', 'Breakfast'],
   ['dessert', 'Desserts & Snacks'],
-  ['prepackaged', 'Prepackaged'],
 ];
 
 const PAGE_SIZE = 50;
@@ -38,6 +37,7 @@ export default function Library() {
   // Derived from URL — not internal state
   const categoryFilter: CategoryFilter =
     isDrinks ? 'cocktail' :
+    isFood && sub === 'prepackaged' ? 'prepackaged' :
     (isFood && sub) ? sub :
     isFood ? 'food' : '';
 
@@ -62,8 +62,8 @@ export default function Library() {
     else { setLoading(true); setFetchError(false); }
     try {
       const data = await recipesApi.getAll({
-        type: categoryFilter === 'cocktail' ? 'cocktail' : categoryFilter ? 'food' : 'all',
-        subcategory: (categoryFilter && categoryFilter !== 'cocktail' && categoryFilter !== 'food') ? categoryFilter : undefined,
+        type: categoryFilter === 'cocktail' ? 'cocktail' : categoryFilter === 'prepackaged' ? 'prepackaged' : categoryFilter ? 'food' : 'all',
+        subcategory: (categoryFilter && categoryFilter !== 'cocktail' && categoryFilter !== 'food' && categoryFilter !== 'prepackaged') ? categoryFilter : undefined,
         search: search || undefined,
         favorite: showFavorites || undefined,
         made: madeFilter === 'made' ? true : madeFilter === 'not_made' ? false : undefined,
@@ -125,6 +125,13 @@ export default function Library() {
   const clearTags = useCallback(() => setSelectedTags([]), []);
 
   const panelOpen = panel.mode !== 'none';
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanel({ mode: 'none' }); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [panelOpen]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">

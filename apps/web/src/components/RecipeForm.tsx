@@ -10,7 +10,7 @@ import {
 
 interface Props {
   initialData?: RecipeDetail;
-  initialType?: 'cocktail' | 'food';
+  initialType?: 'cocktail' | 'food' | 'prepackaged';
   onSaved: (id: number) => void;
   onCancel: () => void;
 }
@@ -53,7 +53,7 @@ function toRows(ingredients: Ingredient[]): IngredientRow[] {
 export default function RecipeForm({ initialData, initialType, onSaved, onCancel }: Props) {
   const isEdit = Boolean(initialData);
 
-  const [type, setType] = useState<'cocktail' | 'food'>(initialData?.type || initialType || 'cocktail');
+  const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>(initialData?.type || initialType || 'cocktail');
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
@@ -271,8 +271,8 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
         recipeId = result.id;
       }
 
-      // Save barcode if set (food type only)
-      if (type === 'food' && barcode.trim()) {
+      // Save barcode if set (food and prepackaged types)
+      if ((type === 'food' || type === 'prepackaged') && barcode.trim()) {
         await recipesApi.setBarcode(recipeId, barcode.trim());
       }
 
@@ -417,7 +417,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
         <div>
           <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Type</label>
           <div className="flex gap-2">
-            {(['cocktail', 'food'] as const).map((t) => (
+            {(['cocktail', 'food', 'prepackaged'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -428,7 +428,7 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
                     : 'border-dram-border text-gray-400 hover:border-gray-600'
                 }`}
               >
-                {t === 'cocktail' ? '🍸 Cocktail' : '🍴 Food'}
+                {t === 'cocktail' ? '🍸 Cocktail' : t === 'food' ? '🍴 Food' : '📦 Prepackaged'}
               </button>
             ))}
           </div>
@@ -603,7 +603,6 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
               <option value="side">Side Dish</option>
               <option value="breakfast">Breakfast</option>
               <option value="dessert">Desserts & Snacks</option>
-              <option value="prepackaged">Prepackaged</option>
             </select>
           </div>
         )}
@@ -643,8 +642,22 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
           </div>
         )}
 
-        {/* Nutrition — food only */}
-        {type === 'food' && (
+        {/* Servings — prepackaged */}
+        {type === 'prepackaged' && (
+          <div className="w-1/3">
+            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Servings</label>
+            <input
+              type="number"
+              min="1"
+              value={servings}
+              onChange={(e) => setServings(e.target.value)}
+              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
+            />
+          </div>
+        )}
+
+        {/* Nutrition — food and prepackaged */}
+        {(type === 'food' || type === 'prepackaged') && (
           <div>
             <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving)</p>
             <div className="grid grid-cols-3 gap-3">
@@ -672,8 +685,53 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
           </div>
         )}
 
-        {type === 'food' && (subcategory === 'prepackaged' || barcode) && (
-          <div className={subcategory === 'prepackaged' ? 'border border-dram-accent/30 rounded-lg p-3 bg-dram-accent/5' : ''}>
+        {/* Nutrition — cocktail (optional) */}
+        {type === 'cocktail' && (
+          <div>
+            <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving, optional)</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Calories', value: calories, set: setCalories, unit: 'kcal', step: '1' },
+                { label: 'Carbs', value: carbsG, set: setCarbsG, unit: 'g', step: '0.1' },
+                { label: 'Protein', value: proteinG, set: setProteinG, unit: 'g', step: '0.1' },
+                { label: 'Fat', value: fatG, set: setFatG, unit: 'g', step: '0.1' },
+                { label: 'Fiber', value: fiberG, set: setFiberG, unit: 'g', step: '0.1' },
+                { label: 'Sodium', value: sodiumMg, set: setSodiumMg, unit: 'mg', step: '1' },
+              ].map(({ label, value, set, unit, step }) => (
+                <div key={label}>
+                  <label className="block text-xs text-gray-500 mb-1">{label} <span className="text-gray-600">({unit})</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step={step}
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    className="w-full bg-dram-card border border-dram-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Barcode — prepackaged type */}
+        {type === 'prepackaged' && (
+          <div className="border border-dram-accent/30 rounded-lg p-3 bg-dram-accent/5">
+            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
+            <input
+              type="text"
+              placeholder="e.g. 012345678901"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
+            />
+            <p className="text-xs text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
+          </div>
+        )}
+
+        {/* Barcode — food type with existing barcode */}
+        {type === 'food' && barcode && (
+          <div>
             <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
             <input
               type="text"

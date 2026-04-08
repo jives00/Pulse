@@ -290,8 +290,8 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                 </div>
               )}
 
-              {/* Nutrition — food only */}
-              {recipe.type === 'food' && (recipe.calories || recipe.carbs_g || recipe.protein_g || recipe.fat_g) && (
+              {/* Nutrition — food, prepackaged, and cocktails with data */}
+              {(recipe.calories || recipe.carbs_g || recipe.protein_g || recipe.fat_g) && (
                 <div className="mt-6">
                   <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Nutrition per serving</h3>
                   <div className="grid grid-cols-3 gap-2">

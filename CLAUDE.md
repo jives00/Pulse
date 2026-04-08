@@ -93,8 +93,9 @@ USDA_API_KEY        (optional, food database)
 ## Route map (frontend)
 
 ```
-/food                  → Library (food items)
-/food?sub=main|side|breakfast|dessert|prepackaged → filtered subcategory
+/food                  → Library (food items — excludes prepackaged)
+/food?sub=main|side|breakfast|dessert → filtered subcategory
+/food?sub=prepackaged  → Prepackaged recipes (type=prepackaged in DB)
 /drinks                → Library (cocktails)
 /nutrition/today       → TodayPage
 /nutrition/history     → NutritionHistoryPage
@@ -155,7 +156,7 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `NutritionSummaryCard` | `apps/web/src/components/NutritionSummaryCard.tsx` | Calorie ring, macro rings, water bar. Used by TodayPage. `onAddWater` prop optional — omit when no water quick-add is needed. |
 | `NutritionHistoryCharts` | `apps/web/src/components/NutritionHistoryCharts.tsx` | 30-day scrollable bar charts (calories + protein). Used by TodayPage. Fetches its own data via `historyApi.daily()`. |
 | `Library` | `apps/web/src/pages/Library.tsx` | Food and Drinks recipe grid. Filter state is URL-driven (`?sub=main` etc.). Tags scoped to current user + page type (food vs cocktail). |
-| `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. Accepts `initialType` prop. Food-type recipes show a barcode field (optional); saved to `recipe_barcodes` on submit. |
+| `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. Accepts `initialType` prop. Three types: cocktail, food, prepackaged. Food shows subcategory (main/side/breakfast/dessert) + timing + nutrition. Prepackaged shows servings + nutrition + barcode. Cocktail shows glass/ABV + optional nutrition. Barcode saved to `recipe_barcodes` on submit. |
 | `FoodSearchModal` | `apps/web/src/components/FoodSearchModal.tsx` | Searches recipes (`GET /recipes/search`) + foods in parallel. "My Recipes" section at top. Selecting a recipe opens a servings picker that logs via `POST /log/recipe`. Accepts `onCreateCustomFood` prop; if provided, "Create custom food" calls it instead of the inline create flow. |
 | `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Tabbed layout: **Options** (Color Scheme, Default Sort, Tags), **Goals** (nutrition daily macros + workout weekly goals + body measurement goals — all in one place), **User** (change username/password), **Delete Data** (danger zone). Left-aligned layout matching History/Links pages. |
 | `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. Toolbar has "Edit Goals" (nutrition goal modal), "Create Custom Food", and "Log Food" buttons. `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
@@ -179,7 +180,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 ### Recipes
 | Table | Key columns |
 |---|---|
-| `recipes` | `id`, `user_id`, `type` (food/cocktail), `name`, `subcategory`, `photo_key`, `is_favorite`, `prep_time`, `cook_time`, `servings`, `calories`, `carbs_g`, `protein_g`, `fat_g` |
+| `recipes` | `id`, `user_id`, `type` (food/cocktail/prepackaged), `name`, `subcategory`, `photo_key`, `is_favorite`, `prep_time`, `cook_time`, `servings`, `calories`, `carbs_g`, `protein_g`, `fat_g` |
 | `recipe_ingredients` | `recipe_id`, `ingredient_id`, `quantity`, `unit`, `sort_order` |
 | `recipe_steps` | `recipe_id`, `step_number`, `instruction` |
 | `recipe_log` | `id`, `recipe_id`, `user_id`, `made_at` |
@@ -253,6 +254,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `h
 
 ## Design decisions
 
+- **Prepackaged recipe type**: `prepackaged` is a first-class `type` in the `recipes` table (alongside `food` and `cocktail`). It is NOT a subcategory of food. Web nav shows it as a sub-nav item under "Recipes" (`/food?sub=prepackaged`); Library.tsx sends `type=prepackaged` to the API. Data migration: `UPDATE recipes SET type = 'prepackaged', subcategory = NULL WHERE type = 'food' AND subcategory = 'prepackaged';` — run manually on EC2 (migration 014). `GET /api/recipes/search` (nutrition food picker) includes both `food` and `prepackaged` types.
 - **Tags**: Stored in `tag_definitions` (user-scoped, 3 categories: health/cuisine/category). Auto-seeded with defaults on first `GET /api/tags/definitions`. Tag filter only shows tags used by actual recipes on the current page type (food vs cocktail).
 - **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` in migration 009 post-hook — links a nutrition log entry back to the originating recipe.
 - **Sidebar icons**: Intentionally removed from desktop nav; mobile bottom nav keeps icons.

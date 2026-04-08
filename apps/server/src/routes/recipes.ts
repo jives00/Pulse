@@ -179,7 +179,7 @@ router.get('/search', async (req: Request, res: Response) => {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT id, name, calories, carbs_g, protein_g, fat_g, fiber_g, servings, photo_key
        FROM recipes
-       WHERE user_id = ? AND type = 'food' AND calories IS NOT NULL
+       WHERE user_id = ? AND type IN ('food', 'prepackaged') AND calories IS NOT NULL
          AND (? = '' OR name LIKE ?)
        ORDER BY name ASC
        LIMIT 30`,
@@ -307,8 +307,8 @@ router.post('/', async (req: Request, res: Response) => {
   if (!name || typeof name !== 'string' || !name.trim()) {
     res.status(400).json({ error: 'name is required' }); return;
   }
-  if (type !== 'cocktail' && type !== 'food') {
-    res.status(400).json({ error: 'type must be cocktail or food' }); return;
+  if (type !== 'cocktail' && type !== 'food' && type !== 'prepackaged') {
+    res.status(400).json({ error: 'type must be cocktail, food, or prepackaged' }); return;
   }
   const conn = await pool.getConnection();
   try {

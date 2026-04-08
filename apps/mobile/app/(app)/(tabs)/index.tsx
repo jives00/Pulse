@@ -10,11 +10,11 @@ import FilterChip from '../../../src/components/FilterChip';
 import RecipeCard from '../../../src/components/RecipeCard';
 import Spinner from '../../../src/components/Spinner';
 
-type CategoryFilter = '' | 'cocktail' | 'main' | 'side' | 'breakfast' | 'dessert';
+type CategoryFilter = '' | 'cocktail' | 'prepackaged' | 'main' | 'side' | 'breakfast' | 'dessert';
 
 const CATEGORY_LABELS: Record<string, string> = {
-  '': 'Category', cocktail: 'Cocktail', main: 'Main Dish',
-  side: 'Side Dish', breakfast: 'Breakfast', dessert: 'Dessert',
+  '': 'Category', cocktail: 'Cocktail', prepackaged: 'Prepackaged',
+  main: 'Main Dish', side: 'Side Dish', breakfast: 'Breakfast', dessert: 'Dessert',
 };
 
 // Approximate card height for getItemLayout (photo 120 + info ~86 + margins 8)
@@ -53,8 +53,8 @@ export default function LibraryScreen() {
       if (append) setLoadingMore(true);
       else setLoading(true);
       const data = await getRecipes(token, {
-        type: categoryFilter === 'cocktail' ? 'cocktail' : categoryFilter ? 'food' : 'all',
-        subcategory: (categoryFilter && categoryFilter !== 'cocktail') ? categoryFilter : undefined,
+        type: categoryFilter === 'cocktail' ? 'cocktail' : categoryFilter === 'prepackaged' ? 'prepackaged' : categoryFilter ? 'food' : 'all',
+        subcategory: (categoryFilter && categoryFilter !== 'cocktail' && categoryFilter !== 'prepackaged') ? categoryFilter : undefined,
         search: searchVal,
         favorite: showFaves,
         made: madeFilter === 'made' ? true : madeFilter === 'not_made' ? false : undefined,
@@ -112,9 +112,16 @@ export default function LibraryScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <TextInput style={styles.search} placeholder="Search recipes…" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} />
+        <View style={styles.searchInputWrap}>
+          <TextInput style={styles.search} placeholder="Search recipes…" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} style={styles.searchClear}>
+              <Text style={styles.searchClearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <TouchableOpacity
-          style={[styles.sortBtn, sort !== 'random' && styles.sortBtnActive]}
+          style={styles.sortBtn}
           onPress={() => openDropdown({
             key: 'sort',
             current: sort,
@@ -128,7 +135,7 @@ export default function LibraryScreen() {
             onSelect: (v) => setSort(v),
           })}
         >
-          <Text style={[styles.sortBtnText, sort !== 'random' && styles.sortBtnTextActive]}>
+          <Text style={styles.sortBtnText}>
             {sort === 'name' ? 'A–Z' : sort === 'recently_made' ? 'Recent' : sort === 'prep_time' ? 'Prep' : sort === 'created_at' ? 'Date' : '⇅'}
           </Text>
         </TouchableOpacity>
@@ -144,6 +151,7 @@ export default function LibraryScreen() {
             options: [
               { label: 'All', value: '' },
               { label: 'Cocktail', value: 'cocktail' },
+              { label: 'Prepackaged', value: 'prepackaged' },
               { label: 'Main Dish', value: 'main' },
               { label: 'Side Dish', value: 'side' },
               { label: 'Breakfast', value: 'breakfast' },
@@ -241,11 +249,12 @@ const styles = StyleSheet.create({
   addBtn: { backgroundColor: colors.accent, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   addBtnText: { color: colors.bg, fontSize: fontSize.xl, fontWeight: 'bold', lineHeight: 28 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  search: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, color: colors.text },
+  searchInputWrap: { flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' },
+  search: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, paddingRight: 36, color: colors.text },
+  searchClear: { position: 'absolute', right: 12 },
+  searchClearText: { color: colors.muted, fontSize: fontSize.sm },
   sortBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  sortBtnActive: { borderColor: colors.accent },
   sortBtnText: { color: colors.muted, fontSize: fontSize.sm },
-  sortBtnTextActive: { color: colors.accent, fontWeight: '600' },
   filterRow: { paddingHorizontal: 16, paddingVertical: 4, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   filterRowContent: { alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 10 },
   tagPicker: { marginHorizontal: 16, marginBottom: 8, backgroundColor: colors.card, borderRadius: 12, height: 56 },
