@@ -179,7 +179,7 @@ export default function ExercisesPage() {
 
   useEffect(() => {
     if (!showForm) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm(); };
+    const handler = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeForm(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [showForm]);
