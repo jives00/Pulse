@@ -1019,9 +1019,9 @@ const s = StyleSheet.create({
 });
 
 const seg = StyleSheet.create({
-  scroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.border },
-  row: { flexDirection: 'row' },
-  btn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
+  scroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: colors.border },
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  btn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   btnActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   label: { fontSize: fontSize.sm, color: colors.muted, fontWeight: '500' },
   labelActive: { color: colors.accent, fontWeight: '700' },
