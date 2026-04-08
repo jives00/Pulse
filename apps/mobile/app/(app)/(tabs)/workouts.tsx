@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -13,6 +13,7 @@ import {
   getExerciseGoals, type ExerciseGoals,
   getMeasurements, addMeasurement, getMeasurementGoals, type BodyMeasurement, type MeasurementGoal,
   getPersonalBests, type PersonalBests,
+  getActiveWorkout, type WorkoutDetail,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize } from '../../../src/theme';
@@ -37,14 +38,19 @@ function LogTab() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getWorkouts(token, { limit: 30, offset: 0 });
+      const [data, active] = await Promise.all([
+        getWorkouts(token, { limit: 30, offset: 0 }),
+        getActiveWorkout(token).catch(() => null),
+      ]);
       setWorkouts(data);
+      setActiveWorkout(active);
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
     } finally {
@@ -85,6 +91,20 @@ function LogTab() {
       data={workouts}
       keyExtractor={(item) => String(item.id)}
       contentContainerStyle={s.list}
+      ListHeaderComponent={activeWorkout ? (
+        <TouchableOpacity
+          style={s.resumeBanner}
+          onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={s.resumeTitle}>Workout in progress</Text>
+            <Text style={s.resumeSub}>
+              {activeWorkout.name ?? 'Untitled'} · {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <Text style={s.resumeArrow}>›</Text>
+        </TouchableOpacity>
+      ) : null}
       renderItem={({ item }) => (
         <TouchableOpacity
           style={s.card}
@@ -643,23 +663,24 @@ function WeeklyMiniChart({ data, dataKey, color, goal }: {
   color: string;
   goal?: number | null;
 }) {
-  const maxVal = Math.max(...data.map((d) => d[dataKey] ?? 0), goal ?? 0, 1);
-  const BAR_W = 10;
+  const { width: screenWidth } = useWindowDimensions();
+  // card has 14px horizontal padding on each side; SafeAreaView adds ~16px per side
+  const chartWidth = screenWidth - 32 - 28;
   const GAP = 3;
+  const barW = data.length > 0 ? (chartWidth - GAP * (data.length - 1)) / data.length : 10;
+  const maxVal = Math.max(...data.map((d) => d[dataKey] ?? 0), goal ?? 0, 1);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: CHART_H }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H, gap: GAP }}>
-        {data.map((entry, i) => {
-          const val = entry[dataKey] ?? 0;
-          const pct = Math.min(val / maxVal, 1);
-          const barH = Math.max(pct * CHART_H, 2);
-          const isCurrent = i === data.length - 1;
-          const dim = goal ? val / goal < 0.85 : false;
-          const barColor = isCurrent ? color : dim ? `${color}55` : color;
-          return <View key={entry.weekStart} style={{ width: BAR_W, height: barH, backgroundColor: barColor, borderRadius: 2 }} />;
-        })}
-      </View>
-    </ScrollView>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H, gap: GAP, width: chartWidth }}>
+      {data.map((entry, i) => {
+        const val = entry[dataKey] ?? 0;
+        const pct = Math.min(val / maxVal, 1);
+        const barH = Math.max(pct * CHART_H, 2);
+        const isCurrent = i === data.length - 1;
+        const dim = goal ? val / goal < 0.85 : false;
+        const barColor = isCurrent ? color : dim ? `${color}55` : color;
+        return <View key={entry.weekStart} style={{ width: barW, height: barH, backgroundColor: barColor, borderRadius: 2 }} />;
+      })}
+    </View>
   );
 }
 
@@ -754,16 +775,6 @@ function ProgressTab() {
         <WeeklyMiniChart data={weeklyData} dataKey="volumeLbs" color="#a78bfa" goal={volumeGoal} />
       </View>
 
-      {/* ── Workouts / week chart ── */}
-      <View style={p.card}>
-        <View style={p.chartHeader}>
-          <Text style={p.chartIcon}>🏋️</Text>
-          <Text style={[p.chartLabel, { color: '#34d399' }]}>Workouts / wk</Text>
-          {workoutGoal != null && <Text style={p.chartGoal}>Goal: {workoutGoal}</Text>}
-        </View>
-        <WeeklyMiniChart data={weeklyData} dataKey="workouts" color="#34d399" goal={workoutGoal} />
-      </View>
-
       {/* ── Body Measurements ── */}
       <View style={p.card}>
         <Text style={p.cardTitle}>Body Measurements</Text>
@@ -786,7 +797,7 @@ function ProgressTab() {
                 {goal && (
                   <View>
                     <Text style={p.metricSub}>Goal</Text>
-                    <Text style={p.metricVal}>{goal.targetValue} {cfg.unit}{goal.targetDate ? ` by ${goal.targetDate}` : ''}</Text>
+                    <Text style={p.metricVal}>{goal.targetValue} {cfg.unit}{goal.targetDate ? ` by ${new Date(goal.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</Text>
                   </View>
                 )}
               </View>
@@ -893,12 +904,12 @@ const p = StyleSheet.create({
 
 // ── Root screen ──────────────────────────────────────────────────────────────
 
-type Tab = 'log' | 'routines' | 'exercises' | 'progress';
+type Tab = 'progress' | 'log' | 'routines' | 'exercises';
 
 export default function WorkoutsScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('log');
+  const [tab, setTab] = useState<Tab>('progress');
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
@@ -948,7 +959,7 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={seg.scroll} contentContainerStyle={seg.row}>
-        {(['log', 'routines', 'exercises', 'progress'] as Tab[]).map((t) => (
+        {(['progress', 'log', 'routines', 'exercises'] as Tab[]).map((t) => (
           <TouchableOpacity key={t} style={[seg.btn, tab === t && seg.btnActive]} onPress={() => setTab(t)}>
             <Text style={[seg.label, tab === t && seg.labelActive]}>
               {t === 'log' ? 'Log' : t === 'routines' ? 'Routines' : t === 'exercises' ? 'Exercises' : 'Progress'}
@@ -957,6 +968,7 @@ export default function WorkoutsScreen() {
         ))}
       </ScrollView>
 
+      {tab === 'progress' && <ProgressTab />}
       {tab === 'log' && <LogTab />}
       {tab === 'routines' && (
         <RoutinesTab
@@ -971,7 +983,6 @@ export default function WorkoutsScreen() {
           onCreateClose={() => setExCreateVisible(false)}
         />
       )}
-      {tab === 'progress' && <ProgressTab />}
     </SafeAreaView>
   );
 }
@@ -996,6 +1007,15 @@ const s = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60, gap: 6 },
   emptyText: { fontSize: fontSize.base, color: colors.text },
   emptyHint: { fontSize: fontSize.sm, color: colors.muted },
+  resumeBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.accent + '22',
+    borderWidth: 1, borderColor: colors.accent,
+    borderRadius: 12, padding: 14, marginBottom: 10,
+  },
+  resumeTitle: { fontSize: fontSize.sm, fontWeight: '700', color: colors.accent },
+  resumeSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  resumeArrow: { fontSize: 22, color: colors.accent, marginLeft: 8 },
 });
 
 const seg = StyleSheet.create({

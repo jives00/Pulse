@@ -159,6 +159,22 @@ router.get('/personal-bests', async (req, res) => {
   }
 });
 
+// GET /api/workouts/active — returns the user's single in-progress (not completed) workout, or null
+router.get('/active', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id FROM workout_logs WHERE user_id = ? AND completed = 0 ORDER BY created_at DESC LIMIT 1`,
+      [req.userId]
+    );
+    if (!rows[0]) { res.json(null); return; }
+    const detail = await getWorkoutDetail(rows[0].id);
+    res.json(detail);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/workouts
 router.get('/', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 500);
@@ -167,8 +183,8 @@ router.get('/', async (req, res) => {
 
   try {
     const whereClause = routineId
-      ? 'WHERE wl.user_id = ? AND wl.routine_id = ?'
-      : 'WHERE wl.user_id = ?';
+      ? 'WHERE wl.user_id = ? AND wl.routine_id = ? AND wl.completed = 1'
+      : 'WHERE wl.user_id = ? AND wl.completed = 1';
     const queryParams = routineId
       ? [req.userId, routineId, limit, offset]
       : [req.userId, limit, offset];
@@ -308,13 +324,14 @@ router.put('/:id', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { name, notes, durationMinutes, caloriesBurned, workoutDate } = req.body;
+  const { name, notes, durationMinutes, caloriesBurned, workoutDate, completed } = req.body;
   try {
     await pool.query(
-      `UPDATE workout_logs SET name=?, notes=?, duration_minutes=?, calories_burned=?, workout_date=?
+      `UPDATE workout_logs SET name=?, notes=?, duration_minutes=?, calories_burned=?, workout_date=?,
+       completed=COALESCE(?, completed)
        WHERE id = ? AND user_id = ?`,
       [name ?? null, notes ?? null, durationMinutes ?? null, caloriesBurned ?? null,
-       workoutDate ?? localDateStr(), id, req.userId]
+       workoutDate ?? localDateStr(), completed != null ? (completed ? 1 : 0) : null, id, req.userId]
     );
     const detail = await getWorkoutDetail(id);
     res.json(detail);

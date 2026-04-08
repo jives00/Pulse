@@ -323,9 +323,13 @@ export async function createWorkout(token: string, data?: { name?: string }): Pr
   const res = await fetch(`${API_BASE}/api/workouts`, { method: 'POST', headers: headers(token), body: JSON.stringify(data ?? {}) });
   return handle<WorkoutDetail>(res);
 }
-export async function updateWorkout(token: string, id: number, data: { name?: string; durationMinutes?: number }): Promise<void> {
+export async function updateWorkout(token: string, id: number, data: { name?: string; durationMinutes?: number; completed?: boolean }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
+}
+export async function getActiveWorkout(token: string): Promise<WorkoutDetail | null> {
+  const res = await fetch(`${API_BASE}/api/workouts/active`, { headers: headers(token) });
+  return handle<WorkoutDetail | null>(res);
 }
 export async function deleteWorkout(token: string, id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'DELETE', headers: headers(token) });

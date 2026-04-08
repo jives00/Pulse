@@ -17,6 +17,7 @@ const MIGRATIONS = [
   '011_exercise_extended_fields.sql',
   '012_routine_cover_image.sql',
   '013_links_category.sql',
+  '015_workout_completed.sql',
 ];
 
 async function migrate() {
@@ -230,6 +231,25 @@ async function migrate() {
         console.log('  Added links.category column.');
       } else {
         console.log('  links.category already exists, skipping ALTER.');
+      }
+    }
+
+    if (file === '015_workout_completed.sql') {
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'workout_logs'
+           AND COLUMN_NAME  = 'completed'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE workout_logs ADD COLUMN completed TINYINT(1) NOT NULL DEFAULT 0`
+        );
+        // Mark all existing workouts as completed so they remain visible in history
+        await conn.query(`UPDATE workout_logs SET completed = 1`);
+        console.log('  Added workout_logs.completed column and marked existing rows as completed.');
+      } else {
+        console.log('  workout_logs.completed already exists, skipping ALTER.');
       }
     }
 

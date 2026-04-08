@@ -420,11 +420,22 @@ router.post('/:id/photo', async (req, res) => {
   }
 });
 
-// POST /api/routines/:id/start — create a workout_log from this routine
+// POST /api/routines/:id/start — create a workout_log from this routine (or resume in-progress one)
 router.post('/:id/start', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  // Resume an existing incomplete session for this routine if one exists
+  const [activeRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM workout_logs WHERE user_id = ? AND routine_id = ? AND completed = 0 ORDER BY created_at DESC LIMIT 1`,
+    [req.userId, id]
+  );
+  if ((activeRows as any[]).length > 0) {
+    const detail = await getWorkoutDetail((activeRows as any[])[0].id);
+    res.json(detail);
+    return;
+  }
 
   const conn = await pool.getConnection();
   try {

@@ -941,15 +941,6 @@ export default function WorkoutsPage() {
                 goal={volumeGoal}
                 unit=" lbs"
               />
-              <WeeklyChart
-                data={weeklyData}
-                dataKey="workouts"
-                label="Workouts / wk"
-                icon="🏋️"
-                color="#34d399"
-                goal={workoutGoal}
-                unit=""
-              />
             </div>
           </>
         ) : activeTab === 'body' ? (

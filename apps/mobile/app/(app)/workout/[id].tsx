@@ -99,7 +99,7 @@ export default function WorkoutDetailScreen() {
     setFinishing(true);
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
-      await updateWorkout(token, workoutId, { durationMinutes });
+      await updateWorkout(token, workoutId, { durationMinutes, completed: true });
       router.back();
     } catch {
       Alert.alert('Error', 'Could not finish workout.');
@@ -328,6 +328,14 @@ export default function WorkoutDetailScreen() {
             <Text style={s.addExBtnText}>+ Add Exercise</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[s.finishBtnBottom, finishing && s.finishBtnDisabled]}
+            onPress={handleFinish}
+            disabled={finishing}
+          >
+            <Text style={s.finishBtnText}>{finishing ? 'Finishing…' : 'Finish Workout'}</Text>
+          </TouchableOpacity>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -429,6 +437,7 @@ const s = StyleSheet.create({
   timer: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
   volumeLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
   finishBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  finishBtnBottom: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   finishBtnDisabled: { opacity: 0.5 },
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
   scroll: { flex: 1 },
