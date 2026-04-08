@@ -65,6 +65,13 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     recipesApi.getLog(recipeId).then((data) => setLog(data.entries)).catch(() => {});
   }, [recipeId]);
 
+  useEffect(() => {
+    if (!showCookModal) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCookModal(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showCookModal]);
+
   async function handleLog() {
     if (!recipe) return;
     setLogging(true);

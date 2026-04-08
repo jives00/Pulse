@@ -172,6 +172,8 @@ export default function NutritionScreen() {
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<MealSlot, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
 
   // Move/copy modal state
   const [moveCopyEntry, setMoveCopyEntry] = useState<NutritionLogEntry | null>(null);
@@ -205,15 +207,15 @@ export default function NutritionScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await getDailyLog(token, date);
       setLog(data);
     } catch {
       Alert.alert('Error', 'Could not load nutrition log.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [token, date]);
 
@@ -398,7 +400,12 @@ export default function NutritionScreen() {
   }
 
   async function handleAddWater(oz: number) {
-    try { await addWater(token, date, oz); load(); }
+    const savedY = scrollYRef.current;
+    try {
+      await addWater(token, date, oz);
+      await load(true);
+      scrollRef.current?.scrollTo({ y: savedY, animated: false });
+    }
     catch { Alert.alert('Error', 'Could not log water.'); }
   }
 
@@ -434,7 +441,13 @@ export default function NutritionScreen() {
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />
       ) : (
-        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+        <ScrollView
+          ref={scrollRef}
+          style={s.scroll}
+          contentContainerStyle={s.scrollContent}
+          onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
+        >
           {/* Summary card */}
           <View style={s.summaryCard}>
             <View style={s.calRow}>

@@ -410,6 +410,12 @@ function EditModal({ exercise, categories, onSave, onClose }: {
   onSave: (updated: Exercise) => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const [form, setForm] = useState<EditForm>({
     name: exercise.name,
     category: exercise.category,

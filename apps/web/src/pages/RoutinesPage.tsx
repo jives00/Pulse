@@ -132,6 +132,13 @@ export default function RoutinesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!showCreate) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showCreate]);
+
   function handleImageUpdated(id: number, previewUrl: string) {
     setRoutines((prev) =>
       prev.map((r) => r.id === id ? { ...r, coverImageUrl: previewUrl } : r)

@@ -177,6 +177,13 @@ export default function ExercisesPage() {
     loadAll({ search: search || undefined, category: filterCat || undefined });
   }, [search, filterCat]);
 
+  useEffect(() => {
+    if (!showForm) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showForm]);
+
   function openCreate() {
     setEditingId(null);
     setForm({ ...EMPTY_FORM, category: categories[0] ?? '' });

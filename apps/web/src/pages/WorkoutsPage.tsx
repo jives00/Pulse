@@ -139,6 +139,12 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
   onSaved: () => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-dram-accent';
 
   const [volume, setVolume] = useState(String(exGoals?.volumeLbsPerWeek ?? ''));

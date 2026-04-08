@@ -211,6 +211,12 @@ function ExercisePicker({ onSelect, onClose }: { onSelect: (ex: Exercise) => voi
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const filtered = exercises.filter((e) => {
     const matchCat = !category || e.category === category;
     const matchSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());

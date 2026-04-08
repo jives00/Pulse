@@ -91,6 +91,7 @@ function GoalsTab() {
   const [carbsG, setCarbsG] = useState('');
   const [proteinG, setProteinG] = useState('');
   const [fatG, setFatG] = useState('');
+  const [waterGlasses, setWaterGlasses] = useState('');
 
   // Exercise
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
@@ -116,6 +117,7 @@ function GoalsTab() {
         setCarbsG(String(n.carbsG ?? ''));
         setProteinG(String(n.proteinG ?? ''));
         setFatG(String(n.fatG ?? ''));
+        setWaterGlasses(n.waterGoalOz != null ? String(Math.round(n.waterGoalOz / 8)) : '');
       }
       setExGoals(ex);
       setWorkoutCount(String(ex.workoutsPerWeek ?? ''));
@@ -140,6 +142,7 @@ function GoalsTab() {
         tasks.push(saveNutritionGoals(token, {
           calories: Number(calories), carbsG: Number(carbsG),
           proteinG: Number(proteinG), fatG: Number(fatG),
+          waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * 8 : undefined,
         }));
       }
       tasks.push(saveExerciseGoals(token, {
@@ -173,6 +176,7 @@ function GoalsTab() {
             ['Carbs (g)',       carbsG,   setCarbsG  ],
             ['Protein (g)',     proteinG, setProteinG],
             ['Fat (g)',         fatG,     setFatG    ],
+            ['Water (glasses)', waterGlasses, setWaterGlasses],
           ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
             <Field key={label} label={label}>
               <TextInput

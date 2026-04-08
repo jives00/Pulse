@@ -13,6 +13,12 @@ function NutritionGoalEditor({ current, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const [calories, setCalories] = useState(String(current?.calories ?? ''));
   const [carbsG, setCarbsG] = useState(String(current?.carbsG ?? ''));
   const [proteinG, setProteinG] = useState(String(current?.proteinG ?? ''));
@@ -117,6 +123,13 @@ export default function TodayPage() {
   });
 
   useEffect(() => { fetchDay(); }, []);
+
+  useEffect(() => {
+    if (!showRecipeFormModal) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowRecipeFormModal(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showRecipeFormModal]);
 
   useEffect(() => {
     const meals: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];

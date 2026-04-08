@@ -18,7 +18,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="nutrition"
-        options={{ title: 'Nutrition', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🥗</Text> }}
+        options={{ title: 'Food Log', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🥗</Text> }}
       />
       <Tabs.Screen
         name="workouts"
