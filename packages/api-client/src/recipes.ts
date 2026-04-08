@@ -1,6 +1,6 @@
 export interface Recipe {
   id: number;
-  type: 'cocktail' | 'food';
+  type: 'cocktail' | 'food' | 'prepackaged';
   name: string;
   description?: string | null;
   photo_key?: string | null;
@@ -62,7 +62,7 @@ export interface RecipeStep {
 
 export interface ScrapedRecipe {
   name: string;
-  type: 'cocktail' | 'food';
+  type: 'cocktail' | 'food' | 'prepackaged';
   description?: string | null;
   prep_time?: number | null;
   cook_time?: number | null;
@@ -84,13 +84,13 @@ export interface ScrapedRecipe {
 
 export interface RecipeSuggestion {
   name: string;
-  type: 'cocktail' | 'food';
+  type: 'cocktail' | 'food' | 'prepackaged';
   description: string;
   ingredients: string[];
 }
 
 export interface RecipeFormData {
-  type: 'cocktail' | 'food';
+  type: 'cocktail' | 'food' | 'prepackaged';
   name: string;
   description?: string;
   notes?: string;

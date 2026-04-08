@@ -2,6 +2,7 @@ import { apiClient } from '../client';
 import type {
   DailyLog,
   LogEntry,
+  MealSlot,
   AddLogEntryPayload,
   UpdateLogEntryPayload,
   CopyLogPayload,
