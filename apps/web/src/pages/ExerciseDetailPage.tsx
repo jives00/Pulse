@@ -351,6 +351,22 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 
+const TRACKED_FIELD_OPTIONS = [
+  { key: 'reps',     label: 'Reps' },
+  { key: 'weight',   label: 'Weight (lbs)' },
+  { key: 'duration', label: 'Duration (min:sec)' },
+  { key: 'distance', label: 'Distance' },
+] as const;
+
+function defaultTrackedFields(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
+
 interface EditForm {
   name: string;
   category: string;
@@ -368,7 +384,7 @@ interface EditForm {
   mediaKey: string;
   muscleImageKey: string;
   notes: string;
-  trackWeight: boolean;
+  trackedFields: string[];
 }
 
 function TagInput({ label, tags, onChange }: { label: string; tags: string[]; onChange: (v: string[]) => void }) {
@@ -431,7 +447,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
     mediaKey: exercise.mediaKey ?? '',
     muscleImageKey: exercise.muscleImageKey ?? '',
     notes: exercise.notes ?? '',
-    trackWeight: exercise.trackWeight ?? true,
+    trackedFields: exercise.trackedFields ?? defaultTrackedFields(exercise.exerciseType),
   });
   const [useCustomCat, setUseCustomCat] = useState(!categories.includes(exercise.category));
   const [saving, setSaving] = useState(false);
@@ -499,7 +515,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         coverImageUrl: form.coverImageKey.trim() || null,
         muscleImageUrl: form.muscleImageKey.trim() || null,
         notes: form.notes.trim() || null,
-        trackWeight: form.trackWeight,
+        trackedFields: form.trackedFields,
       });
       onSave(updated);
     } catch {
@@ -554,7 +570,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</label>
           <div className="flex flex-wrap gap-1.5">
             {EXERCISE_TYPES.map((t) => (
-              <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t }))}
+              <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
                 className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                   form.exerciseType === t ? 'bg-blue-600 text-white border-blue-600 font-semibold' : 'text-slate-400 border-slate-600 hover:border-slate-400'
                 }`}
@@ -563,18 +579,33 @@ function EditModal({ exercise, categories, onSave, onClose }: {
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Track Weight</div>
-            <div className="text-xs text-slate-600 mt-0.5">Uncheck for cardio/bodyweight-only exercises</div>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Track Per Set</label>
+          <div className="flex flex-wrap gap-2">
+            {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
+              const checked = form.trackedFields.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setForm((f) => ({
+                    ...f,
+                    trackedFields: checked
+                      ? f.trackedFields.filter((x) => x !== key)
+                      : [...f.trackedFields, key],
+                  }))}
+                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                    checked
+                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'text-slate-400 border-slate-600 hover:border-slate-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          <button
-            type="button"
-            onClick={() => setForm((f) => ({ ...f, trackWeight: !f.trackWeight }))}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.trackWeight ? 'bg-blue-600' : 'bg-slate-600'}`}
-          >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.trackWeight ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
+          <p className="text-xs text-slate-600">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
         </div>
 
         <TagInput label="Primary Muscles" tags={form.musclesPrimary} onChange={(v) => setForm((f) => ({ ...f, musclesPrimary: v }))} />
