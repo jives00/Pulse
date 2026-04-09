@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { getRecipes, getTags, type Recipe } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore } from '../../../src/store/settings';
@@ -48,6 +49,7 @@ export default function LibraryScreen() {
   const [sort, setSort] = useState(defaultSort);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [dropdown, setDropdown] = useState<DropdownConfig | null>(null);
+  const swipe = useSwipeNav(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchRecipes = useCallback(async (searchVal: string, offset = 0, append = false) => {
@@ -107,7 +109,7 @@ export default function LibraryScreen() {
   const styles = makeStyles(c);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...swipe.panHandlers}>
       <View style={styles.header}>
         <Text style={styles.title}>My Recipes</Text>
         <TouchableOpacity onPress={() => router.push('/(app)/recipe/edit')} style={styles.addBtn}>

@@ -19,10 +19,12 @@ import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, PALETTES, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import FilterChip from '../../../src/components/FilterChip';
 
 const KG_TO_LBS = 2.20462;
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
+const WORKOUT_TABS_ORDER = ['progress', 'log', 'routines', 'exercises'] as const;
 
 function fmtDate(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -978,6 +980,7 @@ export default function WorkoutsScreen() {
   const seg = makeSegStyles(c);
   const rp = makeRpStyles(c);
   const [tab, setTab] = useState<Tab>('progress');
+  const swipe = useSwipeNav(2, WORKOUT_TABS_ORDER, tab, setTab);
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
@@ -1049,7 +1052,7 @@ export default function WorkoutsScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} {...swipe.panHandlers}>
       <View style={s.header}>
         <Text style={s.title}>Workouts</Text>
         {renderHeaderAction()}

@@ -227,6 +227,7 @@ Android-only Expo app. Key conventions:
 
 - **Styling**: Use `StyleSheet.create()` — NOT NativeWind/Tailwind classes (NativeWind is installed but not used in practice)
 - **Theme**: Two color schemes (`blue`, `slate`) defined in `src/theme.ts` as `PALETTES`. Use `useColors()` hook (`src/hooks/useColors.ts`) to get the active palette — never import `colors` directly. Pass result `c` to a `makeStyles(c: Colors)` factory function instead of module-level `StyleSheet.create()`, so styles react to scheme changes.
+- **Swipe navigation**: `src/hooks/useSwipeNav.ts` — returns a `PanResponder` for horizontal swipe-left/right navigation. All 5 main tabs use it. Pages with internal tabs (Workouts, Settings) pass their tab list so swipes move through internal tabs first, then fall through to bottom tab navigation at the edges. No looping. Attach via `{...swipe.panHandlers}` on the root `SafeAreaView`.
 - **API client**: `src/api/client.ts` — fetch-based, token passed explicitly. `API_BASE` from `src/api/config.ts` (defaults to `http://10.0.2.2:3000` for Android emulator; override via `EXPO_PUBLIC_API_BASE`)
 - **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
 - **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` (recipes), `defaultExerciseSort` (`name` or `created_at`), and `colorScheme` (`blue` or `slate`).

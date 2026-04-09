@@ -18,6 +18,7 @@ import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../../
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import FilterChip from '../../../src/components/FilterChip';
 
 export default function LinksScreen() {
@@ -90,17 +91,18 @@ export default function LinksScreen() {
   }
 
   const styles = makeStyles(c);
+  const swipe = useSwipeNav(3);
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} {...swipe.panHandlers}>
         <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...swipe.panHandlers}>
       <View style={styles.header}>
         <Text style={styles.title}>Links</Text>
       </View>

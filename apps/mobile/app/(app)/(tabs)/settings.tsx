@@ -16,6 +16,7 @@ import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -526,6 +527,7 @@ function DeleteTab() {
 // ── Root screen ───────────────────────────────────────────────────────────────
 
 type Tab = 'options' | 'tags' | 'goals' | 'user' | 'delete';
+const SETTINGS_TABS_ORDER = ['options', 'tags', 'goals', 'user', 'delete'] as const;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -533,9 +535,10 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
+  const swipe = useSwipeNav(4, SETTINGS_TABS_ORDER, tab, setTab);
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} {...swipe.panHandlers}>
       <View style={s.header}>
         <Text style={s.title}>Settings</Text>
         <TouchableOpacity onPress={() => { logout(); router.replace('/(auth)/login'); }}>

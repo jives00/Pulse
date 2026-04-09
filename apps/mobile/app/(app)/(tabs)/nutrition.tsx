@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 
 const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'breakfast', label: 'Breakfast' },
@@ -214,6 +215,7 @@ export default function NutritionScreen() {
   // Barcode scanner
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
+  const swipe = useSwipeNav(1);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -440,7 +442,7 @@ export default function NutritionScreen() {
   const s = makeStyles(c);
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} {...swipe.panHandlers}>
       {/* Date nav */}
       <View style={s.dateNav}>
         <TouchableOpacity onPress={() => shiftDate(-1)} style={s.dateArrow}>
