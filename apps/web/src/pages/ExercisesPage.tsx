@@ -6,6 +6,22 @@ import Spinner from '../components/Spinner';
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 
+const TRACKED_FIELD_OPTIONS = [
+  { key: 'reps',     label: 'Reps' },
+  { key: 'weight',   label: 'Weight (lbs)' },
+  { key: 'duration', label: 'Duration (min:sec)' },
+  { key: 'distance', label: 'Distance' },
+] as const;
+
+function defaultTrackedFields(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
+
 interface FormState {
   name: string;
   category: string;
@@ -25,7 +41,7 @@ interface FormState {
   mediaKey: string;
   muscleImageKey: string;
   notes: string;
-  trackWeight: boolean;
+  trackedFields: string[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -33,7 +49,7 @@ const EMPTY_FORM: FormState = {
   musclesPrimary: [], musclesSecondary: [], instructions: '',
   coverImageUrlInput: '', mediaUrlInput: '', muscleImageUrlInput: '',
   coverImageKey: '', mediaKey: '', muscleImageKey: '',
-  notes: '', trackWeight: true,
+  notes: '', trackedFields: ['reps', 'weight'],
 };
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -188,7 +204,8 @@ export default function ExercisesPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, category: categories[0] ?? '' });
+    const defaultType = 'weight';
+    setForm({ ...EMPTY_FORM, category: categories[0] ?? '', exerciseType: defaultType, trackedFields: defaultTrackedFields(defaultType) });
     setUseCustomCat(false);
     setShowForm(true);
   }
@@ -214,7 +231,7 @@ export default function ExercisesPage() {
         mediaKey: full.mediaKey ?? '',
         muscleImageKey: full.muscleImageKey ?? '',
         notes: full.notes ?? '',
-        trackWeight: full.trackWeight ?? true,
+        trackedFields: full.trackedFields ?? defaultTrackedFields(full.exerciseType),
       });
       setUseCustomCat(!categories.includes(full.category));
     } catch {
@@ -234,7 +251,7 @@ export default function ExercisesPage() {
         mediaKey: ex.mediaKey ?? '',
         muscleImageKey: ex.muscleImageKey ?? '',
         notes: ex.notes ?? '',
-        trackWeight: ex.trackWeight ?? true,
+        trackedFields: ex.trackedFields ?? defaultTrackedFields(ex.exerciseType),
       });
       setUseCustomCat(!categories.includes(ex.category));
     }
@@ -311,7 +328,7 @@ export default function ExercisesPage() {
         coverImageUrl: form.coverImageKey.trim() || null,
         muscleImageUrl: form.muscleImageKey.trim() || null,
         notes: form.notes.trim() || null,
-        trackWeight: form.trackWeight,
+        trackedFields: form.trackedFields,
       };
       if (editingId != null) {
         const updated = await exercisesApi.update(editingId, payload);
@@ -483,7 +500,7 @@ export default function ExercisesPage() {
                 {EXERCISE_TYPES.map((t) => (
                   <button
                     key={t}
-                    onClick={() => setForm((f) => ({ ...f, exerciseType: t }))}
+                    onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
                     className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                       form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
                         : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
@@ -495,19 +512,34 @@ export default function ExercisesPage() {
               </div>
             </div>
 
-            {/* Track weight toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Weight</div>
-                <div className="text-xs text-gray-500 mt-0.5">Uncheck for cardio/bodyweight-only exercises</div>
+            {/* Tracked fields */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
+              <div className="flex flex-wrap gap-2">
+                {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
+                  const checked = form.trackedFields.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((f) => ({
+                        ...f,
+                        trackedFields: checked
+                          ? f.trackedFields.filter((x) => x !== key)
+                          : [...f.trackedFields, key],
+                      }))}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                        checked
+                          ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
+                          : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, trackWeight: !f.trackWeight }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.trackWeight ? 'bg-dram-accent' : 'bg-gray-600'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.trackWeight ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
+              <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
             </div>
 
             <TagInput

@@ -73,7 +73,7 @@ router.get('/', async (req, res) => {
       coverImageKey: r.cover_image_url ?? null,
       muscleImageKey: r.muscle_image_url ?? null,
       notes: r.notes ?? null,
-      trackWeight: r.track_weight !== 0,
+      trackedFields: (r.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
     })));
     res.json(mapped);
   } catch (err) {
@@ -95,22 +95,35 @@ router.get('/categories', async (_req, res) => {
   }
 });
 
+function defaultTrackedFields(exerciseType: string): string {
+  switch (exerciseType) {
+    case 'cardio':     return 'duration,distance';
+    case 'duration':   return 'duration';
+    case 'bodyweight': return 'reps';
+    default:           return 'reps,weight';
+  }
+}
+
 // POST /api/exercises — create custom exercise
 router.post('/', async (req, res) => {
-  const { name, category, exerciseType } = req.body as {
+  const { name, category, exerciseType, trackedFields } = req.body as {
     name: string;
     category: string;
     exerciseType: string;
+    trackedFields?: string[];
   };
   if (!name?.trim() || !category?.trim() || !exerciseType) {
     res.status(400).json({ error: 'name, category, and exerciseType required' });
     return;
   }
+  const fields = trackedFields?.length
+    ? trackedFields.join(',')
+    : defaultTrackedFields(exerciseType);
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO exercises (name, category, exercise_type, muscles_primary, muscles_secondary, is_custom)
-       VALUES (?, ?, ?, '[]', '[]', 1)`,
-      [name.trim(), category.trim(), exerciseType]
+      `INSERT INTO exercises (name, category, exercise_type, muscles_primary, muscles_secondary, is_custom, tracked_fields)
+       VALUES (?, ?, ?, '[]', '[]', 1, ?)`,
+      [name.trim(), category.trim(), exerciseType, fields]
     );
     res.status(201).json({
       id: result.insertId,
@@ -120,6 +133,7 @@ router.post('/', async (req, res) => {
       musclesPrimary: [],
       musclesSecondary: [],
       isCustom: true,
+      trackedFields: fields.split(','),
     });
   } catch (err) {
     console.error(err);
@@ -154,7 +168,7 @@ router.get('/:id', async (req, res) => {
       coverImageKey: r.cover_image_url ?? null,
       muscleImageKey: r.muscle_image_url ?? null,
       notes: r.notes ?? null,
-      trackWeight: r.track_weight !== 0,
+      trackedFields: (r.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
     });
   } catch (err) {
     console.error(err);
@@ -474,13 +488,13 @@ router.post('/:id/muscle-image', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  const { name, category, exerciseType, musclesPrimary, musclesSecondary, instructions, mediaUrl, coverImageUrl, muscleImageUrl, notes, trackWeight } =
+  const { name, category, exerciseType, musclesPrimary, musclesSecondary, instructions, mediaUrl, coverImageUrl, muscleImageUrl, notes, trackedFields } =
     req.body as {
       name?: string; category?: string; exerciseType?: string;
       musclesPrimary?: string[]; musclesSecondary?: string[];
       instructions?: string | null; mediaUrl?: string | null;
       coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null;
-      trackWeight?: boolean;
+      trackedFields?: string[];
     };
   try {
     const updates: string[] = [];
@@ -495,7 +509,7 @@ router.put('/:id', async (req, res) => {
     if (coverImageUrl !== undefined) { updates.push('cover_image_url = ?'); values.push(coverImageUrl?.trim() || null); }
     if (muscleImageUrl !== undefined) { updates.push('muscle_image_url = ?'); values.push(muscleImageUrl?.trim() || null); }
     if (notes !== undefined) { updates.push('notes = ?'); values.push(notes || null); }
-    if (trackWeight !== undefined) { updates.push('track_weight = ?'); values.push(trackWeight ? 1 : 0); }
+    if (trackedFields !== undefined) { updates.push('tracked_fields = ?'); values.push(trackedFields.join(',')); }
     if (updates.length === 0) { res.status(400).json({ error: 'At least one field required' }); return; }
     values.push(id);
     const [result] = await pool.query<ResultSetHeader>(
@@ -518,7 +532,7 @@ router.put('/:id', async (req, res) => {
       coverImageKey: r.cover_image_url ?? null,
       muscleImageKey: r.muscle_image_url ?? null,
       notes: r.notes ?? null,
-      trackWeight: r.track_weight !== 0,
+      trackedFields: (r.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
     });
   } catch (err) {
     console.error(err);

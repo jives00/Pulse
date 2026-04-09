@@ -85,7 +85,8 @@ export interface Exercise {
   /** Raw stored value: S3 key or legacy URL (use in edit forms) */
   muscleImageKey: string | null;
   notes: string | null;
-  trackWeight: boolean;
+  /** Which fields to log for each set: 'reps' | 'weight' | 'duration' | 'distance' */
+  trackedFields: string[];
 }
 
 export interface ExerciseSet {
@@ -183,7 +184,7 @@ export const exercisesApi = {
     name?: string; category?: string; exerciseType?: string;
     musclesPrimary?: string[]; musclesSecondary?: string[];
     instructions?: string | null; mediaUrl?: string | null;
-    coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackWeight?: boolean;
+    coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackedFields?: string[];
   }) =>
     apiClient.put<Exercise>(`/exercises/${id}`, data).then((r) => r.data),
 

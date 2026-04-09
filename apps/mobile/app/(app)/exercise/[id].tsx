@@ -249,6 +249,22 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 
+const TRACKED_FIELD_OPTIONS = [
+  { key: 'reps',     label: 'Reps' },
+  { key: 'weight',   label: 'Weight (lbs)' },
+  { key: 'duration', label: 'Duration (min:sec)' },
+  { key: 'distance', label: 'Distance' },
+] as const;
+
+function defaultTrackedFieldsMobile(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
+
 function MuscleTagInput({ label, tags, onChange }: { label: string; tags: string[]; onChange: (v: string[]) => void }) {
   const c = useColors();
   const ed = makeEdStyles(c);
@@ -294,6 +310,9 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
   const [name, setName] = useState(exercise.name);
   const [category, setCategory] = useState(exercise.category);
   const [exerciseType, setExerciseType] = useState(exercise.exerciseType);
+  const [trackedFields, setTrackedFields] = useState<string[]>(
+    exercise.trackedFields ?? defaultTrackedFieldsMobile(exercise.exerciseType)
+  );
   const [musclesPrimary, setMusclesPrimary] = useState(exercise.musclesPrimary ?? []);
   const [musclesSecondary, setMusclesSecondary] = useState(exercise.musclesSecondary ?? []);
   const [instructions, setInstructions] = useState(exercise.instructions ?? '');
@@ -367,6 +386,7 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
         mediaUrl: mediaKey.trim() || null,
         coverImageUrl: coverImageKey.trim() || null,
         muscleImageUrl: muscleImageKey.trim() || null,
+        trackedFields,
       });
       onSaved(updated);
     } catch (err: any) {
@@ -415,11 +435,37 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
             <Text style={ed.label}>Type</Text>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
               {EXERCISE_TYPES.map((t) => (
-                <TouchableOpacity key={t} style={[ed.pill, exerciseType === t && ed.pillActive]} onPress={() => setExerciseType(t)}>
+                <TouchableOpacity
+                  key={t}
+                  style={[ed.pill, exerciseType === t && ed.pillActive]}
+                  onPress={() => { setExerciseType(t); setTrackedFields(defaultTrackedFieldsMobile(t)); }}
+                >
                   <Text style={[ed.pillText, exerciseType === t && ed.pillTextActive]}>{t}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+          <View style={ed.field}>
+            <Text style={ed.label}>Track Per Set</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
+                const checked = trackedFields.includes(key);
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[ed.pill, checked && ed.pillActive]}
+                    onPress={() => setTrackedFields((prev) =>
+                      checked ? prev.filter((x) => x !== key) : [...prev, key]
+                    )}
+                  >
+                    <Text style={[ed.pillText, checked && ed.pillTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
+              Defaults set by type — toggle to mix (e.g. stairs = Duration + Reps)
+            </Text>
           </View>
           <MuscleTagInput label="Primary Muscles" tags={musclesPrimary} onChange={setMusclesPrimary} />
           <MuscleTagInput label="Secondary Muscles" tags={musclesSecondary} onChange={setMusclesSecondary} />

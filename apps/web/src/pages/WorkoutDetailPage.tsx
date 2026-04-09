@@ -20,6 +20,26 @@ function fmtWeight(kg: number | null) {
   return String(lbs % 1 === 0 ? lbs : lbs.toFixed(1));
 }
 
+function secondsToMMSS(sec: number | null): string {
+  if (sec == null) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function mmssToSeconds(val: string): number | null {
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10);
+    const s = parseInt(parts[1], 10);
+    if (!isNaN(m) && !isNaN(s)) return m * 60 + s;
+  }
+  const n = parseInt(trimmed, 10);
+  return isNaN(n) ? null : n;
+}
+
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -32,33 +52,57 @@ function formatElapsed(seconds: number): string {
 // ─── Set row ─────────────────────────────────────────────────────────────────
 
 function SetRow({
-  set, weId, workoutId, isActive, trackWeight, onUpdated, onDeleted,
+  set, weId, workoutId, isActive, trackedFields, onUpdated, onDeleted,
 }: {
   set: ExerciseSet;
   weId: number;
   workoutId: number;
   isActive: boolean;
-  trackWeight: boolean;
+  trackedFields: string[];
   onUpdated: (s: ExerciseSet) => void;
   onDeleted: (id: number) => void;
 }) {
-  const [reps, setReps] = useState(String(set.reps ?? ''));
-  const [weight, setWeight] = useState(fmtWeight(set.weightKg));
-  const [saving, setSaving] = useState(false);
+  const trackWeight   = trackedFields.includes('weight');
+  const trackReps     = trackedFields.includes('reps');
+  const trackDuration = trackedFields.includes('duration');
+  const trackDistance = trackedFields.includes('distance');
+
+  const [reps, setReps]         = useState(String(set.reps ?? ''));
+  const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
+  const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
+  const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
+  const [saving, setSaving]     = useState(false);
 
   async function handleBlur() {
     if (saving) return;
-    const newReps = reps !== '' ? Number(reps) : null;
-    const newWeightLbs = trackWeight && weight !== '' ? Number(weight) : null;
-    const newWeightKg = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
-    if (newReps === set.reps && newWeightKg === set.weightKg) return;
+    const newReps        = trackReps     && reps     !== '' ? Number(reps)    : null;
+    const newWeightLbs   = trackWeight   && weight   !== '' ? Number(weight)  : null;
+    const newWeightKg    = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
+    const newDurSeconds  = trackDuration ? mmssToSeconds(duration)             : null;
+    const newDistMeters  = trackDistance && distance !== '' ? Number(distance) : null;
+
+    const unchanged =
+      newReps       === set.reps &&
+      newWeightKg   === set.weightKg &&
+      newDurSeconds === set.durationSeconds &&
+      newDistMeters === set.distanceMeters;
+    if (unchanged) return;
+
     setSaving(true);
     try {
-      await workoutsApi.updateSet(workoutId, weId, set.id, { reps: newReps ?? undefined, weightKg: newWeightKg ?? undefined, completed: set.completed });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg });
+      await workoutsApi.updateSet(workoutId, weId, set.id, {
+        reps: newReps ?? undefined,
+        weightKg: newWeightKg ?? undefined,
+        durationSeconds: newDurSeconds ?? undefined,
+        distanceMeters: newDistMeters ?? undefined,
+        completed: set.completed,
+      });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters });
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
+      setDuration(secondsToMMSS(set.durationSeconds));
+      setDistance(String(set.distanceMeters ?? ''));
     } finally {
       setSaving(false);
     }
@@ -86,33 +130,31 @@ function SetRow({
   const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
   const rowCls = isActive && !set.completed ? 'opacity-60' : '';
 
-  const gridCols = isActive
-    ? (trackWeight ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]' : 'grid-cols-[2rem_1fr_2rem_2rem]')
-    : (trackWeight ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]');
+  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance].filter(Boolean).length;
+  const dataCols = `repeat(${fieldCount}, 1fr)`;
+  const gridTemplateColumns = isActive
+    ? `2rem ${dataCols} 2rem 2rem`
+    : `2rem ${dataCols} 2rem`;
 
   return (
-    <div className={`grid ${gridCols} gap-2 items-center py-1 transition-opacity ${rowCls}`}>
+    <div className={`grid gap-2 items-center py-1 transition-opacity ${rowCls}`} style={{ gridTemplateColumns }}>
       <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
       {trackWeight && (
-        <input
-          type="number"
-          min="0"
-          placeholder="lbs"
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-          onBlur={handleBlur}
-          className={inputCls}
-        />
+        <input type="number" min="0" placeholder="lbs" value={weight}
+          onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
-      <input
-        type="number"
-        min="0"
-        placeholder="reps"
-        value={reps}
-        onChange={(e) => setReps(e.target.value)}
-        onBlur={handleBlur}
-        className={inputCls}
-      />
+      {trackReps && (
+        <input type="number" min="0" placeholder="reps" value={reps}
+          onChange={(e) => setReps(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackDuration && (
+        <input type="text" placeholder="m:ss" value={duration}
+          onChange={(e) => setDuration(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackDistance && (
+        <input type="number" min="0" placeholder="dist" value={distance}
+          onChange={(e) => setDistance(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
       {isActive && (
         <button
           onClick={handleToggleComplete}
@@ -163,6 +205,8 @@ function ExerciseBlock({
       const s = await workoutsApi.addSet(workoutId, we.id, {
         reps: last?.reps ?? undefined,
         weightKg: last?.weightKg ?? undefined,
+        durationSeconds: last?.durationSeconds ?? undefined,
+        distanceMeters: last?.distanceMeters ?? undefined,
       });
       updateSets([...sets, s]);
     } catch {
@@ -180,10 +224,17 @@ function ExerciseBlock({
     updateSets(sets.filter((s) => s.id !== id));
   }
 
-  const tw = we.exercise.trackWeight !== false;
-  const gridCols = isActive
-    ? (tw ? 'grid-cols-[2rem_1fr_1fr_2rem_2rem]' : 'grid-cols-[2rem_1fr_2rem_2rem]')
-    : (tw ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]');
+  const tf = we.exercise.trackedFields ?? ['reps', 'weight'];
+  const trackWeight   = tf.includes('weight');
+  const trackReps     = tf.includes('reps');
+  const trackDuration = tf.includes('duration');
+  const trackDistance = tf.includes('distance');
+
+  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance].filter(Boolean).length;
+  const dataCols = `repeat(${fieldCount}, 1fr)`;
+  const gridTemplateColumns = isActive
+    ? `2rem ${dataCols} 2rem 2rem`
+    : `2rem ${dataCols} 2rem`;
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -208,11 +259,13 @@ function ExerciseBlock({
 
       {sets.length > 0 && (
         <div className="mb-2">
-          <div className={`grid ${gridCols} gap-2 mb-1`}>
+          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns }}>
             <span />
-            {tw && <span className="text-sm text-slate-500 text-center">lbs</span>}
-            <span className="text-sm text-slate-500 text-center">reps</span>
-            {isActive && <span className="text-sm text-slate-500 text-center">✓</span>}
+            {trackWeight   && <span className="text-sm text-slate-500 text-center">lbs</span>}
+            {trackReps     && <span className="text-sm text-slate-500 text-center">reps</span>}
+            {trackDuration && <span className="text-sm text-slate-500 text-center">time</span>}
+            {trackDistance && <span className="text-sm text-slate-500 text-center">dist</span>}
+            {isActive      && <span className="text-sm text-slate-500 text-center">✓</span>}
             <span />
           </div>
           {sets.map((s) => (
@@ -222,7 +275,7 @@ function ExerciseBlock({
               weId={we.id}
               workoutId={workoutId}
               isActive={isActive}
-              trackWeight={tw}
+              trackedFields={tf}
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
             />

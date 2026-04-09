@@ -18,6 +18,7 @@ const MIGRATIONS = [
   '012_routine_cover_image.sql',
   '013_links_category.sql',
   '015_workout_completed.sql',
+  '016_exercise_tracked_fields.sql',
 ];
 
 async function migrate() {
@@ -250,6 +251,39 @@ async function migrate() {
         console.log('  Added workout_logs.completed column and marked existing rows as completed.');
       } else {
         console.log('  workout_logs.completed already exists, skipping ALTER.');
+      }
+    }
+
+    if (file === '016_exercise_tracked_fields.sql') {
+      // Add tracked_fields column if it doesn't exist
+      const [cols] = await conn.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME   = 'exercises'
+           AND COLUMN_NAME  = 'tracked_fields'`
+      );
+      if ((cols as any[]).length === 0) {
+        await conn.query(
+          `ALTER TABLE exercises ADD COLUMN tracked_fields VARCHAR(100) NOT NULL DEFAULT 'reps,weight'`
+        );
+        // Backfill defaults based on exercise_type and existing track_weight value
+        await conn.query(`
+          UPDATE exercises SET tracked_fields = CASE
+            WHEN exercise_type = 'cardio'     THEN 'duration,distance'
+            WHEN exercise_type = 'duration'   THEN 'duration'
+            WHEN exercise_type = 'bodyweight' THEN 'reps'
+            ELSE 'reps,weight'
+          END
+        `);
+        // Honour existing track_weight = 0 overrides (weight was explicitly disabled)
+        await conn.query(`
+          UPDATE exercises
+          SET tracked_fields = REPLACE(REPLACE(tracked_fields, ',weight', ''), 'weight,', '')
+          WHERE track_weight = 0 AND tracked_fields LIKE '%weight%'
+        `);
+        console.log('  Added exercises.tracked_fields column and backfilled from exercise_type.');
+      } else {
+        console.log('  exercises.tracked_fields already exists, skipping ALTER.');
       }
     }
 

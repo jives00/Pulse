@@ -27,7 +27,7 @@ export async function getWorkoutDetail(workoutId: number) {
 
   const [exRows] = await pool.query<RowDataPacket[]>(
     `SELECT we.id AS we_id, we.sort_order, we.notes AS we_notes,
-            e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.track_weight
+            e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields
      FROM workout_exercises we
      JOIN exercises e ON e.id = we.exercise_id
      WHERE we.workout_log_id = ?
@@ -52,7 +52,7 @@ export async function getWorkoutDetail(workoutId: number) {
         musclesPrimary: ex.muscles_primary ?? [],
         musclesSecondary: ex.muscles_secondary ?? [],
         isCustom: Boolean(ex.is_custom),
-        trackWeight: ex.track_weight !== 0,
+        trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
       sets: setRows.map((s) => ({
         id: s.id,
@@ -378,7 +378,7 @@ router.post('/:id/exercises', async (req, res) => {
 
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT we.id AS we_id, we.sort_order, we.notes AS we_notes,
-              e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.track_weight
+              e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields
        FROM workout_exercises we
        JOIN exercises e ON e.id = we.exercise_id
        WHERE we.id = ?`,
@@ -395,7 +395,7 @@ router.post('/:id/exercises', async (req, res) => {
         musclesPrimary: ex.muscles_primary ?? [],
         musclesSecondary: ex.muscles_secondary ?? [],
         isCustom: Boolean(ex.is_custom),
-        trackWeight: ex.track_weight !== 0,
+        trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
       sets: [],
     });

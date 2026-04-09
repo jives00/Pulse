@@ -29,6 +29,35 @@ function formatTimer(seconds: number) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function secondsToMMSS(sec: number | null): string {
+  if (sec == null) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function mmssToSeconds(val: string): number | null {
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10);
+    const s = parseInt(parts[1], 10);
+    if (!isNaN(m) && !isNaN(s)) return m * 60 + s;
+  }
+  const n = parseInt(trimmed, 10);
+  return isNaN(n) ? null : n;
+}
+
+function defaultTrackedFields(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
+
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const workoutId = Number(id);
@@ -60,8 +89,8 @@ export default function WorkoutDetailScreen() {
   const [editingDate, setEditingDate] = useState(false);
   const [dateInput, setDateInput] = useState('');
 
-  // Set input state: { [weId]: { weight: string; reps: string } }
-  const [setInputs, setSetInputs] = useState<Record<number, { weight: string; reps: string }>>({});
+  // Set input state: { [weId]: { weight: string; reps: string; duration: string; distance: string } }
+  const [setInputs, setSetInputs] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string }>>({});
 
   const load = useCallback(async () => {
     try {
@@ -184,12 +213,17 @@ export default function WorkoutDetailScreen() {
   }
 
   async function handleAddSet(we: WorkoutExercise) {
-    const inp = setInputs[we.id] ?? { weight: '', reps: '' };
+    const inp = setInputs[we.id] ?? { weight: '', reps: '', duration: '', distance: '' };
+    const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
     const weightLbs = parseFloat(inp.weight);
     const reps = parseInt(inp.reps, 10);
-    const payload: { reps?: number; weightKg?: number } = {};
-    if (!isNaN(reps) && reps > 0) payload.reps = reps;
-    if (!isNaN(weightLbs) && weightLbs >= 0) payload.weightKg = parseFloat(lbsToKg(weightLbs).toFixed(4));
+    const durSeconds = mmssToSeconds(inp.duration ?? '');
+    const distMeters = parseFloat(inp.distance ?? '');
+    const payload: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number } = {};
+    if (tf.includes('weight') && !isNaN(weightLbs) && weightLbs >= 0) payload.weightKg = parseFloat(lbsToKg(weightLbs).toFixed(4));
+    if (tf.includes('reps') && !isNaN(reps) && reps > 0) payload.reps = reps;
+    if (tf.includes('duration') && durSeconds != null) payload.durationSeconds = durSeconds;
+    if (tf.includes('distance') && !isNaN(distMeters) && distMeters >= 0) payload.distanceMeters = distMeters;
     try {
       const set = await addWorkoutSet(token, workoutId, we.id, payload);
       setWorkout((prev) => prev ? {
@@ -322,7 +356,13 @@ export default function WorkoutDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {workout?.exercises.map((we) => (
+          {workout?.exercises.map((we) => {
+            const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
+            const trackWeight   = tf.includes('weight');
+            const trackReps     = tf.includes('reps');
+            const trackDuration = tf.includes('duration');
+            const trackDistance = tf.includes('distance');
+            return (
             <View key={we.id} style={s.exerciseBlock}>
               <TouchableOpacity
                 style={s.exerciseHeader}
@@ -332,21 +372,39 @@ export default function WorkoutDetailScreen() {
                 <Text style={s.exerciseCategory}>{we.exercise.category}</Text>
               </TouchableOpacity>
 
-              {/* Set rows */}
+              {/* Set header */}
               <View style={s.setHeader}>
                 <Text style={[s.setCol, s.setColNum]}>#</Text>
-                <Text style={[s.setCol, s.setColWeight]}>lbs</Text>
-                <Text style={[s.setCol, s.setColReps]}>reps</Text>
+                {trackWeight   && <Text style={[s.setCol, s.setColData]}>lbs</Text>}
+                {trackReps     && <Text style={[s.setCol, s.setColData]}>reps</Text>}
+                {trackDuration && <Text style={[s.setCol, s.setColData]}>time</Text>}
+                {trackDistance && <Text style={[s.setCol, s.setColData]}>dist</Text>}
                 <View style={s.setColCheck} />
                 <View style={s.setColDel} />
               </View>
+
+              {/* Set rows */}
               {we.sets.map((set) => (
                 <View key={set.id} style={[s.setRow, set.completed && s.setRowDone]}>
                   <Text style={[s.setCol, s.setColNum, { color: c.muted }]}>{set.setNumber}</Text>
-                  <Text style={[s.setCol, s.setColWeight, set.completed && s.setTextDone]}>
-                    {set.weightKg != null ? Math.round(kgToLbs(set.weightKg) * 10) / 10 : '—'}
-                  </Text>
-                  <Text style={[s.setCol, s.setColReps, set.completed && s.setTextDone]}>{set.reps ?? '—'}</Text>
+                  {trackWeight && (
+                    <Text style={[s.setCol, s.setColData, set.completed && s.setTextDone]}>
+                      {set.weightKg != null ? Math.round(kgToLbs(set.weightKg) * 10) / 10 : '—'}
+                    </Text>
+                  )}
+                  {trackReps && (
+                    <Text style={[s.setCol, s.setColData, set.completed && s.setTextDone]}>{set.reps ?? '—'}</Text>
+                  )}
+                  {trackDuration && (
+                    <Text style={[s.setCol, s.setColData, set.completed && s.setTextDone]}>
+                      {set.durationSeconds != null ? secondsToMMSS(set.durationSeconds) : '—'}
+                    </Text>
+                  )}
+                  {trackDistance && (
+                    <Text style={[s.setCol, s.setColData, set.completed && s.setTextDone]}>
+                      {set.distanceMeters != null ? set.distanceMeters : '—'}
+                    </Text>
+                  )}
                   <TouchableOpacity style={s.setColCheck} onPress={() => handleToggleSet(we, set)}>
                     <View style={[s.checkBox, set.completed && s.checkBoxDone]}>
                       {set.completed && <Text style={s.checkMark}>✓</Text>}
@@ -361,28 +419,53 @@ export default function WorkoutDetailScreen() {
               {/* Add set input row */}
               <View style={s.addSetRow}>
                 <View style={s.setColNum} />
-                <TextInput
-                  style={[s.setInput, s.setColWeight]}
-                  placeholder="lbs"
-                  placeholderTextColor={c.muted}
-                  keyboardType="decimal-pad"
-                  value={setInputs[we.id]?.weight ?? ''}
-                  onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], weight: v } }))}
-                />
-                <TextInput
-                  style={[s.setInput, s.setColReps]}
-                  placeholder="reps"
-                  placeholderTextColor={c.muted}
-                  keyboardType="number-pad"
-                  value={setInputs[we.id]?.reps ?? ''}
-                  onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], reps: v } }))}
-                />
+                {trackWeight && (
+                  <TextInput
+                    style={[s.setInput, s.setColData]}
+                    placeholder="lbs"
+                    placeholderTextColor={c.muted}
+                    keyboardType="decimal-pad"
+                    value={setInputs[we.id]?.weight ?? ''}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], weight: v, reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                  />
+                )}
+                {trackReps && (
+                  <TextInput
+                    style={[s.setInput, s.setColData]}
+                    placeholder="reps"
+                    placeholderTextColor={c.muted}
+                    keyboardType="number-pad"
+                    value={setInputs[we.id]?.reps ?? ''}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], reps: v, weight: prev[we.id]?.weight ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                  />
+                )}
+                {trackDuration && (
+                  <TextInput
+                    style={[s.setInput, s.setColData]}
+                    placeholder="m:ss"
+                    placeholderTextColor={c.muted}
+                    keyboardType="numbers-and-punctuation"
+                    value={setInputs[we.id]?.duration ?? ''}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], duration: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                  />
+                )}
+                {trackDistance && (
+                  <TextInput
+                    style={[s.setInput, s.setColData]}
+                    placeholder="dist"
+                    placeholderTextColor={c.muted}
+                    keyboardType="decimal-pad"
+                    value={setInputs[we.id]?.distance ?? ''}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], distance: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '' } }))}
+                  />
+                )}
                 <TouchableOpacity style={[s.setColDel, s.addSetBtn]} onPress={() => handleAddSet(we)}>
                   <Text style={s.addSetBtnText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+            );
+          })}
 
           <TouchableOpacity style={s.addExBtn} onPress={openExPicker}>
             <Text style={s.addExBtnText}>+ Add Exercise</Text>
@@ -522,6 +605,7 @@ function makeStyles(c: Colors) {
   addSetRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.border, gap: 0 },
   setCol: { fontSize: fontSize.sm, color: c.text, textAlign: 'center' },
   setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.xs },
+  setColData: { flex: 1, textAlign: 'center' },
   setColWeight: { flex: 1, textAlign: 'center' },
   setColReps: { flex: 1, textAlign: 'center' },
   setColCheck: { width: 32, alignItems: 'center' },
