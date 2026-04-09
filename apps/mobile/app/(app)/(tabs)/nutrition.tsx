@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, FlatList, Modal, RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -171,6 +171,7 @@ export default function NutritionScreen() {
   const [date, setDate] = useState(toDateStr(new Date()));
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<Record<MealSlot, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
@@ -220,6 +221,15 @@ export default function NutritionScreen() {
   }, [token, date]);
 
   useEffect(() => { load(); }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const data = await getDailyLog(token, date);
+      setLog(data);
+    } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  }, [token, date]);
 
   function shiftDate(days: number) {
     const d = new Date(date + 'T12:00:00');
@@ -447,6 +457,7 @@ export default function NutritionScreen() {
           contentContainerStyle={s.scrollContent}
           onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         >
           {/* Summary card */}
           <View style={s.summaryCard}>

@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Linking,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize } from '../../../src/theme';
+import FilterChip from '../../../src/components/FilterChip';
 
 export default function LinksScreen() {
   const token = useAuthStore((s) => s.token)!;
@@ -24,6 +26,7 @@ export default function LinksScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(false);
+  const [filterCat, setFilterCat] = useState<string>('');
 
   // Edit modal
   const [editTarget, setEditTarget] = useState<LinkItem | null>(null);
@@ -125,15 +128,25 @@ export default function LinksScreen() {
         </TouchableOpacity>
       </View>
 
-      {links.length === 0 ? (
+      {/* Category filter chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
+        <FilterChip label="All" active={!filterCat} onPress={() => setFilterCat('')} />
+        {(['food', 'drinks', 'nutrition', 'exercise', 'other'] as const).map((cat) => (
+          <FilterChip key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)} active={filterCat === cat} onPress={() => setFilterCat(filterCat === cat ? '' : cat)} />
+        ))}
+      </ScrollView>
+
+      {(() => {
+        const filtered = filterCat ? links.filter((l) => l.category === filterCat) : links;
+        return filtered.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🔗</Text>
-          <Text style={styles.emptyText}>No links yet</Text>
-          <Text style={styles.emptySubtext}>Paste a URL above to save a site</Text>
+          <Text style={styles.emptyText}>{links.length === 0 ? 'No links yet' : 'No links in this category'}</Text>
+          {links.length === 0 && <Text style={styles.emptySubtext}>Paste a URL above to save a site</Text>}
         </View>
       ) : (
         <FlatList
-          data={[...links].sort((a, b) => a.title.localeCompare(b.title))}
+          data={[...filtered].sort((a, b) => a.title.localeCompare(b.title))}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
@@ -166,7 +179,8 @@ export default function LinksScreen() {
             </View>
           )}
         />
-      )}
+      );
+      })()}
 
       {/* Edit modal */}
       <Modal visible={editTarget !== null} transparent animationType="fade">
@@ -237,6 +251,8 @@ const styles = StyleSheet.create({
   },
   addBtnDisabled: { opacity: 0.4 },
   addBtnText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.sm },
+  filterScroll: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   list: { padding: 16 },
   card: {
     flexDirection: 'row',

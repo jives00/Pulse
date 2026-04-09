@@ -422,6 +422,8 @@ export default function WorkoutDetailPage() {
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState('');
   const [duration, setDuration] = useState('');
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateInput, setDateInput] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
   // Timer
@@ -498,6 +500,18 @@ export default function WorkoutDetailPage() {
         durationMinutes: newDur ?? undefined,
       });
       setWorkout((prev) => prev ? { ...prev, name: newName, durationMinutes: newDur } : prev);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function saveDate() {
+    if (!workout) return;
+    setEditingDate(false);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput) || dateInput === workout.workoutDate) return;
+    try {
+      await workoutsApi.update(workout.id, { workoutDate: dateInput });
+      setWorkout((prev) => prev ? { ...prev, workoutDate: dateInput } : prev);
     } catch {
       // ignore
     }
@@ -590,6 +604,26 @@ export default function WorkoutDetailPage() {
               {workout.name ?? new Date(workout.workoutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </button>
           )}
+          <div className="flex items-center gap-2 mt-0.5">
+            {editingDate ? (
+              <input
+                type="date"
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
+                onBlur={saveDate}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveDate(); if (e.key === 'Escape') setEditingDate(false); }}
+                autoFocus
+                className="bg-slate-800 border border-blue-500 rounded px-2 py-0.5 text-sm text-slate-300 focus:outline-none"
+              />
+            ) : (
+              <button
+                onClick={() => { setDateInput(workout.workoutDate); setEditingDate(true); }}
+                className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {new Date(workout.workoutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="text-sm text-slate-500">
               {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''} · {totalSets} set{totalSets !== 1 ? 's' : ''}

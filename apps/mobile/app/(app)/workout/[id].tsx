@@ -53,6 +53,10 @@ export default function WorkoutDetailScreen() {
   const [newExCategory, setNewExCategory] = useState('');
   const [newExType, setNewExType] = useState('weight');
 
+  // Date editing
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateInput, setDateInput] = useState('');
+
   // Set input state: { [weId]: { weight: string; reps: string } }
   const [setInputs, setSetInputs] = useState<Record<number, { weight: string; reps: string }>>({});
 
@@ -278,6 +282,43 @@ export default function WorkoutDetailScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
+          {/* Date row */}
+          {editingDate ? (
+            <View style={s.dateRow}>
+              <TextInput
+                style={s.dateInput}
+                value={dateInput}
+                onChangeText={setDateInput}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.muted}
+                autoFocus
+                onBlur={() => {
+                  setEditingDate(false);
+                  if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput) && workout && dateInput !== workout.workoutDate) {
+                    updateWorkout(token, workoutId, { workoutDate: dateInput })
+                      .then(() => setWorkout((prev) => prev ? { ...prev, workoutDate: dateInput } : prev))
+                      .catch(() => Alert.alert('Error', 'Could not update date.'));
+                  }
+                }}
+                onSubmitEditing={() => {
+                  setEditingDate(false);
+                  if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput) && workout && dateInput !== workout.workoutDate) {
+                    updateWorkout(token, workoutId, { workoutDate: dateInput })
+                      .then(() => setWorkout((prev) => prev ? { ...prev, workoutDate: dateInput } : prev))
+                      .catch(() => Alert.alert('Error', 'Could not update date.'));
+                  }
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity style={s.dateRow} onPress={() => { setDateInput(workout?.workoutDate ?? ''); setEditingDate(true); }}>
+              <Text style={s.dateText}>
+                {workout ? new Date(workout.workoutDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+              </Text>
+              <Text style={s.dateEdit}>Edit</Text>
+            </TouchableOpacity>
+          )}
+
           {workout?.exercises.map((we) => (
             <View key={we.id} style={s.exerciseBlock}>
               <TouchableOpacity
@@ -464,6 +505,10 @@ const s = StyleSheet.create({
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 12 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 4 },
+  dateText: { fontSize: fontSize.sm, color: colors.muted },
+  dateEdit: { fontSize: fontSize.xs, color: colors.accent },
+  dateInput: { flex: 1, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 10, paddingVertical: 6 },
   exerciseBlock: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   exerciseHeader: { padding: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
   exerciseName: { flex: 1, fontSize: fontSize.base, fontWeight: '600', color: colors.text },

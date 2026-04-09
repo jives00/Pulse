@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { createRecipe, deleteRecipe, getPhotoUploadUrl, getRecipe, getRecipeBarcode, scrapeRecipe, parseRecipeText, setRecipeBarcode, updateRecipe, uploadPhotoToS3, uploadPhotoFromUrl, type Ingredient, type RecipeDetail } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize } from '../../../src/theme';
@@ -49,6 +50,8 @@ export default function EditRecipeScreen() {
   const [photoUrlInput, setPhotoUrlInput] = useState('');
   const [recipeId, setRecipeId] = useState<number | null>(id ? Number(id) : null);
   const [barcode, setBarcode] = useState('');
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
     if (!isNew && id) {
@@ -114,6 +117,14 @@ export default function EditRecipeScreen() {
     } finally { setImporting(false); }
   }
 
+
+  async function openScanner() {
+    if (!cameraPermission?.granted) {
+      const { granted } = await requestCameraPermission();
+      if (!granted) { Alert.alert('Permission required', 'Camera access is needed to scan barcodes.'); return; }
+    }
+    setScannerVisible(true);
+  }
 
   async function handlePickPhoto() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
@@ -300,7 +311,12 @@ export default function EditRecipeScreen() {
               <Text style={styles.label}>Servings</Text>
               <TextInput style={[styles.input, { width: 100 }]} placeholder="1" placeholderTextColor={colors.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
               <Text style={styles.label}>Barcode</Text>
-              <TextInput style={styles.input} placeholder="e.g. 012345678901" placeholderTextColor={colors.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="e.g. 012345678901" placeholderTextColor={colors.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
+                <TouchableOpacity onPress={openScanner} style={styles.scanBtn}>
+                  <Text style={styles.scanBtnText}>📷 Scan</Text>
+                </TouchableOpacity>
+              </View>
             </>
           )}
 
@@ -395,6 +411,27 @@ export default function EditRecipeScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Barcode scanner modal */}
+      <Modal visible={scannerVisible} animationType="slide" onRequestClose={() => setScannerVisible(false)}>
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'] }}
+            onBarcodeScanned={({ data }) => {
+              setBarcode(data);
+              setScannerVisible(false);
+            }}
+          />
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scannerFrame} />
+          </View>
+          <TouchableOpacity style={styles.scannerClose} onPress={() => setScannerVisible(false)}>
+            <Text style={styles.scannerCloseText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -446,4 +483,11 @@ const styles = StyleSheet.create({
   nutritionLabel: { color: colors.muted, fontSize: 11, marginBottom: 4 },
   deleteRecipeBtn: { alignItems: 'center', paddingVertical: 12, marginBottom: 16 },
   deleteRecipeBtnText: { color: colors.error, fontSize: fontSize.sm },
+  scanBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  scanBtnText: { color: colors.accent, fontSize: fontSize.sm, fontWeight: '600' },
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
+  scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  scannerFrame: { width: 260, height: 160, borderWidth: 2, borderColor: colors.accent, borderRadius: 12, backgroundColor: 'transparent' },
+  scannerClose: { position: 'absolute', bottom: 50, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 },
+  scannerCloseText: { color: '#fff', fontSize: fontSize.base, fontWeight: '600' },
 });

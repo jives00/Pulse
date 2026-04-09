@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView,
+  ActivityIndicator, Alert, FlatList, Image, Modal, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +40,7 @@ function LogTab() {
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
@@ -60,17 +61,18 @@ function LogTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  async function handleStart() {
-    setStarting(true);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const w = await createWorkout(token);
-      router.push(`/(app)/workout/${w.id}`);
-    } catch {
-      Alert.alert('Error', 'Could not start workout.');
-    } finally {
-      setStarting(false);
-    }
-  }
+      const [data, active] = await Promise.all([
+        getWorkouts(token, { limit: 30, offset: 0 }),
+        getActiveWorkout(token).catch(() => null),
+      ]);
+      setWorkouts(data);
+      setActiveWorkout(active);
+    } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  }, [token]);
 
   async function handleDelete(id: number) {
     Alert.alert('Delete', 'Delete this workout?', [
@@ -91,6 +93,7 @@ function LogTab() {
       data={workouts}
       keyExtractor={(item) => String(item.id)}
       contentContainerStyle={s.list}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       ListHeaderComponent={activeWorkout ? (
         <TouchableOpacity
           style={s.resumeBanner}
@@ -154,6 +157,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   const token = useAuthStore((s) => s.token)!;
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState<number | null>(null);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -171,6 +175,12 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   }, [token]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { const data = await getRoutines(token); setRoutines(data); } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  }, [token]);
 
   async function handleStart(r: RoutineSummary) {
     setStarting(r.id);
@@ -220,6 +230,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
         contentContainerStyle={grid.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={grid.card}
@@ -533,6 +544,7 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
 
@@ -554,6 +566,19 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => { load(); }, [search, filterCat]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [exs, cats] = await Promise.all([
+        getExercises(token, { search: search || undefined, category: filterCat || undefined }),
+        getExerciseCategories(token),
+      ]);
+      setExercises(exs);
+      setCategories(cats);
+    } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  }, [token, search, filterCat]);
 
 
   return (
@@ -585,6 +610,7 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
           numColumns={2}
           style={{ flex: 1 }}
           contentContainerStyle={grid.container}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
           renderItem={({ item }) => (
             <ExerciseGridCard item={item} onPress={() => router.push(`/(app)/exercise/${item.id}`)} />
           )}
@@ -702,6 +728,7 @@ function ProgressBar2({ label, actual, goal, unit, color }: { label: string; act
 function ProgressTab() {
   const token = useAuthStore((s) => s.token)!;
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
@@ -713,22 +740,31 @@ function ProgressTab() {
   const [logValue, setLogValue] = useState('');
   const [logSaving, setLogSaving] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      getWorkouts(token, { limit: 200 }),
-      getExerciseGoals(token).catch(() => null),
-      getMeasurements(token).catch(() => []),
-      getMeasurementGoals(token).catch(() => ({})),
-      getPersonalBests(token).catch(() => null),
-    ]).then(([ws, eg, ms, mg, pb]) => {
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [ws, eg, ms, mg, pb] = await Promise.all([
+        getWorkouts(token, { limit: 200 }),
+        getExerciseGoals(token).catch(() => null),
+        getMeasurements(token).catch(() => []),
+        getMeasurementGoals(token).catch(() => ({})),
+        getPersonalBests(token).catch(() => null),
+      ]);
       setWorkouts(ws);
       setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
       setPersonalBests(pb);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [token]));
+    } catch { /* ignore */ }
+    finally { if (!silent) setLoading(false); }
+  }, [token]);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData(true).finally(() => setRefreshing(false));
+  }, [loadData]);
 
   const weeklyData = buildWeeklyData(workouts);
   const weekVolumeLbs = Math.round(weeklyData[weeklyData.length - 1]?.volumeLbs ?? 0);
@@ -755,7 +791,7 @@ function ProgressTab() {
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
 
   return (
-    <ScrollView contentContainerStyle={p.scroll}>
+    <ScrollView contentContainerStyle={p.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
       {/* ── This Week ── */}
       <View style={p.card}>
         <Text style={p.cardTitle}>🏋️  This Week</Text>
@@ -914,7 +950,23 @@ export default function WorkoutsScreen() {
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
 
-  async function handleStart() {
+  // Routine picker for + Start
+  const [routinePickerVisible, setRoutinePickerVisible] = useState(false);
+  const [pickerRoutines, setPickerRoutines] = useState<RoutineSummary[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  async function openRoutinePicker() {
+    setRoutinePickerVisible(true);
+    setPickerLoading(true);
+    try {
+      const data = await getRoutines(token);
+      setPickerRoutines(data);
+    } catch { /* ignore */ }
+    finally { setPickerLoading(false); }
+  }
+
+  async function handleStartBlank() {
+    setRoutinePickerVisible(false);
     setStarting(true);
     try {
       const w = await createWorkout(token);
@@ -926,10 +978,23 @@ export default function WorkoutsScreen() {
     }
   }
 
+  async function handleStartRoutine(r: RoutineSummary) {
+    setRoutinePickerVisible(false);
+    setStarting(true);
+    try {
+      const w = await startRoutine(token, r.id);
+      router.push(`/(app)/workout/${w.id}`);
+    } catch {
+      Alert.alert('Error', 'Could not start routine.');
+    } finally {
+      setStarting(false);
+    }
+  }
+
   function renderHeaderAction() {
     if (tab === 'log') {
       return (
-        <TouchableOpacity style={[s.startBtn, starting && s.startBtnDisabled]} onPress={handleStart} disabled={starting}>
+        <TouchableOpacity style={[s.startBtn, starting && s.startBtnDisabled]} onPress={openRoutinePicker} disabled={starting}>
           <Text style={s.startBtnText}>{starting ? 'Starting…' : '+ Start'}</Text>
         </TouchableOpacity>
       );
@@ -983,6 +1048,40 @@ export default function WorkoutsScreen() {
           onCreateClose={() => setExCreateVisible(false)}
         />
       )}
+
+      {/* Routine picker modal */}
+      <Modal visible={routinePickerVisible} animationType="slide" transparent onRequestClose={() => setRoutinePickerVisible(false)}>
+        <TouchableOpacity style={rp.overlay} activeOpacity={1} onPress={() => setRoutinePickerVisible(false)}>
+          <TouchableOpacity style={rp.sheet} activeOpacity={1} onPress={() => {}}>
+
+            <Text style={rp.title}>Start Workout</Text>
+            {pickerLoading ? (
+              <ActivityIndicator color={colors.accent} style={{ marginVertical: 20 }} />
+            ) : (
+              <ScrollView style={rp.list} contentContainerStyle={{ gap: 8 }}>
+                <TouchableOpacity style={rp.blankBtn} onPress={handleStartBlank}>
+                  <Text style={rp.blankText}>Start blank workout</Text>
+                </TouchableOpacity>
+                {pickerRoutines.length > 0 && (
+                  <Text style={rp.sectionLabel}>— or pick a routine —</Text>
+                )}
+                {pickerRoutines.map((r) => (
+                  <TouchableOpacity key={r.id} style={rp.routineRow} onPress={() => handleStartRoutine(r)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={rp.routineName}>{r.name}</Text>
+                      <Text style={rp.routineMeta}>{r.exerciseCount} exercise{r.exerciseCount !== 1 ? 's' : ''}</Text>
+                    </View>
+                    <Text style={rp.routineArrow}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity style={rp.cancelBtn} onPress={() => setRoutinePickerVisible(false)}>
+              <Text style={rp.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1078,4 +1177,20 @@ const m = StyleSheet.create({
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   tag: { backgroundColor: colors.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   tagText: { fontSize: fontSize.xs, color: colors.accent },
+});
+
+const rp = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingTop: 20, paddingHorizontal: 16, paddingBottom: 32, maxHeight: '70%' },
+  title: { fontSize: fontSize.base, fontWeight: '700', color: colors.text, marginBottom: 16 },
+  list: { flexGrow: 0, maxHeight: 400 },
+  blankBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  blankText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.base },
+  sectionLabel: { textAlign: 'center', color: colors.muted, fontSize: fontSize.xs, marginVertical: 4 },
+  routineRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 },
+  routineName: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  routineMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  routineArrow: { fontSize: 20, color: colors.muted },
+  cancelBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 12 },
+  cancelText: { fontSize: fontSize.sm, color: colors.muted },
 });

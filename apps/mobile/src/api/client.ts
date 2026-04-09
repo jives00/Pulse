@@ -215,6 +215,7 @@ export interface LinkItem {
   id: number;
   url: string;
   title: string;
+  category: 'food' | 'drinks' | 'nutrition' | 'exercise' | 'other';
   created_at: string;
 }
 
@@ -323,7 +324,7 @@ export async function createWorkout(token: string, data?: { name?: string }): Pr
   const res = await fetch(`${API_BASE}/api/workouts`, { method: 'POST', headers: headers(token), body: JSON.stringify(data ?? {}) });
   return handle<WorkoutDetail>(res);
 }
-export async function updateWorkout(token: string, id: number, data: { name?: string; durationMinutes?: number; completed?: boolean }): Promise<void> {
+export async function updateWorkout(token: string, id: number, data: { name?: string; durationMinutes?: number; completed?: boolean; workoutDate?: string }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
 }
