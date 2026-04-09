@@ -14,7 +14,8 @@ import {
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 
 const KG_TO_LBS = 2.20462;
 
@@ -33,6 +34,8 @@ export default function WorkoutDetailScreen() {
   const workoutId = Number(id);
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const s = makeStyles(c);
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -249,7 +252,7 @@ export default function WorkoutDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.container}>
-        <ActivityIndicator style={{ marginTop: 60 }} color={colors.accent} />
+        <ActivityIndicator style={{ marginTop: 60 }} color={c.accent} />
       </SafeAreaView>
     );
   }
@@ -290,7 +293,7 @@ export default function WorkoutDetailScreen() {
                 value={dateInput}
                 onChangeText={setDateInput}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={c.muted}
                 autoFocus
                 onBlur={() => {
                   setEditingDate(false);
@@ -339,7 +342,7 @@ export default function WorkoutDetailScreen() {
               </View>
               {we.sets.map((set) => (
                 <View key={set.id} style={[s.setRow, set.completed && s.setRowDone]}>
-                  <Text style={[s.setCol, s.setColNum, { color: colors.muted }]}>{set.setNumber}</Text>
+                  <Text style={[s.setCol, s.setColNum, { color: c.muted }]}>{set.setNumber}</Text>
                   <Text style={[s.setCol, s.setColWeight, set.completed && s.setTextDone]}>
                     {set.weightKg != null ? Math.round(kgToLbs(set.weightKg) * 10) / 10 : '—'}
                   </Text>
@@ -361,7 +364,7 @@ export default function WorkoutDetailScreen() {
                 <TextInput
                   style={[s.setInput, s.setColWeight]}
                   placeholder="lbs"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                   keyboardType="decimal-pad"
                   value={setInputs[we.id]?.weight ?? ''}
                   onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], weight: v } }))}
@@ -369,7 +372,7 @@ export default function WorkoutDetailScreen() {
                 <TextInput
                   style={[s.setInput, s.setColReps]}
                   placeholder="reps"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                   keyboardType="number-pad"
                   value={setInputs[we.id]?.reps ?? ''}
                   onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], reps: v } }))}
@@ -414,9 +417,9 @@ export default function WorkoutDetailScreen() {
           {showCreateEx ? (
             <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={s.createLabel}>Exercise name</Text>
-              <TextInput style={s.createInput} value={newExName} onChangeText={setNewExName} placeholder="e.g. Bulgarian Split Squat" placeholderTextColor={colors.muted} />
+              <TextInput style={s.createInput} value={newExName} onChangeText={setNewExName} placeholder="e.g. Bulgarian Split Squat" placeholderTextColor={c.muted} />
               <Text style={s.createLabel}>Category</Text>
-              <TextInput style={s.createInput} value={newExCategory} onChangeText={setNewExCategory} placeholder="e.g. Legs" placeholderTextColor={colors.muted} />
+              <TextInput style={s.createInput} value={newExCategory} onChangeText={setNewExCategory} placeholder="e.g. Legs" placeholderTextColor={c.muted} />
               <Text style={s.createLabel}>Type</Text>
               <View style={s.typeRow}>
                 {['weight', 'bodyweight', 'cardio', 'duration'].map((t) => (
@@ -425,7 +428,7 @@ export default function WorkoutDetailScreen() {
                     style={[s.typeBtn, newExType === t && s.typeBtnActive]}
                     onPress={() => setNewExType(t)}
                   >
-                    <Text style={[s.typeBtnText, newExType === t && { color: colors.bg }]}>{t}</Text>
+                    <Text style={[s.typeBtnText, newExType === t && { color: c.bg }]}>{t}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -442,7 +445,7 @@ export default function WorkoutDetailScreen() {
                 <TextInput
                   style={s.exSearchInput}
                   placeholder="Search exercises…"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                   value={exSearch}
                   onChangeText={setExSearch}
                   autoFocus
@@ -451,16 +454,16 @@ export default function WorkoutDetailScreen() {
               {/* Category chips */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScroll} contentContainerStyle={s.catScrollContent}>
                 <TouchableOpacity style={[s.catChip, !exCategory && s.catChipActive]} onPress={() => setExCategory(null)}>
-                  <Text style={[s.catChipText, !exCategory && { color: colors.bg }]}>All</Text>
+                  <Text style={[s.catChipText, !exCategory && { color: c.bg }]}>All</Text>
                 </TouchableOpacity>
                 {categories.map((cat) => (
                   <TouchableOpacity key={cat} style={[s.catChip, exCategory === cat && s.catChipActive]} onPress={() => setExCategory(cat === exCategory ? null : cat)}>
-                    <Text style={[s.catChipText, exCategory === cat && { color: colors.bg }]}>{cat}</Text>
+                    <Text style={[s.catChipText, exCategory === cat && { color: c.bg }]}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
               {exLoading ? (
-                <ActivityIndicator style={{ marginTop: 30 }} color={colors.accent} />
+                <ActivityIndicator style={{ marginTop: 30 }} color={c.accent} />
               ) : (
                 <FlatList
                   data={filteredEx}
@@ -489,76 +492,78 @@ export default function WorkoutDetailScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
   backBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  backBtnText: { color: colors.accent, fontSize: fontSize.sm },
+  backBtnText: { color: c.accent, fontSize: fontSize.sm },
   timerWrap: { flex: 1, alignItems: 'center' },
-  timer: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
-  volumeLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  finishBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  finishBtnBottom: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  timer: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] },
+  volumeLabel: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+  finishBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  finishBtnBottom: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   cancelSessionBtn: { alignItems: 'center', paddingVertical: 14 },
-  cancelSessionText: { fontSize: fontSize.sm, color: colors.muted },
+  cancelSessionText: { fontSize: fontSize.sm, color: c.muted },
   finishBtnDisabled: { opacity: 0.5 },
-  finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
+  finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 12 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 4 },
-  dateText: { fontSize: fontSize.sm, color: colors.muted },
-  dateEdit: { fontSize: fontSize.xs, color: colors.accent },
-  dateInput: { flex: 1, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 10, paddingVertical: 6 },
-  exerciseBlock: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  exerciseHeader: { padding: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
-  exerciseName: { flex: 1, fontSize: fontSize.base, fontWeight: '600', color: colors.text },
-  exerciseCategory: { fontSize: fontSize.xs, color: colors.muted },
+  dateText: { fontSize: fontSize.sm, color: c.muted },
+  dateEdit: { fontSize: fontSize.xs, color: c.accent },
+  dateInput: { flex: 1, fontSize: fontSize.sm, color: c.text, backgroundColor: c.card, borderRadius: 8, borderWidth: 1, borderColor: c.accent, paddingHorizontal: 10, paddingVertical: 6 },
+  exerciseBlock: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+  exerciseHeader: { padding: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border },
+  exerciseName: { flex: 1, fontSize: fontSize.base, fontWeight: '600', color: c.text },
+  exerciseCategory: { fontSize: fontSize.xs, color: c.muted },
   setHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.02)' },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
-  addSetRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, gap: 0 },
-  setCol: { fontSize: fontSize.sm, color: colors.text, textAlign: 'center' },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+  addSetRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.border, gap: 0 },
+  setCol: { fontSize: fontSize.sm, color: c.text, textAlign: 'center' },
   setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.xs },
   setColWeight: { flex: 1, textAlign: 'center' },
   setColReps: { flex: 1, textAlign: 'center' },
   setColCheck: { width: 32, alignItems: 'center' },
   setColDel: { width: 32, alignItems: 'center' },
-  setDelText: { color: colors.border, fontSize: 13 },
+  setDelText: { color: c.border, fontSize: 13 },
   setRowDone: { backgroundColor: 'rgba(52,211,153,0.06)' },
-  setTextDone: { color: colors.muted },
-  checkBox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  setTextDone: { color: c.muted },
+  checkBox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   checkBoxDone: { backgroundColor: '#34d399', borderColor: '#34d399' },
-  checkMark: { fontSize: 12, color: colors.bg, fontWeight: '700', lineHeight: 14 },
-  setInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 6, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.bg, textAlign: 'center', marginHorizontal: 2 },
-  addSetBtn: { backgroundColor: colors.accent, borderRadius: 6, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  addSetBtnText: { color: colors.bg, fontWeight: '700', fontSize: 18, lineHeight: 20 },
-  addExBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  addExBtnText: { fontSize: fontSize.sm, color: colors.accent, fontWeight: '600' },
+  checkMark: { fontSize: 12, color: c.bg, fontWeight: '700', lineHeight: 14 },
+  setInput: { borderWidth: 1, borderColor: c.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 6, fontSize: fontSize.sm, color: c.text, backgroundColor: c.bg, textAlign: 'center', marginHorizontal: 2 },
+  addSetBtn: { backgroundColor: c.accent, borderRadius: 6, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  addSetBtnText: { color: c.bg, fontWeight: '700', fontSize: 18, lineHeight: 20 },
+  addExBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  addExBtnText: { fontSize: fontSize.sm, color: c.accent, fontWeight: '600' },
   // Modal
-  modal: { flex: 1, backgroundColor: colors.bg },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  modalTitle: { flex: 1, fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
-  modalClose: { fontSize: 20, color: colors.muted, paddingLeft: 12 },
+  modal: { flex: 1, backgroundColor: c.bg },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+  modalTitle: { flex: 1, fontSize: fontSize.lg, fontWeight: '700', color: c.text },
+  modalClose: { fontSize: 20, color: c.muted, paddingLeft: 12 },
   modalBody: { flex: 1, padding: 16 },
-  exSearchBox: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 16 },
-  exSearchInput: { paddingVertical: 14, fontSize: fontSize.base, color: colors.text },
+  exSearchBox: { borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 16 },
+  exSearchInput: { paddingVertical: 14, fontSize: fontSize.base, color: c.text },
   catScroll: { maxHeight: 48 },
   catScrollContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row' },
-  catChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
-  catChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  catChipText: { fontSize: fontSize.xs, color: colors.muted },
-  exRow: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  exName: { fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
-  exMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  catChip: { borderWidth: 1, borderColor: c.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  catChipActive: { backgroundColor: c.accent, borderColor: c.accent },
+  catChipText: { fontSize: fontSize.xs, color: c.muted },
+  exRow: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+  exName: { fontSize: fontSize.sm, color: c.text, fontWeight: '500' },
+  exMeta: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
   createExLink: { paddingHorizontal: 16, paddingVertical: 16 },
-  createExLinkText: { fontSize: fontSize.sm, color: colors.accent },
-  createLabel: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
-  createInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: colors.text, backgroundColor: colors.card },
+  createExLinkText: { fontSize: fontSize.sm, color: c.accent },
+  createLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
+  createInput: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text, backgroundColor: c.card },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  typeBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  typeBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  typeBtnText: { fontSize: fontSize.sm, color: colors.muted },
-  confirmBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
-  confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: colors.bg },
+  typeBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  typeBtnActive: { backgroundColor: c.accent, borderColor: c.accent },
+  typeBtnText: { fontSize: fontSize.sm, color: c.muted },
+  confirmBtn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
+  confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
   cancelLink: { paddingVertical: 14, alignItems: 'center' },
-  cancelLinkText: { fontSize: fontSize.sm, color: colors.muted },
-});
+  cancelLinkText: { fontSize: fontSize.sm, color: c.muted },
+  });
+}

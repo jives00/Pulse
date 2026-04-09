@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRecipe, logRecipe, updateRecipe, getRecipeLog, deleteLogEntry, deleteAllLog, type RecipeDetail, type MakeLogEntry } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 import Spinner from '../../../src/components/Spinner';
 
 const { width } = Dimensions.get('window');
@@ -27,6 +28,8 @@ export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const styles = makeStyles(c);
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,7 +103,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
         {recipe.photo_url ? (
           <Image source={{ uri: recipe.photo_url }} style={{ width, height: width * 0.6 }} resizeMode="cover" />
         ) : (
@@ -201,7 +204,7 @@ export default function RecipeDetailScreen() {
 
           {recipe.source ? (
             <TouchableOpacity onPress={() => Linking.openURL(recipe.source!)} style={{ marginTop: 12 }}>
-              <Text style={[styles.muted, { fontSize: 12 }]}>From: <Text style={{ color: colors.accent, textDecorationLine: 'underline' }}>{recipe.source}</Text></Text>
+              <Text style={[styles.muted, { fontSize: 12 }]}>From: <Text style={{ color: c.accent, textDecorationLine: 'underline' }}>{recipe.source}</Text></Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity onPress={handleLogMade} disabled={logSaving} style={styles.logBtn}>
@@ -243,46 +246,48 @@ export default function RecipeDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 16 },
-  photoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  photoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: c.card },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 },
-  name: { color: colors.text, fontSize: fontSize['2xl'], fontWeight: 'bold', flex: 1, marginRight: 8 },
+  name: { color: c.text, fontSize: fontSize['2xl'], fontWeight: 'bold', flex: 1, marginRight: 8 },
   titleActions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },
-  star: { color: colors.accent, fontSize: fontSize['2xl'] },
-  editBtn: { color: colors.accent, fontSize: fontSize.sm, fontWeight: '600' },
-  type: { color: colors.muted, fontSize: fontSize.xs, textTransform: 'capitalize', marginBottom: 10 },
+  star: { color: c.accent, fontSize: fontSize['2xl'] },
+  editBtn: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
+  type: { color: c.muted, fontSize: fontSize.xs, textTransform: 'capitalize', marginBottom: 10 },
   tagsRow: { marginBottom: 12 },
-  tag: { borderWidth: 1, borderColor: colors.accent, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 },
-  tagText: { color: colors.accent, fontSize: fontSize.xs },
-  description: { color: colors.muted, fontSize: fontSize.sm, marginBottom: 12 },
+  tag: { borderWidth: 1, borderColor: c.accent, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 },
+  tagText: { color: c.accent, fontSize: fontSize.xs },
+  description: { color: c.muted, fontSize: fontSize.sm, marginBottom: 12 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-  meta: { color: colors.muted, fontSize: fontSize.sm },
+  meta: { color: c.muted, fontSize: fontSize.sm },
   servingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  sectionLabel: { color: colors.text, fontWeight: '600', fontSize: fontSize.base, marginBottom: 8, marginRight: 12 },
-  stepBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText: { color: colors.text, fontWeight: 'bold', fontSize: fontSize.base },
-  servingCount: { color: colors.text, fontSize: fontSize.base, fontWeight: 'bold', marginHorizontal: 16 },
-  ingRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12 },
-  ingQty: { color: colors.accent, fontSize: fontSize.sm, width: 110, flexShrink: 0 },
-  ingName: { color: colors.text, fontSize: fontSize.sm, flex: 1 },
+  sectionLabel: { color: c.text, fontWeight: '600', fontSize: fontSize.base, marginBottom: 8, marginRight: 12 },
+  stepBtn: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText: { color: c.text, fontWeight: 'bold', fontSize: fontSize.base },
+  servingCount: { color: c.text, fontSize: fontSize.base, fontWeight: 'bold', marginHorizontal: 16 },
+  ingRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 },
+  ingQty: { color: c.accent, fontSize: fontSize.sm, width: 110, flexShrink: 0 },
+  ingName: { color: c.text, fontSize: fontSize.sm, flex: 1 },
   stepRow: { flexDirection: 'row', marginBottom: 12 },
-  stepNum: { color: colors.accent, fontWeight: 'bold', fontSize: fontSize.sm, width: 24 },
-  stepText: { color: colors.text, fontSize: fontSize.sm, flex: 1, lineHeight: 22 },
+  stepNum: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm, width: 24 },
+  stepText: { color: c.text, fontSize: fontSize.sm, flex: 1, lineHeight: 22 },
   nutritionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  nutritionCell: { backgroundColor: colors.card, borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 80, flexGrow: 1 },
-  nutritionValue: { color: colors.accent, fontWeight: 'bold', fontSize: fontSize.sm },
-  nutritionLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  muted: { color: colors.muted, fontSize: fontSize.sm },
-  logBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  logBtnText: { color: colors.bg, fontWeight: 'bold', fontSize: fontSize.sm },
+  nutritionCell: { backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 80, flexGrow: 1 },
+  nutritionValue: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm },
+  nutritionLabel: { color: c.muted, fontSize: 12, marginTop: 2 },
+  muted: { color: c.muted, fontSize: fontSize.sm },
+  logBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
+  logBtnText: { color: c.bg, fontWeight: 'bold', fontSize: fontSize.sm },
   logSection: { marginTop: 20, marginBottom: 32 },
   logHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  clearAll: { color: colors.error, fontSize: fontSize.xs },
-  logEntry: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
-  logDate: { color: colors.text, fontSize: fontSize.sm },
-  logDelete: { color: colors.muted, fontSize: fontSize.xs, paddingHorizontal: 8 },
+  clearAll: { color: c.error, fontSize: fontSize.xs },
+  logEntry: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border },
+  logDate: { color: c.text, fontSize: fontSize.sm },
+  logDelete: { color: c.muted, fontSize: fontSize.xs, paddingHorizontal: 8 },
   backBtn: { position: 'absolute', top: 48, left: 16, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backBtnText: { color: colors.text, fontSize: fontSize.xl },
-});
+  backBtnText: { color: c.text, fontSize: fontSize.xl },
+  });
+}

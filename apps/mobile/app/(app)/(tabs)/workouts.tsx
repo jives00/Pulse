@@ -16,7 +16,9 @@ import {
   getActiveWorkout, type WorkoutDetail,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
+import { fontSize, PALETTES, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 import FilterChip from '../../../src/components/FilterChip';
 
 const KG_TO_LBS = 2.20462;
@@ -37,6 +39,9 @@ function fmtVolume(kg: number) {
 function LogTab() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const s = makeSStyles(c);
+  const grid = makeGridStyles(c);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,14 +91,14 @@ function LogTab() {
     ]);
   }
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
     <FlatList
       data={workouts}
       keyExtractor={(item) => String(item.id)}
       contentContainerStyle={s.list}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
       ListHeaderComponent={activeWorkout ? (
         <TouchableOpacity
           style={s.resumeBanner}
@@ -155,6 +160,9 @@ function categoryEmoji(cat: string) {
 
 function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (workoutId: number) => void; createVisible: boolean; onCreateClose: () => void; }) {
   const token = useAuthStore((s) => s.token)!;
+  const c = useColors();
+  const s = makeSStyles(c);
+  const grid = makeGridStyles(c);
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -221,7 +229,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
     ]);
   }
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -230,7 +238,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
         contentContainerStyle={grid.container}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={grid.card}
@@ -275,7 +283,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
               value={newName}
               onChangeText={setNewName}
               placeholder="Routine name"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               autoFocus
             />
             <View style={grid.dialogBtns}>
@@ -326,7 +334,7 @@ function MuscleTagInput({ label, tags, onChange }: { label: string; tags: string
         value={input}
         onChangeText={setInput}
         placeholder="Add muscle, press return…"
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={c.muted}
         returnKeyType="done"
         onSubmitEditing={() => commit(input)}
         onBlur={() => { if (input.trim()) commit(input); }}
@@ -337,6 +345,8 @@ function MuscleTagInput({ label, tags, onChange }: { label: string; tags: string
 
 function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: ExerciseFormProps) {
   const token = useAuthStore((s) => s.token)!;
+  const c = useColors();
+  const m = makeMStyles(c);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [exerciseType, setExerciseType] = useState<string>('weight');
@@ -411,7 +421,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
               value={name}
               onChangeText={setName}
               placeholder="Exercise name"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
             />
           </View>
 
@@ -438,7 +448,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
                 value={newCat}
                 onChangeText={setNewCat}
                 placeholder="New category name"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={c.muted}
                 autoFocus
               />
             )}
@@ -472,7 +482,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
               value={instructions}
               onChangeText={setInstructions}
               placeholder="Step-by-step instructions…"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               multiline
             />
           </View>
@@ -484,7 +494,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
               value={mediaUrl}
               onChangeText={setMediaUrl}
               placeholder="YouTube link, GIF, or image URL"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               autoCapitalize="none"
               keyboardType="url"
             />
@@ -497,7 +507,7 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
               value={coverImageUrl}
               onChangeText={setCoverImageUrl}
               placeholder="Static image URL (JPG, PNG, WebP…)"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               autoCapitalize="none"
               keyboardType="url"
             />
@@ -511,6 +521,8 @@ function ExerciseFormModal({ visible, exercise, categories, onClose, onSaved }: 
 // ── Exercise grid card ───────────────────────────────────────────────────────
 
 function ExerciseGridCard({ item, onPress }: { item: Exercise; onPress: () => void }) {
+  const c = useColors();
+  const grid = makeGridStyles(c);
   const [imgError, setImgError] = useState(false);
   const showImage = !!item.coverImageUrl && !imgError;
   return (
@@ -541,6 +553,11 @@ function ExerciseGridCard({ item, onPress }: { item: Exercise; onPress: () => vo
 function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean; onCreateClose: () => void }) {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const s = makeSStyles(c);
+  const e = makeEStyles(c);
+  const grid = makeGridStyles(c);
+  const { defaultExerciseSort } = useSettingsStore();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -580,6 +597,11 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
     finally { setRefreshing(false); }
   }, [token, search, filterCat]);
 
+  const sortedExercises = [...exercises].sort((a, b) => {
+    if (defaultExerciseSort === 'name') return a.name.localeCompare(b.name);
+    return a.id - b.id; // created_at order (server returns in id order)
+  });
+
 
   return (
     <View style={{ flex: 1 }}>
@@ -589,7 +611,7 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
           value={search}
           onChangeText={setSearch}
           placeholder="Search exercises…"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={c.muted}
           clearButtonMode="while-editing"
         />
       </View>
@@ -602,15 +624,15 @@ function ExercisesTab({ createVisible, onCreateClose }: { createVisible: boolean
       </ScrollView>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />
       ) : (
         <FlatList
-          data={exercises}
+          data={sortedExercises}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}
           style={{ flex: 1 }}
           contentContainerStyle={grid.container}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
           renderItem={({ item }) => (
             <ExerciseGridCard item={item} onPress={() => router.push(`/(app)/exercise/${item.id}`)} />
           )}
@@ -711,6 +733,8 @@ function WeeklyMiniChart({ data, dataKey, color, goal }: {
 }
 
 function ProgressBar2({ label, actual, goal, unit, color }: { label: string; actual: number; goal: number | null; unit: string; color: string }) {
+  const c = useColors();
+  const p = makePStyles(c);
   const pct = goal ? Math.min(actual / goal, 1) : 0;
   return (
     <View style={{ gap: 4 }}>
@@ -727,6 +751,8 @@ function ProgressBar2({ label, actual, goal, unit, color }: { label: string; act
 
 function ProgressTab() {
   const token = useAuthStore((s) => s.token)!;
+  const c = useColors();
+  const p = makePStyles(c);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -788,10 +814,10 @@ function ProgressTab() {
     finally { setLogSaving(false); }
   }
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
-    <ScrollView contentContainerStyle={p.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
+    <ScrollView contentContainerStyle={p.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
       {/* ── This Week ── */}
       <View style={p.card}>
         <Text style={p.cardTitle}>🏋️  This Week</Text>
@@ -838,7 +864,7 @@ function ProgressTab() {
                 )}
               </View>
               <TouchableOpacity onPress={() => { setLogMetric(key); setLogValue(''); }} style={{ marginTop: 6 }}>
-                <Text style={{ fontSize: fontSize.sm, color: colors.accent }}>+ Log</Text>
+                <Text style={{ fontSize: fontSize.sm, color: c.accent }}>+ Log</Text>
               </TouchableOpacity>
               {logMetric === key && (
                 <View style={p.logForm}>
@@ -848,7 +874,7 @@ function ProgressTab() {
                     onChangeText={setLogValue}
                     keyboardType="decimal-pad"
                     placeholder={`Value (${cfg.unit})`}
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={c.muted}
                     autoFocus
                   />
                   <TouchableOpacity
@@ -859,7 +885,7 @@ function ProgressTab() {
                     <Text style={p.logSaveBtnText}>{logSaving ? '…' : 'Save'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setLogMetric(null)}>
-                    <Text style={{ fontSize: fontSize.sm, color: colors.muted, paddingHorizontal: 8 }}>Cancel</Text>
+                    <Text style={{ fontSize: fontSize.sm, color: c.muted, paddingHorizontal: 8 }}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -909,34 +935,36 @@ function ProgressTab() {
   );
 }
 
-const p = StyleSheet.create({
-  scroll: { padding: 14, gap: 12 },
-  card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 12 },
-  cardTitle: { fontSize: fontSize.sm, fontWeight: '700', color: colors.text, textTransform: 'uppercase', letterSpacing: 0.5 },
-  chartHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
-  chartIcon: { fontSize: 12 },
-  chartLabel: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
-  chartGoal: { fontSize: fontSize.xs, color: colors.muted },
-  pbLabel: { fontSize: fontSize.sm, color: colors.text },
-  pbValue: { fontSize: fontSize.xs, color: colors.muted },
-  pbTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
-  pbFill: { height: '100%', borderRadius: 3 },
-  metricRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
-  metricLabel: { fontSize: fontSize.sm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  metricUnit: { fontSize: fontSize.xs, color: colors.muted },
-  metricSub: { fontSize: fontSize.xs, color: colors.muted, marginBottom: 2 },
-  metricVal: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
-  logForm: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  logInput: { flex: 1, backgroundColor: colors.bg, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 7, fontSize: fontSize.sm, color: colors.text },
-  logSaveBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  logSaveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
-  recordRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
-  recordIcon: { fontSize: 24, lineHeight: 28 },
-  recordLabel: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  recordVal: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
-  recordSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  recordEmpty: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', paddingVertical: 16 },
-});
+function makePStyles(c: Colors) {
+  return StyleSheet.create({
+    scroll: { padding: 14, gap: 12 },
+    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 12 },
+    cardTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.text, textTransform: 'uppercase', letterSpacing: 0.5 },
+    chartHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+    chartIcon: { fontSize: 12 },
+    chartLabel: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
+    chartGoal: { fontSize: fontSize.xs, color: c.muted },
+    pbLabel: { fontSize: fontSize.sm, color: c.text },
+    pbValue: { fontSize: fontSize.xs, color: c.muted },
+    pbTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+    pbFill: { height: '100%', borderRadius: 3 },
+    metricRow: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
+    metricLabel: { fontSize: fontSize.sm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    metricUnit: { fontSize: fontSize.xs, color: c.muted },
+    metricSub: { fontSize: fontSize.xs, color: c.muted, marginBottom: 2 },
+    metricVal: { fontSize: fontSize.base, fontWeight: '600', color: c.text },
+    logForm: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    logInput: { flex: 1, backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, paddingHorizontal: 10, paddingVertical: 7, fontSize: fontSize.sm, color: c.text },
+    logSaveBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+    logSaveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+    recordRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
+    recordIcon: { fontSize: 24, lineHeight: 28 },
+    recordLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    recordVal: { fontSize: fontSize.lg, fontWeight: '700', color: c.text },
+    recordSub: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    recordEmpty: { fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 16 },
+  });
+}
 
 // ── Root screen ──────────────────────────────────────────────────────────────
 
@@ -945,6 +973,10 @@ type Tab = 'progress' | 'log' | 'routines' | 'exercises';
 export default function WorkoutsScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const s = makeSStyles(c);
+  const seg = makeSegStyles(c);
+  const rp = makeRpStyles(c);
   const [tab, setTab] = useState<Tab>('progress');
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
@@ -1056,7 +1088,7 @@ export default function WorkoutsScreen() {
 
             <Text style={rp.title}>Start Workout</Text>
             {pickerLoading ? (
-              <ActivityIndicator color={colors.accent} style={{ marginVertical: 20 }} />
+              <ActivityIndicator color={c.accent} style={{ marginVertical: 20 }} />
             ) : (
               <ScrollView style={rp.list} contentContainerStyle={{ gap: 8 }}>
                 <TouchableOpacity style={rp.blankBtn} onPress={handleStartBlank}>
@@ -1086,111 +1118,118 @@ export default function WorkoutsScreen() {
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
+// ── Style factories ──────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  startBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  startBtnDisabled: { opacity: 0.5 },
-  startBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
-  list: { padding: 14, gap: 10 },
-  card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 4 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  cardDate: { flex: 1, fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  cardDuration: { fontSize: fontSize.xs, color: colors.muted },
-  cardName: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
-  cardStats: { fontSize: fontSize.sm, color: colors.muted },
-  cardExercises: { fontSize: fontSize.xs, color: colors.border, marginTop: 2 },
-  empty: { alignItems: 'center', marginTop: 60, gap: 6 },
-  emptyText: { fontSize: fontSize.base, color: colors.text },
-  emptyHint: { fontSize: fontSize.sm, color: colors.muted },
-  resumeBanner: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.accent + '22',
-    borderWidth: 1, borderColor: colors.accent,
-    borderRadius: 12, padding: 14, marginBottom: 10,
-  },
-  resumeTitle: { fontSize: fontSize.sm, fontWeight: '700', color: colors.accent },
-  resumeSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  resumeArrow: { fontSize: 22, color: colors.accent, marginLeft: 8 },
-});
+function makeSStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    startBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
+    startBtnDisabled: { opacity: 0.5 },
+    startBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+    list: { padding: 14, gap: 10 },
+    card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, gap: 4 },
+    cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+    cardDate: { flex: 1, fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    cardDuration: { fontSize: fontSize.xs, color: c.muted },
+    cardName: { fontSize: fontSize.base, fontWeight: '600', color: c.text },
+    cardStats: { fontSize: fontSize.sm, color: c.muted },
+    cardExercises: { fontSize: fontSize.xs, color: c.border, marginTop: 2 },
+    empty: { alignItems: 'center', marginTop: 60, gap: 6 },
+    emptyText: { fontSize: fontSize.base, color: c.text },
+    emptyHint: { fontSize: fontSize.sm, color: c.muted },
+    resumeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.accent + '22', borderWidth: 1, borderColor: c.accent, borderRadius: 12, padding: 14, marginBottom: 10 },
+    resumeTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.accent },
+    resumeSub: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    resumeArrow: { fontSize: 22, color: c.accent, marginLeft: 8 },
+  });
+}
 
-const seg = StyleSheet.create({
-  scroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: colors.border },
-  row: { flexDirection: 'row', alignItems: 'stretch' },
-  btn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-  btnActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
-  label: { fontSize: fontSize.sm, color: colors.muted, fontWeight: '500' },
-  labelActive: { color: colors.accent, fontWeight: '700' },
-});
+function makeSegStyles(c: Colors) {
+  return StyleSheet.create({
+    scroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: c.border },
+    row: { flexDirection: 'row', alignItems: 'stretch' },
+    btn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+    btnActive: { borderBottomWidth: 2, borderBottomColor: c.accent },
+    label: { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
+    labelActive: { color: c.accent, fontWeight: '700' },
+  });
+}
 
-const e = StyleSheet.create({
-  searchRow: { paddingHorizontal: 14, paddingVertical: 10 },
-  searchInput: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, fontSize: fontSize.sm, color: colors.text },
-  catScroll: { flexGrow: 0 },
-  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center' },
-  catPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
-  catPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  catText: { fontSize: fontSize.xs, color: colors.muted },
-  catTextActive: { color: colors.bg, fontWeight: '700' },
-});
+function makeEStyles(c: Colors) {
+  return StyleSheet.create({
+    searchRow: { paddingHorizontal: 14, paddingVertical: 10 },
+    searchInput: { backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.border, paddingHorizontal: 12, paddingVertical: 8, fontSize: fontSize.sm, color: c.text },
+    catScroll: { flexGrow: 0 },
+    catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center' },
+    catPill: { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 12, paddingVertical: 8 },
+    catPillActive: { backgroundColor: c.accent, borderColor: c.accent },
+    catText: { fontSize: fontSize.xs, color: c.muted },
+    catTextActive: { color: c.bg, fontWeight: '700' },
+  });
+}
 
 // Shared 2-col grid card styles (exercises + routines)
-const grid = StyleSheet.create({
-  container: { padding: 4 },
-  card: { flex: 1, margin: 4, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  photo: { width: '100%', height: 120 },
-  placeholder: { width: '100%', height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.border },
-  placeholderIcon: { fontSize: fontSize['3xl'] },
-  info: { padding: 8 },
-  name: { color: colors.text, fontWeight: '600', fontSize: fontSize.xs, marginBottom: 4 },
-  meta: { color: colors.muted, fontSize: fontSize.xs },
-  sub: { color: colors.muted, fontSize: fontSize.xs, marginTop: 2 },
-  starting: { color: colors.accent, fontSize: fontSize.xs, marginTop: 2 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  dialog: { backgroundColor: colors.card, borderRadius: 14, padding: 20, width: '80%', gap: 16 },
-  dialogTitle: { fontSize: fontSize.base, fontWeight: '700', color: colors.text },
-  dialogInput: { backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: colors.text },
-  dialogBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20 },
-  dialogCancel: { fontSize: fontSize.base, color: colors.muted },
-  dialogSave: { fontSize: fontSize.base, color: colors.accent, fontWeight: '700' },
-});
+function makeGridStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { padding: 4 },
+    card: { flex: 1, margin: 4, borderRadius: 12, overflow: 'hidden', backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+    photo: { width: '100%', height: 120 },
+    placeholder: { width: '100%', height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: c.border },
+    placeholderIcon: { fontSize: fontSize['3xl'] },
+    info: { padding: 8 },
+    name: { color: c.text, fontWeight: '600', fontSize: fontSize.xs, marginBottom: 4 },
+    meta: { color: c.muted, fontSize: fontSize.xs },
+    sub: { color: c.muted, fontSize: fontSize.xs, marginTop: 2 },
+    starting: { color: c.accent, fontSize: fontSize.xs, marginTop: 2 },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    dialog: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '80%', gap: 16 },
+    dialogTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
+    dialogInput: { backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text },
+    dialogBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20 },
+    dialogCancel: { fontSize: fontSize.base, color: c.muted },
+    dialogSave: { fontSize: fontSize.base, color: c.accent, fontWeight: '700' },
+  });
+}
 
-const m = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title: { fontSize: fontSize.base, fontWeight: '700', color: colors.text },
-  cancel: { fontSize: fontSize.base, color: colors.muted },
-  save: { fontSize: fontSize.base, color: colors.accent, fontWeight: '700' },
-  saveDim: { opacity: 0.4 },
-  body: { flex: 1, padding: 20 },
-  field: { gap: 8 },
-  label: { fontSize: fontSize.sm, fontWeight: '600', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: colors.text },
-  pill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
-  pillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  pillText: { fontSize: fontSize.sm, color: colors.muted },
-  pillTextActive: { color: colors.bg, fontWeight: '700' },
-  toggleNew: { fontSize: fontSize.sm, color: colors.accent, marginTop: 4 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
-  tag: { backgroundColor: colors.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  tagText: { fontSize: fontSize.xs, color: colors.accent },
-});
+function makeMStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    title: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
+    cancel: { fontSize: fontSize.base, color: c.muted },
+    save: { fontSize: fontSize.base, color: c.accent, fontWeight: '700' },
+    saveDim: { opacity: 0.4 },
+    body: { flex: 1, padding: 20 },
+    field: { gap: 8 },
+    label: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    input: { backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text },
+    pill: { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 6 },
+    pillActive: { backgroundColor: c.accent, borderColor: c.accent },
+    pillText: { fontSize: fontSize.sm, color: c.muted },
+    pillTextActive: { color: c.bg, fontWeight: '700' },
+    toggleNew: { fontSize: fontSize.sm, color: c.accent, marginTop: 4 },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
+    tag: { backgroundColor: c.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+    tagText: { fontSize: fontSize.xs, color: c.accent },
+  });
+}
 
-const rp = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingTop: 20, paddingHorizontal: 16, paddingBottom: 32, maxHeight: '70%' },
-  title: { fontSize: fontSize.base, fontWeight: '700', color: colors.text, marginBottom: 16 },
-  list: { flexGrow: 0, maxHeight: 400 },
-  blankBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  blankText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.base },
-  sectionLabel: { textAlign: 'center', color: colors.muted, fontSize: fontSize.xs, marginVertical: 4 },
-  routineRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 },
-  routineName: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  routineMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  routineArrow: { fontSize: 20, color: colors.muted },
-  cancelBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 12 },
-  cancelText: { fontSize: fontSize.sm, color: colors.muted },
-});
+function makeRpStyles(c: Colors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+    sheet: { backgroundColor: c.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingTop: 20, paddingHorizontal: 16, paddingBottom: 32, maxHeight: '70%' },
+    title: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 16 },
+    list: { flexGrow: 0, maxHeight: 400 },
+    blankBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    blankText: { color: c.bg, fontWeight: '700', fontSize: fontSize.base },
+    sectionLabel: { textAlign: 'center', color: c.muted, fontSize: fontSize.xs, marginVertical: 4 },
+    routineRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderRadius: 12, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 12 },
+    routineName: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+    routineMeta: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    routineArrow: { fontSize: 20, color: c.muted },
+    cancelBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 12 },
+    cancelText: { fontSize: fontSize.sm, color: c.muted },
+  });
+}

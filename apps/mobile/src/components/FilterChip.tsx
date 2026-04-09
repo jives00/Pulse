@@ -1,5 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { colors, fontSize } from '../theme';
+import { fontSize, type Colors } from '../theme';
+import { useColors } from '../hooks/useColors';
 
 interface Props {
   label: string;
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export default function FilterChip({ label, active, onPress }: Props) {
+  const c = useColors();
+  const styles = makeStyles(c);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -20,11 +23,13 @@ export default function FilterChip({ label, active, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
-  active: { backgroundColor: colors.accent, borderColor: colors.accent },
-  inactive: { backgroundColor: 'transparent', borderColor: colors.border },
-  label: { fontSize: fontSize.xs, fontWeight: '600' },
-  activeLabel: { color: colors.bg },
-  inactiveLabel: { color: colors.muted },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+    active: { backgroundColor: c.accent, borderColor: c.accent },
+    inactive: { backgroundColor: 'transparent', borderColor: c.border },
+    label: { fontSize: fontSize.xs, fontWeight: '600' },
+    activeLabel: { color: c.bg },
+    inactiveLabel: { color: c.muted },
+  });
+}

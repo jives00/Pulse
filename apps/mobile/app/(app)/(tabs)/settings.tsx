@@ -13,16 +13,21 @@ import {
   getTagDefinitions, saveTagDefinitions, type TagDefinitions,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { useSettingsStore, type SortOption } from '../../../src/store/settings';
-import { colors, fontSize } from '../../../src/theme';
+import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
+import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
+  const c = useColors();
+  const s = makeStyles(c);
   return <Text style={s.sectionLabel}>{title}</Text>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const c = useColors();
+  const s = makeStyles(c);
   return (
     <View style={s.field}>
       <Text style={s.fieldLabel}>{label}</Text>
@@ -32,6 +37,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function SaveBtn({ onPress, saving, label = 'Save' }: { onPress: () => void; saving: boolean; label?: string }) {
+  const c = useColors();
+  const s = makeStyles(c);
   return (
     <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={onPress} disabled={saving}>
       <Text style={s.saveBtnText}>{saving ? 'Saving…' : label}</Text>
@@ -49,11 +56,39 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'random',        label: 'Random' },
 ];
 
+const EXERCISE_SORT_OPTIONS: { value: ExerciseSortOption; label: string }[] = [
+  { value: 'name',       label: 'Name (A–Z)' },
+  { value: 'created_at', label: 'Date added' },
+];
+
+const COLOR_SCHEMES: { value: ColorScheme; label: string; preview: string }[] = [
+  { value: 'blue',  label: 'Deep Blue', preview: '#193549' },
+  { value: 'slate', label: 'Slate',     preview: '#0f172a' },
+];
+
 function OptionsTab() {
-  const { defaultSort, setDefaultSort } = useSettingsStore();
+  const c = useColors();
+  const s = makeStyles(c);
+  const { defaultSort, setDefaultSort, defaultExerciseSort, setDefaultExerciseSort, colorScheme, setColorScheme } = useSettingsStore();
 
   return (
     <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Color Scheme" />
+      <View style={s.card}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {COLOR_SCHEMES.map(({ value, label, preview }) => (
+            <TouchableOpacity
+              key={value}
+              style={[s.schemeOption, colorScheme === value && { borderColor: c.accent, borderWidth: 2 }]}
+              onPress={() => setColorScheme(value)}
+            >
+              <View style={[s.schemeSwatch, { backgroundColor: preview }]} />
+              <Text style={[s.schemeLabel, colorScheme === value && { color: c.accent, fontWeight: '700' }]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       <SectionHeader title="Default Sort (Recipes)" />
       <View style={s.card}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -64,6 +99,21 @@ function OptionsTab() {
               onPress={() => setDefaultSort(value)}
             >
               <Text style={[s.sortPillText, defaultSort === value && s.sortPillTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <SectionHeader title="Default Sort (Exercises)" />
+      <View style={s.card}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {EXERCISE_SORT_OPTIONS.map(({ value, label }) => (
+            <TouchableOpacity
+              key={value}
+              style={[s.sortPill, defaultExerciseSort === value && s.sortPillActive]}
+              onPress={() => setDefaultExerciseSort(value)}
+            >
+              <Text style={[s.sortPillText, defaultExerciseSort === value && s.sortPillTextActive]}>{label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -81,6 +131,8 @@ const DISPLAYED_METRICS = [
 ] as const;
 
 function GoalsTab() {
+  const c = useColors();
+  const s = makeStyles(c);
   const token = useAuthStore((s) => s.token)!;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -164,7 +216,7 @@ function GoalsTab() {
     }
   }
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
     <ScrollView contentContainerStyle={s.tabScroll}>
@@ -184,7 +236,7 @@ function GoalsTab() {
                 value={val}
                 onChangeText={setter}
                 keyboardType="numeric"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={c.muted}
               />
             </Field>
           ))}
@@ -195,10 +247,10 @@ function GoalsTab() {
       <View style={s.card}>
         <View style={s.twoCol}>
           <Field label="Workouts">
-            <TextInput style={s.input} value={workoutCount} onChangeText={setWorkoutCount} keyboardType="numeric" placeholderTextColor={colors.muted} />
+            <TextInput style={s.input} value={workoutCount} onChangeText={setWorkoutCount} keyboardType="numeric" placeholderTextColor={c.muted} />
           </Field>
           <Field label="Volume (lbs)">
-            <TextInput style={s.input} value={volume} onChangeText={setVolume} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={colors.muted} />
+            <TextInput style={s.input} value={volume} onChangeText={setVolume} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={c.muted} />
           </Field>
         </View>
       </View>
@@ -215,7 +267,7 @@ function GoalsTab() {
                   value={mGoals[key].value}
                   onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: v } }))}
                   keyboardType="decimal-pad"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                 />
               </Field>
               <Field label="By date (YYYY-MM-DD)">
@@ -224,7 +276,7 @@ function GoalsTab() {
                   value={mGoals[key].date}
                   onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: v } }))}
                   placeholder="2026-12-31"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                 />
               </Field>
             </View>
@@ -247,6 +299,9 @@ const TAG_CATEGORIES: { key: keyof TagDefinitions; label: string }[] = [
 ];
 
 function TagsTab() {
+  const c = useColors();
+  const s = makeStyles(c);
+  const ts = makeTagStyles(c);
   const token = useAuthStore((s) => s.token)!;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -286,7 +341,7 @@ function TagsTab() {
     }
   }
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
     <ScrollView contentContainerStyle={s.tabScroll}>
@@ -294,25 +349,25 @@ function TagsTab() {
         <View key={key}>
           <SectionHeader title={label} />
           <View style={s.card}>
-            <View style={t.tagWrap}>
+            <View style={ts.tagWrap}>
               {defs[key].map((name) => (
-                <TouchableOpacity key={name} style={t.tag} onPress={() => removeTag(key, name)}>
-                  <Text style={t.tagText}>{name} ×</Text>
+                <TouchableOpacity key={name} style={ts.tag} onPress={() => removeTag(key, name)}>
+                  <Text style={ts.tagText}>{name} ×</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={t.addRow}>
+            <View style={ts.addRow}>
               <TextInput
                 style={[s.input, { flex: 1 }]}
                 value={newTag[key]}
                 onChangeText={(v) => setNewTag((prev) => ({ ...prev, [key]: v }))}
                 placeholder={`Add ${label.toLowerCase()} tag…`}
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={c.muted}
                 returnKeyType="done"
                 onSubmitEditing={() => addTag(key)}
               />
-              <TouchableOpacity style={t.addBtn} onPress={() => addTag(key)}>
-                <Text style={t.addBtnText}>Add</Text>
+              <TouchableOpacity style={ts.addBtn} onPress={() => addTag(key)}>
+                <Text style={ts.addBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -328,6 +383,8 @@ function TagsTab() {
 // ── User tab ──────────────────────────────────────────────────────────────────
 
 function UserTab() {
+  const c = useColors();
+  const s = makeStyles(c);
   const token = useAuthStore((s) => s.token)!;
   const setToken = useAuthStore((s) => s.setToken);
 
@@ -385,10 +442,10 @@ function UserTab() {
       <SectionHeader title="Change Username" />
       <View style={s.card}>
         <Field label="New username">
-          <TextInput style={s.input} value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" autoCorrect={false} placeholderTextColor={colors.muted} />
+          <TextInput style={s.input} value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" autoCorrect={false} placeholderTextColor={c.muted} />
         </Field>
         <Field label="Current password">
-          <TextInput style={s.input} value={unPwd} onChangeText={setUnPwd} secureTextEntry placeholderTextColor={colors.muted} />
+          <TextInput style={s.input} value={unPwd} onChangeText={setUnPwd} secureTextEntry placeholderTextColor={c.muted} />
         </Field>
         {msgUn ? <Text style={msgUn.includes('updated') ? s.msgSuccess : s.msgError}>{msgUn}</Text> : null}
         <SaveBtn onPress={handleUpdateUsername} saving={savingUn} label="Update username" />
@@ -397,13 +454,13 @@ function UserTab() {
       <SectionHeader title="Change Password" />
       <View style={s.card}>
         <Field label="Current password">
-          <TextInput style={s.input} value={curPwd} onChangeText={setCurPwd} secureTextEntry placeholderTextColor={colors.muted} />
+          <TextInput style={s.input} value={curPwd} onChangeText={setCurPwd} secureTextEntry placeholderTextColor={c.muted} />
         </Field>
         <Field label="New password">
-          <TextInput style={s.input} value={newPwd} onChangeText={setNewPwd} secureTextEntry placeholderTextColor={colors.muted} />
+          <TextInput style={s.input} value={newPwd} onChangeText={setNewPwd} secureTextEntry placeholderTextColor={c.muted} />
         </Field>
         <Field label="Confirm new password">
-          <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholderTextColor={colors.muted} />
+          <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholderTextColor={c.muted} />
         </Field>
         {msgPwd ? <Text style={msgPwd.includes('updated') ? s.msgSuccess : s.msgError}>{msgPwd}</Text> : null}
         <SaveBtn onPress={handleUpdatePassword} saving={savingPwd} label="Update password" />
@@ -423,6 +480,8 @@ const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string }
 ];
 
 function DeleteTab() {
+  const c = useColors();
+  const s = makeStyles(c);
   const token = useAuthStore((s) => s.token)!;
 
   function handleDelete(scope: DeleteScope, label: string) {
@@ -469,6 +528,8 @@ function DeleteTab() {
 type Tab = 'options' | 'tags' | 'goals' | 'user' | 'delete';
 
 export default function SettingsScreen() {
+  const c = useColors();
+  const s = makeStyles(c);
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
@@ -507,49 +568,56 @@ export default function SettingsScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  signOut: { fontSize: fontSize.sm, color: colors.muted },
-  tabBar: { borderBottomWidth: 1, borderBottomColor: colors.border, flexGrow: 0, flexShrink: 0 },
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+  title: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+  signOut: { fontSize: fontSize.sm, color: c.muted },
+  tabBar: { borderBottomWidth: 1, borderBottomColor: c.border, flexGrow: 0, flexShrink: 0 },
   tabBarContent: { flexDirection: 'row', alignItems: 'stretch' },
   tabBtn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
-  tabLabel: { fontSize: fontSize.sm, color: colors.muted, fontWeight: '500' },
-  tabLabelActive: { color: colors.accent, fontWeight: '700' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: c.accent },
+  tabLabel: { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
+  tabLabelActive: { color: c.accent, fontWeight: '700' },
   tabScroll: { padding: 16, gap: 8 },
-  sectionLabel: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
-  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, gap: 12 },
+  sectionLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
+  card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, gap: 12 },
   twoCol: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   field: { flex: 1, minWidth: '40%', gap: 4 },
-  fieldLabel: { fontSize: fontSize.xs, color: colors.muted },
-  input: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm, color: colors.text },
-  saveBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'flex-start', marginTop: 4 },
+  fieldLabel: { fontSize: fontSize.xs, color: c.muted },
+  input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm, color: c.text },
+  saveBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'flex-start', marginTop: 4 },
   saveBtnDim: { opacity: 0.5 },
-  saveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
+  saveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
   msgSuccess: { fontSize: fontSize.sm, color: '#34d399' },
   msgError: { fontSize: fontSize.sm, color: '#ef4444' },
   measureRow: { gap: 6 },
-  measureLabel: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  measureUnit: { fontWeight: '400', color: colors.muted },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  measureLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+  measureUnit: { fontWeight: '400', color: c.muted },
+  divider: { height: 1, backgroundColor: c.border, marginVertical: 4 },
   deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
-  deleteLabel: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  deleteDesc: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  deleteLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+  deleteDesc: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
   deleteBtn: { borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   deleteBtnText: { fontSize: fontSize.sm, color: '#ef4444' },
-  sortPill: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 7 },
-  sortPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  sortPillText: { fontSize: fontSize.sm, color: colors.muted },
-  sortPillTextActive: { color: colors.bg, fontWeight: '700' },
-});
+  sortPill: { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 7 },
+  sortPillActive: { backgroundColor: c.accent, borderColor: c.accent },
+  sortPillText: { fontSize: fontSize.sm, color: c.muted },
+  sortPillTextActive: { color: c.bg, fontWeight: '700' },
+  schemeOption: { alignItems: 'center', gap: 6, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 10 },
+  schemeSwatch: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: c.border },
+  schemeLabel: { fontSize: fontSize.xs, color: c.muted },
+  });
+}
 
-const t = StyleSheet.create({
+function makeTagStyles(c: Colors) {
+  return StyleSheet.create({
   tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
-  tagText: { fontSize: fontSize.sm, color: colors.text },
+  tagText: { fontSize: fontSize.sm, color: c.text },
   addRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  addBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, justifyContent: 'center' },
-  addBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: colors.bg },
-});
+  addBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, justifyContent: 'center' },
+  addBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+  });
+}

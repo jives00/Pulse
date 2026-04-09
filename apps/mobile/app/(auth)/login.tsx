@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableO
 import { useRouter } from 'expo-router';
 import { login } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
-import { colors, fontSize } from '../../src/theme';
+import { fontSize, type Colors } from '../../src/theme';
+import { useColors } from '../../src/hooks/useColors';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -13,6 +14,8 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
   const router = useRouter();
+  const c = useColors();
+  const styles = makeStyles(c);
 
   async function handleLogin() {
     if (!username || !password) return;
@@ -37,7 +40,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Username"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={c.muted}
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
@@ -46,7 +49,7 @@ export default function LoginScreen() {
           <TextInput
             style={[styles.input, { marginBottom: 0, flex: 1 }]}
             placeholder="Password"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={c.muted}
             secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
@@ -65,16 +68,18 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  title: { color: colors.accent, fontSize: fontSize['4xl'], fontWeight: 'bold', marginBottom: 8 },
-  subtitle: { color: colors.muted, fontSize: fontSize.sm, marginBottom: 40 },
-  form: { width: '100%', gap: 12 },
-  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: fontSize.base },
-  error: { color: colors.error, fontSize: fontSize.xs, textAlign: 'center' },
-  passwordWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
-  eyeBtn: { paddingHorizontal: 12 },
-  eyeIcon: { fontSize: 18 },
-  button: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: colors.bg, fontWeight: 'bold', fontSize: fontSize.base },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+    title: { color: c.accent, fontSize: fontSize['4xl'], fontWeight: 'bold', marginBottom: 8 },
+    subtitle: { color: c.muted, fontSize: fontSize.sm, marginBottom: 40 },
+    form: { width: '100%', gap: 12 },
+    input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: c.text, fontSize: fontSize.base },
+    error: { color: c.error, fontSize: fontSize.xs, textAlign: 'center' },
+    passwordWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12 },
+    eyeBtn: { paddingHorizontal: 12 },
+    eyeIcon: { fontSize: 18 },
+    button: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+    buttonText: { color: c.bg, fontWeight: 'bold', fontSize: fontSize.base },
+  });
+}

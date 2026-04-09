@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRecipes, getTags, type Recipe } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore } from '../../../src/store/settings';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 import FilterChip from '../../../src/components/FilterChip';
 import RecipeCard from '../../../src/components/RecipeCard';
 import Spinner from '../../../src/components/Spinner';
@@ -31,6 +32,7 @@ type DropdownConfig = {
 export default function LibraryScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
   const { defaultSort } = useSettingsStore();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -102,6 +104,8 @@ export default function LibraryScreen() {
     setDropdown(config);
   }
 
+  const styles = makeStyles(c);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -113,7 +117,7 @@ export default function LibraryScreen() {
 
       <View style={styles.searchWrap}>
         <View style={styles.searchInputWrap}>
-          <TextInput style={styles.search} placeholder="Search recipes…" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} />
+          <TextInput style={styles.search} placeholder="Search recipes…" placeholderTextColor={c.muted} value={search} onChangeText={setSearch} />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')} style={styles.searchClear}>
               <Text style={styles.searchClearText}>✕</Text>
@@ -201,7 +205,7 @@ export default function LibraryScreen() {
           numColumns={2}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => <RecipeCard recipe={item} onPress={() => router.push(`/(app)/recipe/${item.id}`)} />}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
           getItemLayout={(_data, index) => ({
             length: CARD_HEIGHT,
             offset: CARD_HEIGHT * Math.floor(index / 2),
@@ -211,7 +215,7 @@ export default function LibraryScreen() {
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? (
             <View style={styles.loadingMore}>
-              <ActivityIndicator color={colors.accent} />
+              <ActivityIndicator color={c.accent} />
             </View>
           ) : null}
         />
@@ -239,35 +243,37 @@ export default function LibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
-  title: { color: colors.text, fontSize: fontSize['2xl'], fontWeight: 'bold' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoutBtn: { paddingVertical: 4, paddingHorizontal: 2 },
-  logoutText: { color: colors.muted, fontSize: fontSize.xs },
-  addBtn: { backgroundColor: colors.accent, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  addBtnText: { color: colors.bg, fontSize: fontSize.xl, fontWeight: 'bold', lineHeight: 28 },
-  searchWrap: { paddingHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchInputWrap: { flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' },
-  search: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, paddingRight: 36, color: colors.text },
-  searchClear: { position: 'absolute', right: 12 },
-  searchClearText: { color: colors.muted, fontSize: fontSize.sm },
-  sortBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  sortBtnText: { color: colors.muted, fontSize: fontSize.sm },
-  filterRow: { paddingHorizontal: 16, paddingVertical: 4, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  filterRowContent: { alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 10 },
-  tagPicker: { marginHorizontal: 16, marginBottom: 8, backgroundColor: colors.card, borderRadius: 12, height: 56 },
-  grid: { padding: 4 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { color: colors.muted, fontSize: fontSize.base, marginBottom: 16 },
-  emptyBtn: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  emptyBtnText: { color: colors.bg, fontWeight: '600' },
-  loadingMore: { paddingVertical: 20, alignItems: 'center' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  dropdownMenu: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, minWidth: 180, overflow: 'hidden' },
-  dropdownOption: { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dropdownOptionActive: { backgroundColor: `${colors.accent}18` },
-  dropdownOptionText: { color: colors.muted, fontSize: fontSize.sm },
-  dropdownOptionTextActive: { color: colors.accent, fontWeight: '600' },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+    title: { color: c.text, fontSize: fontSize['2xl'], fontWeight: 'bold' },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    logoutBtn: { paddingVertical: 4, paddingHorizontal: 2 },
+    logoutText: { color: c.muted, fontSize: fontSize.xs },
+    addBtn: { backgroundColor: c.accent, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    addBtnText: { color: c.bg, fontSize: fontSize.xl, fontWeight: 'bold', lineHeight: 28 },
+    searchWrap: { paddingHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    searchInputWrap: { flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' },
+    search: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, paddingRight: 36, color: c.text },
+    searchClear: { position: 'absolute', right: 12 },
+    searchClearText: { color: c.muted, fontSize: fontSize.sm },
+    sortBtn: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+    sortBtnText: { color: c.muted, fontSize: fontSize.sm },
+    filterRow: { paddingHorizontal: 16, paddingVertical: 4, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    filterRowContent: { alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 10 },
+    tagPicker: { marginHorizontal: 16, marginBottom: 8, backgroundColor: c.card, borderRadius: 12, height: 56 },
+    grid: { padding: 4 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    emptyText: { color: c.muted, fontSize: fontSize.base, marginBottom: 16 },
+    emptyBtn: { backgroundColor: c.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+    emptyBtnText: { color: c.bg, fontWeight: '600' },
+    loadingMore: { paddingVertical: 20, alignItems: 'center' },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    dropdownMenu: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, minWidth: 180, overflow: 'hidden' },
+    dropdownOption: { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.border },
+    dropdownOptionActive: { backgroundColor: `${c.accent}18` },
+    dropdownOptionText: { color: c.muted, fontSize: fontSize.sm },
+    dropdownOptionTextActive: { color: c.accent, fontWeight: '600' },
+  });
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
-import type { ColorScheme, SortOption } from '../store/settings';
+import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
   authApi, tagsApi, goalsApi, measurementsApi, GLASS_OZ,
   type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
@@ -57,6 +57,32 @@ function DefaultSortSection() {
           onClick={() => setDefaultSort(value)}
           className={`px-3 py-1.5 rounded-lg text-sm border transition ${
             defaultSort === value
+              ? 'border-dram-accent text-dram-accent bg-dram-accent/10 font-medium'
+              : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const EXERCISE_SORT_OPTIONS: { value: ExerciseSortOption; label: string }[] = [
+  { value: 'name',       label: 'Name (A–Z)' },
+  { value: 'created_at', label: 'Date added' },
+];
+
+function DefaultExerciseSortSection() {
+  const { defaultExerciseSort, setDefaultExerciseSort } = useSettingsStore();
+  return (
+    <div className="flex flex-wrap gap-2">
+      {EXERCISE_SORT_OPTIONS.map(({ value, label }) => (
+        <button
+          key={value}
+          onClick={() => setDefaultExerciseSort(value)}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            defaultExerciseSort === value
               ? 'border-dram-accent text-dram-accent bg-dram-accent/10 font-medium'
               : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
           }`}
@@ -206,8 +232,11 @@ function OptionsTab() {
       <Section title="Color Scheme">
         <ColorSchemeSection />
       </Section>
-      <Section title="Default Sort">
+      <Section title="Default Sort (Recipes)">
         <DefaultSortSection />
+      </Section>
+      <Section title="Default Sort (Exercises)">
+        <DefaultExerciseSortSection />
       </Section>
       <Section title="Tags">
         <TagDefinitionsSection />

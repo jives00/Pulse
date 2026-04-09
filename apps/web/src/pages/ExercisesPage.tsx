@@ -1,6 +1,7 @@
 import { useState, useEffect, KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { exercisesApi, type Exercise } from '@pulse/api-client';
+import { useSettingsStore } from '../store/settings';
 import Spinner from '../components/Spinner';
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
@@ -147,6 +148,7 @@ function TagInput({ label, tags, onChange }: { label: string; tags: string[]; on
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ExercisesPage() {
+  const { defaultExerciseSort } = useSettingsStore();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -338,11 +340,15 @@ export default function ExercisesPage() {
     } catch { /* ignore */ }
   }
 
-  const filtered = exercises.filter((ex) => {
-    const matchSearch = !search || ex.name.toLowerCase().includes(search.toLowerCase());
-    const matchCat = !filterCat || ex.category === filterCat;
-    return matchSearch && matchCat;
-  });
+  const filtered = exercises
+    .filter((ex) => {
+      const matchSearch = !search || ex.name.toLowerCase().includes(search.toLowerCase());
+      const matchCat = !filterCat || ex.category === filterCat;
+      return matchSearch && matchCat;
+    })
+    .sort((a, b) =>
+      defaultExerciseSort === 'name' ? a.name.localeCompare(b.name) : a.id - b.id
+    );
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">

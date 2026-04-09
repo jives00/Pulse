@@ -17,7 +17,8 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 
 type Section = { title: string; data: HistoryEntry[] };
 
@@ -66,6 +67,7 @@ function groupEntries(entries: HistoryEntry[]): Section[] {
 export default function HistoryScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -133,11 +135,12 @@ export default function HistoryScreen() {
   }
 
   const sections = groupEntries(entries);
+  const styles = makeStyles(c);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
       </SafeAreaView>
     );
   }
@@ -159,7 +162,7 @@ export default function HistoryScreen() {
           sections={sections}
           keyExtractor={(item) => String(item.log_id)}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
@@ -216,7 +219,7 @@ export default function HistoryScreen() {
               value={editDate}
               onChangeText={setEditDate}
               placeholder="2026-03-26"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               autoFocus
               keyboardType="numbers-and-punctuation"
               returnKeyType="next"
@@ -228,7 +231,7 @@ export default function HistoryScreen() {
               value={editTime}
               onChangeText={setEditTime}
               placeholder="14:30"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={c.muted}
               keyboardType="numbers-and-punctuation"
               returnKeyType="done"
               onSubmitEditing={commitEdit}
@@ -249,88 +252,40 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  list: { padding: 16, paddingBottom: 32 },
-  sectionHeader: {
-    fontSize: fontSize.xs,
-    color: colors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingRight: 10,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingLeft: 10, minWidth: 0 },
-  thumb: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    marginRight: 12,
-    flexShrink: 0,
-  },
-  thumbImg: { width: 40, height: 40 },
-  thumbIcon: { fontSize: 18, opacity: 0.4 },
-  cardText: { flex: 1, minWidth: 0 },
-  cardName: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  cardTime: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4 },
-  actionBtn: { padding: 6 },
-  editIcon: { fontSize: 18, color: colors.muted },
-  deleteIcon: { fontSize: 22, color: colors.muted, lineHeight: 24 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: fontSize.lg, color: colors.muted },
-  emptySubtext: { fontSize: fontSize.sm, color: colors.muted, marginTop: 4 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  editModal: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 20,
-    width: '85%',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  editModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: colors.text, marginBottom: 2 },
-  editModalSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: 16 },
-  editLabel: { fontSize: fontSize.xs, color: colors.muted, marginBottom: 4 },
-  editInput: {
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: fontSize.sm,
-    color: colors.text,
-    marginBottom: 12,
-  },
-  editButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
-  editCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
-  editCancelText: { color: colors.muted, fontSize: fontSize.sm },
-  editSaveBtn: { backgroundColor: colors.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
-  editSaveBtnDisabled: { opacity: 0.5 },
-  editSaveText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.sm },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    list: { padding: 16, paddingBottom: 32 },
+    sectionHeader: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+    card: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingRight: 10, marginBottom: 8, overflow: 'hidden' },
+    cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingLeft: 10, minWidth: 0 },
+    thumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: c.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, flexShrink: 0 },
+    thumbImg: { width: 40, height: 40 },
+    thumbIcon: { fontSize: 18, opacity: 0.4 },
+    cardText: { flex: 1, minWidth: 0 },
+    cardName: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+    cardTime: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    actions: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4 },
+    actionBtn: { padding: 6 },
+    editIcon: { fontSize: 18, color: c.muted },
+    deleteIcon: { fontSize: 22, color: c.muted, lineHeight: 24 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    emptyIcon: { fontSize: 48, marginBottom: 12 },
+    emptyText: { fontSize: fontSize.lg, color: c.muted },
+    emptySubtext: { fontSize: fontSize.sm, color: c.muted, marginTop: 4 },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    editModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '85%', borderWidth: 1, borderColor: c.border },
+    editModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 2 },
+    editModalSubtitle: { fontSize: fontSize.sm, color: c.muted, marginBottom: 16 },
+    editLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 4 },
+    editInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 12 },
+    editButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
+    editCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
+    editCancelText: { color: c.muted, fontSize: fontSize.sm },
+    editSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
+    editSaveBtnDisabled: { opacity: 0.5 },
+    editSaveText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
+  });
+}

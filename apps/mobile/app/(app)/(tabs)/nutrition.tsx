@@ -13,7 +13,8 @@ import {
   type RecipeSearchResult, type DailyHistoryEntry,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 
 const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'breakfast', label: 'Breakfast' },
@@ -41,7 +42,7 @@ function formatDate(dateStr: string) {
 
 // ── Nutrition bar charts ─────────────────────────────────────────────────────
 
-function MiniBarChart({ data, dataKey, label, icon, color, goal, cardW }: {
+function MiniBarChart({ data, dataKey, label, icon, color, goal, cardW, ch }: {
   data: DailyHistoryEntry[];
   dataKey: 'calories' | 'proteinG';
   label: string;
@@ -49,6 +50,7 @@ function MiniBarChart({ data, dataKey, label, icon, color, goal, cardW }: {
   color: string;
   goal?: number | null;
   cardW: number;
+  ch: ReturnType<typeof makeChStyles>;
 }) {
   const BAR_W = 5;
   const GAP = 2;
@@ -98,6 +100,8 @@ function NutritionHistoryCharts({ calorieGoal, proteinGoal, token }: {
   proteinGoal?: number | null;
   token: string;
 }) {
+  const c = useColors();
+  const ch = makeChStyles(c);
   const [data, setData] = useState<DailyHistoryEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -126,7 +130,7 @@ function NutritionHistoryCharts({ calorieGoal, proteinGoal, token }: {
   if (!loaded) return (
     <View style={ch.row}>
       {['Calories', 'Protein'].map((l) => (
-        <View key={l} style={ch.card}><Text style={{ fontSize: fontSize.xs, color: colors.muted }}>Loading…</Text></View>
+        <View key={l} style={ch.card}><Text style={{ fontSize: fontSize.xs, color: c.muted }}>Loading…</Text></View>
       ))}
     </View>
   );
@@ -135,39 +139,42 @@ function NutritionHistoryCharts({ calorieGoal, proteinGoal, token }: {
     <View style={ch.row}>
       {['Calories', 'Protein'].map((l) => (
         <View key={l} style={[ch.card, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={{ fontSize: fontSize.xs, color: colors.muted }}>No data</Text>
+          <Text style={{ fontSize: fontSize.xs, color: c.muted }}>No data</Text>
         </View>
       ))}
     </View>
   );
 
   return (
-    <NutritionChartRow calorieGoal={calorieGoal} proteinGoal={proteinGoal} data={data} />
+    <NutritionChartRow calorieGoal={calorieGoal} proteinGoal={proteinGoal} data={data} ch={ch} />
   );
 }
 
-function NutritionChartRow({ calorieGoal, proteinGoal, data }: { calorieGoal?: number | null; proteinGoal?: number | null; data: DailyHistoryEntry[] }) {
+function NutritionChartRow({ calorieGoal, proteinGoal, data, ch }: { calorieGoal?: number | null; proteinGoal?: number | null; data: DailyHistoryEntry[]; ch: ReturnType<typeof makeChStyles> }) {
   const { width } = useWindowDimensions();
   const cardW = (width - 28 - 8) / 2; // 14px padding each side, 8px gap
   return (
     <View style={{ flexDirection: 'row', gap: 8 }}>
-      <MiniBarChart data={data} dataKey="calories" label="Calories" icon="🔥" color="#60a5fa" goal={calorieGoal} cardW={cardW} />
-      <MiniBarChart data={data} dataKey="proteinG" label="Protein" icon="💪" color="#818cf8" goal={proteinGoal} cardW={cardW} />
+      <MiniBarChart data={data} dataKey="calories" label="Calories" icon="🔥" color="#60a5fa" goal={calorieGoal} cardW={cardW} ch={ch} />
+      <MiniBarChart data={data} dataKey="proteinG" label="Protein" icon="💪" color="#818cf8" goal={proteinGoal} cardW={cardW} ch={ch} />
     </View>
   );
 }
 
-const ch = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 8 },
-  card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, height: 110 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-  icon: { fontSize: 12 },
-  label: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
-  goal: { fontSize: fontSize.xs, color: colors.muted },
-});
+function makeChStyles(c: Colors) {
+  return StyleSheet.create({
+    row: { flexDirection: 'row', gap: 8 },
+    card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 10, height: 110 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+    icon: { fontSize: 12 },
+    label: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
+    goal: { fontSize: fontSize.xs, color: c.muted },
+  });
+}
 
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
+  const c = useColors();
   const [date, setDate] = useState(toDateStr(new Date()));
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -430,6 +437,7 @@ export default function NutritionScreen() {
   const waterGoalGlasses = Math.round(waterGoalOz / 8);
 
   const mealLabel = MEALS.find((m) => m.slot === addMeal)?.label ?? '';
+  const s = makeStyles(c);
 
   return (
     <SafeAreaView style={s.container}>
@@ -449,7 +457,7 @@ export default function NutritionScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -457,7 +465,7 @@ export default function NutritionScreen() {
           contentContainerStyle={s.scrollContent}
           onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
         >
           {/* Summary card */}
           <View style={s.summaryCard}>
@@ -467,7 +475,7 @@ export default function NutritionScreen() {
               <Text style={s.calGoalText}>{calGoal} kcal</Text>
             </View>
             <View style={s.progressBg}>
-              <View style={[s.progressFill, { width: `${calPct * 100}%` as any, backgroundColor: calPct >= 1 ? colors.error : colors.accent }]} />
+              <View style={[s.progressFill, { width: `${calPct * 100}%` as any, backgroundColor: calPct >= 1 ? c.error : c.accent }]} />
             </View>
             <View style={s.macroRow}>
               {[
@@ -693,7 +701,7 @@ export default function NutritionScreen() {
                     style={[s.servingRow, selectedServing?.id === sv.id && s.servingRowActive]}
                     onPress={() => setSelectedServing(sv)}
                   >
-                    <Text style={[s.servingLabel, selectedServing?.id === sv.id && { color: colors.accent }]}>
+                    <Text style={[s.servingLabel, selectedServing?.id === sv.id && { color: c.accent }]}>
                       {sv.label} ({sv.grams}g)
                     </Text>
                   </TouchableOpacity>
@@ -732,14 +740,14 @@ export default function NutritionScreen() {
                 <TextInput
                   style={s.searchInput}
                   placeholder="Search foods…"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={c.muted}
                   value={query}
                   onChangeText={handleSearch}
                   autoFocus
                   returnKeyType="search"
                 />
                 {searching
-                  ? <ActivityIndicator size="small" color={colors.accent} style={{ marginRight: 4 }} />
+                  ? <ActivityIndicator size="small" color={c.accent} style={{ marginRight: 4 }} />
                   : null
                 }
                 <TouchableOpacity onPress={openScanner} style={s.scanBtn}>
@@ -816,84 +824,86 @@ export default function NutritionScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dateArrow: { paddingHorizontal: 20, paddingVertical: 6 },
-  dateArrowText: { fontSize: 24, color: colors.muted },
-  dateLabel: { fontSize: fontSize.base, fontWeight: '600', color: colors.text, minWidth: 90, textAlign: 'center' },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 14, gap: 12 },
-  summaryCard: { backgroundColor: colors.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 10 },
-  calRow: { flexDirection: 'row', alignItems: 'baseline' },
-  calActual: { fontSize: fontSize['2xl'], fontWeight: '700', color: colors.text },
-  calSep: { fontSize: fontSize.base, color: colors.muted },
-  calGoalText: { fontSize: fontSize.sm, color: colors.muted },
-  progressBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3 },
-  macroRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  macroItem: { alignItems: 'center', gap: 1 },
-  macroVal: { fontSize: fontSize.base, fontWeight: '600' },
-  macroLabel: { fontSize: fontSize.xs, color: colors.muted },
-  macroGoal: { fontSize: fontSize.xs, color: colors.border },
-  mealSection: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  mealHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  mealLabel: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  mealCals: { fontSize: fontSize.xs, color: colors.muted, marginRight: 8 },
-  mealChevron: { color: colors.muted, fontSize: 14 },
-  foodRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
-  foodInfo: { flex: 1, marginRight: 8 },
-  foodName: { fontSize: fontSize.sm, color: colors.text },
-  foodServing: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  foodCals: { fontSize: fontSize.sm, color: colors.muted },
-  addFoodBtn: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 12, paddingHorizontal: 14 },
-  addFoodBtnText: { fontSize: fontSize.sm, color: colors.accent },
-  waterSection: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
-  waterHeader: { flexDirection: 'row', alignItems: 'center' },
-  waterBtns: { flexDirection: 'row', gap: 8 },
-  waterBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  waterBtnText: { fontSize: fontSize.sm, color: colors.muted },
-  // Modal
-  modal: { flex: 1, backgroundColor: colors.bg },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  modalTitle: { flex: 1, fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
-  modalClose: { fontSize: 20, color: colors.muted, paddingLeft: 12 },
-  modalBody: { flex: 1, padding: 16 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 14 },
-  searchInput: { flex: 1, paddingVertical: 14, fontSize: fontSize.base, color: colors.text },
-  scanBtn: { padding: 8 },
-  scanBtnText: { fontSize: 22 },
-  sectionHeader: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
-  resultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  resultName: { fontSize: fontSize.sm, color: colors.text },
-  resultBrand: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  resultCals: { marginLeft: 'auto', fontSize: fontSize.sm, color: colors.muted },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  emptyText: { textAlign: 'center', color: colors.muted, fontSize: fontSize.sm },
-  backBtn: { paddingVertical: 12 },
-  backBtnText: { color: colors.accent, fontSize: fontSize.sm },
-  servingTitle: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
-  servingRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  servingRowActive: { backgroundColor: 'rgba(212,168,67,0.08)' },
-  servingLabel: { fontSize: fontSize.sm, color: colors.text },
-  quantityInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: colors.text, backgroundColor: colors.card },
-  nutritionPreview: { fontSize: fontSize.xs, color: colors.muted, marginTop: 12, textAlign: 'center' },
-  confirmBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: colors.bg },
-  // Move/Copy modal
-  moveCopyOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
-  moveCopySheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
-  moveCopySection: { fontSize: fontSize.xs, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
-  mealGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  mealChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
-  mealChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  mealChipText: { fontSize: fontSize.sm, color: colors.text },
-  mealChipTextActive: { color: colors.bg, fontWeight: '700' },
-  dateChipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  dateChip: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  // Scanner
-  scannerContainer: { flex: 1, position: 'relative' },
-  scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  scannerFrame: { width: 240, height: 160, borderWidth: 2, borderColor: colors.accent, borderRadius: 12 },
-  scannerHint: { marginTop: 16, color: 'white', fontSize: fontSize.sm, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
+    dateArrow: { paddingHorizontal: 20, paddingVertical: 6 },
+    dateArrowText: { fontSize: 24, color: c.muted },
+    dateLabel: { fontSize: fontSize.base, fontWeight: '600', color: c.text, minWidth: 90, textAlign: 'center' },
+    scroll: { flex: 1 },
+    scrollContent: { padding: 14, gap: 12 },
+    summaryCard: { backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, gap: 10 },
+    calRow: { flexDirection: 'row', alignItems: 'baseline' },
+    calActual: { fontSize: fontSize['2xl'], fontWeight: '700', color: c.text },
+    calSep: { fontSize: fontSize.base, color: c.muted },
+    calGoalText: { fontSize: fontSize.sm, color: c.muted },
+    progressBg: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden' },
+    progressFill: { height: 6, borderRadius: 3 },
+    macroRow: { flexDirection: 'row', justifyContent: 'space-around' },
+    macroItem: { alignItems: 'center', gap: 1 },
+    macroVal: { fontSize: fontSize.base, fontWeight: '600' },
+    macroLabel: { fontSize: fontSize.xs, color: c.muted },
+    macroGoal: { fontSize: fontSize.xs, color: c.border },
+    mealSection: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+    mealHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
+    mealLabel: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+    mealCals: { fontSize: fontSize.xs, color: c.muted, marginRight: 8 },
+    mealChevron: { color: c.muted, fontSize: 14 },
+    foodRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+    foodInfo: { flex: 1, marginRight: 8 },
+    foodName: { fontSize: fontSize.sm, color: c.text },
+    foodServing: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    foodCals: { fontSize: fontSize.sm, color: c.muted },
+    addFoodBtn: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 12, paddingHorizontal: 14 },
+    addFoodBtnText: { fontSize: fontSize.sm, color: c.accent },
+    waterSection: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
+    waterHeader: { flexDirection: 'row', alignItems: 'center' },
+    waterBtns: { flexDirection: 'row', gap: 8 },
+    waterBtn: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+    waterBtnText: { fontSize: fontSize.sm, color: c.muted },
+    // Modal
+    modal: { flex: 1, backgroundColor: c.bg },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    modalTitle: { flex: 1, fontSize: fontSize.lg, fontWeight: '700', color: c.text },
+    modalClose: { fontSize: 20, color: c.muted, paddingLeft: 12 },
+    modalBody: { flex: 1, padding: 16 },
+    searchBox: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 14 },
+    searchInput: { flex: 1, paddingVertical: 14, fontSize: fontSize.base, color: c.text },
+    scanBtn: { padding: 8 },
+    scanBtnText: { fontSize: 22 },
+    sectionHeader: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+    resultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    resultName: { fontSize: fontSize.sm, color: c.text },
+    resultBrand: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    resultCals: { marginLeft: 'auto', fontSize: fontSize.sm, color: c.muted },
+    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+    emptyText: { textAlign: 'center', color: c.muted, fontSize: fontSize.sm },
+    backBtn: { paddingVertical: 12 },
+    backBtnText: { color: c.accent, fontSize: fontSize.sm },
+    servingTitle: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
+    servingRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    servingRowActive: { backgroundColor: 'rgba(212,168,67,0.08)' },
+    servingLabel: { fontSize: fontSize.sm, color: c.text },
+    quantityInput: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text, backgroundColor: c.card },
+    nutritionPreview: { fontSize: fontSize.xs, color: c.muted, marginTop: 12, textAlign: 'center' },
+    confirmBtn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
+    confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
+    // Move/Copy modal
+    moveCopyOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+    moveCopySheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
+    moveCopySection: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+    mealGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    mealChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: c.border },
+    mealChipActive: { backgroundColor: c.accent, borderColor: c.accent },
+    mealChipText: { fontSize: fontSize.sm, color: c.text },
+    mealChipTextActive: { color: c.bg, fontWeight: '700' },
+    dateChipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    dateChip: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
+    // Scanner
+    scannerContainer: { flex: 1, position: 'relative' },
+    scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+    scannerFrame: { width: 240, height: 160, borderWidth: 2, borderColor: c.accent, borderRadius: 12 },
+    scannerHint: { marginTop: 16, color: 'white', fontSize: fontSize.sm, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  });
+}

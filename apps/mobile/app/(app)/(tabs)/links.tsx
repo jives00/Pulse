@@ -16,11 +16,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getLinks, addLink, updateLink, deleteLink, type LinkItem } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 import FilterChip from '../../../src/components/FilterChip';
 
 export default function LinksScreen() {
   const token = useAuthStore((s) => s.token)!;
+  const c = useColors();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,10 +89,12 @@ export default function LinksScreen() {
     ]);
   }
 
+  const styles = makeStyles(c);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
       </SafeAreaView>
     );
   }
@@ -106,7 +110,7 @@ export default function LinksScreen() {
         <TextInput
           style={styles.input}
           placeholder="https://…"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={c.muted}
           value={input}
           onChangeText={setInput}
           autoCapitalize="none"
@@ -121,7 +125,7 @@ export default function LinksScreen() {
           disabled={!input.trim() || adding}
         >
           {adding ? (
-            <ActivityIndicator size="small" color={colors.bg} />
+            <ActivityIndicator size="small" color={c.bg} />
           ) : (
             <Text style={styles.addBtnText}>Add</Text>
           )}
@@ -139,47 +143,47 @@ export default function LinksScreen() {
       {(() => {
         const filtered = filterCat ? links.filter((l) => l.category === filterCat) : links;
         return filtered.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🔗</Text>
-          <Text style={styles.emptyText}>{links.length === 0 ? 'No links yet' : 'No links in this category'}</Text>
-          {links.length === 0 && <Text style={styles.emptySubtext}>Paste a URL above to save a site</Text>}
-        </View>
-      ) : (
-        <FlatList
-          data={[...filtered].sort((a, b) => a.title.localeCompare(b.title))}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.cardText}
-                onPress={() => Linking.openURL(item.url)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.cardUrl} numberOfLines={1}>{item.url}</Text>
-              </TouchableOpacity>
-              <View style={styles.actions}>
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>🔗</Text>
+            <Text style={styles.emptyText}>{links.length === 0 ? 'No links yet' : 'No links in this category'}</Text>
+            {links.length === 0 && <Text style={styles.emptySubtext}>Paste a URL above to save a site</Text>}
+          </View>
+        ) : (
+          <FlatList
+            data={[...filtered].sort((a, b) => a.title.localeCompare(b.title))}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
+            renderItem={({ item }) => (
+              <View style={styles.card}>
                 <TouchableOpacity
-                  onPress={() => openEdit(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.actionBtn}
+                  style={styles.cardText}
+                  onPress={() => Linking.openURL(item.url)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.editIcon}>✎</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.cardUrl} numberOfLines={1}>{item.url}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleDelete(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.deleteIcon}>×</Text>
-                </TouchableOpacity>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    onPress={() => openEdit(item)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.editIcon}>✎</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleDelete(item)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.deleteIcon}>×</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-        />
-      );
+            )}
+          />
+        );
       })()}
 
       {/* Edit modal */}
@@ -211,110 +215,39 @@ export default function LinksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  addRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: fontSize.sm,
-    color: colors.text,
-  },
-  addBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 60,
-  },
-  addBtnDisabled: { opacity: 0.4 },
-  addBtnText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.sm },
-  filterScroll: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-  list: { padding: 16 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
-  },
-  cardText: { flex: 1, minWidth: 0 },
-  cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  cardUrl: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 },
-  actionBtn: { padding: 4 },
-  editIcon: { fontSize: 18, color: colors.muted },
-  deleteIcon: { fontSize: 22, color: colors.muted, lineHeight: 24 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: fontSize.lg, color: colors.muted },
-  emptySubtext: { fontSize: fontSize.sm, color: colors.muted, marginTop: 4 },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editModal: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 20,
-    width: '85%',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  editModalTitle: {
-    fontSize: fontSize.base,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  editInput: {
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: fontSize.sm,
-    color: colors.text,
-    marginBottom: 16,
-  },
-  editButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  editCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
-  editCancelText: { color: colors.muted, fontSize: fontSize.sm },
-  editSaveBtn: {
-    backgroundColor: colors.accent,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 8,
-  },
-  editSaveText: { color: colors.bg, fontWeight: '700', fontSize: fontSize.sm },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    addRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    input: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text },
+    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', minWidth: 60 },
+    addBtnDisabled: { opacity: 0.4 },
+    addBtnText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
+    filterScroll: { borderBottomWidth: 1, borderBottomColor: c.border },
+    filterRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+    list: { padding: 16 },
+    card: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
+    cardText: { flex: 1, minWidth: 0 },
+    cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+    cardUrl: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    actions: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 },
+    actionBtn: { padding: 4 },
+    editIcon: { fontSize: 18, color: c.muted },
+    deleteIcon: { fontSize: 22, color: c.muted, lineHeight: 24 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    emptyIcon: { fontSize: 48, marginBottom: 12 },
+    emptyText: { fontSize: fontSize.lg, color: c.muted },
+    emptySubtext: { fontSize: fontSize.sm, color: c.muted, marginTop: 4 },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    editModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '85%', borderWidth: 1, borderColor: c.border },
+    editModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 12 },
+    editInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 16 },
+    editButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+    editCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
+    editCancelText: { color: c.muted, fontSize: fontSize.sm },
+    editSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
+    editSaveText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
+  });
+}

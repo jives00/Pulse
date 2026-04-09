@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { createRecipe, deleteRecipe, getPhotoUploadUrl, getRecipe, getRecipeBarcode, scrapeRecipe, parseRecipeText, setRecipeBarcode, updateRecipe, uploadPhotoToS3, uploadPhotoFromUrl, type Ingredient, type RecipeDetail } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { colors, fontSize } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
+import { useColors } from '../../../src/hooks/useColors';
 import Spinner from '../../../src/components/Spinner';
 
 const TYPES = ['cocktail', 'food', 'prepackaged'] as const;
@@ -16,6 +17,8 @@ export default function EditRecipeScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
+  const c = useColors();
+  const styles = makeStyles(c);
   const isNew = !id;
 
   const [loading, setLoading] = useState(!isNew);
@@ -207,7 +210,7 @@ export default function EditRecipeScreen() {
           </View>
           {importTab === 'url' ? (
             <View style={styles.importRow}>
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Paste a recipe URL…" placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} value={importUrl} onChangeText={setImportUrl} />
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Paste a recipe URL…" placeholderTextColor={c.muted} autoCapitalize="none" autoCorrect={false} value={importUrl} onChangeText={setImportUrl} />
               <TouchableOpacity onPress={handleImport} disabled={importing} style={styles.importBtn}>
                 <Text style={styles.importBtnText}>{importing ? '…' : 'Import'}</Text>
               </TouchableOpacity>
@@ -217,7 +220,7 @@ export default function EditRecipeScreen() {
               <TextInput
                 style={[styles.input, { height: 120, textAlignVertical: 'top', paddingTop: 10 }]}
                 placeholder="Paste a recipe here — ingredients, steps, any format…"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={c.muted}
                 multiline
                 value={pasteText}
                 onChangeText={setPasteText}
@@ -237,7 +240,7 @@ export default function EditRecipeScreen() {
           <TextInput
             style={[styles.input, { marginTop: 6 }]}
             placeholder="…or paste an image URL"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={c.muted}
             autoCapitalize="none"
             autoCorrect={false}
             value={photoUrlInput}
@@ -255,14 +258,14 @@ export default function EditRecipeScreen() {
           </View>
 
           <Text style={styles.label}>Name *</Text>
-          <TextInput style={styles.input} placeholder="Recipe name" placeholderTextColor={colors.muted} value={name} onChangeText={setName} />
+          <TextInput style={styles.input} placeholder="Recipe name" placeholderTextColor={c.muted} value={name} onChangeText={setName} />
 
           <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.multiline]} placeholder="Optional" placeholderTextColor={colors.muted} multiline numberOfLines={2} value={description} onChangeText={setDescription} />
+          <TextInput style={[styles.input, styles.multiline]} placeholder="Optional" placeholderTextColor={c.muted} multiline numberOfLines={2} value={description} onChangeText={setDescription} />
 
           {type === 'cocktail' && <>
             <Text style={styles.label}>Glass Type</Text>
-            <TextInput style={styles.input} placeholder="e.g. Rocks, Coupe" placeholderTextColor={colors.muted} value={glassType} onChangeText={setGlassType} />
+            <TextInput style={styles.input} placeholder="e.g. Rocks, Coupe" placeholderTextColor={c.muted} value={glassType} onChangeText={setGlassType} />
             <Text style={styles.label}>ABV Level</Text>
             <View style={styles.row}>
               {ABV_LEVELS.map((level) => (
@@ -292,15 +295,15 @@ export default function EditRecipeScreen() {
               <View style={[styles.row, { marginTop: 8 }]}>
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={styles.label}>Prep (min)</Text>
-                  <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.muted} keyboardType="numeric" value={prepTime} onChangeText={setPrepTime} />
+                  <TextInput style={styles.input} placeholder="0" placeholderTextColor={c.muted} keyboardType="numeric" value={prepTime} onChangeText={setPrepTime} />
                 </View>
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={styles.label}>Cook (min)</Text>
-                  <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.muted} keyboardType="numeric" value={cookTime} onChangeText={setCookTime} />
+                  <TextInput style={styles.input} placeholder="0" placeholderTextColor={c.muted} keyboardType="numeric" value={cookTime} onChangeText={setCookTime} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.label}>Servings</Text>
-                  <TextInput style={styles.input} placeholder="1" placeholderTextColor={colors.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
+                  <TextInput style={styles.input} placeholder="1" placeholderTextColor={c.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
                 </View>
               </View>
             </>
@@ -309,10 +312,10 @@ export default function EditRecipeScreen() {
           {type === 'prepackaged' && (
             <>
               <Text style={styles.label}>Servings</Text>
-              <TextInput style={[styles.input, { width: 100 }]} placeholder="1" placeholderTextColor={colors.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
+              <TextInput style={[styles.input, { width: 100 }]} placeholder="1" placeholderTextColor={c.muted} keyboardType="numeric" value={servings} onChangeText={setServings} />
               <Text style={styles.label}>Barcode</Text>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-                <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="e.g. 012345678901" placeholderTextColor={colors.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
+                <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="e.g. 012345678901" placeholderTextColor={c.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
                 <TouchableOpacity onPress={openScanner} style={styles.scanBtn}>
                   <Text style={styles.scanBtnText}>📷 Scan</Text>
                 </TouchableOpacity>
@@ -333,7 +336,7 @@ export default function EditRecipeScreen() {
               ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
                 <View key={label} style={styles.nutritionCell}>
                   <Text style={styles.nutritionLabel}>{label}</Text>
-                  <TextInput style={styles.input} placeholder="—" placeholderTextColor={colors.muted} keyboardType="decimal-pad" value={value} onChangeText={set} />
+                  <TextInput style={styles.input} placeholder="—" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={value} onChangeText={set} />
                 </View>
               ))}
             </View>
@@ -352,7 +355,7 @@ export default function EditRecipeScreen() {
               ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
                 <View key={label} style={styles.nutritionCell}>
                   <Text style={styles.nutritionLabel}>{label}</Text>
-                  <TextInput style={styles.input} placeholder="—" placeholderTextColor={colors.muted} keyboardType="decimal-pad" value={value} onChangeText={set} />
+                  <TextInput style={styles.input} placeholder="—" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={value} onChangeText={set} />
                 </View>
               ))}
             </View>
@@ -366,9 +369,9 @@ export default function EditRecipeScreen() {
           </View>
           {ingredients.map((ing, i) => (
             <View key={i} style={[styles.row, { marginBottom: 8 }]}>
-              <TextInput style={[styles.input, styles.qtyInput]} placeholder="Qty" placeholderTextColor={colors.muted} keyboardType="decimal-pad" value={ing.quantity ? String(ing.quantity) : ''} onChangeText={(v) => updateIngredient(i, 'quantity', v)} />
-              <TextInput style={[styles.input, styles.unitInput]} placeholder="Unit" placeholderTextColor={colors.muted} value={ing.unit || ''} onChangeText={(v) => updateIngredient(i, 'unit', v)} />
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Ingredient" placeholderTextColor={colors.muted} value={ing.name} onChangeText={(v) => updateIngredient(i, 'name', v)} />
+              <TextInput style={[styles.input, styles.qtyInput]} placeholder="Qty" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={ing.quantity ? String(ing.quantity) : ''} onChangeText={(v) => updateIngredient(i, 'quantity', v)} />
+              <TextInput style={[styles.input, styles.unitInput]} placeholder="Unit" placeholderTextColor={c.muted} value={ing.unit || ''} onChangeText={(v) => updateIngredient(i, 'unit', v)} />
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Ingredient" placeholderTextColor={c.muted} value={ing.name} onChangeText={(v) => updateIngredient(i, 'name', v)} />
               {ingredients.length > 1 && <TouchableOpacity onPress={() => setIngredients(ingredients.filter((_, idx) => idx !== i))} style={styles.deleteBtn}><Text style={styles.deleteBtnText}>✕</Text></TouchableOpacity>}
             </View>
           ))}
@@ -380,7 +383,7 @@ export default function EditRecipeScreen() {
           {steps.map((step, i) => (
             <View key={i} style={[styles.row, { marginBottom: 8, alignItems: 'flex-start' }]}>
               <Text style={styles.stepNum}>{i + 1}.</Text>
-              <TextInput style={[styles.input, styles.multiline, { flex: 1 }]} placeholder={`Step ${i + 1}`} placeholderTextColor={colors.muted} multiline value={step} onChangeText={(v) => setSteps((prev) => prev.map((s, idx) => idx === i ? v : s))} />
+              <TextInput style={[styles.input, styles.multiline, { flex: 1 }]} placeholder={`Step ${i + 1}`} placeholderTextColor={c.muted} multiline value={step} onChangeText={(v) => setSteps((prev) => prev.map((s, idx) => idx === i ? v : s))} />
               {steps.length > 1 && <TouchableOpacity onPress={() => setSteps(steps.filter((_, idx) => idx !== i))} style={[styles.deleteBtn, { marginTop: 10 }]}><Text style={styles.deleteBtnText}>✕</Text></TouchableOpacity>}
             </View>
           ))}
@@ -394,15 +397,15 @@ export default function EditRecipeScreen() {
             ))}
           </View>
           <View style={styles.row}>
-            <TextInput style={[styles.input, { flex: 1 }]} placeholder="Add tag" placeholderTextColor={colors.muted} value={tagInput} onChangeText={setTagInput} onSubmitEditing={addTag} />
+            <TextInput style={[styles.input, { flex: 1 }]} placeholder="Add tag" placeholderTextColor={c.muted} value={tagInput} onChangeText={setTagInput} onSubmitEditing={addTag} />
             <TouchableOpacity onPress={addTag} style={styles.addTagBtn}><Text style={styles.addLink}>Add</Text></TouchableOpacity>
           </View>
 
           <Text style={[styles.label, { marginTop: 8 }]}>Notes</Text>
-          <TextInput style={[styles.input, styles.multiline]} placeholder="Personal notes, substitutions…" placeholderTextColor={colors.muted} multiline numberOfLines={3} value={notes} onChangeText={setNotes} />
+          <TextInput style={[styles.input, styles.multiline]} placeholder="Personal notes, substitutions…" placeholderTextColor={c.muted} multiline numberOfLines={3} value={notes} onChangeText={setNotes} />
 
           <Text style={styles.label}>Source</Text>
-          <TextInput style={[styles.input, { marginBottom: 24 }]} placeholder="e.g. Death & Co., Dad's recipe" placeholderTextColor={colors.muted} value={source} onChangeText={setSource} />
+          <TextInput style={[styles.input, { marginBottom: 24 }]} placeholder="e.g. Death & Co., Dad's recipe" placeholderTextColor={c.muted} value={source} onChangeText={setSource} />
 
           {!isNew && (
             <TouchableOpacity onPress={handleDelete} style={styles.deleteRecipeBtn}>
@@ -436,58 +439,60 @@ export default function EditRecipeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerTitle: { color: colors.text, fontWeight: '600', fontSize: fontSize.base },
-  cancel: { color: colors.muted, fontSize: fontSize.sm },
-  save: { color: colors.accent, fontWeight: '600', fontSize: fontSize.sm },
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+  headerTitle: { color: c.text, fontWeight: '600', fontSize: fontSize.base },
+  cancel: { color: c.muted, fontSize: fontSize.sm },
+  save: { color: c.accent, fontWeight: '600', fontSize: fontSize.sm },
   form: { padding: 16 },
-  label: { color: colors.muted, fontSize: fontSize.xs, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
-  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontSize: fontSize.sm, marginBottom: 12 },
+  label: { color: c.muted, fontSize: fontSize.xs, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
+  input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: fontSize.sm, marginBottom: 12 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   importTabRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  importTabBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
-  importTabBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  importTabText: { color: colors.muted, fontSize: fontSize.xs, fontWeight: '600' },
-  importTabTextActive: { color: colors.bg },
+  importTabBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: c.border },
+  importTabBtnActive: { backgroundColor: c.accent, borderColor: c.accent },
+  importTabText: { color: c.muted, fontSize: fontSize.xs, fontWeight: '600' },
+  importTabTextActive: { color: c.bg },
   importRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  importBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  importBtnText: { color: colors.bg, fontWeight: '600', fontSize: fontSize.xs },
-  photoPicker: { height: 140, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 12 },
-  photoPlaceholderText: { color: colors.muted, fontSize: fontSize.xs },
+  importBtn: { backgroundColor: c.accent, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  importBtnText: { color: c.bg, fontWeight: '600', fontSize: fontSize.xs },
+  photoPicker: { height: 140, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: c.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 12 },
+  photoPlaceholderText: { color: c.muted, fontSize: fontSize.xs },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  typeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
-  typeBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  typeBtnText: { color: colors.muted, fontSize: fontSize.xs, textTransform: 'capitalize', fontWeight: '600' },
-  typeBtnTextActive: { color: colors.bg },
-  catBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginRight: 6 },
-  catBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  catBtnText: { color: colors.muted, fontSize: fontSize.xs, fontWeight: '600' },
-  catBtnTextActive: { color: colors.bg },
+  typeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginRight: 8 },
+  typeBtnActive: { backgroundColor: c.accent, borderColor: c.accent },
+  typeBtnText: { color: c.muted, fontSize: fontSize.xs, textTransform: 'capitalize', fontWeight: '600' },
+  typeBtnTextActive: { color: c.bg },
+  catBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginRight: 6 },
+  catBtnActive: { backgroundColor: c.accent, borderColor: c.accent },
+  catBtnText: { color: c.muted, fontSize: fontSize.xs, fontWeight: '600' },
+  catBtnTextActive: { color: c.bg },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  addLink: { color: colors.accent, fontSize: fontSize.xs, fontWeight: '600' },
+  addLink: { color: c.accent, fontSize: fontSize.xs, fontWeight: '600' },
   qtyInput: { width: 56, marginRight: 6 },
   unitInput: { width: 60, marginRight: 6 },
   deleteBtn: { padding: 8 },
-  deleteBtnText: { color: colors.error, fontSize: fontSize.base },
-  stepNum: { color: colors.accent, fontWeight: 'bold', fontSize: fontSize.sm, width: 20, paddingTop: 10 },
+  deleteBtnText: { color: c.error, fontSize: fontSize.base },
+  stepNum: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm, width: 20, paddingTop: 10 },
   tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  tag: { borderWidth: 1, borderColor: colors.accent, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  tagText: { color: colors.accent, fontSize: fontSize.xs },
-  addTagBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginLeft: 8 },
+  tag: { borderWidth: 1, borderColor: c.accent, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  tagText: { color: c.accent, fontSize: fontSize.xs },
+  addTagBtn: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginLeft: 8 },
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  imageGridCell: { width: '31%', aspectRatio: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: colors.card },
+  imageGridCell: { width: '31%', aspectRatio: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: c.card },
   nutritionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   nutritionCell: { width: '30%', flexGrow: 1 },
-  nutritionLabel: { color: colors.muted, fontSize: 11, marginBottom: 4 },
+  nutritionLabel: { color: c.muted, fontSize: 11, marginBottom: 4 },
   deleteRecipeBtn: { alignItems: 'center', paddingVertical: 12, marginBottom: 16 },
-  deleteRecipeBtnText: { color: colors.error, fontSize: fontSize.sm },
-  scanBtn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-  scanBtnText: { color: colors.accent, fontSize: fontSize.sm, fontWeight: '600' },
+  deleteRecipeBtnText: { color: c.error, fontSize: fontSize.sm },
+  scanBtn: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  scanBtnText: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
   scannerContainer: { flex: 1, backgroundColor: '#000' },
   scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  scannerFrame: { width: 260, height: 160, borderWidth: 2, borderColor: colors.accent, borderRadius: 12, backgroundColor: 'transparent' },
+  scannerFrame: { width: 260, height: 160, borderWidth: 2, borderColor: c.accent, borderRadius: 12, backgroundColor: 'transparent' },
   scannerClose: { position: 'absolute', bottom: 50, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 },
   scannerCloseText: { color: '#fff', fontSize: fontSize.base, fontWeight: '600' },
-});
+  });
+}
