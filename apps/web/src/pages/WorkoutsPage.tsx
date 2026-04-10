@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
-  workoutsApi, goalsApi, measurementsApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi,
   type WorkoutSummary, type ExerciseGoals,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
+  type RoutineSummary, type Exercise,
 } from '@pulse/api-client';
+import Spinner from '../components/Spinner';
+import { useSettingsStore } from '../store/settings';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -702,12 +705,423 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
   );
 }
 
+// ─── Routines tab ────────────────────────────────────────────────────────────
+
+const EXERCISE_TYPES_TAB = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
+
+const TRACKED_FIELD_OPTIONS_TAB = [
+  { key: 'reps',     label: 'Reps' },
+  { key: 'weight',   label: 'Weight (lbs)' },
+  { key: 'duration', label: 'Duration (min:sec)' },
+  { key: 'distance', label: 'Distance' },
+] as const;
+
+function defaultTrackedFieldsTab(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
+
+const CATEGORY_EMOJI_TAB: Record<string, string> = {
+  chest: '🫁', back: '🦾', shoulders: '💪', arms: '💪',
+  legs: '🦵', glutes: '🍑', core: '⚡', cardio: '🏃',
+  olympic: '🥇', plyometrics: '🦘', stretching: '🧘',
+};
+
+function RoutineCardInTab({
+  routine,
+  onImageUpdated,
+}: {
+  routine: RoutineSummary;
+  onImageUpdated: (id: number, url: string) => void;
+}) {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [starting, setStarting] = useState(false);
+
+  async function handleImageClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { uploadUrl, key } = await routinesApi.getPhotoUploadUrl(routine.id, file.type);
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      await routinesApi.update(routine.id, { coverImageKey: key });
+      onImageUpdated(routine.id, URL.createObjectURL(file));
+    } catch { /* silent */ } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleStart(e: React.MouseEvent) {
+    e.stopPropagation();
+    setStarting(true);
+    try {
+      const workout = await routinesApi.start(routine.id);
+      navigate(`/workouts/${workout.id}`);
+    } catch { setStarting(false); }
+  }
+
+  return (
+    <div
+      onClick={() => navigate(`/workouts/routines/${routine.id}`)}
+      className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
+    >
+      {/* Image */}
+      <div className="aspect-square bg-dram-bg relative overflow-hidden group/img" onClick={handleImageClick}>
+        {routine.coverImageUrl ? (
+          <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover group-hover:opacity-80 transition" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 group-hover:bg-dram-border/20 transition">
+            <span className="text-4xl font-bold text-dram-accent leading-none">{routine.exerciseCount}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition bg-black/40 pointer-events-none">
+          {uploading ? <Spinner size={6} /> : <span className="text-white text-xs font-medium">Change photo</span>}
+        </div>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
+      </div>
+
+      {/* Info */}
+      <div className="p-3">
+        <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
+          {routine.lastVolumeLbs != null && <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>}
+        </div>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
+          {routine.notes && <span className="text-slate-400 text-sm line-clamp-1 flex-1">{routine.notes}</span>}
+        </div>
+        <button
+          onClick={handleStart}
+          disabled={starting}
+          className="mt-2 w-full bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded-lg py-1.5 transition-colors"
+        >
+          {starting ? 'Starting…' : '▶ Start'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RoutinesTab() {
+  const navigate = useNavigate();
+  const [routines, setRoutines] = useState<RoutineSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    routinesApi.getAll().then(setRoutines).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!showCreate) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showCreate]);
+
+  function handleImageUpdated(id: number, previewUrl: string) {
+    setRoutines((prev) => prev.map((r) => r.id === id ? { ...r, coverImageUrl: previewUrl } : r));
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const routine = await routinesApi.create({ name: newName.trim(), notes: newNotes.trim() || undefined });
+      navigate(`/workouts/routines/${routine.id}`);
+    } catch { setCreating(false); }
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 px-6 pt-4 pb-3 flex items-center gap-3">
+        <span className="flex-1" />
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
+        >
+          + New Routine
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        {loading ? (
+          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+        ) : routines.length === 0 ? (
+          <div className="flex flex-col items-center mt-20 text-gray-600">
+            <span className="text-5xl mb-3">📋</span>
+            <p className="text-lg">No routines yet.</p>
+            <button onClick={() => setShowCreate(true)} className="text-dram-accent hover:underline text-sm mt-1">Create your first routine</button>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            {routines.map((r) => (
+              <RoutineCardInTab key={r.id} routine={r} onImageUpdated={handleImageUpdated} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={() => setShowCreate(false)}>
+          <div className="bg-dram-card border border-dram-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md mx-4 p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-dram-accent">New Routine</h2>
+              <button onClick={() => setShowCreate(false)} className="text-dram-accent/50 hover:text-dram-accent text-xl leading-none">×</button>
+            </div>
+            <input
+              autoFocus type="text" placeholder="Routine name" value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+              className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
+            />
+            <textarea
+              placeholder="Notes (optional)" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} rows={2}
+              className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50 resize-none"
+            />
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2 text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">Cancel</button>
+              <button
+                onClick={handleCreate} disabled={creating || !newName.trim()}
+                className="flex-1 bg-dram-accent hover:opacity-90 disabled:opacity-40 text-dram-bg text-sm font-medium rounded-lg py-2 transition-opacity"
+              >
+                {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Exercises tab ────────────────────────────────────────────────────────────
+
+interface ExerciseFormState {
+  name: string; category: string; customCategory: string; exerciseType: string; trackedFields: string[];
+}
+const EMPTY_EX_FORM: ExerciseFormState = { name: '', category: '', customCategory: '', exerciseType: 'weight', trackedFields: ['reps', 'weight'] };
+
+function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
+  const imgSrc = exercise.coverImageUrl ?? null;
+  const emoji = CATEGORY_EMOJI_TAB[exercise.category.toLowerCase()] ?? '🏋️';
+  return (
+    <div className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
+      <Link to={`/workouts/exercises/${exercise.id}`} className="block">
+        <div className="aspect-square bg-dram-bg relative overflow-hidden">
+          {imgSrc ? (
+            <img src={imgSrc} alt={exercise.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-4xl opacity-30">{emoji}</span>
+            </div>
+          )}
+        </div>
+      </Link>
+      <div className="p-3">
+        <Link to={`/workouts/exercises/${exercise.id}`} className="font-semibold text-white text-sm leading-snug line-clamp-2 hover:text-dram-accent transition-colors block">
+          {exercise.name}
+        </Link>
+        <p className="text-gray-500 text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {exercise.musclesPrimary?.slice(0, 2).map((m) => (
+            <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExercisesTab() {
+  const { defaultExerciseSort } = useSettingsStore();
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<ExerciseFormState>(EMPTY_EX_FORM);
+  const [useCustomCat, setUseCustomCat] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  function loadAll(params?: { search?: string; category?: string }) {
+    return exercisesApi.getAll(params).then(setExercises);
+  }
+
+  useEffect(() => {
+    Promise.all([exercisesApi.getAll(), exercisesApi.getCategories()])
+      .then(([exs, cats]) => { setExercises(exs); setCategories(cats); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    loadAll({ search: search || undefined, category: filterCat || undefined });
+  }, [search, filterCat]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showForm]);
+
+  function openCreate() { setForm({ ...EMPTY_EX_FORM, category: categories[0] ?? '' }); setUseCustomCat(false); setShowForm(true); }
+  function closeForm() { setShowForm(false); setForm(EMPTY_EX_FORM); setUseCustomCat(false); }
+
+  async function handleSave() {
+    const finalCategory = useCustomCat ? form.customCategory.trim() : form.category;
+    if (!form.name.trim() || !finalCategory || !form.exerciseType) return;
+    setSaving(true);
+    try {
+      const created = await exercisesApi.createCustom({ name: form.name.trim(), category: finalCategory, exerciseType: form.exerciseType });
+      setExercises((prev) => [...prev, created]);
+      if (!categories.includes(finalCategory)) setCategories((prev) => [...prev, finalCategory].sort());
+      closeForm();
+    } catch { /* keep form open */ } finally { setSaving(false); }
+  }
+
+  const filtered = exercises
+    .filter((ex) => {
+      const matchSearch = !search || ex.name.toLowerCase().includes(search.toLowerCase());
+      const matchCat = !filterCat || ex.category === filterCat;
+      return matchSearch && matchCat;
+    })
+    .sort((a, b) => defaultExerciseSort === 'name' ? a.name.localeCompare(b.name) : a.id - b.id);
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 px-6 pt-4 pb-3">
+        <div className="flex items-center gap-3 mb-3">
+          <input
+            type="text" placeholder="🔍 Search exercises…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+          />
+          <button onClick={openCreate} className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0">
+            + New Exercise
+          </button>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          <button
+            onClick={() => setFilterCat('')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${!filterCat ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'}`}
+          >All</button>
+          {categories.map((cat) => (
+            <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${filterCat === cat ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'}`}
+            >{cat}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        {loading ? (
+          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center mt-20 text-gray-600">
+            <span className="text-5xl mb-3">🏋️</span>
+            <p className="text-lg">No exercises found.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            {filtered.map((ex) => <ExerciseCardInTab key={ex.id} exercise={ex} />)}
+          </div>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={closeForm}>
+          <div className="bg-dram-card border border-dram-border rounded-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-dram-accent">New Exercise</h2>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
+              <input autoFocus type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Exercise name"
+                className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
+              {!useCustomCat && (
+                <div className="flex flex-wrap gap-1.5">
+                  {categories.map((cat) => (
+                    <button key={cat} onClick={() => setForm((f) => ({ ...f, category: cat }))}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                    >{cat}</button>
+                  ))}
+                </div>
+              )}
+              {useCustomCat && (
+                <input type="text" value={form.customCategory} onChange={(e) => setForm((f) => ({ ...f, customCategory: e.target.value }))} placeholder="New category name"
+                  className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
+              )}
+              <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent/50 hover:text-dram-accent transition-colors">
+                {useCustomCat ? '← Pick existing' : '+ New category'}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
+              <div className="flex flex-wrap gap-1.5">
+                {EXERCISE_TYPES_TAB.map((t) => (
+                  <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFieldsTab(t) }))}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
+              <div className="flex flex-wrap gap-2">
+                {TRACKED_FIELD_OPTIONS_TAB.map(({ key, label }) => {
+                  const checked = form.trackedFields.includes(key);
+                  return (
+                    <button key={key} type="button"
+                      onClick={() => setForm((f) => ({ ...f, trackedFields: checked ? f.trackedFields.filter((x) => x !== key) : [...f.trackedFields, key] }))}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                    >{label}</button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={closeForm} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !form.name.trim() || (!useCustomCat ? !form.category : !form.customCategory.trim())}
+                className="text-sm bg-dram-accent hover:opacity-90 disabled:opacity-40 text-dram-bg px-4 py-1.5 rounded-lg transition-opacity font-medium">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'week',    label: 'Week'    },
-  { key: 'body',    label: 'Body'    },
-  { key: 'records', label: 'Records' },
+  { key: 'progress',  label: 'Progress'  },
+  { key: 'routines',  label: 'Routines'  },
+  { key: 'exercises', label: 'Exercises' },
 ] as const;
 
 type Tab = typeof TABS[number]['key'];
@@ -723,7 +1137,7 @@ export default function WorkoutsPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('week');
+  const [activeTab, setActiveTab] = useState<Tab>('progress');
 
   function load() {
     Promise.all([
@@ -796,21 +1210,25 @@ export default function WorkoutsPage() {
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-200">Progress</h1>
+        <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setGoalsOpen(true)}
-            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-3 py-2 text-sm transition-colors"
-          >
-            Edit Goals
-          </button>
-          <button
-            onClick={handleStart}
-            disabled={starting}
-            className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
-          >
-            {starting ? 'Starting…' : '+ Start Workout'}
-          </button>
+          {activeTab === 'progress' && (
+            <>
+              <button
+                onClick={() => setGoalsOpen(true)}
+                className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-3 py-2 text-sm transition-colors"
+              >
+                Edit Goals
+              </button>
+              <button
+                onClick={handleStart}
+                disabled={starting}
+                className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+              >
+                {starting ? 'Starting…' : '+ Start Workout'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -841,120 +1259,128 @@ export default function WorkoutsPage() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {loading ? (
-          <div className="text-center text-slate-400 py-8">Loading…</div>
-        ) : activeTab === 'week' ? (
-          <>
-            {/* ── Weekly summary card ─────────────────────────────── */}
-            <div className="bg-dram-card rounded-2xl overflow-hidden">
-              <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
+      {activeTab === 'progress' ? (
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {loading ? (
+            <div className="text-center text-slate-400 py-8">Loading…</div>
+          ) : (
+            <>
+              {/* ── Weekly summary card ─────────────────────────────── */}
+              <div className="bg-dram-card rounded-2xl overflow-hidden">
+                <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
 
-              <div className="px-6 py-5">
-                <div className="flex items-center gap-4">
-                  <div className="relative shrink-0 mr-2">
-                    <Ring pct={volumePct} color={ringColor} size={108} />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                      {weekVolumeLbs > 0 ? (
-                        <>
-                          <span className="text-lg font-bold text-white leading-none">
-                            {weekVolumeLbs >= 1000
-                              ? `${(weekVolumeLbs / 1000).toFixed(1)}k`
-                              : weekVolumeLbs}
-                          </span>
-                          <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">
-                            {volumeGoal ? `/ ${volumeGoal >= 1000 ? `${(volumeGoal / 1000).toFixed(0)}k` : volumeGoal}` : 'lbs'}<br />vol
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-2xl font-bold text-white leading-none">—</span>
-                          <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">volume</span>
-                        </>
-                      )}
+                <div className="px-6 py-5">
+                  <div className="flex items-center gap-4">
+                    <div className="relative shrink-0 mr-2">
+                      <Ring pct={volumePct} color={ringColor} size={108} />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                        {weekVolumeLbs > 0 ? (
+                          <>
+                            <span className="text-lg font-bold text-white leading-none">
+                              {weekVolumeLbs >= 1000
+                                ? `${(weekVolumeLbs / 1000).toFixed(1)}k`
+                                : weekVolumeLbs}
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                              {volumeGoal ? `/ ${volumeGoal >= 1000 ? `${(volumeGoal / 1000).toFixed(0)}k` : volumeGoal}` : 'lbs'}<br />vol
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-2xl font-bold text-white leading-none">—</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">volume</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl leading-none">🏋️</span>
-                      <span className="text-base font-bold text-white">This Week</span>
-                    </div>
-                    <div className="space-y-3">
-                      <ProgressBar label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit="lbs" color="#a78bfa" />
-                      <ProgressBar
-                        label="Workouts"
-                        actual={weekActual.workoutCount}
-                        goal={workoutGoal}
-                        unit={workoutGoal === 1 ? 'workout' : 'workouts'}
-                        color="#34d399"
-                      />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl leading-none">🏋️</span>
+                        <span className="text-base font-bold text-white">This Week</span>
+                      </div>
+                      <div className="space-y-3">
+                        <ProgressBar label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit="lbs" color="#a78bfa" />
+                        <ProgressBar
+                          label="Workouts"
+                          actual={weekActual.workoutCount}
+                          goal={workoutGoal}
+                          unit={workoutGoal === 1 ? 'workout' : 'workouts'}
+                          color="#34d399"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-4 border-t border-dram-border">
+                  <StatTile
+                    icon="🔥"
+                    label="Calories Burned"
+                    value={weekCalories > 0 ? weekCalories.toLocaleString() : '—'}
+                    unit={weekCalories > 0 ? 'kcal' : ''}
+                    color="#fb923c"
+                  />
+                  <StatTile
+                    icon="🔁"
+                    label="Streak"
+                    value={weekStreak}
+                    unit={weekStreak === 1 ? 'day' : 'days'}
+                    color="#34d399"
+                  />
+                  <StatTile
+                    icon="🏋️"
+                    label="Best Lift"
+                    value={personalBests?.heaviestLift
+                      ? `${Math.round(personalBests.heaviestLift.weightKg * 2.20462 * 10) / 10}`
+                      : '—'}
+                    unit={personalBests?.heaviestLift ? 'lbs' : ''}
+                    color="#818cf8"
+                  />
+                  <StatTile
+                    icon="📈"
+                    label="Best Volume"
+                    value={personalBests?.bestSessionVolume
+                      ? Math.round(personalBests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()
+                      : '—'}
+                    unit={personalBests?.bestSessionVolume ? 'lbs' : ''}
+                    color="#60a5fa"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-4 border-t border-dram-border">
-                <StatTile
-                  icon="🔥"
-                  label="Calories Burned"
-                  value={weekCalories > 0 ? weekCalories.toLocaleString() : '—'}
-                  unit={weekCalories > 0 ? 'kcal' : ''}
-                  color="#fb923c"
-                />
-                <StatTile
-                  icon="🔁"
-                  label="Streak"
-                  value={weekStreak}
-                  unit={weekStreak === 1 ? 'day' : 'days'}
-                  color="#34d399"
-                />
-                <StatTile
-                  icon="🏋️"
-                  label="Best Lift"
-                  value={personalBests?.heaviestLift
-                    ? `${Math.round(personalBests.heaviestLift.weightKg * 2.20462 * 10) / 10}`
-                    : '—'}
-                  unit={personalBests?.heaviestLift ? 'lbs' : ''}
-                  color="#818cf8"
-                />
-                <StatTile
-                  icon="📈"
-                  label="Best Volume"
-                  value={personalBests?.bestSessionVolume
-                    ? Math.round(personalBests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()
-                    : '—'}
-                  unit={personalBests?.bestSessionVolume ? 'lbs' : ''}
-                  color="#60a5fa"
+              {/* ── 13-week chart ───────────────────────────────────── */}
+              <div className="flex gap-3">
+                <WeeklyChart
+                  data={weeklyData}
+                  dataKey="volumeLbs"
+                  label="Volume / wk"
+                  icon="📦"
+                  color="#a78bfa"
+                  goal={volumeGoal}
+                  unit=" lbs"
                 />
               </div>
-            </div>
 
-            {/* ── 13-week charts ──────────────────────────────────── */}
-            <div className="flex gap-3">
-              <WeeklyChart
-                data={weeklyData}
-                dataKey="volumeLbs"
-                label="Volume / wk"
-                icon="📦"
-                color="#a78bfa"
-                goal={volumeGoal}
-                unit=" lbs"
+              {/* ── Body measurements ───────────────────────────────── */}
+              <BodyMeasurementsCard
+                measurements={measurements}
+                goals={measurementGoals}
+                onAdd={handleAddMeasurement}
+                onUpdate={handleUpdateMeasurement}
+                onDelete={handleDeleteMeasurement}
               />
-            </div>
-          </>
-        ) : activeTab === 'body' ? (
-          <BodyMeasurementsCard
-            measurements={measurements}
-            goals={measurementGoals}
-            onAdd={handleAddMeasurement}
-            onUpdate={handleUpdateMeasurement}
-            onDelete={handleDeleteMeasurement}
-          />
-        ) : (
-          <PersonalBestsCard bests={personalBests} />
-        )}
-      </div>
+
+              {/* ── Personal bests ──────────────────────────────────── */}
+              <PersonalBestsCard bests={personalBests} />
+            </>
+          )}
+        </div>
+      ) : activeTab === 'routines' ? (
+        <RoutinesTab />
+      ) : (
+        <ExercisesTab />
+      )}
     </div>
   );
 }
