@@ -286,25 +286,14 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       )}
 
       {/* Muscle diagram */}
-      {(exercise.muscleImageUrl || primary.length > 0 || secondary.length > 0) && (
+      {exercise.muscleImageUrl && (
         <div className="bg-slate-800 rounded-lg p-4">
           <div className="text-xs text-slate-500 mb-3">Muscle Groups</div>
-          {exercise.muscleImageUrl ? (
-            <img
-              src={exercise.muscleImageUrl}
-              alt="Muscle groups"
-              className="w-full rounded-lg object-contain max-h-80"
-            />
-          ) : (
-            <div className="flex items-center justify-center bg-slate-900 rounded-lg h-40 border border-slate-700">
-              <div className="text-center space-y-1">
-                <div className="text-3xl">💪</div>
-                <div className="text-xs text-slate-500">
-                  {[...primary, ...secondary.map((m) => `${m} (sec)`)].join(' · ')}
-                </div>
-              </div>
-            </div>
-          )}
+          <img
+            src={exercise.muscleImageUrl}
+            alt="Muscle groups"
+            className="w-full rounded-lg object-contain max-h-80"
+          />
         </div>
       )}
 
@@ -400,12 +389,12 @@ function TagInput({ label, tags, onChange }: { label: string; tags: string[]; on
   }
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
-      <div className="flex flex-wrap gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 min-h-[38px]">
+      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
+      <div className="flex flex-wrap gap-1.5 bg-dram-card border border-dram-border rounded-lg px-2 py-1.5 min-h-[38px]">
         {tags.map((t) => (
-          <span key={t} className="flex items-center gap-1 text-xs bg-blue-600/20 text-blue-300 rounded-full px-2 py-0.5">
+          <span key={t} className="flex items-center gap-1 text-xs bg-dram-accent/15 text-dram-accent rounded-full px-2 py-0.5">
             {t}
-            <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} className="text-blue-300/50 hover:text-blue-300 leading-none">×</button>
+            <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} className="text-dram-accent/50 hover:text-dram-accent leading-none">×</button>
           </span>
         ))}
         <input
@@ -413,7 +402,7 @@ function TagInput({ label, tags, onChange }: { label: string; tags: string[]; on
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKey} onBlur={commit}
           placeholder={tags.length === 0 ? 'Type and press Enter…' : ''}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none"
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder:text-gray-600 focus:outline-none"
         />
       </div>
     </div>
@@ -528,27 +517,27 @@ function EditModal({ exercise, categories, onSave, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto p-6 space-y-5"
+        className="bg-dram-card border border-dram-border rounded-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-slate-200">Edit Exercise</h2>
+        <h2 className="text-base font-semibold text-white">Edit Exercise</h2>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</label>
           <input autoFocus type="text" value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+            className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Category</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</label>
           {!useCustomCat && (
             <div className="flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <button key={cat} onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                    form.category === cat ? 'bg-blue-600 text-white border-blue-600 font-semibold' : 'text-slate-400 border-slate-600 hover:border-slate-400'
+                  className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                    form.category === cat ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
                   }`}
                 >{cat}</button>
               ))}
@@ -558,21 +547,21 @@ function EditModal({ exercise, categories, onSave, onClose }: {
             <input type="text" value={form.customCategory}
               onChange={(e) => setForm((f) => ({ ...f, customCategory: e.target.value }))}
               placeholder="New category name"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
             />
           )}
-          <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent hover:brightness-110 transition-colors">
             {useCustomCat ? '← Pick existing' : '+ New category'}
           </button>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Type</label>
           <div className="flex flex-wrap gap-1.5">
             {EXERCISE_TYPES.map((t) => (
               <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
-                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                  form.exerciseType === t ? 'bg-blue-600 text-white border-blue-600 font-semibold' : 'text-slate-400 border-slate-600 hover:border-slate-400'
+                className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                  form.exerciseType === t ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
                 }`}
               >{t}</button>
             ))}
@@ -580,7 +569,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Track Per Set</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Track Per Set</label>
           <div className="flex flex-wrap gap-2">
             {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
               const checked = form.trackedFields.includes(key);
@@ -594,10 +583,10 @@ function EditModal({ exercise, categories, onSave, onClose }: {
                       ? f.trackedFields.filter((x) => x !== key)
                       : [...f.trackedFields, key],
                   }))}
-                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                  className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
                     checked
-                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                      : 'text-slate-400 border-slate-600 hover:border-slate-400'
+                      ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
+                      : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
                   }`}
                 >
                   {label}
@@ -605,26 +594,26 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               );
             })}
           </div>
-          <p className="text-xs text-slate-600">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+          <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
         </div>
 
         <TagInput label="Primary Muscles" tags={form.musclesPrimary} onChange={(v) => setForm((f) => ({ ...f, musclesPrimary: v }))} />
         <TagInput label="Secondary Muscles" tags={form.musclesSecondary} onChange={(v) => setForm((f) => ({ ...f, musclesSecondary: v }))} />
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Instructions</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Instructions</label>
           <textarea value={form.instructions}
             onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
             rows={4}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+            className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-dram-accent resize-none"
           />
         </div>
 
         {/* Cover Image */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cover Image</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cover Image</label>
           {form.coverImageKey && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="truncate max-w-[280px]">{form.coverImageKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, coverImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -635,18 +624,18 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               value={form.coverImageUrlInput}
               onChange={(e) => setForm((f) => ({ ...f, coverImageUrlInput: e.target.value }))}
               placeholder="Paste image URL to upload to S3…"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-dram-accent"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('cover'); } }}
             />
             <button
               type="button"
               disabled={!form.coverImageUrlInput.trim() || uploadingField === 'cover'}
               onClick={() => uploadFromUrl('cover')}
-              className="text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition font-medium shrink-0"
+              className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black px-3 py-1.5 rounded-lg transition font-semibold shrink-0"
             >
               {uploadingField === 'cover' ? '…' : 'Upload'}
             </button>
-            <label className="text-sm text-slate-500 hover:text-slate-300 cursor-pointer flex items-center transition-colors shrink-0">
+            <label className="text-sm text-gray-400 hover:text-white cursor-pointer flex items-center transition-colors shrink-0">
               File
               <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('cover', f); e.target.value = ''; }} />
             </label>
@@ -655,9 +644,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
         {/* How-To Media */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">How-To Media</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">How-To Media</label>
           {form.mediaKey && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="truncate max-w-[280px]">{form.mediaKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, mediaKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -668,18 +657,18 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               value={form.mediaUrlInput}
               onChange={(e) => setForm((f) => ({ ...f, mediaUrlInput: e.target.value }))}
               placeholder="YouTube link, GIF, or image URL…"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-dram-accent"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('media'); } }}
             />
             <button
               type="button"
               disabled={!form.mediaUrlInput.trim() || uploadingField === 'media'}
               onClick={() => uploadFromUrl('media')}
-              className="text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition font-medium shrink-0"
+              className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black px-3 py-1.5 rounded-lg transition font-semibold shrink-0"
             >
               {uploadingField === 'media' ? '…' : 'Upload'}
             </button>
-            <label className="text-sm text-slate-500 hover:text-slate-300 cursor-pointer flex items-center transition-colors shrink-0">
+            <label className="text-sm text-gray-400 hover:text-white cursor-pointer flex items-center transition-colors shrink-0">
               File
               <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('media', f); e.target.value = ''; }} />
             </label>
@@ -688,9 +677,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
         {/* Muscle Diagram */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Muscle Diagram</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Muscle Diagram</label>
           {form.muscleImageKey && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="truncate max-w-[280px]">{form.muscleImageKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, muscleImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -701,18 +690,18 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               value={form.muscleImageUrlInput}
               onChange={(e) => setForm((f) => ({ ...f, muscleImageUrlInput: e.target.value }))}
               placeholder="Paste muscle diagram image URL…"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-dram-accent"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl('muscle'); } }}
             />
             <button
               type="button"
               disabled={!form.muscleImageUrlInput.trim() || uploadingField === 'muscle'}
               onClick={() => uploadFromUrl('muscle')}
-              className="text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition font-medium shrink-0"
+              className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black px-3 py-1.5 rounded-lg transition font-semibold shrink-0"
             >
               {uploadingField === 'muscle' ? '…' : 'Upload'}
             </button>
-            <label className="text-sm text-slate-500 hover:text-slate-300 cursor-pointer flex items-center transition-colors shrink-0">
+            <label className="text-sm text-gray-400 hover:text-white cursor-pointer flex items-center transition-colors shrink-0">
               File
               <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFromFile('muscle', f); e.target.value = ''; }} />
             </label>
@@ -721,21 +710,21 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Notes</label>
           <textarea value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             rows={3}
             placeholder="Personal notes…"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+            className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-dram-accent resize-none"
           />
         </div>
 
         <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
+          <button onClick={onClose} className="text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
           <button
             onClick={handleSave}
             disabled={saving || !form.name.trim() || (!useCustomCat ? !form.category : !form.customCategory.trim())}
-            className="text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-4 py-1.5 rounded-lg transition font-medium"
+            className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black px-4 py-1.5 rounded-lg transition font-semibold"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -747,19 +736,17 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'summary' | 'history' | 'howto';
-
 export default function ExerciseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
-  const [tab, setTab] = useState<Tab>('summary');
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -789,23 +776,30 @@ export default function ExerciseDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!exercise) return;
+    if (!window.confirm(`Delete "${exercise.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await exercisesApi.deleteCustom(exercise.id);
+      navigate('/workouts/exercises');
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return <div className="text-center text-sm text-slate-500 py-12">Loading…</div>;
   }
   if (!exercise) return null;
 
-  const tabCls = (t: Tab) =>
-    `flex-1 text-sm py-2.5 font-medium transition-colors border-b-2 ${
-      tab === t ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-300'
-    }`;
-
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start gap-3">
+      <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
+          className="text-slate-500 hover:text-slate-300 transition-colors shrink-0"
         >
           ←
         </button>
@@ -813,37 +807,58 @@ export default function ExerciseDetailPage() {
           <h1 className="text-xl font-semibold text-slate-200 truncate">{exercise.name}</h1>
           <div className="text-sm text-slate-500 capitalize">{exercise.category} · {exercise.exerciseType}</div>
         </div>
-        <button
-          onClick={() => setShowEdit(true)}
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors shrink-0 mt-0.5"
-        >
-          Edit
-        </button>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex border-b border-slate-700 -mb-2">
-        <button className={tabCls('summary')} onClick={() => setTab('summary')}>Summary</button>
-        <button className={tabCls('history')} onClick={() => setTab('history')}>History</button>
-        <button className={tabCls('howto')} onClick={() => setTab('howto')}>How To</button>
-      </div>
-
-      {/* Notes */}
-      {exercise.notes && (
-        <div className="bg-slate-800 rounded-lg px-4 py-3">
-          <div className="text-xs text-slate-500 mb-1">Notes</div>
-          <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.notes}</p>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowEdit(true)}
+            className="text-xs text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1 transition-colors"
+          >
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="text-xs text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50 transition-colors"
+          >
+            {deleting ? '…' : 'Delete'}
+          </button>
         </div>
-      )}
+      </div>
 
-      {/* Tab content */}
-      {tab === 'summary' && (
-        stats
-          ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} />
-          : <div className="text-center text-sm text-slate-500 py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
-      )}
-      {tab === 'history' && <HistoryTab exerciseId={Number(id)} />}
-      {tab === 'howto' && <HowToTab exercise={exercise} />}
+      {/* 2-column body */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-full">
+          {/* Left column — How To content */}
+          <div className="p-6 space-y-4 lg:border-r lg:border-dram-border lg:overflow-y-auto">
+            {/* Notes */}
+            {exercise.notes && (
+              <div className="bg-slate-800 rounded-lg px-4 py-3">
+                <div className="text-xs text-slate-500 mb-1">Notes</div>
+                <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.notes}</p>
+              </div>
+            )}
+
+            <HowToTab exercise={exercise} />
+          </div>
+
+          {/* Right column — Summary + History */}
+          <div className="p-6 space-y-6 lg:overflow-y-auto">
+            {/* Summary */}
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
+              {stats
+                ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} />
+                : <div className="text-center text-sm text-slate-500 py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
+              }
+            </div>
+
+            {/* History */}
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">History</div>
+              <HistoryTab exerciseId={Number(id)} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Edit modal */}
       {showEdit && (

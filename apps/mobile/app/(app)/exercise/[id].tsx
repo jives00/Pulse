@@ -211,25 +211,10 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
         </View>
       )}
 
-      {(primary.length > 0 || secondary.length > 0) && (
+      {exercise.muscleImageUrl && (
         <View style={ts.section}>
           <Text style={ts.sectionTitle}>Muscle Groups</Text>
-          {primary.length > 0 && (
-            <>
-              <Text style={ts.muscleLabel}>Primary</Text>
-              <View style={ts.tagRow}>
-                {primary.map((m) => <View key={m} style={ts.tagPrimary}><Text style={ts.tagPrimaryText}>{m}</Text></View>)}
-              </View>
-            </>
-          )}
-          {secondary.length > 0 && (
-            <>
-              <Text style={[ts.muscleLabel, { marginTop: 8 }]}>Secondary</Text>
-              <View style={ts.tagRow}>
-                {secondary.map((m) => <View key={m} style={ts.tagSecondary}><Text style={ts.tagSecondaryText}>{m}</Text></View>)}
-              </View>
-            </>
-          )}
+          <Image source={{ uri: exercise.muscleImageUrl }} style={ts.mediaImage} resizeMode="contain" />
         </View>
       )}
 
