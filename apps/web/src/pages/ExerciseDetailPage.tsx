@@ -782,7 +782,7 @@ export default function ExerciseDetailPage() {
     setDeleting(true);
     try {
       await exercisesApi.deleteCustom(exercise.id);
-      navigate('/workouts/exercises');
+      navigate('/workouts?tab=exercises');
     } catch {
       setDeleting(false);
     }

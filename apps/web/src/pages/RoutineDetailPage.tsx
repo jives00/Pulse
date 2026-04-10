@@ -326,7 +326,7 @@ export default function RoutineDetailPage() {
     const numId = Number(id);
     routinesApi.get(numId)
       .then((r) => { setRoutine(r); setName(r.name); setNotes(r.notes ?? ''); })
-      .catch(() => navigate('/workouts/routines'))
+      .catch(() => navigate('/workouts?tab=routines'))
       .finally(() => setLoading(false));
 
     // Fetch volume history for this routine
@@ -405,7 +405,7 @@ export default function RoutineDetailPage() {
     if (!routine || !confirm('Delete this routine?')) return;
     try {
       await routinesApi.delete(routine.id);
-      navigate('/workouts/routines');
+      navigate('/workouts?tab=routines');
     } catch { /* ignore */ }
   }
 
@@ -416,7 +416,7 @@ export default function RoutineDetailPage() {
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <button onClick={() => navigate('/workouts/routines')} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
+        <button onClick={() => navigate('/workouts?tab=routines')} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
         <div className="flex-1 min-w-0">
           {editingName ? (
             <input

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi,
@@ -743,7 +743,7 @@ function RoutineCardInTab({
   const [uploading, setUploading] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  async function handleImageClick(e: React.MouseEvent) {
+  function handleImageClick(e: React.MouseEvent) {
     e.stopPropagation();
     fileInputRef.current?.click();
   }
@@ -778,7 +778,7 @@ function RoutineCardInTab({
       className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
     >
       {/* Image */}
-      <div className="aspect-square bg-dram-bg relative overflow-hidden group/img" onClick={handleImageClick}>
+      <div className="aspect-square bg-dram-bg relative overflow-hidden">
         {routine.coverImageUrl ? (
           <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover group-hover:opacity-80 transition" />
         ) : (
@@ -787,9 +787,6 @@ function RoutineCardInTab({
             <span className="text-xs text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
           </div>
         )}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition bg-black/40 pointer-events-none">
-          {uploading ? <Spinner size={6} /> : <span className="text-white text-xs font-medium">Change photo</span>}
-        </div>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
       </div>
 
@@ -804,13 +801,22 @@ function RoutineCardInTab({
           <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
           {routine.notes && <span className="text-slate-400 text-sm line-clamp-1 flex-1">{routine.notes}</span>}
         </div>
-        <button
-          onClick={handleStart}
-          disabled={starting}
-          className="mt-2 w-full bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded-lg py-1.5 transition-colors"
-        >
-          {starting ? 'Starting…' : '▶ Start'}
-        </button>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleStart}
+            disabled={starting}
+            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded-lg py-1.5 transition-colors"
+          >
+            {starting ? 'Starting…' : 'Start'}
+          </button>
+          <button
+            onClick={handleImageClick}
+            disabled={uploading}
+            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-xs font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
+          >
+            {uploading ? <Spinner size={3} /> : 'Edit'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1126,8 +1132,11 @@ const TABS = [
 
 type Tab = typeof TABS[number]['key'];
 
+const VALID_TABS = ['progress', 'routines', 'exercises'] as const;
+
 export default function WorkoutsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [weekActual, setWeekActual] = useState({ workoutCount: 0, totalMinutes: 0 });
@@ -1137,7 +1146,9 @@ export default function WorkoutsPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('progress');
+  const rawTab = searchParams.get('tab');
+  const activeTab: Tab = (VALID_TABS as readonly string[]).includes(rawTab ?? '') ? rawTab as Tab : 'progress';
+  function setActiveTab(tab: Tab) { setSearchParams({ tab }, { replace: true }); }
 
   function load() {
     Promise.all([
