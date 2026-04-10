@@ -50,7 +50,7 @@ async function getRoutineDetail(routineId: number, userId: number) {
   const [exRows] = await pool.query<RowDataPacket[]>(
     `SELECT re.id AS re_id, re.sort_order, re.notes AS re_notes,
             e.id AS ex_id, e.name, e.category, e.exercise_type,
-            e.muscles_primary, e.muscles_secondary, e.is_custom
+            e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields
      FROM routine_exercises re
      JOIN exercises e ON e.id = re.exercise_id
      WHERE re.routine_id = ?
@@ -77,6 +77,7 @@ async function getRoutineDetail(routineId: number, userId: number) {
         musclesPrimary: ex.muscles_primary ?? [],
         musclesSecondary: ex.muscles_secondary ?? [],
         isCustom: Boolean(ex.is_custom),
+        trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
       templateSets: templateSets.map((s) => ({
         id: s.id,
@@ -273,7 +274,7 @@ router.post('/:id/exercises', async (req, res) => {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT re.id AS re_id, re.sort_order, re.notes AS re_notes,
               e.id AS ex_id, e.name, e.category, e.exercise_type,
-              e.muscles_primary, e.muscles_secondary, e.is_custom
+              e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields
        FROM routine_exercises re
        JOIN exercises e ON e.id = re.exercise_id
        WHERE re.id = ?`,
@@ -292,6 +293,7 @@ router.post('/:id/exercises', async (req, res) => {
         musclesPrimary: ex.muscles_primary ?? [],
         musclesSecondary: ex.muscles_secondary ?? [],
         isCustom: Boolean(ex.is_custom),
+        trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
       templateSets: [],
       lastPerformedSets: lastPerformedSets.length > 0

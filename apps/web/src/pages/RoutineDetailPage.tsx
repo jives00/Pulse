@@ -19,41 +19,66 @@ function fmtWeight(kg: number | null) {
 function shortDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
+function secondsToMMSS(sec: number | null): string {
+  if (sec == null) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function mmssToSeconds(val: string): number | null {
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10);
+    const s = parseInt(parts[1], 10);
+    if (!isNaN(m) && !isNaN(s)) return m * 60 + s;
+  }
+  const n = parseInt(trimmed, 10);
+  return isNaN(n) ? null : n;
+}
 
 // ─── Template set row ─────────────────────────────────────────────────────────
 
 function TemplateSetRow({
-  set, routineId, reId, exerciseType, onUpdated, onDeleted,
+  set, routineId, reId, trackedFields, onUpdated, onDeleted,
 }: {
   set: RoutineExerciseSet;
   routineId: number;
   reId: number;
-  exerciseType: string;
+  trackedFields: string[];
   onUpdated: (s: RoutineExerciseSet) => void;
   onDeleted: (id: number) => void;
 }) {
-  const showWeight = exerciseType === 'weight';
-  const showDuration = exerciseType === 'duration' || exerciseType === 'cardio';
-  const [reps, setReps] = useState(String(set.reps ?? ''));
-  const [weight, setWeight] = useState(fmtWeight(set.weightKg));
-  const [duration, setDuration] = useState(String(set.durationSeconds ?? ''));
+  const showWeight   = trackedFields.includes('weight');
+  const showReps     = trackedFields.includes('reps');
+  const showDuration = trackedFields.includes('duration');
+  const showDistance = trackedFields.includes('distance');
+
+  const [reps, setReps]         = useState(String(set.reps ?? ''));
+  const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
+  const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
+  const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
 
   async function handleBlur() {
-    const newReps = reps !== '' ? Number(reps) : null;
-    const newWeightLbs = weight !== '' ? Number(weight) : null;
-    const newWeightKg = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
-    const newDuration = duration !== '' ? Number(duration) : null;
+    const newReps       = showReps     && reps     !== '' ? Number(reps)     : null;
+    const newWeightLbs  = showWeight   && weight   !== '' ? Number(weight)   : null;
+    const newWeightKg   = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
+    const newDuration   = showDuration ? mmssToSeconds(duration)             : null;
+    const newDistance   = showDistance && distance !== '' ? Number(distance) : null;
     try {
       await routinesApi.updateTemplateSet(routineId, reId, set.id, {
         reps: newReps ?? undefined,
         weightKg: newWeightKg ?? undefined,
         durationSeconds: newDuration ?? undefined,
+        distanceMeters: newDistance ?? undefined,
       });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance });
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
-      setDuration(String(set.durationSeconds ?? ''));
+      setDuration(secondsToMMSS(set.durationSeconds));
+      setDistance(String(set.distanceMeters ?? ''));
     }
   }
 
@@ -65,22 +90,27 @@ function TemplateSetRow({
   }
 
   const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
-
-  const cols = showWeight ? 'grid-cols-[2rem_1fr_1fr_2rem]' : showDuration ? 'grid-cols-[2rem_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]';
+  const fieldCount = [showWeight, showReps, showDuration, showDistance].filter(Boolean).length;
+  const gridTemplateColumns = `2rem repeat(${fieldCount}, 1fr) 2rem`;
 
   return (
-    <div className={`grid ${cols} gap-2 items-center py-1`}>
+    <div className="grid gap-2 items-center py-1" style={{ gridTemplateColumns }}>
       <span className="text-sm text-slate-400 text-center">{set.setNumber}</span>
       {showWeight && (
         <input type="number" min="0" placeholder="lbs" value={weight}
           onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
-      {showDuration ? (
-        <input type="number" min="0" placeholder="sec" value={duration}
-          onChange={(e) => setDuration(e.target.value)} onBlur={handleBlur} className={inputCls} />
-      ) : (
+      {showReps && (
         <input type="number" min="0" placeholder="reps" value={reps}
           onChange={(e) => setReps(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {showDuration && (
+        <input type="text" placeholder="m:ss" value={duration}
+          onChange={(e) => setDuration(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {showDistance && (
+        <input type="number" min="0" placeholder="dist" value={distance}
+          onChange={(e) => setDistance(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
       <button onClick={handleDelete} className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none" title="Remove set">✕</button>
     </div>
@@ -123,9 +153,11 @@ function RoutineExerciseBlock({
   }
 
   const showLastPerformed = sets.length === 0 && re.lastPerformedSets && re.lastPerformedSets.length > 0;
-  const exerciseType = re.exercise.exerciseType;
-  const showWeightHeader = exerciseType === 'weight';
-  const showDurationHeader = exerciseType === 'duration' || exerciseType === 'cardio';
+  const trackedFields = re.exercise.trackedFields ?? ['reps', 'weight'];
+  const showWeightHeader = trackedFields.includes('weight');
+  const showRepsHeader = trackedFields.includes('reps');
+  const showDurationHeader = trackedFields.includes('duration');
+  const showDistanceHeader = trackedFields.includes('distance');
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -156,7 +188,8 @@ function RoutineExerciseBlock({
               Set {s.setNumber}:
               {s.weightKg != null && ` ${fmtWeight(s.weightKg)} lbs`}
               {s.reps != null && ` × ${s.reps} reps`}
-              {s.durationSeconds != null && ` ${s.durationSeconds}s`}
+              {s.durationSeconds != null && ` ${secondsToMMSS(s.durationSeconds)}`}
+              {s.distanceMeters != null && ` ${s.distanceMeters}m`}
             </div>
           ))}
         </div>
@@ -164,19 +197,27 @@ function RoutineExerciseBlock({
 
       {sets.length > 0 && (
         <div className="mb-2">
-          <div className={`grid ${showWeightHeader ? 'grid-cols-[2rem_1fr_1fr_2rem]' : 'grid-cols-[2rem_1fr_2rem]'} gap-2 mb-1`}>
-            <span />
-            {showWeightHeader && <span className="text-sm text-slate-400 text-center">lbs</span>}
-            <span className="text-sm text-slate-400 text-center">{showDurationHeader ? 'sec' : 'reps'}</span>
-            <span />
-          </div>
+          {(() => {
+            const fieldCount = [showWeightHeader, showRepsHeader, showDurationHeader, showDistanceHeader].filter(Boolean).length;
+            const gridTemplateColumns = `2rem repeat(${fieldCount}, 1fr) 2rem`;
+            return (
+              <div className="grid gap-2 mb-1" style={{ gridTemplateColumns }}>
+                <span />
+                {showWeightHeader   && <span className="text-sm text-slate-400 text-center">lbs</span>}
+                {showRepsHeader     && <span className="text-sm text-slate-400 text-center">reps</span>}
+                {showDurationHeader && <span className="text-sm text-slate-400 text-center">time</span>}
+                {showDistanceHeader && <span className="text-sm text-slate-400 text-center">dist</span>}
+                <span />
+              </div>
+            );
+          })()}
           {sets.map((s) => (
             <TemplateSetRow
               key={s.id}
               set={s}
               routineId={routineId}
               reId={re.id}
-              exerciseType={exerciseType}
+              trackedFields={trackedFields}
               onUpdated={(updated) => updateSets(sets.map((x) => x.id === updated.id ? updated : x))}
               onDeleted={(id) => updateSets(sets.filter((x) => x.id !== id))}
             />
