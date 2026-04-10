@@ -6,6 +6,21 @@ import Spinner from '../components/Spinner';
 
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 
+const TRACKED_FIELD_OPTIONS = [
+  { key: 'reps',     label: 'Reps' },
+  { key: 'weight',   label: 'Weight (lbs)' },
+  { key: 'duration', label: 'Duration (min:sec)' },
+  { key: 'distance', label: 'Distance' },
+] as const;
+
+function defaultTrackedFields(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':     return ['duration', 'distance'];
+    case 'duration':   return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:           return ['reps', 'weight'];
+  }
+}
 
 interface FormState {
   name: string;
