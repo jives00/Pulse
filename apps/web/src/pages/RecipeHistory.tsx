@@ -91,7 +91,6 @@ export default function History() {
   // Nutrition log history state
   const [foodLogDays, setFoodLogDays] = useState<FoodLogHistoryDay[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(true);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     recipesApi.getHistory().then(setEntries).finally(() => setRecipesLoading(false));
@@ -143,14 +142,6 @@ export default function History() {
       await workoutsApi.delete(id);
       setWorkouts((prev) => prev.filter((w) => w.id !== id));
     } catch { /* ignore */ } finally { setDeletingId(null); }
-  }
-
-  function toggleDate(date: string) {
-    setExpandedDates((prev) => {
-      const next = new Set(prev);
-      if (next.has(date)) next.delete(date); else next.add(date);
-      return next;
-    });
   }
 
   const panelOpen = panel.mode !== 'none' && activeTab === 'recipes';
@@ -320,9 +311,8 @@ export default function History() {
               <p className="text-lg">No nutrition logs yet.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2 max-w-2xl">
+            <div className="flex flex-col gap-6 max-w-2xl">
               {foodLogDays.map((day) => {
-                const expanded = expandedDates.has(day.date);
                 const d = new Date(day.date + 'T12:00:00');
                 const today = new Date();
                 const yesterday = new Date(today);
@@ -336,40 +326,32 @@ export default function History() {
                   return acc;
                 }, {});
                 return (
-                  <div key={day.date} className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => toggleDate(day.date)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition text-left"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-white">{label}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                  <div key={day.date}>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{label}</p>
+                    <div className="bg-dram-card border border-dram-border rounded-xl px-4 py-3 flex flex-col gap-3">
+                      <div className="flex items-baseline justify-between">
+                        <p className="text-xs text-gray-500">
                           {day.calories.toLocaleString()} cal · {day.protein}g protein
                         </p>
                       </div>
-                      <span className={`text-gray-500 text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
-                    </button>
-                    {expanded && (
-                      <div className="border-t border-dram-border px-4 py-3 flex flex-col gap-3">
-                        {mealOrder.filter((m) => byMeal[m]?.length).map((meal) => (
-                          <div key={meal}>
-                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5 capitalize">{meal}</p>
-                            <div className="flex flex-col gap-1">
-                              {byMeal[meal].map((e) => (
-                                <div key={e.id} className="flex items-baseline justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-sm text-white truncate">{e.foodName}</span>
-                                    {e.brand && <span className="text-xs text-gray-500 ml-1">{e.brand}</span>}
-                                    <span className="text-xs text-gray-500 ml-1">· {e.quantity} × {e.servingLabel}</span>
-                                  </div>
-                                  <span className="text-xs text-gray-400 shrink-0">{e.calories} cal</span>
+                      {mealOrder.filter((m) => byMeal[m]?.length).map((meal) => (
+                        <div key={meal}>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5 capitalize">{meal}</p>
+                          <div className="flex flex-col gap-1">
+                            {byMeal[meal].map((e) => (
+                              <div key={e.id} className="flex items-baseline justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-white truncate">{e.foodName}</span>
+                                  {e.brand && <span className="text-xs text-gray-500 ml-1">{e.brand}</span>}
+                                  <span className="text-xs text-gray-500 ml-1">· {e.quantity} × {e.servingLabel}</span>
                                 </div>
-                              ))}
-                            </div>
+                                <span className="text-xs text-gray-400 shrink-0">{e.calories} cal</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })}
