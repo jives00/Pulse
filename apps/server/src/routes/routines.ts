@@ -130,21 +130,23 @@ router.get('/', async (req, res) => {
       `SELECT
          wl.routine_id,
          wl.workout_date AS last_used,
+         wl.calories_burned,
          SUM(es.reps * es.weight_kg) AS volume_kg
        FROM workout_logs wl
-       JOIN workout_exercises we ON we.workout_log_id = wl.id
-       JOIN exercise_sets es ON es.workout_exercise_id = we.id
+       LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
+       LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
        WHERE wl.user_id = ? AND wl.routine_id IN (?)
          AND wl.id IN (
            SELECT MAX(id) FROM workout_logs
            WHERE user_id = ? AND routine_id IN (?)
            GROUP BY routine_id
          )
-       GROUP BY wl.routine_id, wl.workout_date`,
+       GROUP BY wl.routine_id, wl.workout_date, wl.calories_burned`,
       [req.userId, ids, req.userId, ids]
     );
     const lastUsedMap: Record<number, string> = {};
     const lastVolumeMap: Record<number, number | null> = {};
+    const lastCaloriesMap: Record<number, number | null> = {};
     for (const lu of lastUsedRows) {
       lastUsedMap[lu.routine_id] = lu.last_used instanceof Date
         ? lu.last_used.toISOString().slice(0, 10)
@@ -152,6 +154,7 @@ router.get('/', async (req, res) => {
       lastVolumeMap[lu.routine_id] = lu.volume_kg != null
         ? Math.round(Number(lu.volume_kg) * 2.20462)
         : null;
+      lastCaloriesMap[lu.routine_id] = lu.calories_burned != null ? Number(lu.calories_burned) : null;
     }
 
     const list = await Promise.all(rows.map(async (r) => ({
@@ -161,6 +164,7 @@ router.get('/', async (req, res) => {
       exerciseCount: Number(r.exercise_count),
       lastUsedDate: lastUsedMap[r.id] ?? null,
       lastVolumeLbs: lastVolumeMap[r.id] ?? null,
+      lastCaloriesBurned: lastCaloriesMap[r.id] ?? null,
       coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
       createdAt: r.created_at,
     })));

@@ -796,6 +796,7 @@ function RoutineCardInTab({
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
           {routine.lastVolumeLbs != null && <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>}
+          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">· {routine.lastCaloriesBurned.toLocaleString()} kcal</p>}
         </div>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>

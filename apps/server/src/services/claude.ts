@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { runText } from './aiProvider';
 
 export async function suggestTags(recipe: any, ingredientNames: string[], availableTags?: string[]): Promise<string[]> {
   const tagInstruction = availableTags?.length
@@ -18,15 +16,10 @@ ${tagInstruction}
 
 Return only a JSON array of tag name strings. No other text.`;
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
   try {
-    const text = (message.content[0] as any).text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const result = JSON.parse(text);
+    const text = await runText({ model: 'haiku', userPrompt: prompt, maxTokens: 256 });
+    const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const result = JSON.parse(clean);
     return Array.isArray(result) ? result : [];
   } catch {
     return [];

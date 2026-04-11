@@ -246,4 +246,7 @@ export const workoutsApi = {
 
   startTimer: (id: number) =>
     apiClient.post<{ startedAt: string }>(`/workouts/${id}/start-timer`).then((r) => r.data),
+
+  estimateCalories: (id: number) =>
+    apiClient.post<{ caloriesBurned: number }>(`/workouts/${id}/estimate-calories`).then((r) => r.data),
 };

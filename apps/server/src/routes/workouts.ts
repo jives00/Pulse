@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { estimateCaloriesBurned } from '../services/calorieEstimation';
 
 const router = Router();
 
@@ -298,6 +299,58 @@ router.post('/:id/start-timer', async (req, res) => {
     });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/workouts/:id/estimate-calories — AI-estimates calories burned and saves to the workout
+router.post('/:id/estimate-calories', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    const detail = await getWorkoutDetail(id);
+    if (!detail) { res.status(404).json({ error: 'Not found' }); return; }
+
+    // Look up the user's most recent body weight measurement; fall back to 75 kg
+    const [weightRows] = await pool.query<RowDataPacket[]>(
+      `SELECT value, unit FROM body_measurements
+       WHERE user_id = ? AND metric = 'weight'
+       ORDER BY measured_at DESC, id DESC LIMIT 1`,
+      [req.userId]
+    );
+    let bodyWeightKg = 75;
+    if (weightRows[0]) {
+      const { value, unit } = weightRows[0];
+      bodyWeightKg = unit === 'lbs' ? Number(value) / 2.20462 : Number(value);
+    }
+
+    const caloriesBurned = await estimateCaloriesBurned({
+      name: detail.name ?? 'Workout',
+      durationMinutes: detail.durationMinutes ?? 30,
+      bodyWeightKg,
+      exercises: detail.exercises.map((ex) => ({
+        name: ex.exercise.name,
+        sets: ex.sets
+          .filter((s) => s.completed)
+          .map((s) => ({
+            reps: s.reps,
+            weightKg: s.weightKg,
+            durationSeconds: s.durationSeconds,
+            distanceMeters: s.distanceMeters,
+          })),
+      })),
+    });
+
+    await pool.query(
+      'UPDATE workout_logs SET calories_burned = ? WHERE id = ?',
+      [caloriesBurned, id]
+    );
+
+    res.json({ caloriesBurned });
+  } catch (err) {
+    console.error('estimate-calories error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

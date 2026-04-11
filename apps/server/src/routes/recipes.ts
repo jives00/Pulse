@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import type { Pool, RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { suggestTags } from '../services/claude';
+import { runText } from '../services/aiProvider';
+import { estimateMacros } from '../services/macroEstimation';
+import { lookupBarcode } from '../services/foodSearch';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
 
 const router = Router();
@@ -221,13 +224,94 @@ router.get('/barcode/:barcode', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/recipes/from-barcode — create a prepackaged recipe from a barcode scan
+// Body: { barcode: string, name?: string }
+// Returns: { recipeId, created: true } | { found: false }
+router.post('/from-barcode', async (req: Request, res: Response) => {
+  const { barcode, name } = req.body ?? {};
+  if (!barcode) { res.status(400).json({ error: 'barcode is required' }); return; }
+
+  try {
+    // 1. Check if this barcode is already linked to a recipe for this user
+    const [existing] = await pool.query<RowDataPacket[]>(
+      `SELECT r.id FROM recipe_barcodes rb
+       JOIN recipes r ON rb.recipe_id = r.id
+       WHERE rb.barcode = ? AND r.user_id = ?`,
+      [barcode, req.userId]
+    );
+    if (existing.length) {
+      res.json({ recipeId: existing[0].id, created: false });
+      return;
+    }
+
+    // 2. Look up Open Food Facts
+    const food = await lookupBarcode(barcode);
+
+    let recipeName: string;
+    let calories: number | null = null;
+    let carbs_g: number | null = null;
+    let protein_g: number | null = null;
+    let fat_g: number | null = null;
+    let fiber_g: number | null = null;
+    let sodium_mg: number | null = null;
+    const DEFAULT_SERVING_G = 100;
+
+    if (food) {
+      // Use food data from Open Food Facts (nutrition is per 100g; treat as 1 serving = DEFAULT_SERVING_G)
+      recipeName = food.brand ? `${food.name} (${food.brand})` : food.name;
+      const n = food.nutrition;
+      calories  = n.calories  != null ? Math.round(n.calories  * DEFAULT_SERVING_G / 100) : null;
+      carbs_g   = n.carbs     != null ? Math.round(n.carbs     * DEFAULT_SERVING_G / 100 * 10) / 10 : null;
+      protein_g = n.protein   != null ? Math.round(n.protein   * DEFAULT_SERVING_G / 100 * 10) / 10 : null;
+      fat_g     = n.fat       != null ? Math.round(n.fat       * DEFAULT_SERVING_G / 100 * 10) / 10 : null;
+      fiber_g   = n.fiber     != null ? Math.round(n.fiber     * DEFAULT_SERVING_G / 100 * 10) / 10 : null;
+      sodium_mg = n.sodium    != null ? Math.round(n.sodium    * DEFAULT_SERVING_G / 100) : null;
+    } else if (name) {
+      // Barcode not found — use AI to estimate per-100g nutrition from the product name
+      recipeName = name;
+      try {
+        const estimate = await estimateMacros({ name });
+        const n = estimate.nutrition;
+        calories  = Math.round(n.calories);
+        carbs_g   = Math.round(n.carbs   * 10) / 10;
+        protein_g = Math.round(n.protein * 10) / 10;
+        fat_g     = Math.round(n.fat     * 10) / 10;
+        fiber_g   = n.fiber  != null ? Math.round(n.fiber  * 10) / 10 : null;
+        sodium_mg = n.sodium != null ? Math.round(n.sodium)          : null;
+      } catch {
+        // AI failed — create recipe with no nutrition; user can fill in manually
+      }
+    } else {
+      // No barcode match and no name provided — ask client to prompt for name
+      res.json({ found: false });
+      return;
+    }
+
+    // 3. Insert the prepackaged recipe
+    const [ins] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO recipes (user_id, type, name, servings, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, created_at)
+       VALUES (?, 'prepackaged', ?, 1, ?, ?, ?, ?, ?, ?, NOW())`,
+      [req.userId, recipeName, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg]
+    );
+    const recipeId = ins.insertId;
+
+    // 4. Link the barcode
+    await pool.execute(
+      'INSERT IGNORE INTO recipe_barcodes (barcode, recipe_id) VALUES (?, ?)',
+      [barcode, recipeId]
+    );
+
+    res.json({ recipeId, created: true });
+  } catch (err) {
+    console.error('from-barcode error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/recipes/suggest
 router.get('/suggest', async (req: Request, res: Response) => {
   try {
     const { prompt } = req.query;
-
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const systemPrompt = `You are a creative cocktail and recipe expert. Suggest 3-5 recipes based on the user's request.
 Return a JSON array of recipe suggestions. Each item should have: name, type (cocktail|food), description, and ingredients (array of strings).
@@ -235,15 +319,9 @@ Only return valid JSON, no other text.`;
 
     const userMessage = prompt ? String(prompt) : 'Surprise me with something interesting.';
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: userMessage }],
-      system: systemPrompt,
-    });
-
-    const text = (message.content[0] as any).text;
-    const suggestions = JSON.parse(text);
+    const text = await runText({ model: 'sonnet', systemPrompt, userPrompt: userMessage, maxTokens: 1024 });
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    const suggestions = JSON.parse(clean);
     res.json(suggestions);
   } catch (err) {
     console.error(err);

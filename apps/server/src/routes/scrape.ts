@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-import Anthropic from '@anthropic-ai/sdk';
+import { runWithTools, runText } from '../services/aiProvider';
 import { suggestTags } from '../services/claude';
 import { pool } from '../config/database';
 
 const router = Router();
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const LOWERCASE_WORDS = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'nor', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'from', 'into', 'up', 'as']);
 
@@ -38,6 +37,65 @@ function hasNutrition(recipe: any): boolean {
   return recipe.calories != null || recipe.carbs_g != null || recipe.protein_g != null || recipe.fat_g != null;
 }
 
+// ── Shared tool schemas ───────────────────────────────────────────────────────
+
+const nutritionEstimateTool = {
+  name: 'nutrition_estimate',
+  description: 'Estimated nutritional values per serving for a recipe.',
+  schema: {
+    type: 'object' as const,
+    properties: {
+      calories:   { type: 'number', description: 'Calories per serving (kcal), rounded to nearest integer' },
+      carbs_g:    { type: 'number', description: 'Total carbohydrates per serving in grams, 1 decimal' },
+      protein_g:  { type: 'number', description: 'Protein per serving in grams, 1 decimal' },
+      fat_g:      { type: 'number', description: 'Total fat per serving in grams, 1 decimal' },
+      fiber_g:    { type: 'number', description: 'Dietary fiber per serving in grams, 1 decimal' },
+      sodium_mg:  { type: 'number', description: 'Sodium per serving in milligrams, rounded to nearest integer' },
+    },
+    required: ['calories', 'carbs_g', 'protein_g', 'fat_g', 'fiber_g', 'sodium_mg'],
+  },
+};
+
+const extractRecipeTool = {
+  name: 'extract_recipe',
+  description: 'Extract structured recipe data from text. Use null for any fields not found.',
+  schema: {
+    type: 'object' as const,
+    properties: {
+      name:        { type: 'string' },
+      type:        { type: 'string', enum: ['cocktail', 'food'] },
+      description: { type: ['string', 'null'] },
+      prep_time:   { type: ['number', 'null'] },
+      cook_time:   { type: ['number', 'null'] },
+      servings:    { type: ['number', 'null'] },
+      subcategory: { type: ['string', 'null'], enum: ['main', 'side', 'breakfast', 'dessert', null] },
+      glass_type:  { type: ['string', 'null'] },
+      source:      { type: ['string', 'null'] },
+      photo_url:   { type: ['string', 'null'] },
+      calories:    { type: ['number', 'null'] },
+      carbs_g:     { type: ['number', 'null'] },
+      protein_g:   { type: ['number', 'null'] },
+      fat_g:       { type: ['number', 'null'] },
+      fiber_g:     { type: ['number', 'null'] },
+      sodium_mg:   { type: ['number', 'null'] },
+      ingredients: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name:     { type: 'string' },
+            quantity: { type: ['number', 'null'] },
+            unit:     { type: ['string', 'null'], description: 'The unit exactly as written in the source text. Do NOT convert or normalize.' },
+          },
+          required: ['name', 'quantity', 'unit'],
+        },
+      },
+      steps: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['name', 'type', 'ingredients', 'steps'],
+  },
+};
+
 async function estimateNutrition(recipe: any): Promise<void> {
   if (recipe.type === 'cocktail' || hasNutrition(recipe)) return;
   try {
@@ -53,42 +111,19 @@ Servings: ${servings}
 Ingredients:
 ${ingredientList}`;
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
-      tools: [{
-        name: 'nutrition_estimate',
-        description: 'Estimated nutritional values per serving for a recipe.',
-        input_schema: {
-          type: 'object' as const,
-          properties: {
-            calories: { type: 'number', description: 'Calories per serving (kcal), rounded to nearest integer' },
-            carbs_g: { type: 'number', description: 'Total carbohydrates per serving in grams, 1 decimal' },
-            protein_g: { type: 'number', description: 'Protein per serving in grams, 1 decimal' },
-            fat_g: { type: 'number', description: 'Total fat per serving in grams, 1 decimal' },
-            fiber_g: { type: 'number', description: 'Dietary fiber per serving in grams, 1 decimal' },
-            sodium_mg: { type: 'number', description: 'Sodium per serving in milligrams, rounded to nearest integer' },
-          },
-          required: ['calories', 'carbs_g', 'protein_g', 'fat_g', 'fiber_g', 'sodium_mg'],
-        },
-      }],
-      tool_choice: { type: 'tool' as const, name: 'nutrition_estimate' },
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const toolUse = message.content.find((b: any) => b.type === 'tool_use');
-    if (!toolUse) return;
-    const n = (toolUse as any).input;
-    recipe.calories = n.calories ?? null;
-    recipe.carbs_g = n.carbs_g ?? null;
-    recipe.protein_g = n.protein_g ?? null;
-    recipe.fat_g = n.fat_g ?? null;
-    recipe.fiber_g = n.fiber_g ?? null;
-    recipe.sodium_mg = n.sodium_mg ?? null;
+    const n = await runWithTools({ model: 'haiku', prompt, tool: nutritionEstimateTool });
+    recipe.calories   = n.calories   ?? null;
+    recipe.carbs_g    = n.carbs_g    ?? null;
+    recipe.protein_g  = n.protein_g  ?? null;
+    recipe.fat_g      = n.fat_g      ?? null;
+    recipe.fiber_g    = n.fiber_g    ?? null;
+    recipe.sodium_mg  = n.sodium_mg  ?? null;
   } catch {
     // Non-fatal — leave nutrition fields null if estimation fails
   }
 }
+
+// ── JSON-LD helpers ───────────────────────────────────────────────────────────
 
 // Try to extract a Recipe JSON-LD block from the page — most recipe sites include this
 function extractJsonLd(html: string): any | null {
@@ -331,7 +366,7 @@ function extractYouTubeMeta(html: string): { title: string | null; description: 
   }
 }
 
-// POST /api/recipes/parse-text — parse a pasted recipe text using Claude
+// POST /api/recipes/parse-text — parse a pasted recipe text using AI
 router.post('/parse-text', async (req: Request, res: Response) => {
   try {
     const { text, typeHint } = req.body;
@@ -345,53 +380,8 @@ router.post('/parse-text', async (req: Request, res: Response) => {
       ? `Extract the recipe from this text. The type is: ${typeHint}. ${unitInstruction}\n\nRecipe text:\n${text.trim().slice(0, 20000)}`
       : `Extract the recipe from this text. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly. ${unitInstruction}\n\nRecipe text:\n${text.trim().slice(0, 20000)}`;
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      tools: [{
-        name: 'extract_recipe',
-        description: 'Extract structured recipe data from text. Use null for any fields not found.',
-        input_schema: {
-          type: 'object' as const,
-          properties: {
-            name: { type: 'string' },
-            type: { type: 'string', enum: ['cocktail', 'food'] },
-            description: { type: ['string', 'null'] },
-            prep_time: { type: ['number', 'null'] },
-            cook_time: { type: ['number', 'null'] },
-            servings: { type: ['number', 'null'] },
-            subcategory: { type: ['string', 'null'], enum: ['main', 'side', 'breakfast', 'dessert', null] },
-            glass_type: { type: ['string', 'null'] },
-            calories: { type: ['number', 'null'] },
-            carbs_g: { type: ['number', 'null'] },
-            protein_g: { type: ['number', 'null'] },
-            fat_g: { type: ['number', 'null'] },
-            fiber_g: { type: ['number', 'null'] },
-            sodium_mg: { type: ['number', 'null'] },
-            ingredients: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  quantity: { type: ['number', 'null'] },
-                  unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
-                },
-                required: ['name', 'quantity', 'unit'],
-              },
-            },
-            steps: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['name', 'type', 'ingredients', 'steps'],
-        },
-      }],
-      tool_choice: { type: 'tool' as const, name: 'extract_recipe' },
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const toolUse = message.content.find((b: any) => b.type === 'tool_use');
-    if (!toolUse) throw new Error('No recipe data returned');
-    const recipe = (toolUse as any).input;
+    const recipeData = await runWithTools({ model: 'sonnet', prompt: userMessage, tool: extractRecipeTool });
+    const recipe = recipeData as any;
     recipe.ingredients = titleCaseIngredients(recipe.ingredients ?? []);
 
     await estimateNutrition(recipe);
@@ -447,53 +437,8 @@ router.post('/', async (req: Request, res: Response) => {
       const hint = typeHint ? `The recipe type is: ${typeHint}. ` : '';
       const userMessage = `${hint}Extract the recipe from this YouTube video description. Respond in English regardless of the description's language. Translate any non-English content. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units. Video title: "${title || 'Unknown'}"\n\nDescription:\n${description.slice(0, 20000)}`;
 
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
-        tools: [{
-          name: 'extract_recipe',
-          description: 'Extract structured recipe data from a YouTube video description. Use null for any fields not found.',
-          input_schema: {
-            type: 'object' as const,
-            properties: {
-              name: { type: 'string' },
-              type: { type: 'string', enum: ['cocktail', 'food'] },
-              description: { type: ['string', 'null'] },
-              prep_time: { type: ['number', 'null'] },
-              cook_time: { type: ['number', 'null'] },
-              servings: { type: ['number', 'null'] },
-              subcategory: { type: ['string', 'null'], enum: ['main', 'side', 'breakfast', 'dessert', null] },
-              glass_type: { type: ['string', 'null'] },
-              calories: { type: ['number', 'null'] },
-              carbs_g: { type: ['number', 'null'] },
-              protein_g: { type: ['number', 'null'] },
-              fat_g: { type: ['number', 'null'] },
-              fiber_g: { type: ['number', 'null'] },
-              sodium_mg: { type: ['number', 'null'] },
-              ingredients: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    quantity: { type: ['number', 'null'] },
-                    unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
-                  },
-                  required: ['name', 'quantity', 'unit'],
-                },
-              },
-              steps: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['name', 'type', 'ingredients', 'steps'],
-          },
-        }],
-        tool_choice: { type: 'tool' as const, name: 'extract_recipe' },
-        messages: [{ role: 'user', content: userMessage }],
-      });
-
-      const toolUse = message.content.find((b: any) => b.type === 'tool_use');
-      if (!toolUse) throw new Error('No recipe data returned');
-      const recipe = (toolUse as any).input;
+      const recipeData = await runWithTools({ model: 'sonnet', prompt: userMessage, tool: extractRecipeTool });
+      const recipe = recipeData as any;
       recipe.source = url;
       recipe.photo_url = thumbnail;
       recipe.ingredients = titleCaseIngredients(recipe.ingredients ?? []);
@@ -547,8 +492,8 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    // Fallback: send page text to Claude
-    console.log('No JSON-LD found, falling back to Claude extraction');
+    // Fallback: send page text to AI
+    console.log('No JSON-LD found, falling back to AI extraction');
     const $ = cheerio.load(html);
     $('script, style, nav, footer, aside, header, [role="banner"], [role="navigation"], [role="complementary"]').remove();
     // Prefer focused content areas over the full body to reduce token count
@@ -564,64 +509,18 @@ router.post('/', async (req: Request, res: Response) => {
       ? `Extract the recipe from this page. The type is: ${typeHint}. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`
       : `Extract the recipe from this page. Determine whether it is a cocktail/drink or food recipe and set the type field accordingly. IMPORTANT: preserve each ingredient's unit EXACTLY as written — do NOT convert or normalize units.\n\nPage content:\n${text}`;
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      tools: [{
-        name: 'extract_recipe',
-        description: 'Extract structured recipe data from webpage content. Use null for any fields not found.',
-        input_schema: {
-          type: 'object' as const,
-          properties: {
-            name: { type: 'string' },
-            type: { type: 'string', enum: ['cocktail', 'food'] },
-            description: { type: ['string', 'null'] },
-            prep_time: { type: ['number', 'null'] },
-            cook_time: { type: ['number', 'null'] },
-            glass_type: { type: ['string', 'null'] },
-            source: { type: ['string', 'null'] },
-            photo_url: { type: ['string', 'null'] },
-            calories: { type: ['number', 'null'] },
-            carbs_g: { type: ['number', 'null'] },
-            protein_g: { type: ['number', 'null'] },
-            fat_g: { type: ['number', 'null'] },
-            fiber_g: { type: ['number', 'null'] },
-            sodium_mg: { type: ['number', 'null'] },
-            ingredients: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  quantity: { type: ['number', 'null'] },
-                  unit: { type: ['string', 'null'], description: 'The unit exactly as written in the source text (e.g. "cup", "tsp", "tbsp", "pinch", "oz", "g"). Do NOT convert or normalize — preserve the original unit.' },
-                },
-                required: ['name', 'quantity', 'unit'],
-              },
-            },
-            steps: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['name', 'type', 'ingredients', 'steps'],
-        },
-      }],
-      tool_choice: { type: 'tool' as const, name: 'extract_recipe' },
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const toolUse = message.content.find((b: any) => b.type === 'tool_use');
-    if (!toolUse) throw new Error('No recipe data returned');
-    const recipe = (toolUse as any).input;
+    const recipeData = await runWithTools({ model: 'sonnet', prompt: userMessage, tool: extractRecipeTool });
+    const recipe = recipeData as any;
     recipe.source = recipe.source || url;
     if (recipe.name) recipe.name = recipe.name.replace(/^(the\s+)?(best(\s+ever)?|ultimate|perfect|easiest|most\s+amazing|famous|favorite|favourite|homemade)\s+/i, '').replace(/^my\s+(best|favorite|favourite|homemade|easy|quick)\s+/i, '').trim();
     recipe.ingredients = titleCaseIngredients(recipe.ingredients ?? []);
-    console.log('Claude extracted:', recipe.name, '| ingredients:', recipe.ingredients?.length, '| steps:', recipe.steps?.length);
+    console.log('AI extracted:', recipe.name, '| ingredients:', recipe.ingredients?.length, '| steps:', recipe.steps?.length);
 
-    // If Claude couldn't find a recipe (JS-rendered page or missing content), tell the user to paste manually
+    // If AI couldn't find a recipe (JS-rendered page or missing content), tell the user to paste manually
     if ((!recipe.name || recipe.name === 'UNKNOWN') && (!recipe.ingredients?.length) && (!recipe.steps?.length)) {
       res.status(422).json({ error: 'No recipe found on this page. The site may require JavaScript to load content. Try copying and pasting the recipe text instead.' });
       return;
     }
-
 
     await estimateNutrition(recipe);
     try {

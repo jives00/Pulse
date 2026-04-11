@@ -8,6 +8,7 @@ export interface RoutineSummary {
   exerciseCount: number;
   lastUsedDate: string | null;
   lastVolumeLbs: number | null;
+  lastCaloriesBurned: number | null;
   coverImageUrl: string | null;
   createdAt: string;
 }

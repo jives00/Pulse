@@ -539,6 +539,12 @@ export default function WorkoutDetailPage() {
     } catch {
       // ignore
     }
+    // Non-blocking: estimate calories burned in the background
+    workoutsApi.estimateCalories(workout.id)
+      .then(({ caloriesBurned }) => {
+        setWorkout((prev) => prev ? { ...prev, caloriesBurned } : prev);
+      })
+      .catch(() => { /* non-fatal */ });
   }
 
   async function saveHeader() {
@@ -701,6 +707,9 @@ export default function WorkoutDetailPage() {
                 />
                 <span className="text-sm text-slate-500">min</span>
               </div>
+            )}
+            {!isActive && workout.caloriesBurned != null && (
+              <span className="text-sm text-slate-500">{workout.caloriesBurned.toLocaleString()} kcal</span>
             )}
           </div>
         </div>

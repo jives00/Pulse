@@ -21,6 +21,7 @@ const envSchema = z.object({
   S3_BUCKET:             z.string().optional(),
   // External APIs
   ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY:    z.string().optional(),
   USDA_API_KEY:      z.string().optional(),
   // Server
   PORT:        z.coerce.number().default(3000),

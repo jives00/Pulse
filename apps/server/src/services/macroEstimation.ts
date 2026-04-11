@@ -1,13 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env';
+import { runWithTools } from './aiProvider';
 import type { MacroEstimatePayload, MacroEstimateResult } from '../types';
 
-const client = env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY }) : null;
-
-const tool: Anthropic.Tool = {
+const nutritionTool = {
   name: 'set_nutrition',
   description: 'Set the estimated nutrition facts per 100g of food',
-  input_schema: {
+  schema: {
     type: 'object' as const,
     properties: {
       calories:   { type: 'number', description: 'kcal per 100g' },
@@ -23,8 +20,6 @@ const tool: Anthropic.Tool = {
 };
 
 export async function estimateMacros(payload: MacroEstimatePayload): Promise<MacroEstimateResult> {
-  if (!client) throw new Error('ANTHROPIC_API_KEY not configured');
-
   const { name, brand, description, knownMacros } = payload;
 
   const knownParts = knownMacros
@@ -43,31 +38,17 @@ export async function estimateMacros(payload: MacroEstimatePayload): Promise<Mac
     .filter(Boolean)
     .join('\n');
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
-    tools: [tool],
-    tool_choice: { type: 'any' },
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const input = await runWithTools({ model: 'haiku', prompt, tool: nutritionTool });
 
-  const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-  if (!toolUse) throw new Error('No tool use in response');
-
-  const input = toolUse.input as {
-    calories: number; carbs_g: number; protein_g: number; fat_g: number;
-    fiber_g?: number; sodium_mg?: number; confidence: string;
-  };
-
-  // Apply known values on top (don't let Claude override what user already knows)
+  // Apply known values on top (don't let AI override what user already knows)
   return {
     nutrition: {
-      calories: knownMacros?.calories ?? input.calories,
-      carbs:    knownMacros?.carbs    ?? input.carbs_g,
-      protein:  knownMacros?.protein  ?? input.protein_g,
-      fat:      knownMacros?.fat      ?? input.fat_g,
-      fiber:    knownMacros?.fiber    ?? input.fiber_g,
-      sodium:   knownMacros?.sodium   ?? input.sodium_mg,
+      calories: (knownMacros?.calories ?? input.calories) as number,
+      carbs:    (knownMacros?.carbs    ?? input.carbs_g) as number,
+      protein:  (knownMacros?.protein  ?? input.protein_g) as number,
+      fat:      (knownMacros?.fat      ?? input.fat_g) as number,
+      fiber:    (knownMacros?.fiber    ?? input.fiber_g) as number | undefined,
+      sodium:   (knownMacros?.sodium   ?? input.sodium_mg) as number | undefined,
     },
     confidence: input.confidence as MacroEstimateResult['confidence'],
   };

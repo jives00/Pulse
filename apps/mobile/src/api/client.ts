@@ -517,6 +517,22 @@ export async function getRecipeByBarcode(token: string, barcode: string): Promis
   return handle<RecipeSearchResult>(res);
 }
 
+export type FromBarcodeResult =
+  | { found: false }
+  | { recipeId: number; created: boolean };
+
+export async function createRecipeFromBarcode(
+  token: string,
+  params: { barcode: string; name?: string }
+): Promise<FromBarcodeResult> {
+  const res = await fetch(`${API_BASE}/api/recipes/from-barcode`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(params),
+  });
+  return handle<FromBarcodeResult>(res);
+}
+
 // Auth / account
 export async function changeUsername(token: string, data: { newUsername: string; currentPassword: string }): Promise<{ token: string }> {
   const res = await fetch(`${API_BASE}/api/auth/username`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
