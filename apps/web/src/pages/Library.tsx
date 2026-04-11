@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSettingsStore } from '../store/settings';
 import { recipesApi, tagsApi, type Recipe, type RecipeDetail as RecipeDetailType } from '@pulse/api-client';
 import RecipeCard from '../components/RecipeCard';
@@ -17,6 +17,15 @@ const FOOD_SUBCATEGORIES: [Exclude<CategoryFilter, '' | 'cocktail' | 'food' | 'p
   ['dessert', 'Desserts & Snacks'],
 ];
 
+const FOOD_TABS = [
+  { sub: '',            label: 'All'              },
+  { sub: 'main',        label: 'Main Dishes'      },
+  { sub: 'side',        label: 'Side Dishes'      },
+  { sub: 'breakfast',   label: 'Breakfast'        },
+  { sub: 'dessert',     label: 'Desserts & Snacks'},
+  { sub: 'prepackaged', label: 'Prepackaged'      },
+] as const;
+
 const PAGE_SIZE = 50;
 
 type PanelState =
@@ -28,6 +37,7 @@ type PanelState =
 export default function Library() {
   const defaultSort = useSettingsStore((s) => s.defaultSort);
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const isFood   = location.pathname.startsWith('/food');
@@ -136,11 +146,11 @@ export default function Library() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         {/* Toolbar */}
-        <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
+        <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
           {/* Row 1: Title + Add */}
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-xl font-semibold text-slate-200">
-              {location.pathname.startsWith('/drinks') ? 'Drinks' : 'Food'}
+              {location.pathname.startsWith('/drinks') ? 'Drinks' : 'Recipes'}
             </h1>
             <button
               onClick={() => setPanel({ mode: 'add' })}
@@ -150,7 +160,26 @@ export default function Library() {
             </button>
           </div>
 
-          {/* Row 2: Search */}
+          {/* Row 2: Food tabs */}
+          {isFood && (
+            <div className="flex gap-1 mb-3">
+              {FOOD_TABS.map(({ sub: tabSub, label }) => (
+                <button
+                  key={tabSub}
+                  onClick={() => navigate(tabSub ? `/food?sub=${tabSub}` : '/food')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    sub === tabSub
+                      ? 'border-dram-accent text-dram-accent'
+                      : 'border-transparent text-dram-muted hover:text-slate-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Row 3: Search */}
           <div className="mb-3">
             <input
               type="text"
@@ -161,19 +190,21 @@ export default function Library() {
             />
           </div>
 
-          {/* Row 3: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
-          <FilterBar
-            showFavorites={showFavorites}
-            setShowFavorites={setShowFavorites}
-            madeFilter={madeFilter}
-            setMadeFilter={setMadeFilter}
-            selectedTags={selectedTags}
-            toggleTag={toggleTag}
-            clearTags={clearTags}
-            sort={sort}
-            setSort={setSort}
-            allTags={allTags}
-          />
+          {/* Row 4: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
+          <div className="pb-3">
+            <FilterBar
+              showFavorites={showFavorites}
+              setShowFavorites={setShowFavorites}
+              madeFilter={madeFilter}
+              setMadeFilter={setMadeFilter}
+              selectedTags={selectedTags}
+              toggleTag={toggleTag}
+              clearTags={clearTags}
+              sort={sort}
+              setSort={setSort}
+              allTags={allTags}
+            />
+          </div>
         </div>
 
         {/* Grid */}

@@ -1,15 +1,8 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
-const FOOD_SUBS = [
-  { label: 'Main Dishes',       sub: 'main' },
-  { label: 'Side Dishes',       sub: 'side' },
-  { label: 'Breakfast',         sub: 'breakfast' },
-  { label: 'Desserts & Snacks', sub: 'dessert' },
-];
-
 const TOP_SECTIONS = [
-  { prefix: '/food',      label: 'Recipes',   icon: '🍴' },
+  { prefix: '/food',      label: 'Recipes',  icon: '🍴' },
   { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
   { prefix: '/nutrition', label: 'Food Log', icon: '🥗' },
   { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
@@ -21,24 +14,12 @@ const TOP_SECTIONS = [
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const params = new URLSearchParams(location.search);
-  const activeSub = params.get('sub') ?? '';
-
-  const inFood     = location.pathname.startsWith('/food');
-  const inDrinks   = location.pathname.startsWith('/drinks');
 
   const linkCls = (active: boolean) =>
     `flex items-center px-3 py-2 rounded-lg text-base transition-colors ${
       active
         ? 'bg-dram-accent/10 text-dram-accent font-medium'
         : 'text-gray-400 hover:bg-dram-border hover:text-white'
-    }`;
-
-  const subLinkCls = (active: boolean) =>
-    `flex items-center pl-8 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
-      active
-        ? 'text-dram-accent font-medium'
-        : 'text-gray-500 hover:text-gray-200'
     }`;
 
   function go(path: string) {
@@ -58,35 +39,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             >
               {label}
             </button>
-
-            {/* Food sub-nav */}
-            {prefix === '/food' && inFood && (
-              <div className="mt-0.5 space-y-0.5 mb-1">
-                <button
-                  onClick={() => go('/food')}
-                  className={subLinkCls(!activeSub)}
-                >
-                  All Recipes
-                </button>
-                {FOOD_SUBS.map(({ label: subLabel, sub }) => (
-                  <button
-                    key={sub}
-                    onClick={() => go(`/food?sub=${sub}`)}
-                    className={subLinkCls(activeSub === sub)}
-                  >
-                    {subLabel}
-                  </button>
-                ))}
-                <button
-                  onClick={() => go('/food?sub=prepackaged')}
-                  className={subLinkCls(activeSub === 'prepackaged')}
-                >
-                  Prepackaged
-                </button>
-              </div>
-            )}
-
-
           </div>
         );
       })}
@@ -96,7 +48,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function Layout() {
   const logout = useAuthStore((s) => s.logout);
-  const location = useLocation();
 
   const mobileItems = TOP_SECTIONS;
 
