@@ -171,6 +171,7 @@ export default function ExercisesPage() {
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
+          <h1 className="text-xl font-semibold text-slate-200 flex-shrink-0">Exercises</h1>
           <input
             type="text"
             placeholder="🔍 Search exercises…"

@@ -160,7 +160,7 @@ export default function RoutinesPage() {
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0 flex items-center gap-3">
-        <span className="text-base font-semibold text-dram-accent flex-1">Routines</span>
+        <h1 className="text-xl font-semibold text-slate-200 flex-1">Routines</h1>
         <button
           onClick={() => setShowCreate(true)}
           className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0"

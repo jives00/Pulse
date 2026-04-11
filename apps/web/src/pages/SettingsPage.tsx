@@ -648,30 +648,35 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('options');
 
   return (
-    <div className="px-4 py-6 max-w-2xl">
-      <h1 className="text-xl font-semibold text-white mb-5">Settings</h1>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
+        <h1 className="text-xl font-semibold text-slate-200">Settings</h1>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-dram-border mb-6">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
-              activeTab === id
-                ? 'border-dram-accent text-dram-accent'
-                : 'border-transparent text-gray-400 hover:text-white'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-3">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
+                activeTab === id
+                  ? 'border-dram-accent text-dram-accent'
+                  : 'border-transparent text-dram-muted hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {activeTab === 'options' && <OptionsTab />}
-      {activeTab === 'goals'   && <GoalsTab />}
-      {activeTab === 'user'    && <UserTab />}
-      {activeTab === 'delete'  && <DeleteDataTab />}
+      <div className="flex-1 overflow-y-auto px-6 py-6 max-w-2xl">
+        {activeTab === 'options' && <OptionsTab />}
+        {activeTab === 'goals'   && <GoalsTab />}
+        {activeTab === 'user'    && <UserTab />}
+        {activeTab === 'delete'  && <DeleteDataTab />}
+      </div>
     </div>
   );
 }

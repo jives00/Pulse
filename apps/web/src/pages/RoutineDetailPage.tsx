@@ -413,9 +413,9 @@ export default function RoutineDetailPage() {
   if (!routine) return null;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
         <button onClick={() => navigate('/workouts?tab=routines')} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
         <div className="flex-1 min-w-0">
           {editingName ? (
@@ -433,7 +433,7 @@ export default function RoutineDetailPage() {
               {routine.name}
             </button>
           )}
-          <div className="text-sm text-slate-500">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</div>
+          <div className="text-sm text-dram-muted">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</div>
           {editingNotes ? (
             <textarea
               ref={notesRef}
@@ -460,61 +460,67 @@ export default function RoutineDetailPage() {
         </div>
         <button
           onClick={handleDelete}
-          className="text-slate-600 hover:text-red-400 transition-colors text-sm shrink-0 mt-1"
+          className="border border-dram-border text-slate-300 hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-1.5 text-sm shrink-0 transition-colors"
         >
           Delete
         </button>
       </div>
 
-      {/* Start button */}
-      <button
-        onClick={handleStart}
-        disabled={starting || routine.exercises.length === 0}
-        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-3 transition-colors"
-      >
-        {starting ? 'Starting…' : 'Start Routine'}
-      </button>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-6 py-5 space-y-4">
 
-      {/* Volume history chart */}
-      {volumeHistory.length > 0 && (
-        <div className="bg-slate-800 rounded-lg p-3">
-          <div className="text-xs text-slate-500 mb-2">Volume per session (lbs)</div>
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={volumeHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={30} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} axisLine={false} tickLine={false} width={28} />
-              <Tooltip
-                contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }}
-                labelFormatter={(l) => shortDate(String(l))}
-                formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
-              />
-              <Bar dataKey="volumeLbs" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {/* Start button */}
+          <button
+            onClick={handleStart}
+            disabled={starting || routine.exercises.length === 0}
+            className="w-full bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg py-3 transition-colors"
+          >
+            {starting ? 'Starting…' : 'Start Routine'}
+          </button>
+
+          {/* Volume history chart */}
+          {volumeHistory.length > 0 && (
+            <div className="bg-dram-card rounded-lg p-3">
+              <div className="text-xs text-dram-muted mb-2">Volume per session (lbs)</div>
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={volumeHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={30} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} axisLine={false} tickLine={false} width={28} />
+                  <Tooltip
+                    contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }}
+                    labelFormatter={(l) => shortDate(String(l))}
+                    formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
+                  />
+                  <Bar dataKey="volumeLbs" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Exercise blocks */}
+          {routine.exercises.map((re) => (
+            <RoutineExerciseBlock
+              key={re.id}
+              re={re}
+              routineId={routine.id}
+              onRemove={handleRemoveExercise}
+              onSetsChanged={handleSetsChanged}
+            />
+          ))}
+
+          {/* Add exercise */}
+          <button
+            onClick={() => setShowPicker(true)}
+            disabled={addingExercise}
+            className="w-full py-3 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors border border-dashed border-slate-700 rounded-lg"
+          >
+            {addingExercise ? 'Adding…' : '+ Add Exercise'}
+          </button>
+
+          {showPicker && <ExercisePicker onSelect={handleSelectExercise} onClose={() => setShowPicker(false)} />}
         </div>
-      )}
-
-      {/* Exercise blocks */}
-      {routine.exercises.map((re) => (
-        <RoutineExerciseBlock
-          key={re.id}
-          re={re}
-          routineId={routine.id}
-          onRemove={handleRemoveExercise}
-          onSetsChanged={handleSetsChanged}
-        />
-      ))}
-
-      {/* Add exercise */}
-      <button
-        onClick={() => setShowPicker(true)}
-        disabled={addingExercise}
-        className="w-full py-3 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors border border-dashed border-slate-700 rounded-lg"
-      >
-        {addingExercise ? 'Adding…' : '+ Add Exercise'}
-      </button>
-
-      {showPicker && <ExercisePicker onSelect={handleSelectExercise} onClose={() => setShowPicker(false)} />}
+      </div>
     </div>
   );
 }

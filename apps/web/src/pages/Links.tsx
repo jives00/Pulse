@@ -103,7 +103,7 @@ export default function Links() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
-          <h1 className="text-xl font-semibold mb-3">Links</h1>
+          <h1 className="text-xl font-semibold text-slate-200 mb-3">Links</h1>
           <form onSubmit={handleAdd} className="flex gap-2 mb-3">
             <input
               ref={inputRef}
@@ -132,10 +132,10 @@ export default function Links() {
           </form>
 
           {/* Filter tabs */}
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition ${filter === 'all' ? 'bg-dram-accent text-black' : 'bg-dram-card text-gray-400 hover:text-white'}`}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${filter === 'all' ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-dram-muted hover:border-slate-500 hover:text-slate-200'}`}
             >
               All
             </button>
@@ -143,9 +143,9 @@ export default function Links() {
               <button
                 key={c.value}
                 onClick={() => setFilter(c.value)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition ${filter === c.value ? 'bg-dram-accent text-black' : 'bg-dram-card text-gray-400 hover:text-white'}`}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${filter === c.value ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-dram-muted hover:border-slate-500 hover:text-slate-200'}`}
               >
-                {c.icon} {c.label}
+                {c.label}
               </button>
             ))}
           </div>

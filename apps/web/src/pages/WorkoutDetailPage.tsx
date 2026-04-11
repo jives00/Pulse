@@ -634,9 +634,9 @@ export default function WorkoutDetailPage() {
     }, 0), 0);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
         <button
           onClick={() => navigate('/workouts')}
           className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
@@ -739,6 +739,10 @@ export default function WorkoutDetailPage() {
         </div>
       </div>
 
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-6 py-5 space-y-4">
+
       {/* Exercises */}
       {workout.exercises.map((we) => (
         <ExerciseBlock
@@ -766,6 +770,8 @@ export default function WorkoutDetailPage() {
           onClose={() => setShowPicker(false)}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 }

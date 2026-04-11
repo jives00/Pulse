@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
@@ -823,7 +823,9 @@ function RoutineCardInTab({
   );
 }
 
-function RoutinesTab() {
+export interface RoutinesTabHandle { openCreate: () => void; }
+
+const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -831,6 +833,8 @@ function RoutinesTab() {
   const [newName, setNewName] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [creating, setCreating] = useState(false);
+
+  useImperativeHandle(ref, () => ({ openCreate: () => setShowCreate(true) }));
 
   useEffect(() => {
     routinesApi.getAll().then(setRoutines).catch(() => {}).finally(() => setLoading(false));
@@ -858,17 +862,7 @@ function RoutinesTab() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 px-6 pt-4 pb-3 flex items-center gap-3">
-        <span className="flex-1" />
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-        >
-          + New Routine
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>
         ) : routines.length === 0 ? (
@@ -917,7 +911,7 @@ function RoutinesTab() {
       )}
     </div>
   );
-}
+});
 
 // ─── Exercises tab ────────────────────────────────────────────────────────────
 
@@ -957,7 +951,9 @@ function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
   );
 }
 
-function ExercisesTab() {
+export interface ExercisesTabHandle { openCreate: () => void; }
+
+const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref) {
   const { defaultExerciseSort } = useSettingsStore();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -968,6 +964,8 @@ function ExercisesTab() {
   const [form, setForm] = useState<ExerciseFormState>(EMPTY_EX_FORM);
   const [useCustomCat, setUseCustomCat] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useImperativeHandle(ref, () => ({ openCreate: () => { setForm({ ...EMPTY_EX_FORM, category: '' }); setUseCustomCat(false); setShowForm(true); } }));
 
   function loadAll(params?: { search?: string; category?: string }) {
     return exercisesApi.getAll(params).then(setExercises);
@@ -1017,17 +1015,12 @@ function ExercisesTab() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 px-6 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <input
-            type="text" placeholder="🔍 Search exercises…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-          />
-          <button onClick={openCreate} className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0">
-            + New Exercise
-          </button>
-        </div>
+      <div className="flex-shrink-0 px-6 pt-4 pb-3 space-y-2">
+        <input
+          type="text" placeholder="🔍 Search exercises…" value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+        />
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           <button
             onClick={() => setFilterCat('')}
@@ -1121,7 +1114,7 @@ function ExercisesTab() {
       )}
     </div>
   );
-}
+});
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -1147,6 +1140,8 @@ export default function WorkoutsPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const routinesTabRef = useRef<RoutinesTabHandle>(null);
+  const exercisesTabRef = useRef<ExercisesTabHandle>(null);
   const rawTab = searchParams.get('tab');
   const activeTab: Tab = (VALID_TABS as readonly string[]).includes(rawTab ?? '') ? rawTab as Tab : 'progress';
   function setActiveTab(tab: Tab) { setSearchParams({ tab }, { replace: true }); }
@@ -1221,26 +1216,61 @@ export default function WorkoutsPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
-        <div className="flex items-center gap-2">
-          {activeTab === 'progress' && (
-            <>
+      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
+          <div className="flex items-center gap-2">
+            {activeTab === 'progress' && (
+              <>
+                <button
+                  onClick={() => setGoalsOpen(true)}
+                  className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-4 py-2 text-sm transition-colors"
+                >
+                  Edit Goals
+                </button>
+                <button
+                  onClick={handleStart}
+                  disabled={starting}
+                  className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+                >
+                  {starting ? 'Starting…' : '+ Start Workout'}
+                </button>
+              </>
+            )}
+            {activeTab === 'routines' && (
               <button
-                onClick={() => setGoalsOpen(true)}
-                className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-3 py-2 text-sm transition-colors"
+                onClick={() => routinesTabRef.current?.openCreate()}
+                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
               >
-                Edit Goals
+                + New Routine
               </button>
+            )}
+            {activeTab === 'exercises' && (
               <button
-                onClick={handleStart}
-                disabled={starting}
-                className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+                onClick={() => exercisesTabRef.current?.openCreate()}
+                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
               >
-                {starting ? 'Starting…' : '+ Start Workout'}
+                + New Exercise
               </button>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-3">
+          {TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? 'border-dram-accent text-dram-accent'
+                  : 'border-transparent text-dram-muted hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1252,23 +1282,6 @@ export default function WorkoutsPage() {
           onClose={() => setGoalsOpen(false)}
         />
       )}
-
-      {/* Tab bar */}
-      <div className="flex-shrink-0 px-6 border-b border-dram-border flex gap-1">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === key
-                ? 'border-dram-accent text-dram-accent'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {/* Tab content */}
       {activeTab === 'progress' ? (
@@ -1389,9 +1402,9 @@ export default function WorkoutsPage() {
           )}
         </div>
       ) : activeTab === 'routines' ? (
-        <RoutinesTab />
+        <RoutinesTab ref={routinesTabRef} />
       ) : (
-        <ExercisesTab />
+        <ExercisesTab ref={exercisesTabRef} />
       )}
     </div>
   );

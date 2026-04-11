@@ -162,16 +162,18 @@ export default function History() {
     <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
-        <h1 className="text-xl font-semibold mb-3">History</h1>
-        <div className="flex gap-1">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-slate-200">History</h1>
+        </div>
+        <div className="flex gap-1 mt-3">
           {(['recipes', 'workouts', 'nutrition'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setPanel({ mode: 'none' }); }}
-              className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
                 activeTab === tab
                   ? 'border-dram-accent text-dram-accent'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  : 'border-transparent text-dram-muted hover:text-slate-200'
               }`}
             >
               {tab === 'recipes' ? 'Recipes' : tab === 'workouts' ? 'Workouts' : 'Nutrition'}

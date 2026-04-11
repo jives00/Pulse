@@ -137,15 +137,11 @@ export default function Library() {
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
         {/* Toolbar */}
         <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0">
-          {/* Row 1: Search + Add */}
-          <div className="flex items-center gap-3 mb-3">
-            <input
-              type="text"
-              placeholder="🔍 Search recipes…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-            />
+          {/* Row 1: Title + Add */}
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-xl font-semibold text-slate-200">
+              {location.pathname.startsWith('/drinks') ? 'Drinks' : 'Food'}
+            </h1>
             <button
               onClick={() => setPanel({ mode: 'add' })}
               className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0"
@@ -154,7 +150,18 @@ export default function Library() {
             </button>
           </div>
 
-          {/* Row 2: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
+          {/* Row 2: Search */}
+          <div className="mb-3">
+            <input
+              type="text"
+              placeholder="🔍 Search recipes…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+            />
+          </div>
+
+          {/* Row 3: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
           <FilterBar
             showFavorites={showFavorites}
             setShowFavorites={setShowFavorites}

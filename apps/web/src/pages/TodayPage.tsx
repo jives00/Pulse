@@ -153,16 +153,19 @@ export default function TodayPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between gap-3">
-        {/* Left: date nav */}
-        <div className="flex items-center gap-1">
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center gap-3">
+        {/* Title */}
+        <h1 className="text-xl font-semibold text-slate-200 flex-shrink-0">Nutrition</h1>
+
+        {/* Date nav */}
+        <div className="flex items-center gap-1 flex-1 justify-center">
           <button
             onClick={() => setDate(offsetDate(currentDate, -1))}
             className="p-2 rounded-lg hover:bg-dram-card text-slate-400 hover:text-slate-100 transition-colors"
           >
             ◀
           </button>
-          <div className="text-slate-200 font-semibold px-1 min-w-[200px] text-center">{fmtDate(currentDate)}</div>
+          <div className="text-slate-200 font-medium px-1 min-w-[200px] text-center text-sm">{fmtDate(currentDate)}</div>
           <button
             onClick={() => setDate(offsetDate(currentDate, 1))}
             className="p-2 rounded-lg hover:bg-dram-card text-slate-400 hover:text-slate-100 transition-colors"
@@ -176,7 +179,7 @@ export default function TodayPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowGoalsModal(true)}
-            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-3 py-2 text-sm transition-colors"
+            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-4 py-2 text-sm transition-colors"
           >
             Edit Goals
           </button>

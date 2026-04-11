@@ -271,25 +271,31 @@ export default function FoodsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-semibold text-slate-200 mb-4">Foods</h1>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
+        <h1 className="text-xl font-semibold text-slate-200">Foods</h1>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-800 rounded-lg p-1 mb-6">
-        {(['search', 'custom'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors font-medium ${
-              tab === t
-                ? 'bg-slate-700 text-slate-200'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {t === 'search' ? 'Search' : 'My Custom Foods'}
-          </button>
-        ))}
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-3">
+          {(['search', 'custom'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
+                tab === t
+                  ? 'border-dram-accent text-dram-accent'
+                  : 'border-transparent text-dram-muted hover:text-slate-200'
+              }`}
+            >
+              {t === 'search' ? 'Search' : 'My Custom Foods'}
+            </button>
+          ))}
+        </div>
       </div>
+
+      <div className="flex-1 overflow-y-auto">
+      <div className="max-w-2xl mx-auto px-6 py-6">
 
       {/* Search tab */}
       {tab === 'search' && (
@@ -346,6 +352,8 @@ export default function FoodsPage() {
           </div>
         </div>
       )}
+      </div>
+      </div>
     </div>
   );
 }

@@ -122,35 +122,38 @@ export default function HistoryPage() {
     : 0;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-slate-200">History</h1>
         <div className="flex items-center gap-2">
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50 border border-slate-700 rounded-lg px-3 py-1.5 transition-colors"
-        >
-          {exporting ? 'Exporting…' : '↓ Export'}
-        </button>
-        <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setRange(r.value)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                range === r.value
-                  ? 'bg-brand-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="border border-dram-border text-slate-300 hover:text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
+          >
+            {exporting ? 'Exporting…' : '↓ Export'}
+          </button>
+          <div className="flex gap-1 bg-dram-card rounded-lg p-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.value}
+                onClick={() => setRange(r.value)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  range === r.value
+                    ? 'bg-dram-accent text-black font-semibold'
+                    : 'text-dram-muted hover:text-slate-200'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      <div className="flex-1 overflow-y-auto">
+      <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
 
       {loading && (
         <div className="text-center text-slate-500 py-16">Loading…</div>
@@ -289,6 +292,8 @@ export default function HistoryPage() {
           </div>
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }
