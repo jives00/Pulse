@@ -24,7 +24,7 @@ import FilterChip from '../../../src/components/FilterChip';
 
 const KG_TO_LBS = 2.20462;
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
-const WORKOUT_TABS_ORDER = ['progress', 'log', 'routines', 'exercises'] as const;
+const WORKOUT_TABS_ORDER = ['progress', 'routines', 'exercises', 'log'] as const;
 
 function fmtDate(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -142,7 +142,7 @@ function LogTab() {
       ListEmptyComponent={
         <View style={s.empty}>
           <Text style={s.emptyText}>No workouts yet.</Text>
-          <Text style={s.emptyHint}>Tap + Start to log your first workout.</Text>
+          <Text style={s.emptyHint}>Start a workout to see your history here.</Text>
         </View>
       }
     />
@@ -1027,24 +1027,17 @@ export default function WorkoutsScreen() {
   }
 
   function renderHeaderAction() {
-    if (tab === 'log') {
-      return (
-        <TouchableOpacity style={[s.startBtn, starting && s.startBtnDisabled]} onPress={openRoutinePicker} disabled={starting}>
-          <Text style={s.startBtnText}>{starting ? 'Starting…' : '+ Start'}</Text>
-        </TouchableOpacity>
-      );
-    }
     if (tab === 'routines') {
       return (
-        <TouchableOpacity style={s.startBtn} onPress={() => setRoutinesCreateVisible(true)}>
-          <Text style={s.startBtnText}>+ New</Text>
+        <TouchableOpacity style={s.circlePlusBtn} onPress={() => setRoutinesCreateVisible(true)}>
+          <Text style={s.circlesPlusBtnText}>+</Text>
         </TouchableOpacity>
       );
     }
     if (tab === 'exercises') {
       return (
-        <TouchableOpacity style={s.startBtn} onPress={() => setExCreateVisible(true)}>
-          <Text style={s.startBtnText}>+ New</Text>
+        <TouchableOpacity style={s.circlePlusBtn} onPress={() => setExCreateVisible(true)}>
+          <Text style={s.circlesPlusBtnText}>+</Text>
         </TouchableOpacity>
       );
     }
@@ -1059,7 +1052,7 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={seg.scroll} contentContainerStyle={seg.row}>
-        {(['progress', 'log', 'routines', 'exercises'] as Tab[]).map((t) => (
+        {(['progress', 'routines', 'exercises', 'log'] as Tab[]).map((t) => (
           <TouchableOpacity key={t} style={[seg.btn, tab === t && seg.btnActive]} onPress={() => setTab(t)}>
             <Text style={[seg.label, tab === t && seg.labelActive]}>
               {t === 'log' ? 'Log' : t === 'routines' ? 'Routines' : t === 'exercises' ? 'Exercises' : 'Progress'}
@@ -1131,6 +1124,8 @@ function makeSStyles(c: Colors) {
     startBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
     startBtnDisabled: { opacity: 0.5 },
     startBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+    circlePlusBtn: { backgroundColor: c.accent, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    circlesPlusBtnText: { color: c.bg, fontSize: fontSize.xl, fontWeight: 'bold', lineHeight: 28 },
     list: { padding: 14, gap: 10 },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, gap: 4 },
     cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },

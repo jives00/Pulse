@@ -493,19 +493,22 @@ export default function NutritionScreen() {
 
   return (
     <SafeAreaView style={s.container} {...swipe.panHandlers}>
-      {/* Date nav */}
-      <View style={s.dateNav}>
-        <TouchableOpacity onPress={() => shiftDate(-1)} style={s.dateArrow}>
-          <Text style={s.dateArrowText}>‹</Text>
-        </TouchableOpacity>
-        <Text style={s.dateLabel}>{formatDate(date)}</Text>
-        <TouchableOpacity
-          onPress={() => shiftDate(1)}
-          style={s.dateArrow}
-          disabled={date >= toDateStr(new Date())}
-        >
-          <Text style={[s.dateArrowText, date >= toDateStr(new Date()) && { opacity: 0.3 }]}>›</Text>
-        </TouchableOpacity>
+      {/* Page header with inline date nav */}
+      <View style={s.pageHeader}>
+        <Text style={s.pageTitle}>Food Log</Text>
+        <View style={s.dateNav}>
+          <TouchableOpacity onPress={() => shiftDate(-1)} style={s.dateArrow}>
+            <Text style={s.dateArrowText}>‹</Text>
+          </TouchableOpacity>
+          <Text style={s.dateLabel}>{formatDate(date)}</Text>
+          <TouchableOpacity
+            onPress={() => shiftDate(1)}
+            style={s.dateArrow}
+            disabled={date >= toDateStr(new Date())}
+          >
+            <Text style={[s.dateArrowText, date >= toDateStr(new Date()) && { opacity: 0.3 }]}>›</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -879,10 +882,12 @@ export default function NutritionScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
-    dateArrow: { paddingHorizontal: 20, paddingVertical: 6 },
+    pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    pageTitle: { flex: 1, fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    dateNav: { flexDirection: 'row', alignItems: 'center' },
+    dateArrow: { paddingHorizontal: 8, paddingVertical: 4 },
     dateArrowText: { fontSize: 24, color: c.muted },
-    dateLabel: { fontSize: fontSize.base, fontWeight: '600', color: c.text, minWidth: 90, textAlign: 'center' },
+    dateLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.text, minWidth: 72, textAlign: 'center' },
     scroll: { flex: 1 },
     scrollContent: { padding: 14, gap: 12 },
     summaryCard: { backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, gap: 10 },
@@ -895,8 +900,8 @@ function makeStyles(c: Colors) {
     macroRow: { flexDirection: 'row', justifyContent: 'space-around' },
     macroItem: { alignItems: 'center', gap: 1 },
     macroVal: { fontSize: fontSize.base, fontWeight: '600' },
-    macroLabel: { fontSize: fontSize.xs, color: c.muted },
-    macroGoal: { fontSize: fontSize.xs, color: c.border },
+    macroLabel: { fontSize: fontSize.xs, color: c.text },
+    macroGoal: { fontSize: fontSize.xs, color: c.muted },
     mealSection: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
     mealHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
     mealLabel: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: c.text },
