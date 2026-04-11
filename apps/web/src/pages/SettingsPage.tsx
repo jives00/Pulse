@@ -195,6 +195,7 @@ function TagDefinitionsSection() {
 const THEMES: { id: ColorScheme; label: string; bg: string; card: string; accent: string }[] = [
   { id: 'blue',  label: 'Deep Blue', bg: '#193549', card: '#0d2137', accent: '#D4A843' },
   { id: 'slate', label: 'Slate',     bg: '#0f172a', card: '#1e293b', accent: '#D4A843' },
+  { id: 'sand',  label: 'Sand',      bg: '#785a3c', card: '#5a4128', accent: '#D4A843' },
 ];
 
 function ColorSchemeSection() {

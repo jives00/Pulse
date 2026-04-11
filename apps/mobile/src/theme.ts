@@ -1,4 +1,4 @@
-export type ColorScheme = 'blue' | 'slate';
+export type ColorScheme = 'blue' | 'slate' | 'sand';
 
 export type Colors = typeof PALETTES.blue;
 
@@ -19,6 +19,15 @@ export const PALETTES = {
     border: '#334155',
     text: '#FFFFFF',
     muted: '#94a3b8',
+    error: '#F87171',
+  },
+  sand: {
+    bg: '#785a3c',
+    card: '#5a4128',
+    accent: '#D4A843',
+    border: '#967350',
+    text: '#FFFFFF',
+    muted: '#d4b896',
     error: '#F87171',
   },
 } as const;

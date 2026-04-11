@@ -82,7 +82,7 @@ function WaterTile({
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{glasses}</span>
-        <span className="text-sm text-slate-400">/ {goalGlasses} glasses</span>
+        <span className="text-sm text-dram-muted">/ {goalGlasses} glasses</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden bg-cyan-400/10">
         <div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
@@ -95,11 +95,11 @@ function WaterTile({
       {onAddWater && (
         <div className="mt-1 flex gap-2">
           <button onClick={() => onAddWater(GLASS_OZ)}
-            className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg py-2 text-sm font-medium text-slate-200 transition-colors">
+            className="flex-1 bg-dram-card hover:bg-dram-border/50 border border-dram-border rounded-lg py-2 text-sm font-medium text-white transition-colors">
             + Glass (8oz)
           </button>
           <button onClick={() => onAddWater(BOTTLE_OZ)}
-            className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg py-2 text-sm font-medium text-slate-200 transition-colors">
+            className="flex-1 bg-dram-card hover:bg-dram-border/50 border border-dram-border rounded-lg py-2 text-sm font-medium text-white transition-colors">
             + Bottle (20oz)
           </button>
         </div>

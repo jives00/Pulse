@@ -36,7 +36,7 @@ function RecipeCard({ recipe, onClick }: Props) {
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{recipe.name}</p>
         <div className="flex items-center justify-between mt-1">
-          <p className="text-gray-500 text-xs capitalize">
+          <p className="text-dram-muted text-xs capitalize">
             {recipe.type === 'cocktail' ? 'Cocktail' : 'Food'}
             {recipe.subcategory && (
               <span> | {recipe.subcategory === 'main' ? 'Main Dish' : recipe.subcategory === 'side' ? 'Side Dish' : recipe.subcategory === 'breakfast' ? 'Breakfast' : recipe.subcategory === 'prepackaged' ? 'Prepackaged' : 'Desserts & Snacks'}</span>

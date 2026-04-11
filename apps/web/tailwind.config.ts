@@ -10,6 +10,7 @@ export default {
           card:   'rgb(var(--color-card) / <alpha-value>)',
           accent: 'rgb(var(--color-accent) / <alpha-value>)',
           border: 'rgb(var(--color-border) / <alpha-value>)',
+          muted:  'rgb(var(--color-muted) / <alpha-value>)',
         },
         brand: {
           50:  '#f0fdf4',

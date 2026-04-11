@@ -77,8 +77,8 @@ USDA_API_KEY        (optional, food database)
 - **Routing**: React Router v6, all routes defined in `apps/web/src/App.tsx`. Base path is `/pulse` in prod, `/` in dev.
 - **State**: Zustand stores in `apps/web/src/store/`. Auth token lives in `authStore`. UI settings (color scheme, sort) live in `settingsStore` (persisted to localStorage as `dram-settings`).
 - **API calls**: All in `apps/web/src/api/client.ts`. Functions take `token` as first arg and throw on non-2xx.
-- **Theming**: CSS variables defined in `apps/web/src/index.css` as RGB channels (not hex). Tailwind config references them via `rgb(var(--color-X) / <alpha-value>)`. Theme applied by setting `document.documentElement.dataset.theme` in `App.tsx`. Current themes: `blue` (default), `slate`.
-- **Color palette**: `dram-bg`, `dram-card`, `dram-accent`, `dram-border` — always use these, not hardcoded colors, so theming works.
+- **Theming**: CSS variables defined in `apps/web/src/index.css` as RGB channels (not hex). Tailwind config references them via `rgb(var(--color-X) / <alpha-value>)`. Theme applied by setting `document.documentElement.dataset.theme` in `App.tsx`. Current themes: `blue` (default), `slate`, `sand`.
+- **Color palette**: `dram-bg`, `dram-card`, `dram-accent`, `dram-border`, `dram-muted` — always use these, not hardcoded colors, so theming works. Use `dram-muted` for secondary/subtitle text instead of hardcoded `text-gray-*` or `text-slate-*`.
 - **Layout**: `Layout.tsx` renders the sidebar (desktop) and bottom nav (mobile). Pages render inside `<Outlet />`. Pages should use `flex flex-col h-full overflow-hidden` for full-height layouts, or `max-w-2xl mx-auto px-4 py-6` for centered content pages.
 - **URL-driven state**: The Food/Drinks library uses URL params (`?sub=main` etc.) for category filtering rather than component state, so the sidebar can control it via navigation.
 
@@ -226,11 +226,11 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 Android-only Expo app. Key conventions:
 
 - **Styling**: Use `StyleSheet.create()` — NOT NativeWind/Tailwind classes (NativeWind is installed but not used in practice)
-- **Theme**: Two color schemes (`blue`, `slate`) defined in `src/theme.ts` as `PALETTES`. Use `useColors()` hook (`src/hooks/useColors.ts`) to get the active palette — never import `colors` directly. Pass result `c` to a `makeStyles(c: Colors)` factory function instead of module-level `StyleSheet.create()`, so styles react to scheme changes.
+- **Theme**: Three color schemes (`blue`, `slate`, `sand`) defined in `src/theme.ts` as `PALETTES`. Use `useColors()` hook (`src/hooks/useColors.ts`) to get the active palette — never import `colors` directly. Pass result `c` to a `makeStyles(c: Colors)` factory function instead of module-level `StyleSheet.create()`, so styles react to scheme changes. Each palette includes `muted` for secondary text.
 - **Swipe navigation**: `src/hooks/useSwipeNav.ts` — returns a `PanResponder` for horizontal swipe-left/right navigation. All 5 main tabs use it. Pages with internal tabs (Workouts, Settings) pass their tab list so swipes move through internal tabs first, then fall through to bottom tab navigation at the edges. No looping. Attach via `{...swipe.panHandlers}` on the root `SafeAreaView`.
 - **API client**: `src/api/client.ts` — fetch-based, token passed explicitly. `API_BASE` from `src/api/config.ts` (defaults to `http://10.0.2.2:3000` for Android emulator; override via `EXPO_PUBLIC_API_BASE`)
 - **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
-- **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` (recipes), `defaultExerciseSort` (`name` or `created_at`), and `colorScheme` (`blue` or `slate`).
+- **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` (recipes), `defaultExerciseSort` (`name` or `created_at`), and `colorScheme` (`blue`, `slate`, or `sand`).
 - **Routing**: expo-router file-based. Tabs live in `app/(app)/(tabs)/`. `app/(app)/_layout.tsx` is a Stack with `(tabs)` as the first screen and detail screens (`workout/[id]`, `exercise/[id]`, `recipe/[id]`, `recipe/edit`) as sibling Stack.Screens — this gives proper back-navigation to the previous tab screen rather than always going to Recipes. Hidden tab routes (history, goals) use `href: null` in the Tabs layout.
 - **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS = 2.20462`
 

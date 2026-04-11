@@ -235,7 +235,7 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
       <button
         onClick={() => entries.length > 0 && setExpanded((v) => !v)}
         className="text-xs font-semibold py-1.5 transition-colors"
-        style={{ color: entries.length > 0 ? meta.color : '#475569' }}
+        style={{ color: entries.length > 0 ? meta.color : 'rgb(var(--color-muted))' }}
       >
         {entries.length > 0 ? `${entries.length} item${entries.length !== 1 ? 's' : ''}` : 'Nothing logged'}
       </button>

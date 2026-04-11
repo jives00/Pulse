@@ -945,7 +945,7 @@ function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
         <Link to={`/workouts/exercises/${exercise.id}`} className="font-semibold text-white text-sm leading-snug line-clamp-2 hover:text-dram-accent transition-colors block">
           {exercise.name}
         </Link>
-        <p className="text-gray-500 text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <p className="text-dram-muted text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
         <div className="flex flex-wrap gap-1 mt-2">
           {exercise.musclesPrimary?.slice(0, 2).map((m) => (
             <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>

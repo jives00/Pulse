@@ -75,7 +75,7 @@ function ExerciseCard({ exercise }: { exercise: Exercise }) {
         >
           {exercise.name}
         </Link>
-        <p className="text-gray-500 text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <p className="text-dram-muted text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
         <div className="flex flex-wrap gap-1 mt-2">
           {exercise.musclesPrimary?.slice(0, 2).map((m) => (
             <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">

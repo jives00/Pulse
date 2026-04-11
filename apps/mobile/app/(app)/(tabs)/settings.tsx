@@ -65,6 +65,7 @@ const EXERCISE_SORT_OPTIONS: { value: ExerciseSortOption; label: string }[] = [
 const COLOR_SCHEMES: { value: ColorScheme; label: string; preview: string }[] = [
   { value: 'blue',  label: 'Deep Blue', preview: '#193549' },
   { value: 'slate', label: 'Slate',     preview: '#0f172a' },
+  { value: 'sand',  label: 'Sand',      preview: '#785a3c' },
 ];
 
 function OptionsTab() {
