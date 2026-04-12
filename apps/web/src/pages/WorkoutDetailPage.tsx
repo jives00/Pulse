@@ -638,7 +638,7 @@ export default function WorkoutDetailPage() {
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
         <button
-          onClick={() => navigate('/workouts')}
+          onClick={() => navigate(-1)}
           className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
         >
           ←

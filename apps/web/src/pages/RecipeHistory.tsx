@@ -1,51 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  recipesApi, workoutsApi, logApi,
-  type HistoryEntry, type RecipeDetail as RecipeDetailType, type WorkoutSummary,
-  type FoodLogHistoryDay,
+  workoutsApi, logApi, measurementsApi,
+  type WorkoutSummary,
+  type FoodLogHistoryDay, type FoodLogHistoryEntry,
+  type BodyMeasurement,
 } from '@pulse/api-client';
-import RecipeDetail from '../components/RecipeDetail';
-import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
 
-type PanelState =
-  | { mode: 'none' }
-  | { mode: 'detail'; recipeId: number }
-  | { mode: 'edit'; recipe: RecipeDetailType };
+type Tab = 'workouts' | 'nutrition' | 'measurements';
 
-type Tab = 'recipes' | 'workouts' | 'nutrition';
-
-function toLocalDate(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function toLocalTime(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function groupByDate(entries: HistoryEntry[]): { label: string; entries: HistoryEntry[] }[] {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const fmtKey = (d: Date) => d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-  const todayKey = fmtKey(today);
-  const yesterdayKey = fmtKey(yesterday);
-
-  const groups: Map<string, HistoryEntry[]> = new Map();
-  for (const entry of entries) {
-    const d = new Date(entry.made_at);
-    const key = fmtKey(d);
-    const label = key === todayKey ? 'Today' : key === yesterdayKey ? 'Yesterday' : key;
-    if (!groups.has(label)) groups.set(label, []);
-    groups.get(label)!.push(entry);
-  }
-  return Array.from(groups.entries()).map(([label, entries]) => ({ label, entries }));
-}
+const METRICS = [
+  { key: 'weight', label: 'Weight', unit: 'lbs' },
+  { key: 'waist', label: 'Waist', unit: 'in' },
+  { key: 'bicep', label: 'Bicep', unit: 'in' },
+];
 
 function groupWorkoutsByDate(workouts: WorkoutSummary[]): { label: string; workouts: WorkoutSummary[] }[] {
   const today = new Date();
@@ -70,18 +39,52 @@ function fmtWorkoutDate(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function dayLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const fmt = (dt: Date) => dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  if (fmt(d) === fmt(today)) return 'Today';
+  if (fmt(d) === fmt(yesterday)) return 'Yesterday';
+  return fmt(d);
+}
+
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+function mealCalories(entries: FoodLogHistoryEntry[]): number {
+  return Math.round(entries.reduce((s, e) => s + e.calories, 0));
+}
+function mealProtein(entries: FoodLogHistoryEntry[]): number {
+  return Math.round(entries.reduce((s, e) => s + e.proteinG, 0) * 10) / 10;
+}
+function mealCarbs(entries: FoodLogHistoryEntry[]): number {
+  return Math.round(entries.reduce((s, e) => s + e.carbsG, 0) * 10) / 10;
+}
+function mealFat(entries: FoodLogHistoryEntry[]): number {
+  return Math.round(entries.reduce((s, e) => s + e.fatG, 0) * 10) / 10;
+}
+
+// ── Measurement edit modal ────────────────────────────────────────────────────
+
+interface MeasurementEditModal {
+  entry: BodyMeasurement | null;
+  metric: string;
+  value: string;
+  date: string;
+  notes: string;
+  isNew: boolean;
+}
+
+const EMPTY_MODAL: MeasurementEditModal = { entry: null, metric: '', value: '', date: '', notes: '', isNew: false };
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function History() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>('recipes');
-
-  // Recipe state
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [recipesLoading, setRecipesLoading] = useState(true);
-  const [panel, setPanel] = useState<PanelState>({ mode: 'none' });
-  const [editTarget, setEditTarget] = useState<HistoryEntry | null>(null);
-  const [editDate, setEditDate] = useState('');
-  const [editTime, setEditTime] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('workouts');
 
   // Workout state
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -91,48 +94,19 @@ export default function History() {
   // Nutrition log history state
   const [foodLogDays, setFoodLogDays] = useState<FoodLogHistoryDay[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [foodDetail, setFoodDetail] = useState<FoodLogHistoryEntry | null>(null);
+
+  // Measurements state
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
+  const [measurementsLoading, setMeasurementsLoading] = useState(true);
+  const [editModal, setEditModal] = useState<MeasurementEditModal>(EMPTY_MODAL);
+  const [savingMeasurement, setSavingMeasurement] = useState(false);
 
   useEffect(() => {
-    recipesApi.getHistory().then(setEntries).finally(() => setRecipesLoading(false));
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
     logApi.getHistory(90).then(setFoodLogDays).finally(() => setNutritionLoading(false));
+    measurementsApi.getAll().then(setMeasurements).finally(() => setMeasurementsLoading(false));
   }, []);
-
-  function openEdit(e: React.MouseEvent, entry: HistoryEntry) {
-    e.stopPropagation();
-    setEditTarget(entry);
-    setEditDate(toLocalDate(entry.made_at));
-    setEditTime(toLocalTime(entry.made_at));
-  }
-
-  async function commitEdit() {
-    if (!editTarget || !editDate || !editTime) return;
-    setSaving(true);
-    try {
-      const iso = new Date(`${editDate}T${editTime}`).toISOString();
-      await recipesApi.updateLogEntry(editTarget.recipe_id, editTarget.log_id, iso);
-      setEntries((prev) =>
-        prev
-          .map((e) => e.log_id === editTarget.log_id ? { ...e, made_at: iso } : e)
-          .sort((a, b) => new Date(b.made_at).getTime() - new Date(a.made_at).getTime())
-      );
-      setEditTarget(null);
-    } catch {
-      // keep modal open on error
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeleteRecipe(e: React.MouseEvent, entry: HistoryEntry) {
-    e.stopPropagation();
-    await recipesApi.deleteLogEntry(entry.recipe_id, entry.log_id).catch(() => {});
-    setEntries((prev) => prev.filter((x) => x.log_id !== entry.log_id));
-    if (panel.mode === 'detail' && panel.recipeId === entry.recipe_id) {
-      const remaining = entries.filter((x) => x.log_id !== entry.log_id && x.recipe_id === entry.recipe_id);
-      if (remaining.length === 0) setPanel({ mode: 'none' });
-    }
-  }
 
   async function handleDeleteWorkout(e: React.MouseEvent, id: number) {
     e.stopPropagation();
@@ -144,30 +118,57 @@ export default function History() {
     } catch { /* ignore */ } finally { setDeletingId(null); }
   }
 
-  const panelOpen = panel.mode !== 'none' && activeTab === 'recipes';
-  const recipeGroups = groupByDate(entries);
+  function openNewMeasurement(metric: string) {
+    setEditModal({ entry: null, metric, value: '', date: todayStr(), notes: '', isNew: true });
+  }
+
+  function openEditMeasurement(entry: BodyMeasurement) {
+    setEditModal({ entry, metric: entry.metric, value: String(entry.value), date: entry.measuredAt, notes: entry.notes ?? '', isNew: false });
+  }
+
+  async function saveMeasurement() {
+    const val = parseFloat(editModal.value);
+    if (isNaN(val) || !editModal.date) return;
+    const metaUnit = METRICS.find((m) => m.key === editModal.metric)?.unit ?? 'lbs';
+    setSavingMeasurement(true);
+    try {
+      if (editModal.isNew) {
+        const created = await measurementsApi.add({ metric: editModal.metric, value: val, unit: metaUnit, measuredAt: editModal.date, notes: editModal.notes || undefined });
+        setMeasurements((prev) => [created, ...prev].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)));
+      } else if (editModal.entry) {
+        const updated = await measurementsApi.update(editModal.entry.id, { value: val, measuredAt: editModal.date, notes: editModal.notes || undefined });
+        setMeasurements((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+      }
+      setEditModal(EMPTY_MODAL);
+    } catch { /* keep open */ } finally { setSavingMeasurement(false); }
+  }
+
+  async function deleteMeasurement(id: number) {
+    if (!confirm('Delete this entry?')) return;
+    await measurementsApi.delete(id).catch(() => {});
+    setMeasurements((prev) => prev.filter((m) => m.id !== id));
+  }
+
   const workoutGroups = groupWorkoutsByDate(workouts);
-  const loading = activeTab === 'recipes' ? recipesLoading : activeTab === 'workouts' ? workoutsLoading : nutritionLoading;
+  const loading = activeTab === 'workouts' ? workoutsLoading : activeTab === 'nutrition' ? nutritionLoading : measurementsLoading;
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden bg-dram-bg text-white ${panelOpen ? 'mr-[420px]' : ''}`}>
+    <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-200">History</h1>
-        </div>
+        <h1 className="text-xl font-semibold text-slate-200">History</h1>
         <div className="flex gap-1 mt-3">
-          {(['recipes', 'workouts', 'nutrition'] as Tab[]).map((tab) => (
+          {(['workouts', 'nutrition', 'measurements'] as Tab[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => { setActiveTab(tab); setPanel({ mode: 'none' }); }}
+              onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
                 activeTab === tab
                   ? 'border-dram-accent text-dram-accent'
                   : 'border-transparent text-dram-muted hover:text-slate-200'
               }`}
             >
-              {tab === 'recipes' ? 'Recipes' : tab === 'workouts' ? 'Workouts' : 'Nutrition'}
+              {tab === 'measurements' ? 'Measurements' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -177,70 +178,6 @@ export default function History() {
       <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>
-        ) : activeTab === 'recipes' ? (
-          /* ── Recipe history ─────────────────────────────────────── */
-          entries.length === 0 ? (
-            <div className="flex flex-col items-center mt-20 text-gray-600">
-              <span className="text-5xl mb-3">📋</span>
-              <p className="text-lg">No history yet.</p>
-              <p className="text-sm mt-1">Log a recipe as made to see it here.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-6 max-w-2xl">
-              {recipeGroups.map((group) => (
-                <div key={group.label}>
-                  <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
-                  <div className="flex flex-col gap-2">
-                    {group.entries.map((entry) => (
-                      <div
-                        key={entry.log_id}
-                        className={`flex items-center gap-3 bg-dram-card border rounded-xl px-4 py-3 group transition ${
-                          panel.mode === 'detail' && panel.recipeId === entry.recipe_id
-                            ? 'border-dram-accent/60'
-                            : 'border-dram-border hover:border-dram-accent/40'
-                        }`}
-                      >
-                        <button
-                          onClick={() => setPanel({ mode: 'detail', recipeId: entry.recipe_id })}
-                          className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dram-border flex items-center justify-center"
-                        >
-                          {entry.photo_url ? (
-                            <img src={entry.photo_url} alt={entry.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-lg opacity-40">{entry.type === 'cocktail' ? '🍸' : '🍴'}</span>
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => setPanel({ mode: 'detail', recipeId: entry.recipe_id })}
-                          className="flex-1 min-w-0 text-left"
-                        >
-                          <p className="text-base font-medium text-white truncate">{entry.name}</p>
-                        </button>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
-                          <button
-                            onClick={(e) => openEdit(e, entry)}
-                            className="text-gray-500 hover:text-dram-accent transition text-sm px-1.5 py-0.5 rounded"
-                            title="Edit date"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteRecipe(e, entry)}
-                            className="text-gray-500 hover:text-red-400 transition text-lg px-1 leading-none"
-                            title="Delete"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
         ) : activeTab === 'workouts' ? (
           /* ── Workout history ─────────────────────────────────────── */
           workouts.length === 0 ? (
@@ -304,7 +241,7 @@ export default function History() {
               ))}
             </div>
           )
-        ) : (
+        ) : activeTab === 'nutrition' ? (
           /* ── Nutrition log history ───────────────────────────────── */
           foodLogDays.length === 0 ? (
             <div className="flex flex-col items-center mt-20 text-gray-600">
@@ -314,40 +251,60 @@ export default function History() {
           ) : (
             <div className="flex flex-col gap-6 max-w-2xl">
               {foodLogDays.map((day) => {
-                const d = new Date(day.date + 'T12:00:00');
-                const today = new Date();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                const fmtKey = (dt: Date) => dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-                const label = fmtKey(d) === fmtKey(today) ? 'Today' : fmtKey(d) === fmtKey(yesterday) ? 'Yesterday' : fmtKey(d);
-                const mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
-                const byMeal = day.entries.reduce<Record<string, typeof day.entries>>((acc, e) => {
+                const byMeal = day.entries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
                   if (!acc[e.meal]) acc[e.meal] = [];
                   acc[e.meal].push(e);
                   return acc;
                 }, {});
                 return (
                   <div key={day.date}>
-                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{label}</p>
-                    <div className="bg-dram-card border border-dram-border rounded-xl px-4 py-3 flex flex-col gap-3">
-                      <div className="flex items-baseline justify-between">
-                        <p className="text-xs text-gray-500">
-                          {day.calories.toLocaleString()} cal · {day.protein}g protein
-                        </p>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{dayLabel(day.date)}</p>
+                    <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
+                      {/* Day totals */}
+                      <div className="px-4 py-3 border-b border-dram-border flex gap-6">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Calories</p>
+                          <p className="text-base font-semibold text-white">{day.calories.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Protein</p>
+                          <p className="text-base font-semibold text-white">{day.protein}g</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Carbs</p>
+                          <p className="text-base font-semibold text-white">{mealCarbs(day.entries)}g</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Fat</p>
+                          <p className="text-base font-semibold text-white">{mealFat(day.entries)}g</p>
+                        </div>
                       </div>
-                      {mealOrder.filter((m) => byMeal[m]?.length).map((meal) => (
-                        <div key={meal}>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5 capitalize">{meal}</p>
-                          <div className="flex flex-col gap-1">
+
+                      {/* Meals */}
+                      {MEAL_ORDER.filter((m) => byMeal[m]?.length).map((meal, mIdx, arr) => (
+                        <div key={meal} className={mIdx < arr.length - 1 ? 'border-b border-dram-border' : ''}>
+                          {/* Meal header */}
+                          <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-300 capitalize">{meal}</p>
+                            <p className="text-sm text-gray-500">
+                              {mealCalories(byMeal[meal])} cal · {mealProtein(byMeal[meal])}g P · {mealCarbs(byMeal[meal])}g C · {mealFat(byMeal[meal])}g F
+                            </p>
+                          </div>
+                          {/* Meal items */}
+                          <div className="pb-2">
                             {byMeal[meal].map((e) => (
-                              <div key={e.id} className="flex items-baseline justify-between gap-2">
+                              <button
+                                key={e.id}
+                                onClick={() => setFoodDetail(e)}
+                                className="w-full flex items-baseline justify-between gap-2 px-4 py-1.5 hover:bg-white/5 transition text-left"
+                              >
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-sm text-white truncate">{e.foodName}</span>
-                                  {e.brand && <span className="text-xs text-gray-500 ml-1">{e.brand}</span>}
-                                  <span className="text-xs text-gray-500 ml-1">· {e.quantity} × {e.servingLabel}</span>
+                                  <span className="text-base text-white">{e.foodName}</span>
+                                  {e.brand && <span className="text-sm text-gray-500 ml-1.5">{e.brand}</span>}
+                                  <span className="text-sm text-gray-500 ml-1.5">· {e.quantity} × {e.servingLabel}</span>
                                 </div>
-                                <span className="text-xs text-gray-400 shrink-0">{e.calories} cal</span>
-                              </div>
+                                <span className="text-sm text-gray-400 shrink-0">{e.calories} cal</span>
+                              </button>
                             ))}
                           </div>
                         </div>
@@ -358,124 +315,171 @@ export default function History() {
               })}
             </div>
           )
+        ) : (
+          /* ── Body Measurements ───────────────────────────────────── */
+          <div className="flex flex-col gap-4 max-w-2xl">
+            <div className="flex justify-end gap-2">
+              {METRICS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => openNewMeasurement(key)}
+                  className="text-sm text-dram-accent hover:brightness-110 transition"
+                >
+                  + {label}
+                </button>
+              ))}
+            </div>
+            {measurements.length === 0 ? (
+              <div className="bg-dram-card border border-dram-border rounded-xl px-4 py-8 text-sm text-gray-500 text-center">
+                No measurements logged yet
+              </div>
+            ) : (
+              <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
+                {/* Header */}
+                <div className="grid grid-cols-[1fr_1fr_160px_60px] px-4 py-2 border-b border-dram-border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Measurement</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Value</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
+                  <p />
+                </div>
+                {[...measurements]
+                  .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt) || a.metric.localeCompare(b.metric))
+                  .map((entry, idx, arr) => {
+                    const meta = METRICS.find((m) => m.key === entry.metric);
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`grid grid-cols-[1fr_1fr_160px_60px] items-center px-4 py-3 group ${idx < arr.length - 1 ? 'border-b border-dram-border' : ''}`}
+                      >
+                        <p className="text-base text-white capitalize">{meta?.label ?? entry.metric}</p>
+                        <p className="text-base font-semibold text-white">{entry.value} {meta?.unit ?? entry.unit}</p>
+                        <span className="text-sm text-gray-500">
+                          {new Date(entry.measuredAt + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            onClick={() => openEditMeasurement(entry)}
+                            className="text-gray-500 hover:text-dram-accent transition text-sm px-1.5 py-0.5 rounded"
+                            title="Edit"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => deleteMeasurement(entry.id)}
+                            className="text-gray-500 hover:text-red-400 transition text-lg px-1 leading-none"
+                            title="Delete"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Side panel — recipes only */}
-      {panelOpen && (
-        <div data-panel className="fixed right-0 top-0 h-full w-[420px] z-10 shadow-2xl">
-          {panel.mode === 'detail' && (
-            <RecipeDetail
-              recipeId={panel.recipeId}
-              onClose={() => setPanel({ mode: 'none' })}
-              onEdit={(recipe) => setPanel({ mode: 'edit', recipe })}
-              onDeleted={() => setPanel({ mode: 'none' })}
-              onUpdated={() => {}}
-            />
-          )}
-          {panel.mode === 'edit' && (
-            <RecipeForm
-              initialData={panel.recipe}
-              onSaved={(id) => setPanel({ mode: 'detail', recipeId: id })}
-              onCancel={() => setPanel({ mode: 'none' })}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Edit date modal */}
-      {editTarget && (
+      {/* Food detail modal */}
+      {foodDetail && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-          onClick={() => setEditTarget(null)}
+          onClick={() => setFoodDetail(null)}
         >
           <div
             className="bg-dram-card border border-dram-border rounded-xl p-5 w-full max-w-sm mx-4 flex flex-col gap-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="font-semibold text-white">Edit Entry</h2>
-            <p className="text-sm text-gray-400 -mt-2 truncate">{editTarget.name}</p>
+            <div>
+              <h2 className="font-semibold text-white text-base">{foodDetail.foodName}</h2>
+              {foodDetail.brand && <p className="text-sm text-gray-400 mt-0.5">{foodDetail.brand}</p>}
+              <p className="text-sm text-gray-500 mt-0.5">{foodDetail.quantity} × {foodDetail.servingLabel}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Calories', value: `${foodDetail.calories}` },
+                { label: 'Protein', value: `${foodDetail.proteinG}g` },
+                { label: 'Carbs', value: `${foodDetail.carbsG}g` },
+                { label: 'Fat', value: `${foodDetail.fatG}g` },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2.5">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+                  <p className="text-base font-semibold text-white mt-0.5">{value}</p>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setFoodDetail(null)}
+              className="self-end px-4 py-2 text-sm text-gray-400 hover:text-white transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Measurement edit/add modal */}
+      {editModal.metric && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          onClick={() => setEditModal(EMPTY_MODAL)}
+        >
+          <div
+            className="bg-dram-card border border-dram-border rounded-xl p-5 w-full max-w-sm mx-4 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-semibold text-white text-base">
+              {editModal.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === editModal.metric)?.label}
+            </h2>
 
             <div className="flex gap-3">
               <div className="flex flex-col gap-1 flex-1">
-                <label className="text-xs text-gray-400">Date</label>
+                <label className="text-xs text-gray-400">Value ({METRICS.find((m) => m.key === editModal.metric)?.unit})</label>
                 <input
-                  type="date"
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setEditTarget(null); }}
-                  className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent [color-scheme:dark]"
+                  type="number"
+                  step="0.1"
+                  value={editModal.value}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, value: e.target.value }))}
+                  className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
                   autoFocus
                 />
               </div>
               <div className="flex flex-col gap-1 flex-1">
-                <label className="text-xs text-gray-400">Time</label>
-                <div className="flex gap-1 items-center">
-                  {(() => {
-                    const h24 = parseInt(editTime.split(':')[0] ?? '0', 10);
-                    const min = editTime.split(':')[1] ?? '00';
-                    const period = h24 < 12 ? 'AM' : 'PM';
-                    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-                    function setHour(newH12: number, p: string) {
-                      let h = newH12 % 12;
-                      if (p === 'PM') h += 12;
-                      setEditTime(`${String(h).padStart(2, '0')}:${min}`);
-                    }
-                    function setMinute(newMin: string) {
-                      setEditTime(`${String(h24).padStart(2, '0')}:${newMin}`);
-                    }
-                    function setPeriod(p: string) {
-                      setHour(h12, p);
-                    }
-                    return (
-                      <>
-                        <select
-                          value={h12}
-                          onChange={(e) => setHour(parseInt(e.target.value, 10), period)}
-                          className="w-14 bg-dram-bg border border-dram-border rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-                        >
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                            <option key={h} value={h}>{h}</option>
-                          ))}
-                        </select>
-                        <span className="text-gray-400">:</span>
-                        <select
-                          value={min}
-                          onChange={(e) => setMinute(e.target.value)}
-                          className="w-14 bg-dram-bg border border-dram-border rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-                        >
-                          {Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0')).map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={period}
-                          onChange={(e) => setPeriod(e.target.value)}
-                          className="w-16 bg-dram-bg border border-dram-border rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-                        >
-                          <option value="AM">AM</option>
-                          <option value="PM">PM</option>
-                        </select>
-                      </>
-                    );
-                  })()}
-                </div>
+                <label className="text-xs text-gray-400">Date</label>
+                <input
+                  type="date"
+                  value={editModal.date}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, date: e.target.value }))}
+                  className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent [color-scheme:dark]"
+                />
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Notes (optional)</label>
+              <input
+                type="text"
+                value={editModal.notes}
+                onChange={(e) => setEditModal((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="e.g. morning, post-workout"
+                className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent placeholder:text-gray-600"
+              />
             </div>
 
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setEditTarget(null)}
+                onClick={() => setEditModal(EMPTY_MODAL)}
                 className="px-4 py-2 text-sm text-gray-400 hover:text-white transition"
               >
                 Cancel
               </button>
               <button
-                onClick={commitEdit}
-                disabled={saving || !editDate || !editTime}
+                onClick={saveMeasurement}
+                disabled={savingMeasurement || !editModal.value || !editModal.date}
                 className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition disabled:opacity-40"
               >
-                {saving ? 'Saving…' : 'Save'}
+                {savingMeasurement ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

@@ -672,6 +672,14 @@ export async function addMeasurement(token: string, data: { metric: string; valu
   const res = await fetch(`${API_BASE}/api/measurements`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<BodyMeasurement>(res);
 }
+export async function updateMeasurement(token: string, id: number, data: { value: number; measuredAt?: string; notes?: string }): Promise<BodyMeasurement> {
+  const res = await fetch(`${API_BASE}/api/measurements/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle<BodyMeasurement>(res);
+}
+export async function deleteMeasurement(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/measurements/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
 
 export interface WaterHistoryDay { date: string; totalOz: number; }
 export interface WaterHistory { goalOz: number; days: WaterHistoryDay[]; }

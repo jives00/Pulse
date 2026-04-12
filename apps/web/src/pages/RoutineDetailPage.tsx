@@ -416,7 +416,7 @@ export default function RoutineDetailPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
-        <button onClick={() => navigate('/workouts?tab=routines')} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
+        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
         <div className="flex-1 min-w-0">
           {editingName ? (
             <input
