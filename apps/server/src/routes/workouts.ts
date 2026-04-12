@@ -238,7 +238,8 @@ router.get('/', async (req, res) => {
               we.sort_order,
               COUNT(es.id) AS set_count,
               ROUND(AVG(es.reps)) AS avg_reps,
-              MAX(es.weight_kg) AS max_weight_kg
+              MAX(es.weight_kg) AS max_weight_kg,
+              SUM(es.duration_seconds) AS total_duration_seconds
        FROM workout_exercises we
        JOIN exercises e ON e.id = we.exercise_id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
@@ -248,7 +249,7 @@ router.get('/', async (req, res) => {
       [ids]
     );
 
-    const exercisesByWorkout: Record<number, { name: string; setCount: number; avgReps: number | null; maxWeightKg: number | null }[]> = {};
+    const exercisesByWorkout: Record<number, { name: string; setCount: number; avgReps: number | null; maxWeightKg: number | null; totalDurationSeconds: number | null }[]> = {};
     for (const ex of exRows) {
       const setCount = Number(ex.set_count);
       if (setCount === 0) continue; // skip exercises with no completed sets
@@ -259,6 +260,7 @@ router.get('/', async (req, res) => {
         setCount,
         avgReps: ex.avg_reps != null ? Number(ex.avg_reps) : null,
         maxWeightKg: ex.max_weight_kg != null ? Number(ex.max_weight_kg) : null,
+        totalDurationSeconds: ex.total_duration_seconds != null ? Number(ex.total_duration_seconds) : null,
       });
     }
 

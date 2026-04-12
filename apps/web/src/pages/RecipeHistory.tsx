@@ -291,6 +291,7 @@ export default function History() {
                                   {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
                                   {ex.avgReps != null && ` × ${ex.avgReps} reps`}
                                   {ex.maxWeightKg != null && ` · ${Math.round(ex.maxWeightKg * 2.20462 * 10) / 10} lbs`}
+                                  {ex.totalDurationSeconds != null && ` · ${Math.floor(ex.totalDurationSeconds / 60)}:${String(ex.totalDurationSeconds % 60).padStart(2, '0')}`}
                                 </span>
                               </div>
                             ))}

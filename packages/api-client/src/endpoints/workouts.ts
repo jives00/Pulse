@@ -113,6 +113,7 @@ export interface WorkoutExerciseSummary {
   setCount: number;
   avgReps: number | null;
   maxWeightKg: number | null;
+  totalDurationSeconds: number | null;
 }
 
 export interface WorkoutSummary {

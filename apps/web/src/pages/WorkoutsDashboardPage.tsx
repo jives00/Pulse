@@ -1328,6 +1328,38 @@ function NutritionFuelWidget({
   );
 }
 
+// Weekly total volume line chart (13 weeks)
+function WeeklyVolumeChart({ data }: { data: { label: string; volume: number | null }[] }) {
+  const hasData = data.some((d) => d.volume !== null);
+  if (!hasData) return null;
+  return (
+    <div className="mt-4">
+      <div className="text-sm text-dram-muted mb-1">Total volume / week (lbs)</div>
+      <ResponsiveContainer width="100%" height={72}>
+        <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-dram-muted, #94a3b8)' }} tickLine={false} axisLine={false} />
+          <YAxis hide />
+          <Tooltip
+            contentStyle={{ background: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, fontSize: 11 }}
+            labelStyle={{ color: 'var(--color-dram-muted, #94a3b8)' }}
+            itemStyle={{ color: '#a78bfa' }}
+            formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
+          />
+          <Line
+            type="monotone"
+            dataKey="volume"
+            stroke="#a78bfa"
+            strokeWidth={2}
+            dot={{ r: 2, fill: '#a78bfa', strokeWidth: 0 }}
+            activeDot={{ r: 4 }}
+            connectNulls={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // Routine volume heatmap — 13 weeks × routines grid
 function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1361,8 +1393,25 @@ function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]
     .map(Number)
     .filter((rid) => weeks.some((wk) => (routineVolumes[rid][wk.weekStart] ?? 0) > 0));
 
+  // Weekly totals for the line chart (all routines combined, including non-routine workouts)
+  const weeklyTotals: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.totalVolumeKg <= 0) continue;
+    const ws = getWeekStart(w.workoutDate);
+    weeklyTotals[ws] = (weeklyTotals[ws] ?? 0) + w.totalVolumeKg * 2.20462;
+  }
+  const lineData = weeks.map((wk) => ({
+    label: wk.label,
+    volume: weeklyTotals[wk.weekStart] ? Math.round(weeklyTotals[wk.weekStart]) : null,
+  }));
+
   if (relevantRoutineIds.length === 0) {
-    return <div className="text-xs text-dram-muted py-4 text-center">No routine volume data in the last 13 weeks</div>;
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="text-xs text-dram-muted py-4 text-center">No routine volume data in the last 13 weeks</div>
+        <WeeklyVolumeChart data={lineData} />
+      </div>
+    );
   }
 
   // Global max across all routines — so cells scale relative to each other
@@ -1444,6 +1493,7 @@ function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]
         </div>
         <span>Higher volume</span>
       </div>
+      <WeeklyVolumeChart data={lineData} />
     </div>
   );
 }
@@ -1471,6 +1521,18 @@ function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; ro
         const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
         const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
 
+        // For duration-only workouts, sum exercise set durations for precise MM:SS
+        const totalDurSecs = volLbs === 0
+          ? w.exercises.reduce((sum, ex) => sum + (ex.totalDurationSeconds ?? 0), 0)
+          : 0;
+        const durationDisplay = volLbs > 0
+          ? `${volLbs.toLocaleString()} lbs`
+          : totalDurSecs > 0
+            ? `${Math.floor(totalDurSecs / 60)}:${String(totalDurSecs % 60).padStart(2, '0')}`
+            : w.durationMinutes
+              ? `${w.durationMinutes} min`
+              : '—';
+
         return (
           <div key={w.id} className="flex items-center gap-2 py-2 border-b border-dram-border/60 last:border-0">
             <div className="flex-1 min-w-0">
@@ -1478,7 +1540,7 @@ function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; ro
               <div className="text-xs text-dram-muted">{new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
             </div>
             <div className="text-right shrink-0">
-              <div className="text-sm text-slate-200">{volLbs > 0 ? `${volLbs.toLocaleString()} lbs` : w.durationMinutes ? `${w.durationMinutes} min` : '—'}</div>
+              <div className="text-sm text-slate-200">{durationDisplay}</div>
               {delta !== null && deltaPct !== null ? (
                 <div className="flex items-center justify-end gap-0.5 text-xs font-semibold" style={{ color: delta >= 0 ? '#34d399' : '#f87171' }}>
                   <span>{delta >= 0 ? '▲' : '▼'}</span>
@@ -2196,12 +2258,6 @@ export default function WorkoutsDashboardPage() {
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setGoalsOpen(true)}
-            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-4 py-2 text-sm transition-colors"
-          >
-            Edit Goals
-          </button>
           <button
             onClick={() => setStartPickerOpen(true)}
             disabled={starting || startingRoutineId != null}
