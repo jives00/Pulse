@@ -2373,10 +2373,10 @@ export default function WorkoutsDashboardPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
                 activeTab === tab
-                  ? 'bg-dram-card text-slate-200 border border-b-0 border-dram-border'
-                  : 'text-dram-muted hover:text-slate-300'
+                  ? 'border-dram-accent text-dram-accent'
+                  : 'border-transparent text-dram-muted hover:text-slate-200'
               }`}
             >
               {tab === 'dashboard' ? 'Dashboard' : "Today's Blurb"}
