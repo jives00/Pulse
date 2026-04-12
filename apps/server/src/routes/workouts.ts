@@ -114,19 +114,25 @@ router.get('/personal-bests', async (req, res) => {
       [req.userId]
     );
 
-    // Longest session (duration)
-    const [durRows] = await pool.query<RowDataPacket[]>(
-      `SELECT id, name, workout_date, duration_minutes
-       FROM workout_logs
-       WHERE user_id = ? AND duration_minutes IS NOT NULL AND duration_minutes > 0
-       ORDER BY duration_minutes DESC
+    // Best stair pace: lowest duration_seconds per rep for stair exercises
+    const [stairRows] = await pool.query<RowDataPacket[]>(
+      `SELECT e.name AS exercise_name, es.duration_seconds, es.reps, wl.workout_date,
+              (es.duration_seconds / es.reps) AS secs_per_rep
+       FROM exercise_sets es
+       JOIN workout_exercises we ON we.id = es.workout_exercise_id
+       JOIN workout_logs wl ON wl.id = we.workout_log_id
+       JOIN exercises e ON e.id = we.exercise_id
+       WHERE wl.user_id = ? AND e.name LIKE '%stair%'
+         AND es.duration_seconds IS NOT NULL AND es.duration_seconds > 0
+         AND es.reps IS NOT NULL AND es.reps > 0 AND es.completed = 1
+       ORDER BY secs_per_rep ASC
        LIMIT 1`,
       [req.userId]
     );
 
     const lift = liftRows[0] ?? null;
     const vol = volRows[0] ?? null;
-    const dur = durRows[0] ?? null;
+    const stair = stairRows[0] ?? null;
 
     res.json({
       heaviestLift: lift ? {
@@ -145,13 +151,14 @@ router.get('/personal-bests', async (req, res) => {
           ? vol.workout_date.toISOString().slice(0, 10)
           : String(vol.workout_date),
       } : null,
-      longestSession: dur ? {
-        workoutId: dur.id,
-        workoutName: dur.name ?? null,
-        durationMinutes: dur.duration_minutes,
-        workoutDate: dur.workout_date instanceof Date
-          ? dur.workout_date.toISOString().slice(0, 10)
-          : String(dur.workout_date),
+      bestStairPace: stair ? {
+        exerciseName: stair.exercise_name,
+        durationSeconds: Number(stair.duration_seconds),
+        reps: Number(stair.reps),
+        secsPerRep: Number(stair.secs_per_rep),
+        workoutDate: stair.workout_date instanceof Date
+          ? stair.workout_date.toISOString().slice(0, 10)
+          : String(stair.workout_date),
       } : null,
     });
   } catch (err) {

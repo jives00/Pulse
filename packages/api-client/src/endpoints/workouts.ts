@@ -30,10 +30,11 @@ export interface PersonalBests {
     volumeKg: number;
     workoutDate: string;
   } | null;
-  longestSession: {
-    workoutId: number;
-    workoutName: string | null;
-    durationMinutes: number;
+  bestStairPace: {
+    exerciseName: string;
+    durationSeconds: number;
+    reps: number;
+    secsPerRep: number;
     workoutDate: string;
   } | null;
 }

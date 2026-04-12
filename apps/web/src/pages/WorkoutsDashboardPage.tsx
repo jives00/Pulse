@@ -975,7 +975,8 @@ function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]): {
 
   const firstDate = creatineDays[0];
   const firstMs = new Date(firstDate + 'T12:00:00').getTime();
-  const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)));
+  // +1 to count both the start day and today (e.g. started 7 days ago = 8 days: day0…day7)
+  const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)) + 1);
   const loggedDays = creatineDays.length;
 
   // Compliance = fraction of days since start that had creatine logged
@@ -1031,11 +1032,11 @@ function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[
           <SemiCircleGauge pct={satPct} color={satColor} size={120} />
           <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
             <span className="text-xl font-bold text-white leading-none">{satDisplay}%</span>
-            <span className="text-[10px] text-dram-muted leading-none">saturated</span>
+            <span className="text-xs text-dram-muted leading-none">saturated</span>
           </div>
         </div>
         {/* Phase badge */}
-        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full mt-1"
+        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full mt-1"
           style={{ color: satColor, backgroundColor: `${satColor}22` }}>
           {phase}
         </span>
@@ -1043,7 +1044,7 @@ function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[
 
       {/* Milestone countdown */}
       {satPct < 1 && (
-        <div className="text-center text-xs text-dram-muted">
+        <div className="text-center text-sm text-dram-muted">
           {daysToFull > 0
             ? <><span className="text-slate-300 font-semibold">{daysToFull}d</span> to peak performance</>
             : <span className="text-slate-300 font-semibold">Almost there!</span>
@@ -1051,7 +1052,7 @@ function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[
         </div>
       )}
       {satPct >= 1 && (
-        <div className="text-center text-xs font-semibold" style={{ color: '#34d399' }}>
+        <div className="text-center text-sm font-semibold" style={{ color: '#34d399' }}>
           Peak performance achieved 🎯
         </div>
       )}
@@ -1059,17 +1060,17 @@ function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-2 text-center">
         <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-          <div className="text-sm font-bold text-white">{daysSinceStart}d</div>
-          <div className="text-[10px] text-dram-muted">since {startFormatted}</div>
+          <div className="text-base font-bold text-white">{daysSinceStart}d</div>
+          <div className="text-xs text-dram-muted">since {startFormatted}</div>
         </div>
         <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-          <div className="text-sm font-bold" style={{ color: complianceColor }}>{Math.round(compliancePct * 100)}%</div>
-          <div className="text-[10px] text-dram-muted">{loggedDays} / {daysSinceStart} days</div>
+          <div className="text-base font-bold" style={{ color: complianceColor }}>{Math.round(compliancePct * 100)}%</div>
+          <div className="text-xs text-dram-muted">{loggedDays} / {daysSinceStart} days</div>
         </div>
       </div>
 
       {/* Compliance label */}
-      <div className="text-center text-[10px] text-dram-muted -mt-2">compliance</div>
+      <div className="text-center text-xs text-dram-muted -mt-2">compliance</div>
 
       {/* Compliance bar */}
       <div>
@@ -1150,17 +1151,17 @@ function NutritionFuelWidget({
         const d = new Date(v + 'T12:00:00');
         return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       }}
-      tick={{ fontSize: 9, fill: '#64748b' }}
+      tick={{ fontSize: 11, fill: '#64748b' }}
       tickLine={false}
       axisLine={false}
-      height={18}
+      height={20}
     />
   );
 
   const tooltipStyle = {
-    contentStyle: { backgroundColor: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 8px', fontSize: 11 },
+    contentStyle: { backgroundColor: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '6px 10px', fontSize: 13 },
     itemStyle: { color: '#e2e8f0' },
-    labelStyle: { color: '#64748b', marginBottom: 2, fontSize: 10 },
+    labelStyle: { color: '#64748b', marginBottom: 2, fontSize: 12 },
     cursor: { stroke: 'rgba(255,255,255,0.08)' },
   };
 
@@ -1180,18 +1181,18 @@ function NutritionFuelWidget({
       {/* ── Calories ── */}
       <div>
         <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-xs text-slate-400">Calories</span>
-          <span className="flex items-center gap-1 text-[10px] text-slate-500">
-            <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: '#fb923c' }} /> in
+          <span className="text-sm text-slate-400">Calories</span>
+          <span className="flex items-center gap-1.5 text-sm text-slate-400">
+            <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: '#fb923c' }} /> in
           </span>
           {hasBurnedData && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
-              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: '#f87171' }} /> burned
+            <span className="flex items-center gap-1.5 text-sm text-slate-400">
+              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> burned
             </span>
           )}
           {caloriesGoal && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
-              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(251,146,60,0.35)' }} /> goal
+            <span className="flex items-center gap-1.5 text-sm text-slate-400">
+              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: 'rgba(251,146,60,0.55)' }} /> goal
             </span>
           )}
         </div>
@@ -1217,7 +1218,7 @@ function NutritionFuelWidget({
               }}
             />
             {caloriesGoal && (
-              <ReferenceLine y={caloriesGoal} stroke="rgba(251,146,60,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+              <ReferenceLine y={caloriesGoal} stroke="rgba(251,146,60,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
             )}
             <Area
               type="monotone"
@@ -1247,9 +1248,9 @@ function NutritionFuelWidget({
       {/* ── Protein ── */}
       <div>
         <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-xs text-slate-400">Protein</span>
+          <span className="text-sm text-slate-400">Protein</span>
           {proteinGoal && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1 text-xs text-slate-500">
               <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(96,165,250,0.35)' }} /> goal {proteinGoal}g
             </span>
           )}
@@ -1272,7 +1273,7 @@ function NutritionFuelWidget({
               }}
             />
             {proteinGoal && (
-              <ReferenceLine y={proteinGoal} stroke="rgba(96,165,250,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+              <ReferenceLine y={proteinGoal} stroke="rgba(96,165,250,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
             )}
             <Line
               type="monotone"
@@ -1289,8 +1290,8 @@ function NutritionFuelWidget({
       {/* ── Water ── */}
       <div>
         <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-xs text-slate-400">Water</span>
-          <span className="flex items-center gap-1 text-[10px] text-slate-500">
+          <span className="text-sm text-slate-400">Water</span>
+          <span className="flex items-center gap-1 text-xs text-slate-500">
             <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(56,189,248,0.35)' }} /> goal {Math.round(waterGoal / GLASS)} glasses
           </span>
         </div>
@@ -1311,7 +1312,7 @@ function NutritionFuelWidget({
                 );
               }}
             />
-            <ReferenceLine y={waterGoal / GLASS} stroke="rgba(56,189,248,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+            <ReferenceLine y={waterGoal / GLASS} stroke="rgba(56,189,248,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
             <Line
               type="monotone"
               dataKey="water"
@@ -1495,34 +1496,91 @@ function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; ro
 }
 
 // Personal bests column — 1 stat per row
-function PersonalBestsColumn({ bests }: { bests: PersonalBests | null }) {
-  const items = [
+function PersonalBestsColumn({
+  bests,
+  workouts,
+  routinesList,
+  foodLogHistory,
+  waterHistory,
+}: {
+  bests: PersonalBests | null;
+  workouts: WorkoutSummary[];
+  routinesList: RoutineSummary[];
+  foodLogHistory: FoodLogHistoryDay[];
+  waterHistory: WaterHistory | null;
+}) {
+  const GLASS = 8;
+
+  // Highest protein day from food log history
+  const highProteinDay = foodLogHistory.reduce<{ protein: number; date: string } | null>((best, day) => {
+    if (!best || day.protein > best.protein) return { protein: day.protein, date: day.date };
+    return best;
+  }, null);
+
+  // Highest water day from water history
+  const highWaterDay = (waterHistory?.days ?? []).reduce<{ oz: number; date: string } | null>((best, day) => {
+    if (!best || day.totalOz > best.oz) return { oz: day.totalOz, date: day.date };
+    return best;
+  }, null);
+
+  // Per-routine best session volume and longest session
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const routineVolBests: Record<number, { volumeLbs: number; date: string }> = {};
+  for (const w of workouts) {
+    if (!w.routineId || w.totalVolumeKg <= 0) continue;
+    const volLbs = Math.round(w.totalVolumeKg * 2.20462);
+    const cur = routineVolBests[w.routineId];
+    if (!cur || volLbs > cur.volumeLbs) {
+      routineVolBests[w.routineId] = { volumeLbs: volLbs, date: w.workoutDate };
+    }
+  }
+  const routineVolItems = Object.entries(routineVolBests)
+    .map(([rid, v]) => ({ routineId: Number(rid), name: routineNameById[Number(rid)] ?? `Routine ${rid}`, ...v }))
+    .sort((a, b) => b.volumeLbs - a.volumeLbs);
+
+  const items: { icon: string; label: string; color: string; value: string | null; sub: string | null; date: string | null }[] = [
     {
       icon: '🏋️',
       label: 'Heaviest Lift',
       color: '#34d399',
       value: bests?.heaviestLift ? `${Math.round(bests.heaviestLift.weightKg * 2.20462 * 10) / 10} lbs` : null,
       sub: bests?.heaviestLift
-        ? `${bests.heaviestLift.exerciseName} · ${bests.heaviestLift.reps != null ? `${bests.heaviestLift.reps} reps` : ''}`
+        ? `${bests.heaviestLift.exerciseName}${bests.heaviestLift.reps != null ? ` · ${bests.heaviestLift.reps} reps` : ''}`
         : null,
       date: bests?.heaviestLift?.workoutDate ?? null,
     },
-    {
-      icon: '📈',
-      label: 'Best Session Volume',
+    ...(bests?.bestStairPace ? [{
+      icon: '🪜',
+      label: 'Best Stair Pace',
+      color: '#fb923c',
+      value: `${bests.bestStairPace.secsPerRep.toFixed(1)}s/step`,
+      sub: `${bests.bestStairPace.reps} steps · ${Math.floor(bests.bestStairPace.durationSeconds / 60)}m${bests.bestStairPace.durationSeconds % 60}s`,
+      date: bests.bestStairPace.workoutDate,
+    }] : []),
+    ...(highProteinDay ? [{
+      icon: '🥩',
+      label: 'Highest Protein Day',
       color: '#60a5fa',
-      value: bests?.bestSessionVolume ? `${Math.round(bests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()} lbs` : null,
-      sub: bests?.bestSessionVolume?.workoutName ?? null,
-      date: bests?.bestSessionVolume?.workoutDate ?? null,
-    },
-    {
-      icon: '⏱️',
-      label: 'Longest Session',
+      value: `${highProteinDay.protein}g`,
+      sub: null,
+      date: highProteinDay.date,
+    }] : []),
+    ...(highWaterDay ? [{
+      icon: '💧',
+      label: 'Most Water in a Day',
+      color: '#38bdf8',
+      value: `${Math.round(highWaterDay.oz / GLASS * 10) / 10} glasses`,
+      sub: `${highWaterDay.oz} oz`,
+      date: highWaterDay.date,
+    }] : []),
+    ...routineVolItems.map((r) => ({
+      icon: '🔁',
+      label: `Best Volume: ${r.name}`,
       color: '#a78bfa',
-      value: bests?.longestSession ? `${bests.longestSession.durationMinutes} min` : null,
-      sub: bests?.longestSession?.workoutName ?? null,
-      date: bests?.longestSession?.workoutDate ?? null,
-    },
+      value: `${r.volumeLbs.toLocaleString()} lbs`,
+      sub: null,
+      date: r.date,
+    })),
   ];
 
   return (
@@ -1628,7 +1686,13 @@ function DashboardV2({
           <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#34d399' }} />
           <div className={cardHeaderCls}>Personal Bests</div>
           <div className="px-5 pb-4">
-            <PersonalBestsColumn bests={personalBests} />
+            <PersonalBestsColumn
+              bests={personalBests}
+              workouts={workouts}
+              routinesList={routinesList}
+              foodLogHistory={foodLogHistory}
+              waterHistory={waterHistory}
+            />
           </div>
         </div>
 
@@ -2065,7 +2129,9 @@ export default function WorkoutsDashboardPage() {
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [starting, setStarting] = useState(false);
+  const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
 
   function load() {
     Promise.all([
@@ -2106,12 +2172,22 @@ export default function WorkoutsDashboardPage() {
 
   useEffect(() => { load(); loadV2(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleStart() {
+  async function handleStartBlank() {
     setStarting(true);
+    setStartPickerOpen(false);
     try {
       const workout = await workoutsApi.create();
       navigate(`/workouts/${workout.id}`);
     } catch { setStarting(false); }
+  }
+
+  async function handleStartRoutine(routineId: number) {
+    setStartingRoutineId(routineId);
+    setStartPickerOpen(false);
+    try {
+      const workout = await routinesApi.start(routineId);
+      navigate(`/workouts/${workout.id}`);
+    } catch { setStartingRoutineId(null); }
   }
 
   return (
@@ -2127,11 +2203,11 @@ export default function WorkoutsDashboardPage() {
             Edit Goals
           </button>
           <button
-            onClick={handleStart}
-            disabled={starting}
+            onClick={() => setStartPickerOpen(true)}
+            disabled={starting || startingRoutineId != null}
             className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
           >
-            {starting ? 'Starting…' : '+ Start Workout'}
+            {starting || startingRoutineId != null ? 'Starting…' : '+ Start Workout'}
           </button>
         </div>
       </div>
@@ -2143,6 +2219,60 @@ export default function WorkoutsDashboardPage() {
           onSaved={load}
           onClose={() => setGoalsOpen(false)}
         />
+      )}
+
+      {startPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={() => setStartPickerOpen(false)}>
+          <div
+            className="bg-dram-card border border-dram-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-dram-border">
+              <h2 className="text-base font-semibold text-slate-200">Start Workout</h2>
+              <button onClick={() => setStartPickerOpen(false)} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto max-h-[60vh]">
+              {/* Blank workout option */}
+              <button
+                onClick={handleStartBlank}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-dram-bg/60 transition-colors border-b border-dram-border text-left"
+              >
+                <span className="text-xl leading-none">➕</span>
+                <div>
+                  <div className="text-sm font-semibold text-slate-200">Blank Workout</div>
+                  <div className="text-xs text-dram-muted">Start from scratch</div>
+                </div>
+              </button>
+              {/* Routines */}
+              {routinesList.length > 0 && (
+                <div className="px-5 pt-3 pb-1">
+                  <div className="text-xs font-semibold text-dram-muted uppercase tracking-wider mb-2">Routines</div>
+                </div>
+              )}
+              {routinesList.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => handleStartRoutine(r.id)}
+                  disabled={startingRoutineId === r.id}
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-dram-bg/60 disabled:opacity-50 transition-colors text-left"
+                >
+                  <span className="text-xl leading-none">📋</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-200 truncate">{r.name}</div>
+                    <div className="text-xs text-dram-muted">{r.exerciseCount} exercise{r.exerciseCount !== 1 ? 's' : ''}{r.lastUsedDate ? ` · last used ${new Date(r.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</div>
+                  </div>
+                  {startingRoutineId === r.id && <span className="text-xs text-dram-muted">Starting…</span>}
+                </button>
+              ))}
+              {routinesList.length === 0 && (
+                <div className="px-5 py-3 text-xs text-dram-muted">No routines yet. Create one from the Workouts page.</div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-dram-border">
+              <button onClick={() => setStartPickerOpen(false)} className="w-full text-sm text-slate-400 hover:text-slate-200 py-1 transition-colors">Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <DashboardV2
