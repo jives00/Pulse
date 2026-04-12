@@ -2174,6 +2174,84 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
   );
 });
 
+// ─── Today's Blurb ───────────────────────────────────────────────────────────
+
+function formatDuration(minutes: number | null): string {
+  if (!minutes) return '';
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function TodaysBlurb({
+  workouts,
+  foodLogHistory,
+}: {
+  workouts: WorkoutSummary[];
+  foodLogHistory: FoodLogHistoryDay[];
+}) {
+  const today = localDateStr();
+  const todayWorkouts = workouts.filter((w) => w.workoutDate === today);
+  const todayFood = foodLogHistory.find((d) => d.date === today);
+
+  const totalCarbs = Math.round(todayFood?.entries.reduce((s, e) => s + e.carbsG, 0) ?? 0);
+  const totalFat = Math.round(todayFood?.entries.reduce((s, e) => s + e.fatG, 0) ?? 0);
+
+  const workoutLines = todayWorkouts.map((w) => {
+    const name = w.name ?? 'Workout';
+    const isStairs = w.exercises.some((e) => /stair/i.test(e.name));
+
+    if (isStairs) {
+      const stairsEx = w.exercises.find((e) => /stair/i.test(e.name));
+      const reps = stairsEx?.avgReps != null && stairsEx.setCount > 0
+        ? Math.round(stairsEx.avgReps * stairsEx.setCount)
+        : null;
+      const dur = w.durationMinutes ? formatDuration(w.durationMinutes) : null;
+      const detail = [reps != null ? `${reps.toLocaleString()} stairs` : null, dur].filter(Boolean).join(' in ');
+      return `${name} completed${detail ? ` — ${detail}` : ''}`;
+    }
+
+    const volumeLbs = Math.round(w.totalVolumeKg * 2.20462);
+    return `${name} completed — total volume of ${volumeLbs.toLocaleString()} lbs`;
+  });
+
+  const hasData = todayWorkouts.length > 0 || todayFood != null;
+
+  return (
+    <div className="max-w-xl py-6 px-2 space-y-3 text-sm text-slate-300">
+      {!hasData && (
+        <p className="text-dram-muted italic">No data logged today yet.</p>
+      )}
+      {workoutLines.length > 0 && (
+        <div>
+          <p className="font-semibold text-slate-200 mb-1">Today's stats:</p>
+          <ul className="space-y-1 list-disc list-inside">
+            {workoutLines.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+            {todayFood && (
+              <li>
+                Calories: {todayFood.calories.toLocaleString()}, Protein: {Math.round(todayFood.protein)}g, Carbs: {totalCarbs}g, Fats: {totalFat}g
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+      {workoutLines.length === 0 && todayFood && (
+        <div>
+          <p className="font-semibold text-slate-200 mb-1">Today's stats:</p>
+          <ul className="space-y-1 list-disc list-inside">
+            <li>
+              Calories: {todayFood.calories.toLocaleString()}, Protein: {Math.round(todayFood.protein)}g, Carbs: {totalCarbs}g, Fats: {totalFat}g
+            </li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkoutsDashboardPage() {
@@ -2194,6 +2272,7 @@ export default function WorkoutsDashboardPage() {
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'blurb'>('dashboard');
 
   function load() {
     Promise.all([
@@ -2255,16 +2334,33 @@ export default function WorkoutsDashboardPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setStartPickerOpen(true)}
-            disabled={starting || startingRoutineId != null}
-            className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
-          >
-            {starting || startingRoutineId != null ? 'Starting…' : '+ Start Workout'}
-          </button>
+      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
+        <div className="flex items-center justify-between pb-3">
+          <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStartPickerOpen(true)}
+              disabled={starting || startingRoutineId != null}
+              className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+            >
+              {starting || startingRoutineId != null ? 'Starting…' : '+ Start Workout'}
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {(['dashboard', 'blurb'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === tab
+                  ? 'bg-dram-card text-slate-200 border border-b-0 border-dram-border'
+                  : 'text-dram-muted hover:text-slate-300'
+              }`}
+            >
+              {tab === 'dashboard' ? 'Dashboard' : "Today's Blurb"}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -2331,18 +2427,24 @@ export default function WorkoutsDashboardPage() {
         </div>
       )}
 
-      <DashboardV2
-        workouts={workouts}
-        measurements={measurements}
-        measurementGoals={measurementGoals}
-        personalBests={personalBests}
-        waterHistory={waterHistory}
-        foodLogHistory={foodLogHistory}
-        routinesList={routinesList}
-        loading={loading || (v2Loading && !v2Loaded)}
-        caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
-        proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}
-      />
+      {activeTab === 'dashboard' ? (
+        <DashboardV2
+          workouts={workouts}
+          measurements={measurements}
+          measurementGoals={measurementGoals}
+          personalBests={personalBests}
+          waterHistory={waterHistory}
+          foodLogHistory={foodLogHistory}
+          routinesList={routinesList}
+          loading={loading || (v2Loading && !v2Loaded)}
+          caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
+          proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto px-6">
+          <TodaysBlurb workouts={workouts} foodLogHistory={foodLogHistory} />
+        </div>
+      )}
     </div>
   );
 }
