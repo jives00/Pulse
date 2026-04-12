@@ -8,3 +8,4 @@ dist/
 Thumbs.db
 .expo/
 apps/mobile/.expo/
+apps/server/scripts/*.sql
