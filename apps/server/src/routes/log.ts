@@ -303,10 +303,13 @@ router.get('/history', async (req, res) => {
        FROM food_log fl
        JOIN foods f ON f.id = fl.food_id
        JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+       JOIN (
+         SELECT DISTINCT log_date FROM food_log
+         WHERE user_id = ? ORDER BY log_date DESC LIMIT ?
+       ) recent ON recent.log_date = fl.log_date
        WHERE fl.user_id = ?
-       ORDER BY fl.log_date DESC, fl.logged_at DESC
-       LIMIT ?`,
-      [req.userId, Number(limit)]
+       ORDER BY fl.log_date DESC, fl.logged_at DESC`,
+      [req.userId, Number(limit), req.userId]
     );
 
     const byDate: Map<string, { date: string; calories: number; protein: number; entries: object[] }> = new Map();
