@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, RefreshControl, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View, useWindowDimensions,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
-  getDailyHistory,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
-  type RecipeSearchResult, type DailyHistoryEntry,
+  type RecipeSearchResult,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -41,137 +40,6 @@ function formatDate(dateStr: string) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// ── Nutrition bar charts ─────────────────────────────────────────────────────
-
-function MiniBarChart({ data, dataKey, label, icon, color, goal, cardW, ch }: {
-  data: DailyHistoryEntry[];
-  dataKey: 'calories' | 'proteinG';
-  label: string;
-  icon: string;
-  color: string;
-  goal?: number | null;
-  cardW: number;
-  ch: ReturnType<typeof makeChStyles>;
-}) {
-  const BAR_W = 5;
-  const GAP = 2;
-  const chartH = 60;
-  const maxVal = Math.max(...data.map((d) => d[dataKey] ?? 0), goal ?? 0, 1);
-  const scrollRef = useRef<ScrollView>(null);
-
-  return (
-    <View style={[ch.card, { width: cardW }]}>
-      <View style={ch.header}>
-        <Text style={ch.icon}>{icon}</Text>
-        <Text style={[ch.label, { color }]}>{label}</Text>
-        {goal != null && <Text style={ch.goal}>/{goal}</Text>}
-      </View>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ height: chartH }}
-        contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap: GAP, paddingBottom: 2 }}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-      >
-        {data.map((entry) => {
-          const val = entry[dataKey] ?? 0;
-          if (val === 0) {
-            return <View key={entry.date} style={{ width: BAR_W, height: 2, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2 }} />;
-          }
-          const pct = Math.min(val / maxVal, 1);
-          const barH = Math.max(pct * (chartH - 2), 4);
-          const over = goal ? val > goal : false;
-          const dim = goal ? val / goal < 0.85 : false;
-          const barColor = over ? '#f87171' : dim ? `${color}55` : color;
-          return (
-            <View
-              key={entry.date}
-              style={{ width: BAR_W, height: barH, backgroundColor: barColor, borderRadius: 2 }}
-            />
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-function NutritionHistoryCharts({ calorieGoal, proteinGoal, token }: {
-  calorieGoal?: number | null;
-  proteinGoal?: number | null;
-  token: string;
-}) {
-  const c = useColors();
-  const ch = makeChStyles(c);
-  const [data, setData] = useState<DailyHistoryEntry[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 29);
-    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    getDailyHistory(token, fmt(start), fmt(end))
-      .then((raw) => {
-        const byDate = new Map(raw.map((d) => [d.date, d]));
-        const filled: DailyHistoryEntry[] = [];
-        for (let i = 0; i < 30; i++) {
-          const d = new Date(start);
-          d.setDate(start.getDate() + i);
-          const key = fmt(d);
-          filled.push(byDate.get(key) ?? { date: key, calories: 0, proteinG: 0, carbsG: 0, fatG: 0, entryCount: 0 });
-        }
-        setData(filled);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoaded(true));
-  }, [token]);
-
-  if (!loaded) return (
-    <View style={ch.row}>
-      {['Calories', 'Protein'].map((l) => (
-        <View key={l} style={ch.card}><Text style={{ fontSize: fontSize.xs, color: c.muted }}>Loading…</Text></View>
-      ))}
-    </View>
-  );
-
-  if (error) return (
-    <View style={ch.row}>
-      {['Calories', 'Protein'].map((l) => (
-        <View key={l} style={[ch.card, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={{ fontSize: fontSize.xs, color: c.muted }}>No data</Text>
-        </View>
-      ))}
-    </View>
-  );
-
-  return (
-    <NutritionChartRow calorieGoal={calorieGoal} proteinGoal={proteinGoal} data={data} ch={ch} />
-  );
-}
-
-function NutritionChartRow({ calorieGoal, proteinGoal, data, ch }: { calorieGoal?: number | null; proteinGoal?: number | null; data: DailyHistoryEntry[]; ch: ReturnType<typeof makeChStyles> }) {
-  const { width } = useWindowDimensions();
-  const cardW = (width - 28 - 8) / 2; // 14px padding each side, 8px gap
-  return (
-    <View style={{ flexDirection: 'row', gap: 8 }}>
-      <MiniBarChart data={data} dataKey="calories" label="Calories" icon="🔥" color="#60a5fa" goal={calorieGoal} cardW={cardW} ch={ch} />
-      <MiniBarChart data={data} dataKey="proteinG" label="Protein" icon="💪" color="#818cf8" goal={proteinGoal} cardW={cardW} ch={ch} />
-    </View>
-  );
-}
-
-function makeChStyles(c: Colors) {
-  return StyleSheet.create({
-    row: { flexDirection: 'row', gap: 8 },
-    card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 10, height: 110 },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-    icon: { fontSize: 12 },
-    label: { fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
-    goal: { fontSize: fontSize.xs, color: c.muted },
-  });
-}
 
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
@@ -499,6 +367,15 @@ export default function NutritionScreen() {
               <Text style={s.calActual}>{Math.round(totals.calories)}</Text>
               <Text style={s.calSep}> / </Text>
               <Text style={s.calGoalText}>{calGoal} kcal</Text>
+              {(() => {
+                const calRemaining = calGoal - Math.round(totals.calories);
+                const calOver = calRemaining < 0;
+                return (
+                  <Text style={[s.calRemaining, calOver && { color: c.error }]}>
+                    {calOver ? `  +${Math.abs(calRemaining)} over` : `  ${calRemaining} left`}
+                  </Text>
+                );
+              })()}
             </View>
             <View style={s.progressBg}>
               <View style={[s.progressFill, { width: `${calPct * 100}%` as any, backgroundColor: calPct >= 1 ? c.error : c.accent }]} />
@@ -508,22 +385,23 @@ export default function NutritionScreen() {
                 { label: 'Protein', val: totals.protein, goal: goals?.proteinG, color: '#60a5fa' },
                 { label: 'Carbs', val: totals.carbs, goal: goals?.carbsG, color: '#34d399' },
                 { label: 'Fat', val: totals.fat, goal: goals?.fatG, color: '#fb923c' },
-              ].map(({ label, val, goal, color }) => (
-                <View key={label} style={s.macroItem}>
-                  <Text style={[s.macroVal, { color }]}>{Math.round(val)}g</Text>
-                  <Text style={s.macroLabel}>{label}</Text>
-                  {goal != null && <Text style={s.macroGoal}>/ {goal}g</Text>}
-                </View>
-              ))}
+              ].map(({ label, val, goal, color }) => {
+                const remaining = goal != null ? Math.max(goal - Math.round(val), 0) : null;
+                const over = goal != null && Math.round(val) > goal;
+                return (
+                  <View key={label} style={s.macroItem}>
+                    <Text style={[s.macroVal, { color }]}>{Math.round(val)}g</Text>
+                    <Text style={s.macroLabel}>{label}</Text>
+                    {remaining !== null && (
+                      <Text style={[s.macroGoal, over && { color: c.error }]}>
+                        {over ? `+${Math.round(val) - goal!}g over` : `${remaining}g left`}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
-
-          {/* 30-day history charts */}
-          <NutritionHistoryCharts
-            calorieGoal={goals?.calories}
-            proteinGoal={goals?.proteinG}
-            token={token}
-          />
 
           {/* Water */}
           <View style={s.waterSection}>
@@ -871,6 +749,7 @@ function makeStyles(c: Colors) {
     calActual: { fontSize: fontSize['2xl'], fontWeight: '700', color: c.text },
     calSep: { fontSize: fontSize.base, color: c.muted },
     calGoalText: { fontSize: fontSize.sm, color: c.muted },
+    calRemaining: { fontSize: fontSize.sm, color: c.muted },
     progressBg: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 6, borderRadius: 3 },
     macroRow: { flexDirection: 'row', justifyContent: 'space-around' },
