@@ -87,10 +87,9 @@ function offToResult(p: Record<string, unknown>): FoodResult {
   const servingGrams = p.serving_quantity ? Number(p.serving_quantity) : null;
   const servingLabel = p.serving_size ? String(p.serving_size).trim() : null;
 
-  const servingSizes: FoodResult['servingSizes'] = [{ id: 0, label: '100g', grams: 100, isDefault: !servingGrams }];
-  if (servingGrams && servingGrams > 0) {
-    servingSizes.unshift({ id: 0, label: servingLabel ?? `${servingGrams}g`, grams: servingGrams, isDefault: true });
-  }
+  const servingSizes: FoodResult['servingSizes'] = servingGrams && servingGrams > 0
+    ? [{ id: 0, label: servingLabel ?? `${servingGrams}g`, grams: servingGrams, isDefault: true }]
+    : [{ id: 0, label: '100g', grams: 100, isDefault: true }];
 
   return {
     id: 0,

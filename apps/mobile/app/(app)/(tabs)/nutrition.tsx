@@ -733,7 +733,7 @@ export default function NutritionScreen() {
                     onPress={() => setSelectedServing(sv)}
                   >
                     <Text style={[s.servingLabel, selectedServing?.id === sv.id && { color: c.accent }]}>
-                      {sv.label} ({sv.grams}g)
+                      {sv.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
