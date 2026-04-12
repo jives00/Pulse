@@ -3,8 +3,9 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi, GLASS_OZ,
+  authApi, tagsApi, goalsApi, measurementsApi, profileApi, GLASS_OZ,
   type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
+  type UserProfile, type ActivityLevel,
 } from '@pulse/api-client';
 
 // ─── Shared primitives ────────────────────────────────────────
@@ -442,6 +443,148 @@ function GoalsTab() {
 
 // ─── User tab ─────────────────────────────────────────────────
 
+const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; description: string }[] = [
+  { value: 'sedentary',         label: 'Sedentary',          description: 'Little or no exercise' },
+  { value: 'lightly_active',    label: 'Lightly Active',     description: 'Light exercise 1–3 days/wk' },
+  { value: 'moderately_active', label: 'Moderately Active',  description: 'Moderate exercise 3–5 days/wk' },
+  { value: 'very_active',       label: 'Very Active',        description: 'Hard exercise 6–7 days/wk' },
+];
+
+function ProfileSection() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
+  const [sex, setSex] = useState<'male' | 'female' | ''>('');
+  const [dob, setDob] = useState('');
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>('sedentary');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    profileApi.get().then((p) => {
+      setProfile(p);
+      if (p.heightCm) {
+        const totalIn = p.heightCm / 2.54;
+        setHeightFt(String(Math.floor(totalIn / 12)));
+        setHeightIn(String(Math.round(totalIn % 12)));
+      }
+      if (p.sex) setSex(p.sex);
+      if (p.dob) setDob(p.dob);
+      setActivityLevel(p.activityLevel);
+    }).catch(() => {});
+  }, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSaving(true);
+    try {
+      const totalInches = (Number(heightFt) * 12) + Number(heightIn);
+      const heightCm = totalInches > 0 ? Math.round(totalInches * 2.54 * 10) / 10 : null;
+      await profileApi.update({
+        heightCm,
+        sex: sex || null,
+        dob: dob || null,
+        activityLevel,
+      });
+      setSuccess('Profile saved.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch {
+      setError('Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!profile) return <p className="text-sm text-gray-500">Loading…</p>;
+
+  return (
+    <form onSubmit={handleSave} className="space-y-4">
+      {/* Height */}
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Height</label>
+        <div className="flex gap-2 items-center">
+          <input
+            type="number" min="0" max="9" placeholder="ft"
+            value={heightFt}
+            onChange={(e) => setHeightFt(e.target.value)}
+            className={`${inputCls} w-20`}
+          />
+          <span className="text-sm text-gray-500">ft</span>
+          <input
+            type="number" min="0" max="11" placeholder="in"
+            value={heightIn}
+            onChange={(e) => setHeightIn(e.target.value)}
+            className={`${inputCls} w-20`}
+          />
+          <span className="text-sm text-gray-500">in</span>
+        </div>
+      </div>
+
+      {/* Sex */}
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Sex</label>
+        <div className="flex gap-2">
+          {(['male', 'female'] as const).map((s) => (
+            <button
+              key={s} type="button"
+              onClick={() => setSex(s)}
+              className={`px-4 py-1.5 rounded-lg text-sm border transition capitalize ${
+                sex === s
+                  ? 'border-dram-accent text-dram-accent bg-dram-accent/10 font-medium'
+                  : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date of birth */}
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Date of birth</label>
+        <input
+          type="date" value={dob}
+          onChange={(e) => setDob(e.target.value)}
+          className={inputCls}
+        />
+      </div>
+
+      {/* Activity level */}
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Activity level</label>
+        <div className="space-y-1.5">
+          {ACTIVITY_OPTIONS.map(({ value, label, description }) => (
+            <button
+              key={value} type="button"
+              onClick={() => setActivityLevel(value)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition ${
+                activityLevel === value
+                  ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
+                  : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
+              }`}
+            >
+              <span className="font-medium">{label}</span>
+              <span className="ml-2 text-xs opacity-70">{description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <StatusMsg error={error} success={success} />
+      <button
+        type="submit" disabled={saving}
+        className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 disabled:opacity-40 transition"
+      >
+        {saving ? 'Saving…' : 'Save profile'}
+      </button>
+    </form>
+  );
+}
+
 function ChangeUsername() {
   const { setToken } = useAuthStore();
   const [newUsername, setNewUsername] = useState('');
@@ -553,6 +696,9 @@ function ChangePassword() {
 function UserTab() {
   return (
     <div className="space-y-4">
+      <Section title="Profile">
+        <ProfileSection />
+      </Section>
       <Section title="Change Username">
         <ChangeUsername />
       </Section>

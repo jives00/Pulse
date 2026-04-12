@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket } from 'mysql2';
+import { calcTDEE, type ActivityLevel } from '../services/tdee';
 
 const router = Router();
 router.use(requireAuth);
@@ -155,6 +156,66 @@ router.get('/summary', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+// GET /api/goals/tdee?date=YYYY-MM-DD
+// Returns TDEE breakdown for the given day (defaults to today)
+router.get('/tdee', async (req, res) => {
+  const date = (req.query.date as string) || localDateStr();
+  try {
+    // User profile
+    const [userRows] = await pool.query<RowDataPacket[]>(
+      'SELECT height_cm, sex, dob, activity_level FROM users WHERE id = ?',
+      [req.userId]
+    );
+    const u = userRows[0];
+    if (!u?.height_cm || !u?.sex || !u?.dob) {
+      res.json({ available: false, reason: 'profile_incomplete' }); return;
+    }
+
+    // Latest body weight
+    const [wtRows] = await pool.query<RowDataPacket[]>(
+      `SELECT value, unit FROM body_measurements
+       WHERE user_id = ? AND metric = 'weight'
+       ORDER BY measured_at DESC, id DESC LIMIT 1`,
+      [req.userId]
+    );
+    if (!wtRows[0]) {
+      res.json({ available: false, reason: 'no_weight' }); return;
+    }
+    const wt = wtRows[0];
+    const weightKg = wt.unit === 'lb' ? Number(wt.value) / 2.20462 : Number(wt.value);
+
+    // Today's food calories
+    const [foodRows] = await pool.query<RowDataPacket[]>(
+      'SELECT COALESCE(SUM(calories), 0) AS totalCal FROM food_log WHERE user_id = ? AND log_date = ?',
+      [req.userId, date]
+    );
+    const caloriesIn = Number(foodRows[0]?.totalCal) || 0;
+
+    // Today's exercise calories
+    const [workoutRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(calories_burned), 0) AS totalBurned
+       FROM workout_logs WHERE user_id = ? AND workout_date = ? AND completed = 1`,
+      [req.userId, date]
+    );
+    const exerciseKcal = Number(workoutRows[0]?.totalBurned) || 0;
+
+    const breakdown = calcTDEE({
+      weightKg,
+      heightCm: Number(u.height_cm),
+      dob: u.dob instanceof Date ? u.dob.toISOString().slice(0, 10) : String(u.dob).slice(0, 10),
+      sex: u.sex as 'male' | 'female',
+      activityLevel: u.activity_level as ActivityLevel,
+      caloriesIn,
+      exerciseKcal,
+    });
+
+    res.json({ available: true, ...breakdown, caloriesIn });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to compute TDEE' });
   }
 });
 

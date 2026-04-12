@@ -615,6 +615,17 @@ export async function deleteData(token: string, scope: DeleteScope): Promise<voi
   await handle(res);
 }
 
+export type ActivityLevel = 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active';
+export interface UserProfile { heightCm: number | null; sex: 'male' | 'female' | null; dob: string | null; activityLevel: ActivityLevel; }
+export async function getProfile(token: string): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/api/auth/profile`, { headers: headers(token) });
+  return handle<UserProfile>(res);
+}
+export async function updateProfile(token: string, data: Partial<UserProfile>): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/auth/profile`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+
 // Nutrition goals
 export interface NutritionGoals { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz?: number; }
 export async function saveNutritionGoals(token: string, data: NutritionGoals): Promise<void> {

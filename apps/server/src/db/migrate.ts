@@ -19,6 +19,7 @@ const MIGRATIONS = [
   '013_links_category.sql',
   '015_workout_completed.sql',
   '016_exercise_tracked_fields.sql',
+  '017_user_profile.sql',
 ];
 
 async function migrate() {
@@ -285,6 +286,41 @@ async function migrate() {
       } else {
         console.log('  exercises.tracked_fields already exists, skipping ALTER.');
       }
+    }
+
+    if (file === '017_user_profile.sql') {
+      const [cols] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+           AND COLUMN_NAME IN ('height_cm', 'sex', 'dob', 'activity_level')`
+      );
+      const existing = (cols as any[]).map((r) => r.COLUMN_NAME);
+      if (!existing.includes('height_cm')) {
+        await conn.query(`ALTER TABLE users ADD COLUMN height_cm DECIMAL(5,1) NULL`);
+        console.log('  Added users.height_cm column.');
+      }
+      if (!existing.includes('sex')) {
+        await conn.query(`ALTER TABLE users ADD COLUMN sex ENUM('male','female') NULL`);
+        console.log('  Added users.sex column.');
+      }
+      if (!existing.includes('dob')) {
+        await conn.query(`ALTER TABLE users ADD COLUMN dob DATE NULL`);
+        console.log('  Added users.dob column.');
+      }
+      if (!existing.includes('activity_level')) {
+        await conn.query(`ALTER TABLE users ADD COLUMN activity_level ENUM('sedentary','lightly_active','moderately_active','very_active') NOT NULL DEFAULT 'sedentary'`);
+        console.log('  Added users.activity_level column.');
+      }
+      // Seed user 1 with Jeff's profile
+      await conn.query(`
+        UPDATE users SET
+          height_cm    = 167.6,
+          sex          = 'male',
+          dob          = '1980-02-16',
+          activity_level = 'sedentary'
+        WHERE id = 1 AND height_cm IS NULL
+      `);
+      console.log('  Seeded user 1 profile.');
     }
 
     await conn.query('INSERT INTO schema_migrations (name) VALUES (?)', [file]);

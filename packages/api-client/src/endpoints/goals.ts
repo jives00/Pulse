@@ -17,6 +17,23 @@ export interface GoalsSummary {
   };
 }
 
+export interface TDEEBreakdown {
+  available: true;
+  bmr: number;
+  neat: number;
+  tef: number;
+  exercise: number;
+  total: number;
+  caloriesIn: number;
+}
+
+export interface TDEEUnavailable {
+  available: false;
+  reason: 'profile_incomplete' | 'no_weight';
+}
+
+export type TDEEResult = TDEEBreakdown | TDEEUnavailable;
+
 export interface ExerciseGoals {
   id?: number;
   workoutsPerWeek: number | null;
@@ -45,4 +62,7 @@ export const goalsApi = {
 
   saveExercise: (data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null; volumeLbsPerWeek?: number | null }) =>
     apiClient.post<ExerciseGoals>('/goals/exercise', data).then((r) => r.data),
+
+  getTDEE: (date?: string) =>
+    apiClient.get<TDEEResult>('/goals/tdee', { params: date ? { date } : undefined }).then((r) => r.data),
 };

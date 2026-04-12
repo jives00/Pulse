@@ -146,6 +146,55 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/auth/profile — return height/sex/dob/activity_level
+router.get('/profile', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT height_cm, sex, dob, activity_level FROM users WHERE id = ?',
+      [req.userId]
+    );
+    const u = rows[0] ?? {};
+    res.json({
+      heightCm:      u.height_cm  ?? null,
+      sex:           u.sex        ?? null,
+      dob:           u.dob ? (u.dob instanceof Date ? u.dob.toISOString().slice(0, 10) : String(u.dob).slice(0, 10)) : null,
+      activityLevel: u.activity_level ?? 'sedentary',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/auth/profile — update height/sex/dob/activity_level
+router.put('/profile', requireAuth, async (req, res) => {
+  const { heightCm, sex, dob, activityLevel } = req.body as {
+    heightCm?: number | null;
+    sex?: 'male' | 'female' | null;
+    dob?: string | null;
+    activityLevel?: string;
+  };
+  const VALID_ACTIVITY = ['sedentary', 'lightly_active', 'moderately_active', 'very_active'];
+  if (activityLevel && !VALID_ACTIVITY.includes(activityLevel)) {
+    res.status(400).json({ error: 'Invalid activity level' }); return;
+  }
+  try {
+    await pool.query(
+      `UPDATE users SET
+         height_cm      = COALESCE(?, height_cm),
+         sex            = COALESCE(?, sex),
+         dob            = COALESCE(?, dob),
+         activity_level = COALESCE(?, activity_level)
+       WHERE id = ?`,
+      [heightCm ?? null, sex ?? null, dob ?? null, activityLevel ?? null, req.userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 router.delete('/data', requireAuth, async (req, res) => {
   const scope = req.query.scope as string;

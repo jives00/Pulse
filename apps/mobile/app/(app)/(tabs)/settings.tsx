@@ -11,6 +11,7 @@ import {
   getMeasurementGoals, setMeasurementGoal,
   getGoalsSummary,
   getTagDefinitions, saveTagDefinitions, type TagDefinitions,
+  getProfile, updateProfile, type ActivityLevel, type UserProfile,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
@@ -384,6 +385,121 @@ function TagsTab() {
 
 // ── User tab ──────────────────────────────────────────────────────────────────
 
+const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; desc: string }[] = [
+  { value: 'sedentary',         label: 'Sedentary',         desc: 'Little or no exercise' },
+  { value: 'lightly_active',    label: 'Lightly Active',    desc: 'Light 1–3 days/wk' },
+  { value: 'moderately_active', label: 'Moderately Active', desc: 'Moderate 3–5 days/wk' },
+  { value: 'very_active',       label: 'Very Active',       desc: 'Hard 6–7 days/wk' },
+];
+
+function ProfileSection() {
+  const c = useColors();
+  const s = makeStyles(c);
+  const token = useAuthStore((st) => st.token)!;
+
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
+  const [sex, setSex] = useState<'male' | 'female' | ''>('');
+  const [dob, setDob] = useState('');
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>('sedentary');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getProfile(token).then((p: UserProfile) => {
+      if (p.heightCm) {
+        const totalIn = p.heightCm / 2.54;
+        setHeightFt(String(Math.floor(totalIn / 12)));
+        setHeightIn(String(Math.round(totalIn % 12)));
+      }
+      if (p.sex) setSex(p.sex);
+      if (p.dob) setDob(p.dob);
+      setActivityLevel(p.activityLevel);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMsg('');
+    try {
+      const totalInches = (Number(heightFt) * 12) + Number(heightIn);
+      const heightCm = totalInches > 0 ? Math.round(totalInches * 2.54 * 10) / 10 : null;
+      await updateProfile(token, { heightCm, sex: sex || null, dob: dob || null, activityLevel });
+      setMsg('Profile saved.');
+      setTimeout(() => setMsg(''), 3000);
+    } catch {
+      setMsg('Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) return <ActivityIndicator style={{ marginTop: 20 }} color={c.accent} />;
+
+  return (
+    <View style={s.card}>
+      {/* Height */}
+      <View style={{ gap: 4 }}>
+        <Text style={s.fieldLabel}>Height</Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <TextInput style={[s.input, { width: 60 }]} value={heightFt} onChangeText={setHeightFt} keyboardType="numeric" placeholder="ft" placeholderTextColor={c.muted} />
+          <Text style={s.fieldLabel}>ft</Text>
+          <TextInput style={[s.input, { width: 60 }]} value={heightIn} onChangeText={setHeightIn} keyboardType="numeric" placeholder="in" placeholderTextColor={c.muted} />
+          <Text style={s.fieldLabel}>in</Text>
+        </View>
+      </View>
+
+      {/* Sex */}
+      <View style={{ gap: 4 }}>
+        <Text style={s.fieldLabel}>Sex</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {(['male', 'female'] as const).map((v) => (
+            <TouchableOpacity
+              key={v}
+              style={[s.sortPill, sex === v && s.sortPillActive]}
+              onPress={() => setSex(v)}
+            >
+              <Text style={[s.sortPillText, sex === v && s.sortPillTextActive, { textTransform: 'capitalize' }]}>{v}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Date of birth */}
+      <Field label="Date of birth (YYYY-MM-DD)">
+        <TextInput
+          style={s.input}
+          value={dob}
+          onChangeText={setDob}
+          placeholder="1990-01-01"
+          placeholderTextColor={c.muted}
+          keyboardType="numbers-and-punctuation"
+        />
+      </Field>
+
+      {/* Activity level */}
+      <View style={{ gap: 6 }}>
+        <Text style={s.fieldLabel}>Activity level</Text>
+        {ACTIVITY_OPTIONS.map(({ value, label, desc }) => (
+          <TouchableOpacity
+            key={value}
+            style={[s.sortPill, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }, activityLevel === value && s.sortPillActive]}
+            onPress={() => setActivityLevel(value)}
+          >
+            <Text style={[s.sortPillText, activityLevel === value && s.sortPillTextActive, { fontWeight: '600' }]}>{label}</Text>
+            <Text style={[s.sortPillText, activityLevel === value && s.sortPillTextActive, { fontSize: 11, opacity: 0.75 }]}>{desc}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {msg ? <Text style={msg.includes('saved') ? s.msgSuccess : s.msgError}>{msg}</Text> : null}
+      <SaveBtn onPress={handleSave} saving={saving} label="Save Profile" />
+    </View>
+  );
+}
+
 function UserTab() {
   const c = useColors();
   const s = makeStyles(c);
@@ -441,6 +557,9 @@ function UserTab() {
 
   return (
     <ScrollView contentContainerStyle={s.tabScroll}>
+      <SectionHeader title="Profile" />
+      <ProfileSection />
+
       <SectionHeader title="Change Username" />
       <View style={s.card}>
         <Field label="New username">

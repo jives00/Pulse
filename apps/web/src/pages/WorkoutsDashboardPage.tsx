@@ -7,7 +7,7 @@ import {
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
-  type WaterHistory, type FoodLogHistoryDay,
+  type WaterHistory, type FoodLogHistoryDay, type TDEEBreakdown,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
@@ -1088,12 +1088,14 @@ function NutritionFuelWidget({
   workouts,
   caloriesGoal,
   proteinGoal,
+  todayTDEE,
 }: {
   foodLogHistory: FoodLogHistoryDay[];
   waterHistory: WaterHistory | null;
   workouts: WorkoutSummary[];
   caloriesGoal: number | null;
   proteinGoal: number | null;
+  todayTDEE: TDEEBreakdown | null;
 }) {
   const now = new Date();
   const days30 = Array.from({ length: 30 }, (_, i) => {
@@ -1107,19 +1109,24 @@ function NutritionFuelWidget({
   const waterGoal = waterHistory?.goalOz ?? 64;
   const GLASS = 8;
 
-  // Calories burned per day from workouts
-  const burnedByDate: Record<string, number> = {};
+  // Exercise calories burned per day from workouts
+  const exerciseByDate: Record<string, number> = {};
   for (const w of workouts) {
     if (w.caloriesBurned) {
-      burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+      exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
     }
   }
+
+  const today = localDateStr();
 
   const chartData = days30.map((date) => {
     const food = foodByDate[date];
     const waterOz = waterByDate[date] ?? 0;
     const calories = food?.calories ?? 0;
-    const burned = burnedByDate[date] ?? 0;
+    // For today use full TDEE total; for past days use exercise calories only
+    const burned = date === today && todayTDEE
+      ? todayTDEE.total
+      : exerciseByDate[date] ?? 0;
     const net = calories > 0 || burned > 0 ? calories - burned : 0;
     return {
       date,
@@ -1130,10 +1137,11 @@ function NutritionFuelWidget({
       protein: food?.protein ?? 0,
       water: Math.round(waterOz / GLASS * 10) / 10,
       waterGoalGlasses: waterGoal / GLASS,
+      isTDEE: date === today && !!todayTDEE,
     };
   });
 
-  const hasBurnedData = Object.keys(burnedByDate).length > 0;
+  const hasBurnedData = Object.keys(exerciseByDate).length > 0 || !!todayTDEE;
 
   // Sparse x-axis tick: show label every ~5 days
   const xTicks = chartData
@@ -1187,7 +1195,7 @@ function NutritionFuelWidget({
           </span>
           {hasBurnedData && (
             <span className="flex items-center gap-1.5 text-sm text-slate-400">
-              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> burned
+              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> {todayTDEE ? 'TDEE (today) / exercise' : 'exercise'}
             </span>
           )}
           {caloriesGoal && (
@@ -1209,7 +1217,16 @@ function NutritionFuelWidget({
                   <div style={tooltipStyle.contentStyle}>
                     <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
                     {row && row.calories > 0 && <div style={{ color: '#fb923c' }}>{row.calories.toLocaleString()} kcal in</div>}
-                    {row && row.burned > 0 && <div style={{ color: '#f87171' }}>{row.burned.toLocaleString()} kcal burned</div>}
+                    {row && row.burned > 0 && row.isTDEE && todayTDEE ? (
+                      <div style={{ color: '#f87171' }}>
+                        <div>{row.burned.toLocaleString()} kcal burned (TDEE)</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                          BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF {todayTDEE.tef} + Exercise {todayTDEE.exercise}
+                        </div>
+                      </div>
+                    ) : row && row.burned > 0 ? (
+                      <div style={{ color: '#f87171' }}>{row.burned.toLocaleString()} kcal exercise</div>
+                    ) : null}
                     {row && (row.calories > 0 || row.burned > 0) && (
                       <div style={{ color: '#facc15' }}>net: {(row.calories - row.burned).toLocaleString()}</div>
                     )}
@@ -1665,7 +1682,7 @@ function PersonalBestsColumn({
 function DashboardV2({
   workouts, measurements, measurementGoals, personalBests,
   waterHistory, foodLogHistory, routinesList, loading,
-  caloriesGoal, proteinGoal,
+  caloriesGoal, proteinGoal, todayTDEE,
 }: {
   workouts: WorkoutSummary[];
   measurements: BodyMeasurement[];
@@ -1677,6 +1694,7 @@ function DashboardV2({
   loading: boolean;
   caloriesGoal: number | null;
   proteinGoal: number | null;
+  todayTDEE: TDEEBreakdown | null;
 }) {
   if (loading) return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading…</div>;
 
@@ -1730,7 +1748,7 @@ function DashboardV2({
           <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#fb923c' }} />
           <div className={cardHeaderCls}>Nutrition &amp; Fuel</div>
           <div className="px-5 pb-4">
-            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} />
+            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} todayTDEE={todayTDEE} />
           </div>
         </div>
 
@@ -2267,6 +2285,7 @@ export default function WorkoutsDashboardPage() {
   const [v2Loaded, setV2Loaded] = useState(false);
   const [waterHistory, setWaterHistory] = useState<WaterHistory | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
+  const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [starting, setStarting] = useState(false);
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
@@ -2299,14 +2318,16 @@ export default function WorkoutsDashboardPage() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 29);
       const start = localDateStr(startD);
-      const [wh, fl, rl] = await Promise.all([
+      const [wh, fl, rl, tdee] = await Promise.all([
         waterApi.getHistory(start, end).catch(() => null),
         logApi.getHistory(30).catch(() => []),
         routinesApi.getAll().catch(() => []),
+        goalsApi.getTDEE().catch(() => null),
       ]);
       setWaterHistory(wh);
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
       setRoutinesList(rl as RoutineSummary[]);
+      if (tdee && tdee.available) setTodayTDEE(tdee);
       setV2Loaded(true);
     } catch { /* ignore */ } finally { setV2Loading(false); }
   }
@@ -2439,6 +2460,7 @@ export default function WorkoutsDashboardPage() {
           loading={loading || (v2Loading && !v2Loaded)}
           caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
           proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}
+          todayTDEE={todayTDEE}
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-6">

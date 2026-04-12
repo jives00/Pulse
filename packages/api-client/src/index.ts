@@ -22,10 +22,12 @@ export { tagsApi }                     from './endpoints/tags';
 export { linksApi }                    from './endpoints/links';
 export { workoutsApi, exercisesApi, measurementsApi } from './endpoints/workouts';
 export { routinesApi } from './endpoints/routines';
+export { profileApi } from './endpoints/profile';
+export type { UserProfile, ActivityLevel } from './endpoints/profile';
 
 // Types from new endpoint modules
 export type { DeleteScope }                                            from './endpoints/auth';
-export type { GoalsSummary, ExerciseGoals }                           from './endpoints/goals';
+export type { GoalsSummary, ExerciseGoals, TDEEBreakdown, TDEEUnavailable, TDEEResult } from './endpoints/goals';
 export { GLASS_OZ }                                                    from './endpoints/goals';
 export type { TagDefinitions }                                         from './endpoints/tags';
 export type { HistoryEntry }                                           from './endpoints/recipes';
