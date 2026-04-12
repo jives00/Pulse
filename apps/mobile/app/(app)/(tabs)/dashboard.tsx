@@ -145,14 +145,15 @@ function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
 const CHART_H = 56;
 const DOT_R = 2.5;
 
-function MiniLineChart({ data, color, goalLine }: {
+function MiniLineChart({ data, color, goalLine, maxOverride }: {
   data: number[];
   color: string;
   goalLine?: number | null;
+  maxOverride?: number;
 }) {
   const { width: screenWidth } = useWindowDimensions();
   const chartWidth = screenWidth - 56;
-  const maxVal = Math.max(...data, goalLine ?? 0, 1);
+  const maxVal = maxOverride ?? Math.max(...data, goalLine ?? 0, 1);
   if (data.length < 2) return <View style={{ height: CHART_H }} />;
 
   const pts = data.map((val, i) => ({
@@ -512,15 +513,20 @@ export default function DashboardScreen() {
               {hasBurned && <Text style={{ fontSize: 9, color: c.muted }}>— burned</Text>}
               {caloriesGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal</Text>}
             </View>
-            {/* Calories area + burned overlay */}
-            <View style={{ height: CHART_H + 4, position: 'relative' }}>
-              <MiniLineChart data={calSeries} color="#fb923c" goalLine={caloriesGoal} />
-              {hasBurned && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.7 }}>
-                  <MiniLineChart data={burnedSeries} color="#f87171" />
+            {/* Calories area + burned overlay — shared scale so burned is proportional to consumed */}
+            {(() => {
+              const calMax = Math.max(...calSeries, ...burnedSeries, caloriesGoal ?? 0, 1);
+              return (
+                <View style={{ height: CHART_H + 4, position: 'relative' }}>
+                  <MiniLineChart data={calSeries} color="#fb923c" goalLine={caloriesGoal} maxOverride={calMax} />
+                  {hasBurned && (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.7 }}>
+                      <MiniLineChart data={burnedSeries} color="#f87171" maxOverride={calMax} />
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
+              );
+            })()}
           </View>
 
           {/* Protein */}
