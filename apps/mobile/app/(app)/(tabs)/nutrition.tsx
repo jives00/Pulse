@@ -5,11 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
 import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
-  getDailyHistory, createRecipeFromBarcode,
+  getDailyHistory,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult, type DailyHistoryEntry,
 } from '../../../src/api/client';
@@ -177,7 +176,6 @@ function makeChStyles(c: Colors) {
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
-  const router = useRouter();
   const [date, setDate] = useState(toDateStr(new Date()));
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,8 +215,6 @@ export default function NutritionScreen() {
   // Barcode scanner
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
-  // Pending barcode: set after scanning finds a food (not a recipe) so we can offer Save as Recipe
-  const pendingBarcodeRef = useRef<{ barcode: string; foodName: string } | null>(null);
   const swipe = useSwipeNav(2);
 
   const load = useCallback(async (silent = false) => {
@@ -344,55 +340,9 @@ export default function NutritionScreen() {
         selectRecipe(recipe);
       } else if (food) {
         selectFood(food);
-        // Offer to save this food as a reusable prepackaged recipe
-        const foodName = food.brand ? `${food.name} (${food.brand})` : food.name;
-        pendingBarcodeRef.current = { barcode, foodName };
-        Alert.alert(
-          'Save as Recipe?',
-          `Save "${foodName}" as a prepackaged recipe in your library?`,
-          [
-            {
-              text: 'Save',
-              onPress: async () => {
-                try {
-                  const result = await createRecipeFromBarcode(token, { barcode });
-                  if ('recipeId' in result && result.created) {
-                    setAddMeal(null);
-                    router.push(`/(app)/recipe/edit?id=${result.recipeId}`);
-                  }
-                } catch { /* ignore */ }
-                pendingBarcodeRef.current = null;
-              },
-            },
-            { text: 'Not now', style: 'cancel', onPress: () => { pendingBarcodeRef.current = null; } },
-          ]
-        );
       } else {
-        // Barcode not recognized — prompt for product name so AI can estimate nutrition
-        Alert.prompt(
-          'Product not found',
-          'Enter the product name to create a recipe with estimated nutrition:',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => { scannedRef.current = false; } },
-            {
-              text: 'Create Recipe',
-              onPress: async (name?: string) => {
-                if (!name?.trim()) { scannedRef.current = false; return; }
-                try {
-                  const result = await createRecipeFromBarcode(token, { barcode, name: name.trim() });
-                  if ('recipeId' in result) {
-                    setAddMeal(null);
-                    router.push(`/(app)/recipe/edit?id=${result.recipeId}`);
-                  }
-                } catch (e: any) {
-                  Alert.alert('Error', e.message || 'Could not create recipe.');
-                }
-                scannedRef.current = false;
-              },
-            },
-          ],
-          'plain-text'
-        );
+        Alert.alert('Barcode not recognized', 'No food found for this barcode.');
+        scannedRef.current = false;
       }
     } catch {
       Alert.alert('Error', 'Could not look up barcode.');

@@ -82,6 +82,16 @@ async function searchOpenFoodFacts(q: string): Promise<FoodResult[]> {
 
 function offToResult(p: Record<string, unknown>): FoodResult {
   const n = (p.nutriments as Record<string, unknown>) ?? {};
+
+  // Extract actual serving size from OFacts (serving_quantity is grams, serving_size is label)
+  const servingGrams = p.serving_quantity ? Number(p.serving_quantity) : null;
+  const servingLabel = p.serving_size ? String(p.serving_size).trim() : null;
+
+  const servingSizes: FoodResult['servingSizes'] = [{ id: 0, label: '100g', grams: 100, isDefault: !servingGrams }];
+  if (servingGrams && servingGrams > 0) {
+    servingSizes.unshift({ id: 0, label: servingLabel ?? `${servingGrams}g`, grams: servingGrams, isDefault: true });
+  }
+
   return {
     id: 0,
     barcode: String(p.code ?? p._id ?? ''),
@@ -97,7 +107,7 @@ function offToResult(p: Record<string, unknown>): FoodResult {
       fiber:    n['fiber_100g'] != null ? Number(n['fiber_100g']) : undefined,
       sodium:   n['sodium_100g'] != null ? Number(n['sodium_100g']) * 1000 : undefined,
     },
-    servingSizes: [{ id: 0, label: '100g', grams: 100, isDefault: true }],
+    servingSizes,
   };
 }
 
@@ -156,10 +166,12 @@ async function cacheFood(food: FoodResult): Promise<number> {
        food.nutrition.fiber ?? null, food.nutrition.sodium ?? null]
     );
     const foodId = result.insertId;
-    await conn.execute(
-      'INSERT INTO serving_sizes (food_id, label, grams, is_default) VALUES (?, ?, ?, 1)',
-      [foodId, '100g', 100]
-    );
+    for (const ss of food.servingSizes) {
+      await conn.execute(
+        'INSERT INTO serving_sizes (food_id, label, grams, is_default) VALUES (?, ?, ?, ?)',
+        [foodId, ss.label, ss.grams, ss.isDefault ? 1 : 0]
+      );
+    }
     await conn.commit();
     return foodId;
   } catch {
@@ -206,11 +218,14 @@ export async function searchFoods(q: string, limit: number): Promise<FoodResult[
         if (id) {
           f.id = id;
           const [rows] = await pool.query<RowDataPacket[]>(
-            'SELECT id FROM serving_sizes WHERE food_id = ? LIMIT 1',
+            'SELECT id, grams, is_default FROM serving_sizes WHERE food_id = ? ORDER BY is_default DESC, id ASC',
             [id]
           );
           if (rows.length) {
-            f.servingSizes = f.servingSizes.map((s) => ({ ...s, id: rows[0].id }));
+            f.servingSizes = f.servingSizes.map((s, i) => ({
+              ...s,
+              id: (rows[i] ?? rows[0]).id,
+            }));
           }
         }
       })
@@ -264,6 +279,13 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
         'INSERT INTO barcode_cache (barcode, food_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE food_id=?, fetched_at=NOW()',
         [barcode, foodId, foodId]
       );
+      const [ssRows] = await pool.query<RowDataPacket[]>(
+        'SELECT id FROM serving_sizes WHERE food_id = ? ORDER BY is_default DESC, id ASC',
+        [foodId]
+      );
+      if (ssRows.length) {
+        food.servingSizes = food.servingSizes.map((s, i) => ({ ...s, id: (ssRows[i] ?? ssRows[0]).id }));
+      }
     }
     return food;
   } catch {
