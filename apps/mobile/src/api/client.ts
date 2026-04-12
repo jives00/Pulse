@@ -264,7 +264,7 @@ export interface GoalsSummary { date: string; nutrition: { goals: { calories: nu
 export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackedFields?: string[]; mediaKey?: string | null; coverImageKey?: string | null; muscleImageKey?: string | null; }
 export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; distanceMeters: number | null; completed: boolean; }
 export interface WorkoutExercise { id: number; sortOrder: number; exercise: Exercise; sets: ExerciseSet[]; }
-export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; exercises: { name: string; setCount: number; }[]; }
+export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; caloriesBurned: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; routineId: number | null; exercises: { name: string; setCount: number; }[]; }
 export interface WorkoutDetail { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; startedAt: string | null; exercises: WorkoutExercise[]; }
 
 // Nutrition log
@@ -604,6 +604,20 @@ export async function getMeasurements(token: string): Promise<BodyMeasurement[]>
 export async function addMeasurement(token: string, data: { metric: string; value: number; unit: string; measuredAt: string }): Promise<BodyMeasurement> {
   const res = await fetch(`${API_BASE}/api/measurements`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<BodyMeasurement>(res);
+}
+
+export interface WaterHistoryDay { date: string; totalOz: number; }
+export interface WaterHistory { goalOz: number; days: WaterHistoryDay[]; }
+export async function getWaterHistory(token: string, start: string, end: string): Promise<WaterHistory> {
+  const res = await fetch(`${API_BASE}/api/water/history?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { headers: headers(token) });
+  return handle<WaterHistory>(res);
+}
+
+export interface FoodLogHistoryEntry { id: number; meal: string; foodName: string; calories: number; proteinG: number; carbsG: number; fatG: number; }
+export interface FoodLogHistoryDay { date: string; calories: number; protein: number; entries: FoodLogHistoryEntry[]; }
+export async function getFoodLogHistory(token: string, limit = 30): Promise<FoodLogHistoryDay[]> {
+  const res = await fetch(`${API_BASE}/api/log/history?limit=${limit}`, { headers: headers(token) });
+  return handle<FoodLogHistoryDay[]>(res);
 }
 
 export async function logRecipeToNutrition(

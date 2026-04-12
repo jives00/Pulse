@@ -218,6 +218,7 @@ router.get('/', async (req, res) => {
       setCount: Number(r.set_count),
       totalVolumeKg: Number(r.total_volume_kg),
       createdAt: r.created_at,
+      routineId: r.routine_id ?? null,
     }));
 
     if (!workouts.length) { res.json([]); return; }

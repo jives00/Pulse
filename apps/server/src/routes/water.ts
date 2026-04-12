@@ -56,6 +56,36 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /api/water/history?start=YYYY-MM-DD&end=YYYY-MM-DD
+router.get('/history', async (req, res) => {
+  const { start, end } = req.query as { start: string; end: string };
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT log_date AS date, ROUND(SUM(amount_oz), 1) AS totalOz
+       FROM water_log
+       WHERE user_id = ? AND log_date BETWEEN ? AND ?
+       GROUP BY log_date
+       ORDER BY log_date ASC`,
+      [req.userId, start, end]
+    );
+    const [goalRows] = await pool.query<RowDataPacket[]>(
+      'SELECT water_goal_oz FROM user_goals WHERE user_id = ? ORDER BY effective_from DESC, id DESC LIMIT 1',
+      [req.userId]
+    );
+    const goalOz = goalRows[0]?.water_goal_oz ?? 64;
+    res.json({
+      goalOz,
+      days: rows.map((r) => ({
+        date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
+        totalOz: Number(r.totalOz),
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch water history' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     await pool.execute('DELETE FROM water_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);

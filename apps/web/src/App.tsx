@@ -11,6 +11,7 @@ import TodayPage from './pages/TodayPage';
 import NutritionHistoryPage from './pages/NutritionHistoryPage';
 import FoodsPage from './pages/FoodsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
+import WorkoutsDashboardPage from './pages/WorkoutsDashboardPage';
 import WorkoutDetailPage from './pages/WorkoutDetailPage';
 import ExerciseDetailPage from './pages/ExerciseDetailPage';
 import RoutinesPage from './pages/RoutinesPage';
@@ -53,7 +54,10 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/food" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+
+          {/* Dashboard */}
+          <Route path="dashboard" element={<WorkoutsDashboardPage />} />
 
           {/* Food */}
           <Route path="food" element={<Library />} />
@@ -91,7 +95,7 @@ export default function App() {
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/recipes" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

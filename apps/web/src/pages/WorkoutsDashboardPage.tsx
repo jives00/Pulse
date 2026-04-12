@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer, LineChart, Line, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi,
-  type WorkoutSummary, type ExerciseGoals,
+  waterApi, logApi, historyApi,
+  type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
+  type WaterHistory, type FoodLogHistoryDay,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
@@ -408,6 +410,120 @@ function computeMeasurementProgress(
   return { pct, onTrack, barColor, defaultColor: cfg.color };
 }
 
+// ─── Dashboard: on-pace helpers ───────────────────────────────────────────────
+
+type PaceStatus = 'green' | 'yellow' | 'red' | 'done';
+interface PaceResult { status: PaceStatus; projectedDate: string | null; pct: number; }
+
+const PACE_COLORS: Record<PaceStatus, string> = {
+  green:  '#34d399',
+  yellow: '#facc15',
+  red:    '#f87171',
+  done:   '#34d399',
+};
+const PACE_LABELS: Record<PaceStatus, string> = {
+  green:  'On pace',
+  yellow: 'Slightly behind',
+  red:    'Behind',
+  done:   '🎉 Done!',
+};
+
+function PaceBadge({ status }: { status: PaceStatus }) {
+  const color = PACE_COLORS[status];
+  return (
+    <span
+      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+      style={{ color, backgroundColor: `${color}22` }}
+    >
+      {PACE_LABELS[status]}
+    </span>
+  );
+}
+
+function computeGoalPace(
+  measurements: BodyMeasurement[],
+  key: string,
+  goal: MeasurementGoal,
+  dir: 'up' | 'down',
+): PaceResult {
+  const forMetric = measurements
+    .filter((m) => m.metric === key)
+    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+
+  const latest = forMetric[0];
+  const oldest = forMetric[forMetric.length - 1];
+
+  if (!latest) return { status: 'red', projectedDate: null, pct: 0 };
+
+  // Convert weight from kg to lbs if needed
+  const latestVal  = key === 'weight' && latest.unit === 'kg'  ? latest.value  * 2.20462 : latest.value;
+  const oldestVal  = oldest  ? (key === 'weight' && oldest.unit === 'kg'  ? oldest.value  * 2.20462 : oldest.value) : latestVal;
+  const target     = goal.targetValue; // always stored in display unit (lbs/in/%)
+
+  const totalChange  = dir === 'down' ? oldestVal - target : target - oldestVal;
+  const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;
+
+  const pct = totalChange > 0
+    ? Math.min(Math.max(actualChange / totalChange, 0), 1)
+    : (dir === 'down' ? (latestVal <= target ? 1 : 0) : (latestVal >= target ? 1 : 0));
+
+  if (pct >= 1) return { status: 'done', projectedDate: null, pct: 1 };
+
+  let projectedDate: string | null = null;
+  let status: PaceStatus = 'red';
+
+  if (goal.targetDate && oldest && oldest.measuredAt !== latest.measuredAt && actualChange > 0) {
+    const startMs   = new Date(oldest.measuredAt + 'T12:00:00').getTime();
+    const endMs     = new Date(goal.targetDate   + 'T12:00:00').getTime();
+    const nowMs     = Date.now();
+    const totalMs   = endMs - startMs;
+    const elapsedMs = nowMs - startMs;
+
+    if (totalMs > 0 && elapsedMs > 0) {
+      const neededRate = totalChange / totalMs;
+      const actualRate = actualChange / elapsedMs;
+      const ratio      = actualRate / neededRate;
+
+      const remainingChange = totalChange - actualChange;
+      const msTillDone      = remainingChange / actualRate;
+      const projMs          = nowMs + msTillDone;
+      projectedDate = new Date(projMs).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+
+      if (ratio >= 1)        status = 'green';
+      else if (ratio >= 0.8) status = 'yellow';
+      else                   status = 'red';
+    }
+  } else if (actualChange <= 0 && totalChange > 0) {
+    status = 'red';
+  }
+
+  return { status, projectedDate, pct };
+}
+
+// ─── Dashboard: compact volume sparkline ─────────────────────────────────────
+
+function VolumeSparkline({ data, goal }: { data: WeekBucket[]; goal: number | null }) {
+  return (
+    <div style={{ height: 52 }}>
+      <ResponsiveContainer width="100%" height={52}>
+        <BarChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }} barCategoryGap={3}>
+          <YAxis hide domain={[0, 'auto']} />
+          <Bar dataKey="volumeLbs" maxBarSize={14} radius={[2, 2, 0, 0]}>
+            {data.map((entry, i) => {
+              const isCurrent = i === data.length - 1;
+              const dim = goal ? entry.volumeLbs / goal < 0.85 : false;
+              const fill = isCurrent ? '#a78bfa' : dim ? '#a78bfa44' : '#a78bfa88';
+              return <Cell key={entry.weekStart} fill={fill} />;
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function BodyMeasurementsCard({
   measurements,
   goals,
@@ -700,6 +816,822 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard V2 ────────────────────────────────────────────────────────────
+
+const CREATINE_FOOD_NAME = 'Creatine Monohydrate';
+// Saturation model: ~28 days to full saturation after consistent daily dosing
+const SATURATION_DAYS = 28;
+
+// Palette for per-routine lines in heatmap
+const ROUTINE_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fb923c', '#f472b6', '#facc15', '#38bdf8'];
+
+function SemiCircleGauge({ pct, color, size = 120 }: { pct: number; color: string; size?: number }) {
+  const strokeW = 10;
+  const r = (size - strokeW) / 2;
+  const cx = size / 2;
+  // Place arc center at the BOTTOM of the SVG so the semicircle opens upward.
+  // SVG height = r + strokeW so the arc fits exactly.
+  const cy = r + strokeW / 2; // = size/2 (since r = (size-strokeW)/2)
+  // Both endpoints sit on the horizontal center line (cy):
+  //   left  = (cx - r, cy)
+  //   right = (cx + r, cy)
+  // We want the arc to go through the TOP (lower Y in SVG).
+  // sweep-flag=1 (clockwise in SVG screen coords) goes UP through the top.
+  const left  = { x: cx - r, y: cy };
+  const right = { x: cx + r, y: cy };
+  // Background: full semicircle left→top→right, sweep=1
+  const bgPath = `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${right.x} ${right.y}`;
+
+  const clampedPct = Math.min(Math.max(pct, 0), 1);
+
+  // Foreground: partial arc from left endpoint, sweeping right by pct*180°.
+  // Angle in SVG: 0° = right, going clockwise. The left endpoint is at 180°.
+  // End angle = 180° - clampedPct*180° (in standard math coords, which maps to SVG sweep).
+  // We parameterise points as: x = cx + r*cos(θ), y = cy - r*sin(θ)
+  //   θ=180° → left endpoint ✓
+  //   θ=90°  → top of arc (cx, cy-r) ✓ (lower Y = higher on screen)
+  //   θ=0°   → right endpoint ✓
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const endDeg = 180 - clampedPct * 180;
+  const ex = cx + r * Math.cos(toRad(endDeg));
+  const ey = cy - r * Math.sin(toRad(endDeg));
+
+  // large-arc-flag=1 when pct>0.5 (arc spans more than 180° would, but since max is 180° here,
+  // we actually only need it when the arc passes through the midpoint top → use 0 always because
+  // our arc is always ≤180°; EXCEPT at exactly pct=1 start=end so we split into two arcs).
+  const fgPath = clampedPct <= 0
+    ? null
+    : clampedPct >= 1
+      // Split into two 90° arcs to avoid degenerate start=end path
+      ? `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${right.x} ${right.y}`
+      : `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${ex} ${ey}`;
+
+  const svgH = r + strokeW;
+  return (
+    <svg width={size} height={svgH} style={{ overflow: 'visible' }}>
+      <path d={bgPath} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} strokeLinecap="round" />
+      {fgPath && <path d={fgPath} fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.5s ease' }} />}
+    </svg>
+  );
+}
+
+function GoalGaugeCard({
+  measurements, goals, metric, creatineSatPct,
+}: {
+  measurements: BodyMeasurement[];
+  goals: Record<string, MeasurementGoal>;
+  metric: string;
+  creatineSatPct?: number | null;
+}) {
+  const cfg = METRIC_CONFIG[metric];
+  const goal = goals[metric];
+  const sorted = measurements.filter((m) => m.metric === metric).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+  const latest = sorted[0];
+
+  const displayVal = latest
+    ? (metric === 'weight' && latest.unit === 'kg' ? (latest.value * 2.20462).toFixed(1) : String(latest.value))
+    : null;
+
+  const { status, projectedDate, pct } = goal
+    ? computeGoalPace(measurements, metric, goal, cfg.defaultGoalDir)
+    : { status: 'red' as PaceStatus, projectedDate: null, pct: 0 };
+
+  const paceColor = PACE_COLORS[status];
+
+  // Delta from current to goal (signed: negative = need to lose, positive = need to gain)
+  const delta = goal && displayVal != null
+    ? (goal.targetValue - Number(displayVal)).toFixed(1)
+    : null;
+  const deltaNum = delta != null ? Number(delta) : null;
+  const deltaDisplay = deltaNum != null
+    ? `${deltaNum > 0 ? '+' : ''}${delta} ${cfg.unit}`
+    : null;
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 py-4 px-3">
+      {/* Label + pace badge above gauge */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: cfg.color }}>{cfg.label}</span>
+        <PaceBadge status={status} />
+      </div>
+      {/* Gauge */}
+      <div className="relative flex items-end justify-center mt-2" style={{ width: 120, height: 68 }}>
+        <SemiCircleGauge pct={pct} color={paceColor} size={120} />
+        <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
+          <span className="text-xl font-bold text-white leading-none">{displayVal ?? '—'}</span>
+          <span className="text-[10px] text-dram-muted leading-none">{cfg.unit}</span>
+        </div>
+      </div>
+      {/* Target + delta — aligned to semicircle endpoints */}
+      {goal ? (
+        <div className="flex justify-between mt-0.5" style={{ width: 120 }}>
+          <span className="text-sm font-semibold text-dram-muted">{goal.targetValue} <span className="font-normal text-xs">{cfg.unit}</span></span>
+          {deltaDisplay && deltaNum !== 0 && (
+            <span className="text-sm font-semibold" style={{ color: paceColor }}>{deltaDisplay}</span>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-dram-muted">No goal set</div>
+      )}
+      {/* Projected date — centered */}
+      {projectedDate && (
+        <div className="text-sm font-medium text-center" style={{ width: 120, color: paceColor }}>Proj: {projectedDate}</div>
+      )}
+      {/* Water weight callout during creatine loading phase */}
+      {metric === 'weight' && creatineSatPct != null && creatineSatPct > 0 && creatineSatPct < 1 && (
+        <div className="mt-2 px-2 py-1.5 rounded-lg text-center" style={{ backgroundColor: 'rgba(56,189,248,0.10)', border: '1px solid rgba(56,189,248,0.25)' }}>
+          <div className="text-[10px] font-semibold" style={{ color: '#38bdf8' }}>💧 Water Weight Loading</div>
+          <div className="text-[10px] text-slate-400 leading-snug mt-0.5">
+            Creatine may add 1–3 lbs of water weight. Scale bump is expected — muscle gains are real.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Derives creatine saturation data from food log history. Returns null if no creatine found. */
+function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]): {
+  satPct: number;
+  daysSinceStart: number;
+  loggedDays: number;
+  firstDate: string;
+  daysToFull: number;
+  phase: string;
+  compliancePct: number;
+} | null {
+  // All days in history that had creatine logged
+  const creatineDays = foodLogHistory
+    .filter((day) => day.entries.some((e) => e.foodName.toLowerCase().includes('creatine')))
+    .map((day) => day.date)
+    .sort();
+
+  if (creatineDays.length === 0) return null;
+
+  const firstDate = creatineDays[0];
+  const firstMs = new Date(firstDate + 'T12:00:00').getTime();
+  const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)));
+  const loggedDays = creatineDays.length;
+
+  // Compliance = fraction of days since start that had creatine logged
+  const compliancePct = Math.min(loggedDays / daysSinceStart, 1);
+
+  // Saturation model: 28-day curve, weighted by compliance
+  const timePct = Math.min(daysSinceStart / SATURATION_DAYS, 1);
+  const satPct = timePct * compliancePct;
+
+  // Days remaining to projected full saturation at current compliance rate
+  const daysToFull = satPct >= 1
+    ? 0
+    : compliancePct > 0
+      ? Math.ceil((SATURATION_DAYS - daysSinceStart / compliancePct) / compliancePct)
+      : SATURATION_DAYS - daysSinceStart;
+
+  // Phase label
+  const phase = daysSinceStart <= 7
+    ? 'Initial Uptake'
+    : satPct >= 1
+      ? 'Full Saturation'
+      : daysSinceStart <= 21
+        ? 'The Build'
+        : 'Peak Performance';
+
+  return { satPct, daysSinceStart, loggedDays, firstDate, daysToFull: Math.max(0, daysToFull), phase, compliancePct };
+}
+
+function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[] }) {
+  const data = computeCreatineSaturation(foodLogHistory);
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
+        <div className="text-2xl">🧪</div>
+        <div className="text-xs text-dram-muted">No creatine logged in the last 30 days</div>
+      </div>
+    );
+  }
+
+  const { satPct, daysSinceStart, loggedDays, firstDate, daysToFull, phase, compliancePct } = data;
+  const satDisplay = Math.round(satPct * 100);
+  const satColor = satPct >= 0.9 ? '#34d399' : satPct >= 0.5 ? '#facc15' : '#f87171';
+  const complianceColor = compliancePct >= 0.9 ? '#34d399' : compliancePct >= 0.7 ? '#facc15' : '#f87171';
+
+  const startFormatted = new Date(firstDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4">
+      {/* Gauge + center label */}
+      <div className="flex flex-col items-center gap-1">
+        <div className="relative flex items-end justify-center" style={{ width: 120, height: 68 }}>
+          <SemiCircleGauge pct={satPct} color={satColor} size={120} />
+          <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
+            <span className="text-xl font-bold text-white leading-none">{satDisplay}%</span>
+            <span className="text-[10px] text-dram-muted leading-none">saturated</span>
+          </div>
+        </div>
+        {/* Phase badge */}
+        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full mt-1"
+          style={{ color: satColor, backgroundColor: `${satColor}22` }}>
+          {phase}
+        </span>
+      </div>
+
+      {/* Milestone countdown */}
+      {satPct < 1 && (
+        <div className="text-center text-xs text-dram-muted">
+          {daysToFull > 0
+            ? <><span className="text-slate-300 font-semibold">{daysToFull}d</span> to peak performance</>
+            : <span className="text-slate-300 font-semibold">Almost there!</span>
+          }
+        </div>
+      )}
+      {satPct >= 1 && (
+        <div className="text-center text-xs font-semibold" style={{ color: '#34d399' }}>
+          Peak performance achieved 🎯
+        </div>
+      )}
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+          <div className="text-sm font-bold text-white">{daysSinceStart}d</div>
+          <div className="text-[10px] text-dram-muted">since {startFormatted}</div>
+        </div>
+        <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+          <div className="text-sm font-bold" style={{ color: complianceColor }}>{Math.round(compliancePct * 100)}%</div>
+          <div className="text-[10px] text-dram-muted">{loggedDays} / {daysSinceStart} days</div>
+        </div>
+      </div>
+
+      {/* Compliance label */}
+      <div className="text-center text-[10px] text-dram-muted -mt-2">compliance</div>
+
+      {/* Compliance bar */}
+      <div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${compliancePct * 100}%`, backgroundColor: complianceColor }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NutritionFuelWidget({
+  foodLogHistory,
+  waterHistory,
+  workouts,
+  caloriesGoal,
+  proteinGoal,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  waterHistory: WaterHistory | null;
+  workouts: WorkoutSummary[];
+  caloriesGoal: number | null;
+  proteinGoal: number | null;
+}) {
+  const now = new Date();
+  const days30 = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (29 - i));
+    return localDateStr(d);
+  });
+
+  const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
+  const waterByDate = Object.fromEntries((waterHistory?.days ?? []).map((d) => [d.date, d.totalOz]));
+  const waterGoal = waterHistory?.goalOz ?? 64;
+  const GLASS = 8;
+
+  // Calories burned per day from workouts
+  const burnedByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.caloriesBurned) {
+      burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+    }
+  }
+
+  const chartData = days30.map((date) => {
+    const food = foodByDate[date];
+    const waterOz = waterByDate[date] ?? 0;
+    const calories = food?.calories ?? 0;
+    const burned = burnedByDate[date] ?? 0;
+    const net = calories > 0 || burned > 0 ? calories - burned : 0;
+    return {
+      date,
+      label: new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+      calories,
+      burned,
+      net,
+      protein: food?.protein ?? 0,
+      water: Math.round(waterOz / GLASS * 10) / 10,
+      waterGoalGlasses: waterGoal / GLASS,
+    };
+  });
+
+  const hasBurnedData = Object.keys(burnedByDate).length > 0;
+
+  // Sparse x-axis tick: show label every ~5 days
+  const xTicks = chartData
+    .filter((_, i) => i % 5 === 0 || i === chartData.length - 1)
+    .map((d) => d.date);
+
+  const chartH = 80;
+  const margin = { top: 4, right: 4, left: 0, bottom: 0 };
+
+  const xAxis = (
+    <XAxis
+      dataKey="date"
+      ticks={xTicks}
+      tickFormatter={(v) => {
+        const d = new Date(v + 'T12:00:00');
+        return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+      }}
+      tick={{ fontSize: 9, fill: '#64748b' }}
+      tickLine={false}
+      axisLine={false}
+      height={18}
+    />
+  );
+
+  const tooltipStyle = {
+    contentStyle: { backgroundColor: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 8px', fontSize: 11 },
+    itemStyle: { color: '#e2e8f0' },
+    labelStyle: { color: '#64748b', marginBottom: 2, fontSize: 10 },
+    cursor: { stroke: 'rgba(255,255,255,0.08)' },
+  };
+
+  const calDomain: [number, number] = [
+    0,
+    Math.max(
+      ...chartData.map((d) => Math.max(d.calories, d.burned)),
+      caloriesGoal ?? 0,
+      1
+    ) * 1.1,
+  ];
+
+  return (
+    <div className="flex flex-col gap-4 pt-3">
+      <div className="text-xs font-semibold text-dram-muted uppercase tracking-wide">Last 30 Days</div>
+
+      {/* ── Calories ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-xs text-slate-400">Calories</span>
+          <span className="flex items-center gap-1 text-[10px] text-slate-500">
+            <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: '#fb923c' }} /> in
+          </span>
+          {hasBurnedData && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: '#f87171' }} /> burned
+            </span>
+          )}
+          {caloriesGoal && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(251,146,60,0.35)' }} /> goal
+            </span>
+          )}
+        </div>
+        <ResponsiveContainer width="100%" height={chartH + 18}>
+          <ComposedChart data={chartData} margin={margin}>
+            <YAxis hide domain={calDomain} />
+            {xAxis}
+            <Tooltip
+              {...tooltipStyle}
+              content={({ active, payload, label: lbl }) => {
+                if (!active || !payload?.length) return null;
+                const row = chartData.find((d) => d.date === lbl);
+                return (
+                  <div style={tooltipStyle.contentStyle}>
+                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
+                    {row && row.calories > 0 && <div style={{ color: '#fb923c' }}>{row.calories.toLocaleString()} kcal in</div>}
+                    {row && row.burned > 0 && <div style={{ color: '#f87171' }}>{row.burned.toLocaleString()} kcal burned</div>}
+                    {row && (row.calories > 0 || row.burned > 0) && (
+                      <div style={{ color: '#facc15' }}>net: {(row.calories - row.burned).toLocaleString()}</div>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            {caloriesGoal && (
+              <ReferenceLine y={caloriesGoal} stroke="rgba(251,146,60,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+            )}
+            <Area
+              type="monotone"
+              dataKey="calories"
+              stroke="#fb923c"
+              strokeWidth={1.5}
+              fill="#fb923c"
+              fillOpacity={0.12}
+              dot={false}
+              activeDot={{ r: 3, fill: '#fb923c' }}
+            />
+            {hasBurnedData && (
+              <Line
+                type="monotone"
+                dataKey="burned"
+                stroke="#f87171"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                dot={false}
+                activeDot={{ r: 3, fill: '#f87171' }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Protein ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-xs text-slate-400">Protein</span>
+          {proteinGoal && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(96,165,250,0.35)' }} /> goal {proteinGoal}g
+            </span>
+          )}
+        </div>
+        <ResponsiveContainer width="100%" height={chartH + 18}>
+          <LineChart data={chartData} margin={margin}>
+            <YAxis hide domain={[0, Math.max(...chartData.map((d) => d.protein), proteinGoal ?? 0, 1) * 1.1]} />
+            {xAxis}
+            <Tooltip
+              {...tooltipStyle}
+              content={({ active, payload, label: lbl }) => {
+                if (!active || !payload?.length) return null;
+                const row = chartData.find((d) => d.date === lbl);
+                return (
+                  <div style={tooltipStyle.contentStyle}>
+                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
+                    {row && <div style={{ color: '#60a5fa' }}>{row.protein}g protein</div>}
+                  </div>
+                );
+              }}
+            />
+            {proteinGoal && (
+              <ReferenceLine y={proteinGoal} stroke="rgba(96,165,250,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+            )}
+            <Line
+              type="monotone"
+              dataKey="protein"
+              stroke="#60a5fa"
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, fill: '#60a5fa' }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Water ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-xs text-slate-400">Water</span>
+          <span className="flex items-center gap-1 text-[10px] text-slate-500">
+            <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(56,189,248,0.35)' }} /> goal {Math.round(waterGoal / GLASS)} glasses
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={chartH + 18}>
+          <LineChart data={chartData} margin={margin}>
+            <YAxis hide domain={[0, Math.max(Math.ceil(waterGoal / GLASS) + 2, ...chartData.map((d) => d.water))]} />
+            {xAxis}
+            <Tooltip
+              {...tooltipStyle}
+              content={({ active, payload, label: lbl }) => {
+                if (!active || !payload?.length) return null;
+                const row = chartData.find((d) => d.date === lbl);
+                return (
+                  <div style={tooltipStyle.contentStyle}>
+                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
+                    {row && <div style={{ color: '#38bdf8' }}>{row.water} glasses ({Math.round(row.water * GLASS)} oz)</div>}
+                  </div>
+                );
+              }}
+            />
+            <ReferenceLine y={waterGoal / GLASS} stroke="rgba(56,189,248,0.30)" strokeDasharray="4 3" strokeWidth={1} />
+            <Line
+              type="monotone"
+              dataKey="water"
+              stroke="#38bdf8"
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, fill: '#38bdf8' }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// Routine volume heatmap — 13 weeks × routines grid
+function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+  }, [workouts.length]);
+  // Build 13-week buckets
+  const now = new Date();
+  const weeks = Array.from({ length: 13 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (12 - i) * 7);
+    const ws = getWeekStart(localDateStr(d));
+    const weekDate = new Date(ws + 'T12:00:00');
+    return {
+      weekStart: ws,
+      label: weekDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+    };
+  });
+
+  // Get routines that have volume (any workout using that routine with totalVolumeKg > 0)
+  const routineVolumes: Record<number, Record<string, number>> = {}; // routineId → weekStart → volumeLbs
+  for (const w of workouts) {
+    if (!w.routineId || w.totalVolumeKg <= 0) continue;
+    const ws = getWeekStart(w.workoutDate);
+    if (!routineVolumes[w.routineId]) routineVolumes[w.routineId] = {};
+    routineVolumes[w.routineId][ws] = (routineVolumes[w.routineId][ws] ?? 0) + w.totalVolumeKg * 2.20462;
+  }
+
+  // Only keep routines that appear in our 13-week window and have volume
+  const relevantRoutineIds = Object.keys(routineVolumes)
+    .map(Number)
+    .filter((rid) => weeks.some((wk) => (routineVolumes[rid][wk.weekStart] ?? 0) > 0));
+
+  if (relevantRoutineIds.length === 0) {
+    return <div className="text-xs text-dram-muted py-4 text-center">No routine volume data in the last 13 weeks</div>;
+  }
+
+  // Global max across all routines — so cells scale relative to each other
+  const globalMax = Math.max(
+    ...relevantRoutineIds.flatMap((rid) => Object.values(routineVolumes[rid]))
+  );
+
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+
+  // Sticky-column approach: wrap in a relative container, scroll only the week columns,
+  // keep routine name column pinned to the left at all times.
+  return (
+    <div className="flex flex-col gap-2">
+      <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <table className="text-xs border-collapse" style={{ tableLayout: 'auto' }}>
+          <thead>
+            <tr>
+              {/* Sticky routine label header */}
+              <th
+                className="text-left text-dram-muted font-normal pb-1 pr-3 whitespace-nowrap"
+                style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--color-dram-card, #1e2433)' }}
+              >
+                Routine
+              </th>
+              {weeks.map((wk) => (
+                <th key={wk.weekStart} className="text-dram-muted font-normal pb-1 px-0.5 text-center" style={{ minWidth: 28 }}>
+                  {wk.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {relevantRoutineIds.map((rid) => {
+              return (
+                <tr key={rid}>
+                  {/* Sticky routine name cell */}
+                  <td
+                    className="text-slate-300 pr-3 py-0.5 whitespace-nowrap"
+                    style={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'var(--color-dram-card, #1e2433)', maxWidth: 120 }}
+                  >
+                    <span className="block truncate max-w-[110px]">{routineNameById[rid] ?? `Routine ${rid}`}</span>
+                  </td>
+                  {weeks.map((wk) => {
+                    const vol = routineVolumes[rid][wk.weekStart] ?? 0;
+                    const intensity = globalMax > 0 ? vol / globalMax : 0;
+                    // Higher volume = dark purple; low volume = light/muted purple
+                    const r = Math.round(167 - intensity * (167 - 80));
+                    const g = Math.round(139 - intensity * (139 - 60));
+                    const b = Math.round(250 - intensity * (250 - 160));
+                    const bgColor = vol > 0
+                      ? `rgb(${r},${g},${b})`
+                      : 'rgba(255,255,255,0.04)';
+                    return (
+                      <td key={wk.weekStart} className="px-0.5 py-0.5">
+                        <div
+                          title={vol > 0 ? `${Math.round(vol).toLocaleString()} lbs` : 'No workout'}
+                          className="rounded-sm mx-auto cursor-default"
+                          style={{ width: 24, height: 20, backgroundColor: bgColor }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-2 text-[10px] text-dram-muted">
+        <span>Lower</span>
+        <div className="flex gap-0.5">
+          {[0.1, 0.3, 0.55, 0.75, 1.0].map((t) => {
+            const r = Math.round(167 - t * (167 - 80));
+            const g = Math.round(139 - t * (139 - 60));
+            const b = Math.round(250 - t * (250 - 160));
+            return <div key={t} className="w-3 h-3 rounded-sm" style={{ backgroundColor: `rgb(${r},${g},${b})` }} />;
+          })}
+        </div>
+        <span>Higher volume</span>
+      </div>
+    </div>
+  );
+}
+
+// Last 10 workouts log with delta vs prior same-routine session
+function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
+  const last10 = completed.slice(0, 10);
+
+  return (
+    <div className="space-y-1">
+      {last10.length === 0 && <div className="text-xs text-dram-muted py-2">No workouts yet.</div>}
+      {last10.map((w) => {
+        const volLbs = Math.round(w.totalVolumeKg * 2.20462);
+        const routineName = w.routineId ? (routineNameById[w.routineId] ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
+
+        // Find prior session of same routine (or same name if no routine)
+        let prior: WorkoutSummary | undefined;
+        if (w.routineId) {
+          prior = completed.find((x) => x.id !== w.id && x.routineId === w.routineId && x.workoutDate < w.workoutDate);
+        }
+
+        const priorVolLbs = prior ? Math.round(prior.totalVolumeKg * 2.20462) : null;
+        const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
+        const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
+
+        return (
+          <div key={w.id} className="flex items-center gap-2 py-2 border-b border-dram-border/60 last:border-0">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-slate-200 font-medium truncate">{routineName}</div>
+              <div className="text-xs text-dram-muted">{new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-sm text-slate-200">{volLbs > 0 ? `${volLbs.toLocaleString()} lbs` : w.durationMinutes ? `${w.durationMinutes} min` : '—'}</div>
+              {delta !== null && deltaPct !== null ? (
+                <div className="flex items-center justify-end gap-0.5 text-xs font-semibold" style={{ color: delta >= 0 ? '#34d399' : '#f87171' }}>
+                  <span>{delta >= 0 ? '▲' : '▼'}</span>
+                  <span>{Math.abs(Math.round(deltaPct))}%</span>
+                </div>
+              ) : prior === undefined && w.routineId ? (
+                <div className="text-xs text-dram-muted">first run</div>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Personal bests column — 1 stat per row
+function PersonalBestsColumn({ bests }: { bests: PersonalBests | null }) {
+  const items = [
+    {
+      icon: '🏋️',
+      label: 'Heaviest Lift',
+      color: '#34d399',
+      value: bests?.heaviestLift ? `${Math.round(bests.heaviestLift.weightKg * 2.20462 * 10) / 10} lbs` : null,
+      sub: bests?.heaviestLift
+        ? `${bests.heaviestLift.exerciseName} · ${bests.heaviestLift.reps != null ? `${bests.heaviestLift.reps} reps` : ''}`
+        : null,
+      date: bests?.heaviestLift?.workoutDate ?? null,
+    },
+    {
+      icon: '📈',
+      label: 'Best Session Volume',
+      color: '#60a5fa',
+      value: bests?.bestSessionVolume ? `${Math.round(bests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()} lbs` : null,
+      sub: bests?.bestSessionVolume?.workoutName ?? null,
+      date: bests?.bestSessionVolume?.workoutDate ?? null,
+    },
+    {
+      icon: '⏱️',
+      label: 'Longest Session',
+      color: '#a78bfa',
+      value: bests?.longestSession ? `${bests.longestSession.durationMinutes} min` : null,
+      sub: bests?.longestSession?.workoutName ?? null,
+      date: bests?.longestSession?.workoutDate ?? null,
+    },
+  ];
+
+  return (
+    <div className="space-y-0">
+      {items.map(({ icon, label, color, value, sub, date }) => (
+        <div key={label} className="flex items-start gap-3 py-3 border-b border-dram-border last:border-0">
+          <span className="text-xl leading-none mt-0.5">{icon}</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-dram-muted uppercase tracking-wide mb-0.5">{label}</div>
+            <div className="text-lg font-bold" style={{ color: value ? 'white' : '#475569' }}>{value ?? '—'}</div>
+            {sub && <div className="text-xs text-slate-400 truncate mt-0.5">{sub}</div>}
+            {date && <div className="text-xs text-dram-muted mt-0.5">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashboardV2({
+  workouts, measurements, measurementGoals, personalBests,
+  waterHistory, foodLogHistory, routinesList, loading,
+  caloriesGoal, proteinGoal,
+}: {
+  workouts: WorkoutSummary[];
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  personalBests: PersonalBests | null;
+  waterHistory: WaterHistory | null;
+  foodLogHistory: FoodLogHistoryDay[];
+  routinesList: RoutineSummary[];
+  loading: boolean;
+  caloriesGoal: number | null;
+  proteinGoal: number | null;
+}) {
+  if (loading) return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading…</div>;
+
+  const cardCls = 'bg-dram-card rounded-2xl border border-dram-border overflow-hidden';
+  const cardHeaderCls = 'text-sm font-semibold text-slate-300 uppercase tracking-wider px-5 pt-4 pb-2';
+
+  // Creatine data needed by both CreatineWidget and the weight GoalGaugeCard callout
+  const creatineData = computeCreatineSaturation(foodLogHistory);
+  const creatineSatPct = creatineData?.satPct ?? null;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      {/* 3-column grid: col1=50%, col2=25%, col3=25% */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: '2fr 1fr 1fr', gridTemplateRows: 'auto auto' }}>
+
+        {/* ── Col 1, Row 1: Body Goal Gauges ── */}
+        <div className={cardCls}>
+          <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
+          <div className={cardHeaderCls}>North Star Goals</div>
+          <div className="grid grid-cols-3 divide-x divide-dram-border border-t border-dram-border">
+            {DISPLAYED_METRICS.map((key) => (
+              <GoalGaugeCard
+                key={key}
+                measurements={measurements}
+                goals={measurementGoals}
+                metric={key}
+                creatineSatPct={key === 'weight' ? creatineSatPct : null}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Col 2, Row 1: Routine Heatmap ── */}
+        <div className={`${cardCls} col-start-2`}>
+          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#a78bfa' }} />
+          <div className={cardHeaderCls}>Volume Heatmap</div>
+          <div className="px-4 pb-4">
+            <RoutineHeatmap workouts={workouts} routinesList={routinesList} />
+          </div>
+        </div>
+
+        {/* ── Col 3, Row 1: Creatine Saturation ── */}
+        <div className={`${cardCls} col-start-3`}>
+          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#a78bfa' }} />
+          <div className={cardHeaderCls}>Creatine</div>
+          <CreatineWidget foodLogHistory={foodLogHistory} />
+        </div>
+
+        {/* ── Col 1, Row 2: Nutrition & Fuel ── */}
+        <div className={cardCls}>
+          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#fb923c' }} />
+          <div className={cardHeaderCls}>Nutrition &amp; Fuel</div>
+          <div className="px-5 pb-4">
+            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} />
+          </div>
+        </div>
+
+        {/* ── Col 2, Row 2: Last 10 Workouts ── */}
+        <div className={`${cardCls} col-start-2`}>
+          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#60a5fa' }} />
+          <div className={cardHeaderCls}>Recent Workouts</div>
+          <div className="px-4 pb-4">
+            <WorkoutLog workouts={workouts} routinesList={routinesList} />
+          </div>
+        </div>
+
+        {/* ── Col 3, Row 2: Personal Bests ── */}
+        <div className={`${cardCls} col-start-3`}>
+          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#34d399' }} />
+          <div className={cardHeaderCls}>Personal Bests</div>
+          <div className="px-5 pb-4">
+            <PersonalBestsColumn bests={personalBests} />
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -1118,74 +2050,113 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const TABS = [
-  { key: 'routines',  label: 'Routines'  },
-  { key: 'exercises', label: 'Exercises' },
-] as const;
+export default function WorkoutsDashboardPage() {
+  const navigate = useNavigate();
+  const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
+  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
+  const [measurementGoals, setMeasurementGoals] = useState<Record<string, MeasurementGoal>>({});
+  const [personalBests, setPersonalBests] = useState<PersonalBests | null>(null);
+  const [nutritionSummary, setNutritionSummary] = useState<GoalsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [v2Loading, setV2Loading] = useState(false);
+  const [v2Loaded, setV2Loaded] = useState(false);
+  const [waterHistory, setWaterHistory] = useState<WaterHistory | null>(null);
+  const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
+  const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
+  const [starting, setStarting] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
-type Tab = typeof TABS[number]['key'];
+  function load() {
+    Promise.all([
+      workoutsApi.getAll({ limit: 200 }),
+      goalsApi.getExercise().catch(() => null),
+      goalsApi.getSummary().catch(() => null),
+      measurementsApi.getAll().catch(() => []),
+      measurementsApi.getGoals().catch(() => ({})),
+      workoutsApi.getPersonalBests().catch(() => null),
+    ]).then(([ws, eg, summary, ms, mg, pb]) => {
+      setWorkouts(ws);
+      setExGoals(eg);
+      setNutritionSummary(summary);
+      setMeasurements(ms as BodyMeasurement[]);
+      setMeasurementGoals(mg as Record<string, MeasurementGoal>);
+      setPersonalBests(pb);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }
 
-const VALID_TABS = ['routines', 'exercises'] as const;
+  async function loadV2() {
+    if (v2Loaded) return;
+    setV2Loading(true);
+    try {
+      const end = localDateStr();
+      const startD = new Date(); startD.setDate(startD.getDate() - 29);
+      const start = localDateStr(startD);
+      const [wh, fl, rl] = await Promise.all([
+        waterApi.getHistory(start, end).catch(() => null),
+        logApi.getHistory(30).catch(() => []),
+        routinesApi.getAll().catch(() => []),
+      ]);
+      setWaterHistory(wh);
+      setFoodLogHistory(fl as FoodLogHistoryDay[]);
+      setRoutinesList(rl as RoutineSummary[]);
+      setV2Loaded(true);
+    } catch { /* ignore */ } finally { setV2Loading(false); }
+  }
 
-export default function WorkoutsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const routinesTabRef = useRef<RoutinesTabHandle>(null);
-  const exercisesTabRef = useRef<ExercisesTabHandle>(null);
-  const rawTab = searchParams.get('tab');
-  const activeTab: Tab = (VALID_TABS as readonly string[]).includes(rawTab ?? '') ? rawTab as Tab : 'routines';
-  function setActiveTab(tab: Tab) { setSearchParams({ tab }, { replace: true }); }
+  useEffect(() => { load(); loadV2(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleStart() {
+    setStarting(true);
+    try {
+      const workout = await workoutsApi.create();
+      navigate(`/workouts/${workout.id}`);
+    } catch { setStarting(false); }
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
-          <div className="flex items-center gap-2">
-            {activeTab === 'routines' && (
-              <button
-                onClick={() => routinesTabRef.current?.openCreate()}
-                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-              >
-                + New Routine
-              </button>
-            )}
-            {activeTab === 'exercises' && (
-              <button
-                onClick={() => exercisesTabRef.current?.openCreate()}
-                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-              >
-                + New Exercise
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tab bar */}
-        <div className="flex gap-1 mt-3">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === key
-                  ? 'border-dram-accent text-dram-accent'
-                  : 'border-transparent text-dram-muted hover:text-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setGoalsOpen(true)}
+            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-4 py-2 text-sm transition-colors"
+          >
+            Edit Goals
+          </button>
+          <button
+            onClick={handleStart}
+            disabled={starting}
+            className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+          >
+            {starting ? 'Starting…' : '+ Start Workout'}
+          </button>
         </div>
       </div>
 
-      {/* Tab content */}
-      {activeTab === 'routines' ? (
-        <RoutinesTab ref={routinesTabRef} />
-      ) : (
-        <ExercisesTab ref={exercisesTabRef} />
+      {goalsOpen && (
+        <GoalsModal
+          exGoals={exGoals}
+          measurementGoals={measurementGoals}
+          onSaved={load}
+          onClose={() => setGoalsOpen(false)}
+        />
       )}
+
+      <DashboardV2
+        workouts={workouts}
+        measurements={measurements}
+        measurementGoals={measurementGoals}
+        personalBests={personalBests}
+        waterHistory={waterHistory}
+        foodLogHistory={foodLogHistory}
+        routinesList={routinesList}
+        loading={loading || (v2Loading && !v2Loaded)}
+        caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
+        proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}
+      />
     </div>
   );
 }
-

@@ -36,3 +36,4 @@ export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, Wo
               ExerciseStats, ExerciseHistoryEntry }                    from './endpoints/workouts';
 export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet } from './endpoints/routines';
 export type { FoodLogHistoryDay, FoodLogHistoryEntry } from './endpoints/log';
+export type { WaterHistory, WaterHistoryDay } from './endpoints/water';

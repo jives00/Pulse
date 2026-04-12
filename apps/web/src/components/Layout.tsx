@@ -2,13 +2,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const TOP_SECTIONS = [
-  { prefix: '/food',      label: 'Recipes',  icon: '🍴' },
-  { prefix: '/drinks',    label: 'Drinks',    icon: '🍸' },
-  { prefix: '/nutrition', label: 'Food Log', icon: '🥗' },
-  { prefix: '/workouts',  label: 'Workouts',  icon: '💪' },
-  { prefix: '/history',   label: 'History',   icon: '📋' },
-  { prefix: '/links',     label: 'Links',     icon: '🔗' },
-  { prefix: '/settings',  label: 'Settings',  icon: '⚙️' },
+  { prefix: '/dashboard', label: 'Dashboard', icon: '📊', exact: false },
+  { prefix: '/food',      label: 'Recipes',   icon: '🍴', exact: false },
+  { prefix: '/drinks',    label: 'Drinks',    icon: '🍸', exact: false },
+  { prefix: '/nutrition', label: 'Food Log',  icon: '🥗', exact: false },
+  { prefix: '/workouts',  label: 'Workouts',  icon: '💪', exact: false },
+  { prefix: '/history',   label: 'History',   icon: '📋', exact: false },
+  { prefix: '/links',     label: 'Links',     icon: '🔗', exact: false },
+  { prefix: '/settings',  label: 'Settings',  icon: '⚙️', exact: false },
 ];
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -29,8 +30,8 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
-      {TOP_SECTIONS.map(({ prefix, label, icon }) => {
-        const isActive = location.pathname.startsWith(prefix);
+      {TOP_SECTIONS.map(({ prefix, label }) => {
+        const isActive = location.pathname === prefix || location.pathname.startsWith(prefix + '/');
         return (
           <div key={prefix}>
             <button

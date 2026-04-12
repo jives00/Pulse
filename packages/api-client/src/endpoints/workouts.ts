@@ -124,6 +124,7 @@ export interface WorkoutSummary {
   setCount: number;
   totalVolumeKg: number;
   createdAt: string;
+  routineId: number | null;
   exercises: WorkoutExerciseSummary[];
 }
 

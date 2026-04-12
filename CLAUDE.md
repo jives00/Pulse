@@ -94,6 +94,8 @@ USDA_API_KEY        (optional, food database)
 ## Route map (frontend)
 
 ```
+/                      → redirects to /dashboard (home)
+/dashboard             → WorkoutsDashboardPage (home — North Star Goals, This Week, Fuel Today, Creatine, Personal Bests)
 /food                  → Library (food items — excludes prepackaged)
 /food?sub=main|side|breakfast|dessert → filtered subcategory
 /food?sub=prepackaged  → Prepackaged recipes (type=prepackaged in DB)
@@ -101,7 +103,7 @@ USDA_API_KEY        (optional, food database)
 /nutrition/today       → TodayPage
 /nutrition/history     → NutritionHistoryPage
 /nutrition/foods       → FoodsPage
-/workouts              → WorkoutsPage
+/workouts              → WorkoutsPage (2 tabs: Routines + Exercises)
 /workouts/exercises    → ExercisesPage
 /workouts/exercises/:id → ExerciseDetailPage
 /workouts/routines     → RoutinesPage
@@ -163,7 +165,8 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `FoodSearchModal` | `apps/web/src/components/FoodSearchModal.tsx` | Searches recipes (`GET /recipes/search`) + foods in parallel. "My Recipes" section at top. Selecting a recipe opens a servings picker that logs via `POST /log/recipe`. Accepts `onCreateCustomFood` prop; if provided, "Create custom food" calls it instead of the inline create flow. |
 | `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Tabbed layout: **Options** (Color Scheme, Default Sort (Recipes), Default Sort (Exercises), Tags), **Goals** (nutrition daily macros + workout weekly goals + body measurement goals — all in one place), **User** (change username/password), **Delete Data** (danger zone). Left-aligned layout matching History/Links pages. |
 | `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. Toolbar has "Edit Goals" (nutrition goal modal), "Create Custom Food", and "Log Food" buttons. `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
-| `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Three tabs: **Progress** (combined scroll: weekly summary ring + progress bars + 4 stat tiles + 13-week chart + body measurements card + personal bests), **Routines** (inline routine grid with ▶ Start button on each card, + New Routine modal), **Exercises** (inline exercise grid with search/filter, + New Exercise modal). "Edit Goals" and "+ Start Workout" buttons shown only on Progress tab. Routine cards have a ▶ Start button that calls `routinesApi.start()` and navigates to the workout session. |
+| `WorkoutsDashboardPage` | `apps/web/src/pages/WorkoutsDashboardPage.tsx` | Home page. 3-column V2 dashboard: col 1 = North Star Goal gauge cards (weight/waist/bicep with `SemiCircleGauge`, pace badge, projected date, creatine water-weight callout on weight card); col 2 = This Week progress bars + routine heatmap + Fuel Today (calories in/burned/net via `ComposedChart`, protein + water line charts); col 3 = Creatine widget (saturation gauge, phase badge, compliance stats, milestone countdown) + Personal Bests. Header toolbar: "Edit Goals" + "+ Start Workout". No tabs — loads all data eagerly on mount. |
+| `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Two tabs: **Routines** (inline routine grid with ▶ Start button on each card, + New Routine modal), **Exercises** (inline exercise grid with search/filter, + New Exercise modal). Progress dashboard has moved to `/dashboard` (WorkoutsDashboardPage). |
 | `WorkoutDetailPage` | `apps/web/src/pages/WorkoutDetailPage.tsx` | Active workout session — add/remove exercises, log sets (weight in lbs, converted to kg for storage). Timer (started_at from DB), running volume total, set checkboxes, exercise name links to ExerciseDetailPage. Set columns rendered dynamically from `exercise.trackedFields`. Duration uses MM:SS input. Date is editable inline (click to open `<input type="date">`, saves on blur/Enter via `workoutsApi.update`). |
 | `ExercisesPage` | `apps/web/src/pages/ExercisesPage.tsx` | Library-style grid. Cards use `cover_image_url` (static image) or category emoji fallback. No edit/delete on cards — clicking navigates to detail page. "New Exercise" modal creates with name/category/type only; all other fields edited on detail page. |
 | `ExerciseDetailPage` | `apps/web/src/pages/ExerciseDetailPage.tsx` | Full-width 2-column layout (no tabs). Header has Edit + Delete buttons (Edit opens inline modal with all fields; Delete available for all exercises). Left column: notes, demo media, instructions, muscle diagram image (hidden if none uploaded), muscle tags. Right column: summary (personal bests, set records, progress chart) + history (paginated sessions). |
@@ -240,9 +243,10 @@ Android-only Expo app. Key conventions:
 ### Mobile tab structure
 | Tab | File | Notes |
 |---|---|---|
+| Dashboard | `app/(app)/(tabs)/dashboard.tsx` | **First tab (home).** North Star Goal cards (pace badges, progress bars, water-weight callout on weight card during creatine loading), This Week, Fuel Today, Creatine widget (saturation gauge + phase badge), Personal Bests. Loads all data via `useFocusEffect`. |
 | Recipes | `app/(app)/(tabs)/index.tsx` | 2-col grid, filters, sort. Sort initializes from `settingsStore.defaultSort`. No sign-out button (sign out is in Settings). |
 | Nutrition | `app/(app)/(tabs)/nutrition.tsx` | Date nav, 30-day calorie+protein bar charts (scroll to newest), meal sections, food search modal (recipes + foods), barcode scanner (expo-camera), water quick-add. Pull-to-refresh supported. Barcode scan: if food found (not already a recipe), offers "Save as Recipe?" Alert → calls `POST /api/recipes/from-barcode` → navigates to `recipe/edit`. If barcode unknown, prompts for product name via `Alert.prompt` then creates recipe with AI-estimated nutrition. |
-| Workouts | `app/(app)/(tabs)/workouts.tsx` | 4 tabs: Progress (default), Log, Routines, Exercises. All 4 tabs support pull-to-refresh. Log tab shows a "Workout in progress" resume banner when a session is incomplete. Log "+" Start button opens a bottom-sheet routine picker — choose a routine or start blank. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. Progress tab is a single scroll: weekly summary, volume chart, body measurements, personal bests. |
+| Workouts | `app/(app)/(tabs)/workouts.tsx` | 3 tabs: Log (default), Routines, Exercises. Log tab shows a "Workout in progress" resume banner when a session is incomplete. Log "+" Start button opens a bottom-sheet routine picker — choose a routine or start blank. Routines + Exercises use 2-col image grid matching Recipes page. Tapping an exercise navigates to detail page. Progress dashboard has moved to the Dashboard tab. |
 | Links | `app/(app)/(tabs)/links.tsx` | Saved links list with category filter chips (All / Food / Drinks / Nutrition / Exercise / Other). |
 | Settings | `app/(app)/(tabs)/settings.tsx` | 5 tabs: Options (default sort), Tags (add/delete tags per category), Goals (nutrition/workout/body), User (change username/password), Delete (per-scope danger zone) |
 
@@ -261,6 +265,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `exercise/[id]`, `h
 - **Prepackaged recipe type**: `prepackaged` is a first-class `type` in the `recipes` table (alongside `food` and `cocktail`). It is NOT a subcategory of food. Web nav shows it as a sub-nav item under "Recipes" (`/food?sub=prepackaged`); Library.tsx sends `type=prepackaged` to the API. Data migration: `UPDATE recipes SET type = 'prepackaged', subcategory = NULL WHERE type = 'food' AND subcategory = 'prepackaged';` — run manually on EC2 (migration 014). `GET /api/recipes/search` (nutrition food picker) includes both `food` and `prepackaged` types.
 - **Tags**: Stored in `tag_definitions` (user-scoped, 3 categories: health/cuisine/category). Auto-seeded with defaults on first `GET /api/tags/definitions`. Tag filter only shows tags used by actual recipes on the current page type (food vs cocktail).
 - **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` in migration 009 post-hook — links a nutrition log entry back to the originating recipe.
+- **Dashboard as home**: `/dashboard` (`WorkoutsDashboardPage`) is the app home page — index redirects there, and it appears first in both the desktop sidebar and mobile tab bar. The Progress tab was removed from WorkoutsPage; all goal/progress content lives in WorkoutsDashboardPage.
 - **Sidebar icons**: Intentionally removed from desktop nav; mobile bottom nav keeps icons.
 - **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
 - **Theming**: CSS variables as bare RGB channels in `index.css`; Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
