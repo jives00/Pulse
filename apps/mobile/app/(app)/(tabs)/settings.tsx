@@ -536,7 +536,7 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
-  const swipe = useSwipeNav(4, SETTINGS_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav(5, SETTINGS_TABS_ORDER, tab, setTab);
 
   return (
     <SafeAreaView style={s.container} {...swipe.panHandlers}>

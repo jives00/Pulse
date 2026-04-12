@@ -16,5 +16,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={token ? '/(app)' : '/(auth)/login'} />;
+  return <Redirect href={token ? '/(app)/(tabs)/dashboard' : '/(auth)/login'} />;
 }

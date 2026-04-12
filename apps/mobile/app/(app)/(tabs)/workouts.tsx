@@ -24,7 +24,7 @@ import FilterChip from '../../../src/components/FilterChip';
 
 const KG_TO_LBS = 2.20462;
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
-const WORKOUT_TABS_ORDER = ['log', 'routines', 'exercises'] as const;
+const WORKOUT_TABS_ORDER = ['routines', 'exercises', 'log'] as const;
 
 function fmtDate(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -162,6 +162,7 @@ function categoryEmoji(cat: string) {
 
 function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (workoutId: number) => void; createVisible: boolean; onCreateClose: () => void; }) {
   const token = useAuthStore((s) => s.token)!;
+  const router = useRouter();
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
@@ -244,7 +245,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         renderItem={({ item }) => (
           <TouchableOpacity
             style={grid.card}
-            onPress={() => handleStart(item)}
+            onPress={() => router.push(`/(app)/routine/${item.id}`)}
             onLongPress={() => handleDelete(item)}
           >
             {item.coverImageUrl ? (
@@ -1019,8 +1020,8 @@ export default function WorkoutsScreen() {
   const s = makeSStyles(c);
   const seg = makeSegStyles(c);
   const rp = makeRpStyles(c);
-  const [tab, setTab] = useState<Tab>('log');
-  const swipe = useSwipeNav(2, WORKOUT_TABS_ORDER, tab, setTab);
+  const [tab, setTab] = useState<Tab>('routines');
+  const swipe = useSwipeNav(3, WORKOUT_TABS_ORDER, tab, setTab);
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
@@ -1092,7 +1093,7 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={seg.scroll} contentContainerStyle={seg.row}>
-        {(['log', 'routines', 'exercises'] as Tab[]).map((t) => (
+        {(['routines', 'exercises', 'log'] as Tab[]).map((t) => (
           <TouchableOpacity key={t} style={[seg.btn, tab === t && seg.btnActive]} onPress={() => setTab(t)}>
             <Text style={[seg.label, tab === t && seg.labelActive]}>
               {t === 'log' ? 'Log' : t === 'routines' ? 'Routines' : 'Exercises'}

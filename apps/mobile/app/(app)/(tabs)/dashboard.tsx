@@ -1,12 +1,17 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View, RefreshControl } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import {
+  ActivityIndicator, ScrollView, StyleSheet, Text, View, RefreshControl,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getExerciseGoals, getMeasurements, getMeasurementGoals, getPersonalBests,
-  getGoalsSummary, getWaterHistory, getFoodLogHistory,
+  getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines,
   type WorkoutSummary, type ExerciseGoals, type BodyMeasurement, type MeasurementGoal,
   type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
+  type DailyHistoryEntry, type RoutineSummary,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -14,11 +19,12 @@ import { useColors } from '../../../src/hooks/useColors';
 
 const KG_TO_LBS = 2.20462;
 const SATURATION_DAYS = 28;
+const GLASS_OZ = 8;
 
 const METRIC_CONFIG: Record<string, { label: string; unit: string; color: string; dir: 'up' | 'down' }> = {
-  weight: { label: 'Weight',  unit: 'lbs', color: '#a78bfa', dir: 'down' },
-  waist:  { label: 'Waist',   unit: 'in',  color: '#60a5fa', dir: 'down' },
-  bicep:  { label: 'Bicep',   unit: 'in',  color: '#34d399', dir: 'up'   },
+  weight: { label: 'Weight', unit: 'lbs', color: '#a78bfa', dir: 'down' },
+  waist:  { label: 'Waist',  unit: 'in',  color: '#60a5fa', dir: 'down' },
+  bicep:  { label: 'Bicep',  unit: 'in',  color: '#34d399', dir: 'up'   },
 };
 const DISPLAYED_METRICS = ['weight', 'waist', 'bicep'];
 
@@ -31,6 +37,10 @@ function getWeekStart(dateStr: string) {
   const day = d.getDay();
   d.setDate(d.getDate() - day);
   return localDateStr(d);
+}
+
+function shortDate(dateStr: string) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
 
 // ── Pace computation ──────────────────────────────────────────────────────────
@@ -50,55 +60,45 @@ function computeGoalPace(
 
   const oldest = sorted[0];
   const latest = sorted[sorted.length - 1];
-
   let rawVal = (m: BodyMeasurement) => m.value;
   if (key === 'weight' && latest.unit === 'kg') rawVal = (m) => m.value * KG_TO_LBS;
 
   const oldestVal = rawVal(oldest);
   const latestVal = rawVal(latest);
   const target = goal.targetValue;
-
   const totalChange = dir === 'down' ? oldestVal - target : target - oldestVal;
   const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;
   if (totalChange <= 0) return { status: 'done', pct: 1, projectedDate: null };
   const pct = Math.min(Math.max(actualChange / totalChange, 0), 1);
   if (pct >= 1) return { status: 'done', pct: 1, projectedDate: null };
-
   if (!goal.targetDate || sorted.length < 2) return { status: 'yellow', pct, projectedDate: null };
 
   const firstMs = new Date(oldest.measuredAt + 'T12:00:00').getTime();
   const latestMs = new Date(latest.measuredAt + 'T12:00:00').getTime();
   const targetMs = new Date(goal.targetDate + 'T12:00:00').getTime();
-  const now = Date.now();
-
   const elapsed = latestMs - firstMs;
   if (elapsed <= 0) return { status: 'yellow', pct, projectedDate: null };
 
   const actualRate = actualChange / elapsed;
   const neededRate = totalChange / Math.max(targetMs - firstMs, 1);
   const ratio = neededRate > 0 ? actualRate / neededRate : 0;
-
   const status: PaceStatus = ratio >= 1 ? 'green' : ratio >= 0.8 ? 'yellow' : 'red';
-
   const remaining = totalChange - actualChange;
-  const projMs = actualRate > 0 ? now + (remaining / actualRate) : null;
+  const projMs = actualRate > 0 ? Date.now() + (remaining / actualRate) : null;
   const projectedDate = projMs
     ? new Date(projMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
-
   return { status, pct, projectedDate };
 }
 
-// ── Creatine saturation ───────────────────────────────────────────────────────
+// ── Creatine ──────────────────────────────────────────────────────────────────
 
 function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]) {
   const creatineDays = foodLogHistory
     .filter((day) => day.entries.some((e) => e.foodName.toLowerCase().includes('creatine')))
     .map((day) => day.date)
     .sort();
-
   if (creatineDays.length === 0) return null;
-
   const firstDate = creatineDays[0];
   const firstMs = new Date(firstDate + 'T12:00:00').getTime();
   const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)));
@@ -113,43 +113,236 @@ function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]) {
     : satPct >= 1 ? 'Full Saturation'
     : daysSinceStart <= 21 ? 'The Build'
     : 'Peak Performance';
-
   return { satPct, daysSinceStart, loggedDays, firstDate, daysToFull, phase, compliancePct };
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Weekly bucketing ──────────────────────────────────────────────────────────
+
+type WeekBucket = { weekStart: string; volumeLbs: number; workoutCount: number };
+
+function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
+  const now = new Date();
+  const weeks: WeekBucket[] = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const ws = getWeekStart(localDateStr(d));
+    weeks.push({ weekStart: ws, volumeLbs: 0, workoutCount: 0 });
+  }
+  for (const w of workouts) {
+    const ws = getWeekStart(w.workoutDate);
+    const week = weeks.find((wk) => wk.weekStart === ws);
+    if (week) {
+      week.workoutCount++;
+      week.volumeLbs += (w.totalVolumeKg ?? 0) * KG_TO_LBS;
+    }
+  }
+  return weeks;
+}
+
+// ── Mini line chart (pure RN, no SVG lib) ────────────────────────────────────
+
+const CHART_H = 56;
+const DOT_R = 2.5;
+
+function MiniLineChart({ data, color, goalLine }: {
+  data: number[];
+  color: string;
+  goalLine?: number | null;
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartWidth = screenWidth - 56;
+  const maxVal = Math.max(...data, goalLine ?? 0, 1);
+  if (data.length < 2) return <View style={{ height: CHART_H }} />;
+
+  const pts = data.map((val, i) => ({
+    x: (i / (data.length - 1)) * chartWidth,
+    y: CHART_H - DOT_R - Math.max((val / maxVal) * (CHART_H - DOT_R * 2), 0),
+    val,
+  }));
+
+  const goalY = goalLine != null
+    ? CHART_H - DOT_R - Math.max((goalLine / maxVal) * (CHART_H - DOT_R * 2), 0)
+    : null;
+
+  return (
+    <View style={{ height: CHART_H, width: chartWidth, position: 'relative' }}>
+      {/* Goal dashed line */}
+      {goalY != null && (
+        <View style={{ position: 'absolute', left: 0, top: goalY - 0.5, width: chartWidth, height: 1, borderStyle: 'dashed', borderTopWidth: 1, borderColor: `${color}44` }} />
+      )}
+      {/* Lines */}
+      {pts.map((pt, i) => {
+        if (i === pts.length - 1) return null;
+        const next = pts[i + 1];
+        const dx = next.x - pt.x;
+        const dy = next.y - pt.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        return (
+          <View
+            key={i + '_l'}
+            style={{
+              position: 'absolute',
+              left: pt.x,
+              top: pt.y - 0.75,
+              width: len,
+              height: 1.5,
+              backgroundColor: `${color}99`,
+              transformOrigin: 'left center',
+              transform: [{ rotate: `${angle}deg` }],
+            }}
+          />
+        );
+      })}
+      {/* Dots — only at non-zero points to reduce noise; always show last */}
+      {pts.map((pt, i) => {
+        if (pt.val === 0 && i !== pts.length - 1) return null;
+        return (
+          <View
+            key={i + '_d'}
+            style={{
+              position: 'absolute',
+              left: pt.x - DOT_R,
+              top: pt.y - DOT_R,
+              width: DOT_R * 2,
+              height: DOT_R * 2,
+              borderRadius: DOT_R,
+              backgroundColor: i === pts.length - 1 ? color : `${color}88`,
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
 
 function ProgressBar2({ label, actual, goal, unit, color, c }: {
   label: string; actual: number; goal: number | null; unit: string; color: string; c: Colors;
 }) {
   const pct = goal && goal > 0 ? Math.min(actual / goal, 1) : 0;
-  const s = makeProgressBarStyles(c);
   return (
-    <View style={s.wrap}>
-      <View style={s.row}>
-        <Text style={s.label}>{label}</Text>
-        <Text style={[s.val, { color }]}>
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ fontSize: fontSize.xs, color: c.muted }}>{label}</Text>
+        <Text style={{ fontSize: fontSize.xs, fontWeight: '600', color }}>
           {actual.toLocaleString()}{unit}
-          {goal != null ? <Text style={s.goal}> / {goal.toLocaleString()}{unit}</Text> : null}
+          {goal != null ? <Text style={{ color: c.muted, fontWeight: '400' }}> / {goal.toLocaleString()}{unit}</Text> : null}
         </Text>
       </View>
-      <View style={s.track}>
-        <View style={[s.fill, { width: `${pct * 100}%` as any, backgroundColor: color }]} />
+      <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: `${pct * 100}%` as any, borderRadius: 3, backgroundColor: color }} />
       </View>
     </View>
   );
 }
 
-function makeProgressBarStyles(c: Colors) {
-  return StyleSheet.create({
-    wrap: { gap: 4 },
-    row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    label: { fontSize: fontSize.xs, color: c.muted },
-    val: { fontSize: fontSize.xs, fontWeight: '600' },
-    goal: { color: c.muted, fontWeight: '400' },
-    track: { height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
+// ── Routine heatmap ───────────────────────────────────────────────────────────
+
+function RoutineHeatmap({ workouts, routinesList, c }: {
+  workouts: WorkoutSummary[];
+  routinesList: RoutineSummary[];
+  c: Colors;
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const WEEKS = 13;
+  const now = new Date();
+  const weeks = Array.from({ length: WEEKS }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (WEEKS - 1 - i) * 7);
+    return getWeekStart(localDateStr(d));
   });
+
+  // Build routineId → weekStart → volumeLbs
+  const routineVolumes: Record<number, Record<string, number>> = {};
+  for (const w of workouts) {
+    if (!w.routineId || (w.totalVolumeKg ?? 0) <= 0) continue;
+    const ws = getWeekStart(w.workoutDate);
+    if (!routineVolumes[w.routineId]) routineVolumes[w.routineId] = {};
+    routineVolumes[w.routineId][ws] = (routineVolumes[w.routineId][ws] ?? 0) + (w.totalVolumeKg ?? 0) * KG_TO_LBS;
+  }
+
+  const relevantIds = Object.keys(routineVolumes)
+    .map(Number)
+    .filter((rid) => weeks.some((ws) => (routineVolumes[rid][ws] ?? 0) > 0));
+
+  if (relevantIds.length === 0) {
+    return <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No routine data in last 13 weeks</Text>;
+  }
+
+  const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineVolumes[rid])), 1);
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+
+  // Cell sizing: available width minus name column
+  const nameColW = 90;
+  const cellGap = 2;
+  const totalCellSpace = screenWidth - 56 - nameColW - cellGap;
+  const cellW = Math.max(Math.floor((totalCellSpace - (WEEKS - 1) * cellGap) / WEEKS), 14);
+  const cellH = 16;
+
+  return (
+    <View style={{ gap: 8 }}>
+      {/* Header row */}
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ width: nameColW }} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', gap: cellGap }}>
+            {weeks.map((ws, i) => (
+              i % 3 === 0 ? (
+                <View key={ws} style={{ width: cellW, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 7, color: c.muted }}>{shortDate(ws)}</Text>
+                </View>
+              ) : (
+                <View key={ws} style={{ width: cellW }} />
+              )
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Data rows */}
+      {relevantIds.map((rid) => (
+        <View key={rid} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: nameColW }}>
+            <Text style={{ fontSize: fontSize.xs, color: c.text }} numberOfLines={1}>
+              {routineNameById[rid] ?? `Routine ${rid}`}
+            </Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', gap: cellGap }}>
+              {weeks.map((ws) => {
+                const vol = routineVolumes[rid][ws] ?? 0;
+                const intensity = vol > 0 ? vol / globalMax : 0;
+                const r = Math.round(167 - intensity * (167 - 80));
+                const g = Math.round(139 - intensity * (139 - 60));
+                const b = Math.round(250 - intensity * (250 - 160));
+                const bg = vol > 0 ? `rgb(${r},${g},${b})` : 'rgba(255,255,255,0.05)';
+                return (
+                  <View key={ws} style={{ width: cellW, height: cellH, borderRadius: 3, backgroundColor: bg }} />
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      ))}
+
+      {/* Legend */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+        <Text style={{ fontSize: 9, color: c.muted }}>Lower</Text>
+        <View style={{ flexDirection: 'row', gap: 3 }}>
+          {[0.1, 0.3, 0.55, 0.75, 1.0].map((t) => {
+            const r = Math.round(167 - t * (167 - 80));
+            const g = Math.round(139 - t * (139 - 60));
+            const b = Math.round(250 - t * (250 - 160));
+            return <View key={t} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `rgb(${r},${g},${b})` }} />;
+          })}
+        </View>
+        <Text style={{ fontSize: 9, color: c.muted }}>Higher volume</Text>
+      </View>
+    </View>
+  );
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -158,6 +351,7 @@ export default function DashboardScreen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
   const s = makeStyles(c);
+  const swipe = useSwipeNav(0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,6 +363,8 @@ export default function DashboardScreen() {
   const [nutritionSummary, setNutritionSummary] = useState<GoalsSummary | null>(null);
   const [waterHistory, setWaterHistory] = useState<WaterHistory | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
+  const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
+  const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -177,7 +373,7 @@ export default function DashboardScreen() {
       const startD = new Date(); startD.setDate(startD.getDate() - 29);
       const start = localDateStr(startD);
 
-      const [ws, eg, ms, mg, pb, ns, wh, fl] = await Promise.all([
+      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -186,6 +382,8 @@ export default function DashboardScreen() {
         getGoalsSummary(token).catch(() => null),
         getWaterHistory(token, start, end).catch(() => null),
         getFoodLogHistory(token, 30).catch(() => []),
+        getDailyHistory(token, start, end).catch(() => []),
+        getRoutines(token).catch(() => []),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -195,6 +393,8 @@ export default function DashboardScreen() {
       setNutritionSummary(ns);
       setWaterHistory(wh);
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
+      setDailyHistory(dh as DailyHistoryEntry[]);
+      setRoutinesList(rl as RoutineSummary[]);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -206,148 +406,162 @@ export default function DashboardScreen() {
     await loadData(true).finally(() => setRefreshing(false));
   }, [loadData]);
 
-  // ── Derived values ──────────────────────────────────────────────────────────
+  // ── Derived values ────────────────────────────────────────────────────────
 
-  const currentWeekStart = getWeekStart(localDateStr());
-  const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).length;
-  const weekVolumeLbs = Math.round(
-    workouts
-      .filter((w) => getWeekStart(w.workoutDate) === currentWeekStart)
-      .reduce((sum, w) => sum + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0)
-  );
-  const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
-  const workoutGoal = exGoals?.workoutsPerWeek ?? null;
+  const todayStr = localDateStr();
+  const currentWeekStart = getWeekStart(todayStr);
 
+  // Fuel today
   const caloriesGoal = nutritionSummary?.nutrition.goals?.calories ?? null;
   const caloriesConsumed = Math.round(nutritionSummary?.nutrition.actual.calories ?? 0);
   const proteinGoal = nutritionSummary?.nutrition.goals?.proteinG ?? null;
   const proteinConsumed = Math.round(nutritionSummary?.nutrition.actual.proteinG ?? 0);
-
-  const todayStr = localDateStr();
   const burnedToday = workouts
     .filter((w) => w.workoutDate === todayStr)
     .reduce((sum, w) => sum + (w.caloriesBurned ?? 0), 0);
+  const waterOzToday = waterHistory?.days.find((d) => d.date === todayStr)?.totalOz ?? 0;
+  const waterGoalOz = waterHistory?.goalOz ?? 64;
+  const waterGlasses = Math.round(waterOzToday / GLASS_OZ * 10) / 10;
+  const waterGoalGlasses = Math.round(waterGoalOz / GLASS_OZ);
+
+  // This week
+  const weeklyData = buildWeeklyData(workouts);
+  const weekVolumeLbs = Math.round(weeklyData[weeklyData.length - 1]?.volumeLbs ?? 0);
+  const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
+
+  // 30-day nutrition chart arrays (fill gaps)
+  const days30 = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (29 - i));
+    return localDateStr(d);
+  });
+  const historyByDate = Object.fromEntries(dailyHistory.map((d) => [d.date, d]));
+  const waterByDate = Object.fromEntries((waterHistory?.days ?? []).map((d) => [d.date, d.totalOz]));
+  const burnedByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.caloriesBurned) burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+  }
+  const calSeries    = days30.map((d) => historyByDate[d]?.calories ?? 0);
+  const proteinSeries = days30.map((d) => historyByDate[d]?.proteinG ?? 0);
+  const waterSeries  = days30.map((d) => Math.round((waterByDate[d] ?? 0) / GLASS_OZ * 10) / 10);
+  const burnedSeries = days30.map((d) => burnedByDate[d] ?? 0);
+  const hasBurned    = burnedSeries.some((v) => v > 0);
 
   const creatineData = computeCreatineSaturation(foodLogHistory);
+
+  // Recent workouts (last 5 completed)
+  const recentWorkouts = workouts.slice(0, 5);
 
   if (loading) return <ActivityIndicator style={{ marginTop: 60 }} color={c.accent} />;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']} {...swipe.panHandlers}>
       <ScrollView
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
       >
         <Text style={s.pageTitle}>Dashboard</Text>
 
-        {/* ── North Star Goals ── */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>North Star Goals</Text>
-          {DISPLAYED_METRICS.map((key) => {
-            const cfg = METRIC_CONFIG[key];
-            const sorted = measurements
-              .filter((m) => m.metric === key)
-              .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-            const latest = sorted[0];
-            const goal = measGoals[key];
-            const displayVal = latest
-              ? (key === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
-              : null;
-            const { status, pct, projectedDate } = goal
-              ? computeGoalPace(measurements, key, goal, cfg.dir)
-              : { status: 'red' as PaceStatus, pct: 0, projectedDate: null };
-            const paceColor = PACE_COLORS[status];
-            const delta = goal && displayVal != null
-              ? (goal.targetValue - Number(displayVal)).toFixed(1)
-              : null;
-            const deltaNum = delta != null ? Number(delta) : null;
-
-            return (
-              <View key={key} style={[s.metricRow, { borderTopColor: c.border }]}>
-                <View style={s.metricHeader}>
-                  <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
-                  <View style={[s.paceBadge, { backgroundColor: paceColor + '22' }]}>
-                    <Text style={[s.paceBadgeText, { color: paceColor }]}>{PACE_LABELS[status]}</Text>
-                  </View>
-                </View>
-                <View style={s.metricValues}>
-                  <Text style={s.metricCurrent}>
-                    {displayVal ?? '—'} <Text style={s.metricUnit}>{cfg.unit}</Text>
-                  </Text>
-                  {goal && (
-                    <View style={s.metricGoalRow}>
-                      <Text style={s.metricGoalText}>{goal.targetValue} {cfg.unit}</Text>
-                      {deltaNum != null && deltaNum !== 0 && (
-                        <Text style={[s.metricDelta, { color: paceColor }]}>
-                          {deltaNum > 0 ? '+' : ''}{delta} {cfg.unit}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-                <View style={s.progressTrack}>
-                  <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
-                </View>
-                {projectedDate && (
-                  <Text style={[s.projDate, { color: paceColor }]}>Proj: {projectedDate}</Text>
-                )}
-                {key === 'weight' && creatineData && creatineData.satPct > 0 && creatineData.satPct < 1 && (
-                  <View style={s.waterCallout}>
-                    <Text style={s.waterCalloutTitle}>💧 Water Weight Loading</Text>
-                    <Text style={s.waterCalloutBody}>
-                      Creatine may add 1–3 lbs of water weight. Scale bump is expected.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        {/* ── This Week ── */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>This Week</Text>
-          <ProgressBar2 label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit=" lbs" color="#a78bfa" c={c} />
-          <ProgressBar2 label="Workouts" actual={weekWorkouts} goal={workoutGoal} unit="" color="#34d399" c={c} />
-        </View>
-
-        {/* ── Fuel — Today ── */}
+        {/* ── Fuel Today ── */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Fuel — Today</Text>
           <ProgressBar2 label="Calories" actual={caloriesConsumed} goal={caloriesGoal} unit=" kcal" color="#fb923c" c={c} />
           {burnedToday > 0 && (
-            <View style={s.burnedRow}>
-              <Text style={s.burnedLabel}>Burned</Text>
-              <Text style={[s.burnedVal, { color: '#f87171' }]}>{burnedToday.toLocaleString()} kcal</Text>
-              <Text style={s.burnedLabel}>  Net</Text>
-              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: caloriesGoal && (caloriesConsumed - burnedToday) > caloriesGoal ? '#f87171' : c.text }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Burned</Text>
+              <Text style={{ fontSize: fontSize.xs, fontWeight: '600', color: '#f87171' }}>{burnedToday.toLocaleString()} kcal</Text>
+              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Net</Text>
+              <Text style={{ fontSize: fontSize.xs, fontWeight: '600', color: caloriesGoal && (caloriesConsumed - burnedToday) > caloriesGoal ? '#f87171' : c.text }}>
                 {(caloriesConsumed - burnedToday).toLocaleString()} kcal
               </Text>
             </View>
           )}
           <ProgressBar2 label="Protein" actual={proteinConsumed} goal={proteinGoal} unit="g" color="#60a5fa" c={c} />
-          {waterHistory && (
-            <ProgressBar2
-              label={`Water (goal: ${Math.round(waterHistory.goalOz / 8)} glasses)`}
-              actual={Math.round((waterHistory.days.find((d) => d.date === todayStr)?.totalOz ?? 0) / 8 * 10) / 10}
-              goal={waterHistory.goalOz / 8}
-              unit=" gl"
-              color="#38bdf8"
-              c={c}
-            />
+          <ProgressBar2
+            label={`Water (goal: ${waterGoalGlasses} glasses)`}
+            actual={waterGlasses}
+            goal={waterGoalGlasses}
+            unit=" gl"
+            color="#38bdf8"
+            c={c}
+          />
+        </View>
+
+        {/* ── This Week Volume ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>This Week</Text>
+          <ProgressBar2 label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit=" lbs" color="#a78bfa" c={c} />
+          {weeklyData.some((w) => w.volumeLbs > 0) && (
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Volume / wk (13 wks)</Text>
+                {volumeGoal != null && <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Goal: {volumeGoal >= 1000 ? `${(volumeGoal / 1000).toFixed(0)}k` : volumeGoal} lbs</Text>}
+              </View>
+              <MiniLineChart data={weeklyData.map((w) => w.volumeLbs)} color="#a78bfa" goalLine={volumeGoal} />
+            </View>
           )}
         </View>
+
+        {/* ── Nutrition Charts (30 days) ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Last 30 Days</Text>
+
+          {/* Calories */}
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: fontSize.xs, color: '#fb923c', fontWeight: '600' }}>Calories</Text>
+              {hasBurned && <Text style={{ fontSize: 9, color: c.muted }}>— burned</Text>}
+              {caloriesGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal</Text>}
+            </View>
+            {/* Calories area + burned overlay */}
+            <View style={{ height: CHART_H + 4, position: 'relative' }}>
+              <MiniLineChart data={calSeries} color="#fb923c" goalLine={caloriesGoal} />
+              {hasBurned && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.7 }}>
+                  <MiniLineChart data={burnedSeries} color="#f87171" />
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Protein */}
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: fontSize.xs, color: '#60a5fa', fontWeight: '600' }}>Protein</Text>
+              {proteinGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal {proteinGoal}g</Text>}
+            </View>
+            <MiniLineChart data={proteinSeries} color="#60a5fa" goalLine={proteinGoal} />
+          </View>
+
+          {/* Water */}
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: fontSize.xs, color: '#38bdf8', fontWeight: '600' }}>Water</Text>
+              <Text style={{ fontSize: 9, color: c.muted }}>- - goal {waterGoalGlasses} glasses</Text>
+            </View>
+            <MiniLineChart data={waterSeries} color="#38bdf8" goalLine={waterGoalGlasses} />
+          </View>
+        </View>
+
+        {/* ── Volume Heatmap ── */}
+        {workouts.some((w) => w.routineId) && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Volume Heatmap</Text>
+            <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
+          </View>
+        )}
 
         {/* ── Creatine ── */}
         {creatineData && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Creatine</Text>
-            <View style={s.creatinePhase}>
-              <Text style={[s.creatinePhaseBadge, { color: creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171',
-                backgroundColor: (creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171') + '22' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[s.creatinePhaseBadge, {
+                color: creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171',
+                backgroundColor: (creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171') + '22',
+              }]}>
                 {creatineData.phase}
               </Text>
-              <Text style={s.creatinePct}>{Math.round(creatineData.satPct * 100)}% saturated</Text>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{Math.round(creatineData.satPct * 100)}% saturated</Text>
             </View>
             <View style={s.progressTrack}>
               <View style={[s.progressFill, {
@@ -355,7 +569,7 @@ export default function DashboardScreen() {
                 backgroundColor: creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171',
               }]} />
             </View>
-            <View style={s.creatineStats}>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
               <View style={s.creatineStat}>
                 <Text style={s.creatineStatVal}>{creatineData.daysSinceStart}d</Text>
                 <Text style={s.creatineStatLabel}>since start</Text>
@@ -375,6 +589,65 @@ export default function DashboardScreen() {
             </View>
           </View>
         )}
+
+        {/* ── North Star Goals ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>North Star Goals</Text>
+          {DISPLAYED_METRICS.map((key) => {
+            const cfg = METRIC_CONFIG[key];
+            const sorted = measurements
+              .filter((m) => m.metric === key)
+              .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+            const latest = sorted[0];
+            const goal = measGoals[key];
+            const displayVal = latest
+              ? (key === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
+              : null;
+            const { status, pct, projectedDate } = goal
+              ? computeGoalPace(measurements, key, goal, cfg.dir)
+              : { status: 'red' as PaceStatus, pct: 0, projectedDate: null };
+            const paceColor = PACE_COLORS[status];
+            const delta = goal && displayVal != null ? (goal.targetValue - Number(displayVal)).toFixed(1) : null;
+            const deltaNum = delta != null ? Number(delta) : null;
+            return (
+              <View key={key} style={[s.metricRow, { borderTopColor: c.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                  <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '22' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <Text style={s.metricCurrent}>
+                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.xs, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
+                  </Text>
+                  {goal && (
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
+                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{goal.targetValue} {cfg.unit}</Text>
+                      {deltaNum != null && deltaNum !== 0 && (
+                        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: paceColor }}>
+                          {deltaNum > 0 ? '+' : ''}{delta} {cfg.unit}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+                <View style={s.progressTrack}>
+                  <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
+                </View>
+                {projectedDate && (
+                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>Proj: {projectedDate}</Text>
+                )}
+                {key === 'weight' && creatineData && creatineData.satPct > 0 && creatineData.satPct < 1 && (
+                  <View style={{ backgroundColor: 'rgba(56,189,248,0.10)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)', padding: 8 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#38bdf8', marginBottom: 2 }}>💧 Water Weight Loading</Text>
+                    <Text style={{ fontSize: 10, color: '#94a3b8', lineHeight: 14 }}>Creatine may add 1–3 lbs of water weight. Scale bump is expected.</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
 
         {/* ── Personal Bests ── */}
         <View style={s.card}>
@@ -413,6 +686,32 @@ export default function DashboardScreen() {
             <Text style={s.empty}>Complete workouts to see records.</Text>
           )}
         </View>
+
+        {/* ── Recent Workouts ── */}
+        {recentWorkouts.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Recent Workouts</Text>
+            {recentWorkouts.map((w, i) => (
+              <View key={w.id} style={[s.workoutRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    {new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {w.durationMinutes != null ? `  ·  ${w.durationMinutes} min` : ''}
+                  </Text>
+                  <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>
+                    {w.routineId ? (routinesList.find((r) => r.id === w.routineId)?.name ?? w.name ?? 'Workout Session') : (w.name ?? 'Workout Session')}
+                  </Text>
+                  <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>
+                    {w.exerciseCount} exercise{w.exerciseCount !== 1 ? 's' : ''}
+                    {(w.totalVolumeKg ?? 0) > 0 ? `  ·  ${Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS).toLocaleString()} lbs` : ''}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -420,42 +719,20 @@ export default function DashboardScreen() {
 
 function makeStyles(c: Colors) {
   return StyleSheet.create({
-    scroll: { padding: 14, gap: 12, paddingBottom: 32 },
+    scroll: { padding: 14, gap: 12 },
     pageTitle: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, marginBottom: 4 },
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
     cardTitle: { fontSize: fontSize.xs, fontWeight: '700', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8 },
 
     // North star goals
     metricRow: { borderTopWidth: 1, paddingTop: 10, gap: 6 },
-    metricHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     metricLabel: { fontSize: fontSize.sm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-    paceBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-    paceBadgeText: { fontSize: 10, fontWeight: '700' },
-    metricValues: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
     metricCurrent: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
-    metricUnit: { fontSize: fontSize.xs, color: c.muted, fontWeight: '400' },
-    metricGoalRow: { flexDirection: 'row', gap: 6, alignItems: 'baseline' },
-    metricGoalText: { fontSize: fontSize.sm, color: c.muted },
-    metricDelta: { fontSize: fontSize.sm, fontWeight: '600' },
     progressTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 2 },
-    projDate: { fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center' },
-
-    // Water weight callout
-    waterCallout: { backgroundColor: 'rgba(56,189,248,0.10)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)', padding: 8 },
-    waterCalloutTitle: { fontSize: 11, fontWeight: '700', color: '#38bdf8', marginBottom: 2 },
-    waterCalloutBody: { fontSize: 10, color: '#94a3b8', lineHeight: 14 },
-
-    // Fuel
-    burnedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    burnedLabel: { fontSize: fontSize.xs, color: c.muted },
-    burnedVal: { fontSize: fontSize.sm, fontWeight: '600' },
 
     // Creatine
-    creatinePhase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     creatinePhaseBadge: { fontSize: 11, fontWeight: '700', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-    creatinePct: { fontSize: fontSize.sm, color: c.muted },
-    creatineStats: { flexDirection: 'row', gap: 8, marginTop: 4 },
     creatineStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 8, alignItems: 'center' },
     creatineStatVal: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
     creatineStatLabel: { fontSize: 10, color: c.muted, marginTop: 2 },
@@ -467,5 +744,8 @@ function makeStyles(c: Colors) {
     recordVal: { fontSize: fontSize.lg, fontWeight: '700', color: c.text },
     recordSub: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
     empty: { fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 12 },
+
+    // Recent workouts
+    workoutRow: { gap: 2 },
   });
 }

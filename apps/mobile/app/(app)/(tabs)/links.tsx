@@ -91,7 +91,7 @@ export default function LinksScreen() {
   }
 
   const styles = makeStyles(c);
-  const swipe = useSwipeNav(3);
+  const swipe = useSwipeNav(4);
 
   if (loading) {
     return (

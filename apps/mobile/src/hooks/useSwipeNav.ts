@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 // Ordered list of visible bottom tabs
 const BOTTOM_TABS = [
+  '/(app)/(tabs)/dashboard',
   '/(app)/(tabs)/',
   '/(app)/(tabs)/nutrition',
   '/(app)/(tabs)/workouts',

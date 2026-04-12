@@ -459,9 +459,52 @@ export interface RoutineSummary {
   coverImageUrl: string | null;
   createdAt: string;
 }
+
+export interface RoutineExerciseSet {
+  id: number;
+  setNumber: number;
+  reps: number | null;
+  weightKg: number | null;
+  durationSeconds: number | null;
+  distanceMeters: number | null;
+}
+
+export interface RoutineExercise {
+  id: number;
+  sortOrder: number;
+  notes: string | null;
+  exercise: Exercise;
+  templateSets: RoutineExerciseSet[];
+  lastPerformedSets: Array<{
+    setNumber: number;
+    reps: number | null;
+    weightKg: number | null;
+    durationSeconds: number | null;
+    distanceMeters: number | null;
+  }> | null;
+}
+
+export interface RoutineDetail {
+  id: number;
+  name: string;
+  notes: string | null;
+  coverImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  exercises: RoutineExercise[];
+}
+
 export async function getRoutines(token: string): Promise<RoutineSummary[]> {
   const res = await fetch(`${API_BASE}/api/routines`, { headers: headers(token) });
   return handle<RoutineSummary[]>(res);
+}
+export async function getRoutine(token: string, id: number): Promise<RoutineDetail> {
+  const res = await fetch(`${API_BASE}/api/routines/${id}`, { headers: headers(token) });
+  return handle<RoutineDetail>(res);
+}
+export async function updateRoutine(token: string, id: number, data: { name?: string; notes?: string }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
 }
 export async function createRoutine(token: string, data: { name: string; notes?: string }): Promise<{ id: number; name: string }> {
   const res = await fetch(`${API_BASE}/api/routines`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
@@ -474,6 +517,26 @@ export async function deleteRoutine(token: string, id: number): Promise<void> {
 export async function startRoutine(token: string, id: number): Promise<WorkoutDetail> {
   const res = await fetch(`${API_BASE}/api/routines/${id}/start`, { method: 'POST', headers: headers(token) });
   return handle<WorkoutDetail>(res);
+}
+export async function addRoutineExercise(token: string, routineId: number, exerciseId: number): Promise<RoutineExercise> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify({ exerciseId }) });
+  return handle<RoutineExercise>(res);
+}
+export async function removeRoutineExercise(token: string, routineId: number, reId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function addRoutineTemplateSet(token: string, routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<RoutineExerciseSet> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<RoutineExerciseSet>(res);
+}
+export async function updateRoutineTemplateSet(token: string, routineId: number, reId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets/${setId}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+export async function deleteRoutineTemplateSet(token: string, routineId: number, reId: number, setId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets/${setId}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
 }
 
 // Foods search

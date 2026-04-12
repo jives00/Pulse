@@ -219,7 +219,7 @@ export default function NutritionScreen() {
   const scannedRef = useRef(false);
   // Pending barcode: set after scanning finds a food (not a recipe) so we can offer Save as Recipe
   const pendingBarcodeRef = useRef<{ barcode: string; foodName: string } | null>(null);
-  const swipe = useSwipeNav(1);
+  const swipe = useSwipeNav(2);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -575,6 +575,25 @@ export default function NutritionScreen() {
             token={token}
           />
 
+          {/* Water */}
+          <View style={s.waterSection}>
+            <View style={s.waterHeader}>
+              <Text style={s.mealLabel}>Water</Text>
+              <Text style={s.mealCals}>{waterGlasses} / {waterGoalGlasses} glasses</Text>
+            </View>
+            <View style={s.progressBg}>
+              <View style={[s.progressFill, { width: `${waterPct * 100}%` as any, backgroundColor: '#60a5fa' }]} />
+            </View>
+            <View style={s.waterBtns}>
+              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(8)}>
+                <Text style={s.waterBtnText}>+ glass (8oz)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(20)}>
+                <Text style={s.waterBtnText}>+ bottle (20oz)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Meal sections */}
           {MEALS.map(({ slot, label }) => {
             const entries = log?.meals[slot] ?? [];
@@ -621,25 +640,6 @@ export default function NutritionScreen() {
               </View>
             );
           })}
-
-          {/* Water */}
-          <View style={s.waterSection}>
-            <View style={s.waterHeader}>
-              <Text style={s.mealLabel}>Water</Text>
-              <Text style={s.mealCals}>{waterGlasses} / {waterGoalGlasses} glasses</Text>
-            </View>
-            <View style={s.progressBg}>
-              <View style={[s.progressFill, { width: `${waterPct * 100}%` as any, backgroundColor: '#60a5fa' }]} />
-            </View>
-            <View style={s.waterBtns}>
-              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(8)}>
-                <Text style={s.waterBtnText}>+ glass (8oz)</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(20)}>
-                <Text style={s.waterBtnText}>+ bottle (20oz)</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
 
           <View style={{ height: 24 }} />
         </ScrollView>
