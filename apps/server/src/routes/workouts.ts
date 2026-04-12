@@ -477,6 +477,41 @@ router.delete('/:id/exercises/:weId', async (req, res) => {
   }
 });
 
+// PUT /api/workouts/:id/exercises/:weId  — update notes on a workout exercise (also syncs to routine template)
+router.put('/:id/exercises/:weId', async (req, res) => {
+  const id = parseId(req.params.id);
+  const weId = parseId(req.params.weId);
+  if (!id || !weId) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const { notes } = req.body as { notes?: string | null };
+  try {
+    await pool.query(
+      'UPDATE workout_exercises SET notes = ? WHERE id = ? AND workout_log_id = ?',
+      [notes ?? null, weId, id]
+    );
+    // Sync notes back to the routine template if this workout came from a routine
+    const [weRows] = await pool.query<RowDataPacket[]>(
+      `SELECT we.exercise_id, wl.routine_id
+       FROM workout_exercises we
+       JOIN workout_logs wl ON wl.id = we.workout_log_id
+       WHERE we.id = ? AND wl.user_id = ?`,
+      [weId, req.userId]
+    );
+    const we = weRows[0];
+    if (we?.routine_id) {
+      await pool.query(
+        'UPDATE routine_exercises SET notes = ? WHERE routine_id = ? AND exercise_id = ?',
+        [notes ?? null, we.routine_id, we.exercise_id]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/workouts/:id/exercises/:weId/sets
 router.post('/:id/exercises/:weId/sets', async (req, res) => {
   const id = parseId(req.params.id);

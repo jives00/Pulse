@@ -32,8 +32,8 @@ function fmtDate(dateStr: string) {
 }
 
 function fmtVolume(kg: number) {
-  const lbs = kg * KG_TO_LBS;
-  return lbs >= 1000 ? `${(lbs / 1000).toFixed(1)}k lbs` : `${Math.round(lbs)} lbs`;
+  const lbs = Math.round(kg * KG_TO_LBS);
+  return `${lbs.toLocaleString()} lbs`;
 }
 
 // ── Log tab ─────────────────────────────────────────────────────────────────
@@ -706,6 +706,7 @@ function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
 }
 
 const CHART_H = 52;
+const DOT_R = 3;
 
 function WeeklyMiniChart({ data, dataKey, color, goal }: {
   data: WeekBucket[];
@@ -714,22 +715,61 @@ function WeeklyMiniChart({ data, dataKey, color, goal }: {
   goal?: number | null;
 }) {
   const { width: screenWidth } = useWindowDimensions();
-  // card has 14px horizontal padding on each side; SafeAreaView adds ~16px per side
   const chartWidth = screenWidth - 32 - 28;
-  const GAP = 3;
-  const barW = data.length > 0 ? (chartWidth - GAP * (data.length - 1)) / data.length : 10;
   const maxVal = Math.max(...data.map((d) => d[dataKey] ?? 0), goal ?? 0, 1);
+  if (data.length === 0) return <View style={{ height: CHART_H, width: chartWidth }} />;
+
+  const pts = data.map((entry, i) => {
+    const val = entry[dataKey] ?? 0;
+    const x = (i / (data.length - 1)) * chartWidth;
+    const y = CHART_H - DOT_R - Math.max((val / maxVal) * (CHART_H - DOT_R * 2), 0);
+    return { x, y, val };
+  });
+
+  // Build SVG polyline points string
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const lastPt = pts[pts.length - 1];
+
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H, gap: GAP, width: chartWidth }}>
-      {data.map((entry, i) => {
-        const val = entry[dataKey] ?? 0;
-        const pct = Math.min(val / maxVal, 1);
-        const barH = Math.max(pct * CHART_H, 2);
-        const isCurrent = i === data.length - 1;
-        const dim = goal ? val / goal < 0.85 : false;
-        const barColor = isCurrent ? color : dim ? `${color}55` : color;
-        return <View key={entry.weekStart} style={{ width: barW, height: barH, backgroundColor: barColor, borderRadius: 2 }} />;
+    <View style={{ height: CHART_H, width: chartWidth }}>
+      {/* @ts-ignore — RN SVG not available; use manual absolute positioned views */}
+      {pts.map((pt, i) => {
+        if (i === pts.length - 1) return null;
+        const next = pts[i + 1];
+        const dx = next.x - pt.x;
+        const dy = next.y - pt.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        return (
+          <View
+            key={data[i].weekStart + '_line'}
+            style={{
+              position: 'absolute',
+              left: pt.x,
+              top: pt.y - 0.75,
+              width: len,
+              height: 1.5,
+              backgroundColor: `${color}88`,
+              transformOrigin: 'left center',
+              transform: [{ rotate: `${angle}deg` }],
+            }}
+          />
+        );
       })}
+      {pts.map((pt, i) => (
+        <View
+          key={data[i].weekStart + '_dot'}
+          style={{
+            position: 'absolute',
+            left: pt.x - DOT_R,
+            top: pt.y - DOT_R,
+            width: DOT_R * 2,
+            height: DOT_R * 2,
+            borderRadius: DOT_R,
+            backgroundColor: i === pts.length - 1 ? color : `${color}99`,
+          }}
+        />
+      ))}
     </View>
   );
 }

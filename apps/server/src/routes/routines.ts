@@ -459,7 +459,7 @@ router.post('/:id/start', async (req, res) => {
     }
 
     const [reRows] = await conn.query<RowDataPacket[]>(
-      `SELECT re.id AS re_id, re.exercise_id, re.sort_order
+      `SELECT re.id AS re_id, re.exercise_id, re.sort_order, re.notes AS re_notes
        FROM routine_exercises re
        WHERE re.routine_id = ?
        ORDER BY re.sort_order ASC, re.id ASC`,
@@ -478,8 +478,8 @@ router.post('/:id/start', async (req, res) => {
     // For each routine exercise, add to workout and pre-fill sets
     for (const re of reRows) {
       const [weResult] = await conn.query<ResultSetHeader>(
-        'INSERT INTO workout_exercises (workout_log_id, exercise_id, sort_order) VALUES (?, ?, ?)',
-        [workoutId, re.exercise_id, re.sort_order]
+        'INSERT INTO workout_exercises (workout_log_id, exercise_id, sort_order, notes) VALUES (?, ?, ?, ?)',
+        [workoutId, re.exercise_id, re.sort_order, re.re_notes ?? null]
       );
       const weId = weResult.insertId;
 

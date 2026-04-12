@@ -283,6 +283,27 @@ export default function NutritionScreen() {
     scannedRef.current = false;
   }
 
+  async function openAddFoodScan(meal: MealSlot) {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert('Camera permission required', 'Please allow camera access to scan barcodes.');
+        return;
+      }
+    }
+    setAddMeal(meal);
+    setModalView('scanning');
+    setQuery('');
+    setFoodResults([]);
+    setRecipeResults([]);
+    setSelectedFood(null);
+    setSelectedServing(null);
+    setQuantity('1');
+    setSelectedRecipe(null);
+    setRecipeServings('1');
+    scannedRef.current = false;
+  }
+
   function selectFood(food: Food) {
     setSelectedFood(food);
     const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0] ?? null;
@@ -587,9 +608,14 @@ export default function NutritionScreen() {
                         <Text style={s.foodCals}>{Math.round(entry.nutrition.calories)}</Text>
                       </TouchableOpacity>
                     ))}
-                    <TouchableOpacity style={s.addFoodBtn} onPress={() => openAddFood(slot)}>
-                      <Text style={s.addFoodBtnText}>+ Add food</Text>
-                    </TouchableOpacity>
+                    <View style={s.addFoodBtn}>
+                      <TouchableOpacity style={{ flex: 1 }} onPress={() => openAddFood(slot)}>
+                        <Text style={s.addFoodBtnText}>+ Add food</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => openAddFoodScan(slot)} style={s.addFoodScanBtn}>
+                        <Text style={s.addFoodScanIcon}>⊡</Text>
+                      </TouchableOpacity>
+                    </View>
                   </>
                 )}
               </View>
@@ -912,8 +938,10 @@ function makeStyles(c: Colors) {
     foodName: { fontSize: fontSize.sm, color: c.text },
     foodServing: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
     foodCals: { fontSize: fontSize.sm, color: c.muted },
-    addFoodBtn: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 12, paddingHorizontal: 14 },
+    addFoodBtn: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
     addFoodBtnText: { fontSize: fontSize.sm, color: c.accent },
+    addFoodScanBtn: { paddingLeft: 12, paddingVertical: 2 },
+    addFoodScanIcon: { fontSize: 20, color: c.muted },
     waterSection: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
     waterHeader: { flexDirection: 'row', alignItems: 'center' },
     waterBtns: { flexDirection: 'row', gap: 8 },

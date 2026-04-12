@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet,
@@ -482,9 +482,9 @@ export default function RoutineDetailPage() {
           {/* Volume history chart */}
           {volumeHistory.length > 0 && (
             <div className="bg-dram-card rounded-lg p-3">
-              <div className="text-xs text-dram-muted mb-2">Volume per session (lbs)</div>
+              <div className="text-sm font-medium text-dram-muted mb-2">Volume per session (lbs)</div>
               <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={volumeHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <LineChart data={volumeHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={30} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} axisLine={false} tickLine={false} width={28} />
                   <Tooltip
@@ -492,8 +492,8 @@ export default function RoutineDetailPage() {
                     labelFormatter={(l) => shortDate(String(l))}
                     formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
                   />
-                  <Bar dataKey="volumeLbs" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-                </BarChart>
+                  <Line dataKey="volumeLbs" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 4 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           )}
