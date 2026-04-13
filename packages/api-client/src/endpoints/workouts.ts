@@ -238,7 +238,7 @@ export const workoutsApi = {
   addSet: (workoutId: number, weId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }) =>
     apiClient.post<ExerciseSet>(`/workouts/${workoutId}/exercises/${weId}/sets`, data).then((r) => r.data),
 
-  updateSet: (workoutId: number, weId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; completed?: boolean }) =>
+  updateSet: (workoutId: number, weId: number, setId: number, data: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; completed?: boolean }) =>
     apiClient.put(`/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, data).then(() => {}),
 
   deleteSet: (workoutId: number, weId: number, setId: number) =>

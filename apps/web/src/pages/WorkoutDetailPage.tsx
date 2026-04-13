@@ -91,10 +91,10 @@ function SetRow({
     setSaving(true);
     try {
       await workoutsApi.updateSet(workoutId, weId, set.id, {
-        reps: newReps ?? undefined,
-        weightKg: newWeightKg ?? undefined,
-        durationSeconds: newDurSeconds ?? undefined,
-        distanceMeters: newDistMeters ?? undefined,
+        reps: newReps,
+        weightKg: newWeightKg,
+        durationSeconds: newDurSeconds,
+        distanceMeters: newDistMeters,
         completed: set.completed,
       });
       onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters });

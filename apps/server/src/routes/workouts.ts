@@ -566,12 +566,22 @@ router.put('/:id/exercises/:weId/sets/:setId', async (req, res) => {
 
   const { reps, weightKg, durationSeconds, distanceMeters, completed } = req.body;
 
+  // Build a partial update — only touch fields that were explicitly sent in the body.
+  // This prevents toggle-complete calls (which only send `completed`) from zeroing out reps/weight.
+  const setClauses: string[] = [];
+  const values: (number | null | boolean)[] = [];
+  if ('reps' in req.body)            { setClauses.push('reps=?');              values.push(reps ?? null); }
+  if ('weightKg' in req.body)        { setClauses.push('weight_kg=?');         values.push(weightKg ?? null); }
+  if ('durationSeconds' in req.body) { setClauses.push('duration_seconds=?');  values.push(durationSeconds ?? null); }
+  if ('distanceMeters' in req.body)  { setClauses.push('distance_meters=?');   values.push(distanceMeters ?? null); }
+  if ('completed' in req.body)       { setClauses.push('completed=?');         values.push(completed ? 1 : 0); }
+
+  if (setClauses.length === 0) { res.json({ success: true }); return; }
+
   try {
     await pool.query(
-      `UPDATE exercise_sets SET reps=?, weight_kg=?, duration_seconds=?, distance_meters=?, completed=?
-       WHERE id = ? AND workout_exercise_id = ?`,
-      [reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null,
-       completed !== false ? 1 : 0, setId, weId]
+      `UPDATE exercise_sets SET ${setClauses.join(', ')} WHERE id = ? AND workout_exercise_id = ?`,
+      [...values, setId, weId]
     );
     res.json({ success: true });
   } catch (err) {
