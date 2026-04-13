@@ -135,14 +135,18 @@ router.get('/', async (req, res) => {
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
-       WHERE wl.user_id = ? AND wl.routine_id IN (?)
-         AND wl.id IN (
-           SELECT MAX(id) FROM workout_logs
-           WHERE user_id = ? AND routine_id IN (?)
-           GROUP BY routine_id
+       WHERE wl.user_id = ? AND wl.routine_id IN (?) AND wl.completed = 1
+         AND wl.workout_date = (
+           SELECT MAX(wl2.workout_date) FROM workout_logs wl2
+           WHERE wl2.user_id = wl.user_id AND wl2.routine_id = wl.routine_id AND wl2.completed = 1
+         )
+         AND wl.id = (
+           SELECT MAX(wl3.id) FROM workout_logs wl3
+           WHERE wl3.user_id = wl.user_id AND wl3.routine_id = wl.routine_id AND wl3.completed = 1
+             AND wl3.workout_date = wl.workout_date
          )
        GROUP BY wl.routine_id, wl.workout_date, wl.calories_burned`,
-      [req.userId, ids, req.userId, ids]
+      [req.userId, ids]
     );
     const lastUsedMap: Record<number, string> = {};
     const lastVolumeMap: Record<number, number | null> = {};

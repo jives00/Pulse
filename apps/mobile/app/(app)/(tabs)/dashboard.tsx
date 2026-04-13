@@ -8,10 +8,10 @@ import { useFocusEffect } from 'expo-router';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getExerciseGoals, getMeasurements, getMeasurementGoals, getPersonalBests,
-  getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines,
+  getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
   type WorkoutSummary, type ExerciseGoals, type BodyMeasurement, type MeasurementGoal,
   type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
-  type DailyHistoryEntry, type RoutineSummary,
+  type DailyHistoryEntry, type RoutineSummary, type TDEEBreakdown,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -366,6 +366,7 @@ export default function DashboardScreen() {
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
+  const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -374,7 +375,7 @@ export default function DashboardScreen() {
       const startD = new Date(); startD.setDate(startD.getDate() - 29);
       const start = localDateStr(startD);
 
-      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl] = await Promise.all([
+      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl, tdee] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -385,6 +386,7 @@ export default function DashboardScreen() {
         getFoodLogHistory(token, 30).catch(() => []),
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
+        getTDEE(token).catch(() => null),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -396,6 +398,7 @@ export default function DashboardScreen() {
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
+      setTodayTDEE(tdee && tdee.available ? tdee : null);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -417,9 +420,10 @@ export default function DashboardScreen() {
   const caloriesConsumed = Math.round(nutritionSummary?.nutrition.actual.calories ?? 0);
   const proteinGoal = nutritionSummary?.nutrition.goals?.proteinG ?? null;
   const proteinConsumed = Math.round(nutritionSummary?.nutrition.actual.proteinG ?? 0);
-  const burnedToday = workouts
+  const workoutBurnedToday = workouts
     .filter((w) => w.workoutDate === todayStr)
     .reduce((sum, w) => sum + (w.caloriesBurned ?? 0), 0);
+  const burnedToday = todayTDEE ? todayTDEE.total : workoutBurnedToday;
   const waterOzToday = waterHistory?.days.find((d) => d.date === todayStr)?.totalOz ?? 0;
   const waterGoalOz = waterHistory?.goalOz ?? 64;
   const waterGlasses = Math.round(waterOzToday / GLASS_OZ * 10) / 10;
@@ -444,7 +448,7 @@ export default function DashboardScreen() {
   const calSeries    = days30.map((d) => historyByDate[d]?.calories ?? 0);
   const proteinSeries = days30.map((d) => historyByDate[d]?.proteinG ?? 0);
   const waterSeries  = days30.map((d) => Math.round((waterByDate[d] ?? 0) / GLASS_OZ * 10) / 10);
-  const burnedSeries = days30.map((d) => burnedByDate[d] ?? 0);
+  const burnedSeries = days30.map((d) => d === todayStr && todayTDEE ? todayTDEE.total : burnedByDate[d] ?? 0);
   const hasBurned    = burnedSeries.some((v) => v > 0);
 
   const creatineData = computeCreatineSaturation(foodLogHistory);

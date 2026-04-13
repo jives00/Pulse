@@ -200,9 +200,9 @@ export default function History() {
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-base font-medium text-white">
-                              {w.name ?? fmtWorkoutDate(w.workoutDate)}
+                              {w.name ?? w.routineName ?? fmtWorkoutDate(w.workoutDate)}
                             </p>
-                            {w.name && (
+                            {(w.name ?? w.routineName) && (
                               <p className="text-sm text-gray-500">{fmtWorkoutDate(w.workoutDate)}</p>
                             )}
                             <p className="text-xs text-gray-500 mt-0.5">

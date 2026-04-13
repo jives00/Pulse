@@ -127,7 +127,7 @@ function LogTab() {
               <Text style={s.cardDuration}>{item.durationMinutes} min</Text>
             )}
           </View>
-          {item.name && <Text style={s.cardName}>{item.name}</Text>}
+          {(item.name ?? item.routineName) && <Text style={s.cardName}>{item.name ?? item.routineName}</Text>}
           <Text style={s.cardStats}>
             {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''} · {item.setCount} set{item.setCount !== 1 ? 's' : ''}
             {item.totalVolumeKg > 0 ? ` · ${fmtVolume(item.totalVolumeKg)}` : ''}

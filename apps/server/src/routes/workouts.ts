@@ -202,12 +202,14 @@ router.get('/', async (req, res) => {
               COUNT(DISTINCT we.id) AS exercise_count,
               COUNT(DISTINCT es.id) AS set_count,
               COALESCE(SUM(CASE WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
-                                THEN es.reps * es.weight_kg ELSE 0 END), 0) AS total_volume_kg
+                                THEN es.reps * es.weight_kg ELSE 0 END), 0) AS total_volume_kg,
+              wr.name AS routine_name
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
+       LEFT JOIN workout_routines wr ON wr.id = wl.routine_id
        ${whereClause}
-       GROUP BY wl.id
+       GROUP BY wl.id, wr.name
        ORDER BY wl.workout_date DESC, wl.created_at DESC
        LIMIT ? OFFSET ?`,
       queryParams
@@ -219,6 +221,7 @@ router.get('/', async (req, res) => {
         ? r.workout_date.toISOString().slice(0, 10)
         : String(r.workout_date),
       name: r.name ?? null,
+      routineName: r.routine_name ?? null,
       durationMinutes: r.duration_minutes ?? null,
       caloriesBurned: r.calories_burned ?? null,
       exerciseCount: Number(r.exercise_count),

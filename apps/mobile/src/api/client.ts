@@ -19,7 +19,14 @@ function headers(token: string) {
   };
 }
 
+let _onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { _onUnauthorized = fn; }
+
 async function handle<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    _onUnauthorized?.();
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as any).error || `HTTP ${res.status}`);
@@ -264,7 +271,7 @@ export interface GoalsSummary { date: string; nutrition: { goals: { calories: nu
 export interface Exercise { id: number; name: string; category: string; exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration'; isCustom?: boolean; musclesPrimary?: string[]; musclesSecondary?: string[]; instructions?: string | null; mediaUrl?: string | null; coverImageUrl?: string | null; muscleImageUrl?: string | null; notes?: string | null; trackedFields?: string[]; mediaKey?: string | null; coverImageKey?: string | null; muscleImageKey?: string | null; }
 export interface ExerciseSet { id: number; setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; distanceMeters: number | null; completed: boolean; }
 export interface WorkoutExercise { id: number; sortOrder: number; notes: string | null; exercise: Exercise; sets: ExerciseSet[]; }
-export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; caloriesBurned: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; routineId: number | null; exercises: { name: string; setCount: number; }[]; }
+export interface WorkoutSummary { id: number; workoutDate: string; name: string | null; routineName: string | null; durationMinutes: number | null; caloriesBurned: number | null; exerciseCount: number; setCount: number; totalVolumeKg: number; routineId: number | null; exercises: { name: string; setCount: number; }[]; }
 export interface WorkoutDetail { id: number; workoutDate: string; name: string | null; durationMinutes: number | null; startedAt: string | null; exercises: WorkoutExercise[]; }
 
 // Nutrition log
@@ -319,8 +326,12 @@ export async function getGoalsSummary(token: string, date?: string): Promise<Goa
 }
 
 // Workouts
-export async function getWorkouts(token: string, params?: { limit?: number; offset?: number }): Promise<WorkoutSummary[]> {
-  const qs = params ? `?limit=${params.limit ?? 20}&offset=${params.offset ?? 0}` : '';
+export async function getWorkouts(token: string, params?: { limit?: number; offset?: number; routineId?: number }): Promise<WorkoutSummary[]> {
+  const p = new URLSearchParams();
+  if (params?.limit != null) p.set('limit', String(params.limit));
+  if (params?.offset != null) p.set('offset', String(params.offset));
+  if (params?.routineId != null) p.set('routineId', String(params.routineId));
+  const qs = p.toString() ? `?${p.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/workouts${qs}`, { headers: headers(token) });
   return handle<WorkoutSummary[]>(res);
 }
@@ -639,6 +650,16 @@ export interface NutritionGoals { calories: number; carbsG: number; proteinG: nu
 export async function saveNutritionGoals(token: string, data: NutritionGoals): Promise<void> {
   const res = await fetch(`${API_BASE}/api/goals/nutrition`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
+}
+
+// TDEE
+export interface TDEEBreakdown { available: true; bmr: number; neat: number; tef: number; exercise: number; total: number; }
+export interface TDEEUnavailable { available: false; }
+export type TDEEResult = TDEEBreakdown | TDEEUnavailable;
+export async function getTDEE(token: string, date?: string): Promise<TDEEResult> {
+  const qs = date ? `?date=${date}` : '';
+  const res = await fetch(`${API_BASE}/api/goals/tdee${qs}`, { headers: headers(token) });
+  return handle<TDEEResult>(res);
 }
 
 // Exercise goals

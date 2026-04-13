@@ -120,6 +120,7 @@ export interface WorkoutSummary {
   id: number;
   workoutDate: string;
   name: string | null;
+  routineName: string | null;
   durationMinutes: number | null;
   caloriesBurned: number | null;
   exerciseCount: number;
