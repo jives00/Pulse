@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
-import type { LogEntry, MealSlot } from '@pulse/api-client';
+import { useEffect, useRef, useState } from 'react';
+import type { LogEntry, MealSlot, ServingSize } from '@pulse/api-client';
+import { foodsApi } from '@pulse/api-client';
 import { useLogStore, todayStr } from '../store/logStore';
 
 const MEAL_META: Record<MealSlot, { label: string; emoji: string; from: string; color: string }> = {
@@ -134,6 +135,118 @@ function MoveCopyPicker({ entry, mode, currentMeal, currentDate, onClose }: Move
   );
 }
 
+interface EditEntryModalProps {
+  entry: LogEntry;
+  onClose: () => void;
+}
+
+function EditEntryModal({ entry, onClose }: EditEntryModalProps) {
+  const updateEntry = useLogStore((s) => s.updateEntry);
+  const [servingSizes, setServingSizes] = useState<ServingSize[]>([]);
+  const [loadingServings, setLoadingServings] = useState(true);
+  const [selectedServing, setSelectedServing] = useState<ServingSize>(entry.servingSize);
+  const [quantity, setQuantity] = useState(String(entry.quantity));
+  const [saving, setSaving] = useState(false);
+
+  // Fetch serving sizes on mount
+  useEffect(() => {
+    foodsApi.getById(entry.food.id)
+      .then((food) => {
+        setServingSizes(food.servingSizes);
+        const match = food.servingSizes.find((s) => s.id === entry.servingSize.id);
+        if (match) setSelectedServing(match);
+      })
+      .catch(() => setServingSizes([entry.servingSize]))
+      .finally(() => setLoadingServings(false));
+  }, [entry.food.id, entry.servingSize.id]);
+
+  const qty = parseFloat(quantity) || 0;
+  const caloriesPreview = selectedServing
+    ? Math.round(entry.food.nutrition.calories * selectedServing.grams * qty / 100)
+    : null;
+
+  async function confirm() {
+    const q = parseFloat(quantity);
+    if (!q || q <= 0) return;
+    setSaving(true);
+    try {
+      await updateEntry(entry.id, { servingSizeId: selectedServing.id, quantity: q });
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-dram-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm border border-dram-border p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-200 truncate pr-4">{entry.food.name}</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none shrink-0">×</button>
+        </div>
+
+        {loadingServings ? (
+          <div className="text-center text-slate-500 text-sm py-4">Loading…</div>
+        ) : (
+          <>
+            <div>
+              <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Serving size</div>
+              <div className="space-y-1">
+                {servingSizes.map((sv) => (
+                  <button
+                    key={sv.id}
+                    onClick={() => setSelectedServing(sv)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${
+                      selectedServing.id === sv.id
+                        ? 'bg-dram-accent text-black border-dram-accent font-semibold'
+                        : 'border-dram-border text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {sv.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Quantity</div>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
+              />
+              {caloriesPreview !== null && (
+                <div className="text-xs text-slate-500 mt-1.5 text-center">{caloriesPreview} kcal</div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={onClose} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-1.5">
+                Cancel
+              </button>
+              <button
+                onClick={confirm}
+                disabled={saving || !quantity || parseFloat(quantity) <= 0}
+                className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-1.5 hover:brightness-110 disabled:opacity-50 transition"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface EntryMenuProps {
   entry: LogEntry;
   currentMeal: MealSlot;
@@ -143,10 +256,14 @@ interface EntryMenuProps {
 
 function EntryMenu({ entry, currentMeal, currentDate, onClose }: EntryMenuProps) {
   const removeEntry = useLogStore((s) => s.removeEntry);
-  const [pickerMode, setPickerMode] = useState<'move' | 'copy' | null>(null);
+  const [pickerMode, setPickerMode] = useState<'move' | 'copy' | 'edit' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  if (pickerMode) {
+  if (pickerMode === 'edit') {
+    return <EditEntryModal entry={entry} onClose={() => { setPickerMode(null); onClose(); }} />;
+  }
+
+  if (pickerMode === 'move' || pickerMode === 'copy') {
     return (
       <MoveCopyPicker
         entry={entry}
@@ -168,6 +285,12 @@ function EntryMenu({ entry, currentMeal, currentDate, onClose }: EntryMenuProps)
       >
         <button
           className="w-full text-left px-4 py-2.5 text-slate-200 hover:bg-white/10 transition-colors"
+          onClick={() => setPickerMode('edit')}
+        >
+          Edit
+        </button>
+        <button
+          className="w-full text-left px-4 py-2.5 text-slate-200 hover:bg-white/10 transition-colors border-t border-dram-border/50"
           onClick={() => setPickerMode('move')}
         >
           Move to…

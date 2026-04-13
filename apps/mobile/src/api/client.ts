@@ -292,6 +292,14 @@ export async function copyLogEntry(token: string, entry: NutritionLogEntry, meal
   });
   await handle(res);
 }
+export async function editNutritionLogEntry(token: string, id: number, payload: { servingSizeId: number; quantity: number }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(payload) });
+  await handle(res);
+}
+export async function getFoodById(token: string, id: number): Promise<Food> {
+  const res = await fetch(`${API_BASE}/api/foods/${id}`, { headers: headers(token) });
+  return handle<Food>(res);
+}
 
 // Water
 export async function getWaterDay(token: string, date: string): Promise<WaterDay> {

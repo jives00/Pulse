@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
-  getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry, addWater,
+  getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry,
+  editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult,
@@ -52,12 +53,27 @@ export default function NutritionScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
 
-  // Move/copy modal state
-  const [moveCopyEntry, setMoveCopyEntry] = useState<NutritionLogEntry | null>(null);
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectMeal, setSelectMeal] = useState<MealSlot | null>(null); // which meal is in select mode
+
+  // Move/copy modal state (works for multi-select)
+  const [moveCopyEntries, setMoveCopyEntries] = useState<NutritionLogEntry[]>([]);
   const [moveCopyMode, setMoveCopyMode] = useState<'move' | 'copy'>('move');
   const [targetMeal, setTargetMeal] = useState<MealSlot>('breakfast');
   const [targetDate, setTargetDate] = useState(toDateStr(new Date()));
   const [savingMoveCopy, setSavingMoveCopy] = useState(false);
+
+  // Single-entry action sheet state
+  const [actionEntry, setActionEntry] = useState<{ entry: NutritionLogEntry; meal: MealSlot } | null>(null);
+
+  // Edit entry modal state
+  const [editEntry, setEditEntry] = useState<NutritionLogEntry | null>(null);
+  const [editServingSizes, setEditServingSizes] = useState<ServingSize[]>([]);
+  const [editServing, setEditServing] = useState<ServingSize | null>(null);
+  const [editQuantity, setEditQuantity] = useState('1');
+  const [loadingEditServings, setLoadingEditServings] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Add food modal state
   const [addMeal, setAddMeal] = useState<MealSlot | null>(null);
@@ -258,47 +274,95 @@ export default function NutritionScreen() {
     }
   }
 
-  function handleEntryAction(entry: NutritionLogEntry, currentMeal: MealSlot) {
-    Alert.alert(entry.food.name, undefined, [
-      {
-        text: 'Move to…',
-        onPress: () => {
-          setMoveCopyMode('move');
-          setMoveCopyEntry(entry);
-          setTargetMeal(currentMeal);
-          setTargetDate(date);
-        },
-      },
-      {
-        text: 'Copy to…',
-        onPress: () => {
-          setMoveCopyMode('copy');
-          setMoveCopyEntry(entry);
-          setTargetMeal(currentMeal);
-          setTargetDate(date);
-        },
-      },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: async () => {
-          try { await deleteNutritionLogEntry(token, entry.id); load(); }
-          catch { Alert.alert('Error', 'Could not remove entry.'); }
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setSelectMeal(null);
+  }
+
+  function handleEntryLongPress(entry: NutritionLogEntry, currentMeal: MealSlot) {
+    // Enter select mode for this meal
+    setSelectMeal(currentMeal);
+    setSelectedIds(new Set([entry.id]));
+  }
+
+  function handleEntryTap(entry: NutritionLogEntry, currentMeal: MealSlot) {
+    if (selectMeal !== currentMeal) return; // not in select mode for this meal
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entry.id)) { next.delete(entry.id); } else { next.add(entry.id); }
+      if (next.size === 0) { setSelectMeal(null); }
+      return next;
+    });
+  }
+
+  function openMoveCopyForSelected(mode: 'move' | 'copy', currentMeal: MealSlot) {
+    const entries = (log?.meals[currentMeal] ?? []).filter((e) => selectedIds.has(e.id));
+    setMoveCopyMode(mode);
+    setMoveCopyEntries(entries);
+    setTargetMeal(currentMeal);
+    setTargetDate(date);
+  }
+
+  async function removeSelected(currentMeal: MealSlot) {
+    const ids = Array.from(selectedIds);
+    clearSelection();
+    try {
+      await Promise.all(ids.map((id) => deleteNutritionLogEntry(token, id)));
+      load();
+    } catch { Alert.alert('Error', 'Could not remove entries.'); }
+  }
+
+  async function openEditEntry(entry: NutritionLogEntry) {
+    clearSelection();
+    setEditEntry(entry);
+    setEditQuantity(String(entry.quantity));
+    // Use serving sizes already on the food if populated, else fetch
+    if (entry.food.servingSizes && entry.food.servingSizes.length > 0) {
+      setEditServingSizes(entry.food.servingSizes);
+      setEditServing(entry.food.servingSizes.find((s) => s.id === entry.servingSize.id) ?? entry.food.servingSizes[0]);
+    } else {
+      setLoadingEditServings(true);
+      try {
+        const food = await getFoodById(token, entry.food.id);
+        setEditServingSizes(food.servingSizes);
+        setEditServing(food.servingSizes.find((s) => s.id === entry.servingSize.id) ?? food.servingSizes[0]);
+      } catch {
+        // Fall back to just the current serving size
+        setEditServingSizes([entry.servingSize]);
+        setEditServing(entry.servingSize);
+      } finally {
+        setLoadingEditServings(false);
+      }
+    }
+  }
+
+  async function confirmEdit() {
+    if (!editEntry || !editServing) return;
+    const qty = parseFloat(editQuantity);
+    if (!qty || qty <= 0) { Alert.alert('Invalid quantity'); return; }
+    setSavingEdit(true);
+    try {
+      await editNutritionLogEntry(token, editEntry.id, { servingSizeId: editServing.id, quantity: qty });
+      setEditEntry(null);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not save.');
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   async function confirmMoveCopy() {
-    if (!moveCopyEntry) return;
+    if (!moveCopyEntries.length) return;
     setSavingMoveCopy(true);
     try {
       if (moveCopyMode === 'move') {
-        await moveLogEntry(token, moveCopyEntry.id, targetMeal, targetDate);
+        await Promise.all(moveCopyEntries.map((e) => moveLogEntry(token, e.id, targetMeal, targetDate)));
       } else {
-        await copyLogEntry(token, moveCopyEntry, targetMeal, targetDate);
+        await Promise.all(moveCopyEntries.map((e) => copyLogEntry(token, e, targetMeal, targetDate)));
       }
-      setMoveCopyEntry(null);
+      setMoveCopyEntries([]);
+      clearSelection();
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not save.');
@@ -427,42 +491,80 @@ export default function NutritionScreen() {
             const entries = log?.meals[slot] ?? [];
             const mealCals = entries.reduce((sum, e) => sum + e.nutrition.calories, 0);
             const open = expanded[slot];
+            const inSelectMode = selectMeal === slot;
             return (
               <View key={slot} style={s.mealSection}>
                 <TouchableOpacity
                   style={s.mealHeader}
-                  onPress={() => setExpanded((prev) => ({ ...prev, [slot]: !prev[slot] }))}
+                  onPress={() => {
+                    if (inSelectMode) { clearSelection(); return; }
+                    setExpanded((prev) => ({ ...prev, [slot]: !prev[slot] }));
+                  }}
                 >
                   <Text style={s.mealLabel}>{label}</Text>
-                  <Text style={s.mealCals}>{Math.round(mealCals)} kcal</Text>
+                  {inSelectMode
+                    ? <Text style={[s.mealCals, { color: c.accent }]}>{selectedIds.size} selected · tap to cancel</Text>
+                    : <Text style={s.mealCals}>{Math.round(mealCals)} kcal</Text>
+                  }
                   <Text style={s.mealChevron}>{open ? '▾' : '▸'}</Text>
                 </TouchableOpacity>
                 {open && (
                   <>
-                    {entries.map((entry) => (
-                      <TouchableOpacity
-                        key={entry.id}
-                        style={s.foodRow}
-                        onLongPress={() => handleEntryAction(entry, slot)}
-                      >
-                        <View style={s.foodInfo}>
-                          <Text style={s.foodName} numberOfLines={1}>{entry.food.name}</Text>
-                          <Text style={s.foodServing}>
-                            {entry.quantity} × {entry.servingSize.label}
-                            {entry.food.brand ? ` · ${entry.food.brand}` : ''}
-                          </Text>
-                        </View>
-                        <Text style={s.foodCals}>{Math.round(entry.nutrition.calories)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    <View style={s.addFoodBtn}>
-                      <TouchableOpacity style={{ flex: 1 }} onPress={() => openAddFood(slot)}>
-                        <Text style={s.addFoodBtnText}>+ Add food</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => openAddFoodScan(slot)} style={s.addFoodScanBtn}>
-                        <Text style={s.addFoodScanIcon}>⊡</Text>
-                      </TouchableOpacity>
-                    </View>
+                    {entries.map((entry) => {
+                      const isSelected = selectedIds.has(entry.id);
+                      return (
+                        <TouchableOpacity
+                          key={entry.id}
+                          style={[s.foodRow, isSelected && { backgroundColor: `${c.accent}22` }]}
+                          onPress={() => {
+                            if (inSelectMode) {
+                              handleEntryTap(entry, slot);
+                            } else {
+                              setActionEntry({ entry, meal: slot });
+                            }
+                          }}
+                          onLongPress={() => handleEntryLongPress(entry, slot)}
+                        >
+                          {inSelectMode && (
+                            <View style={[s.checkbox, isSelected && { backgroundColor: c.accent, borderColor: c.accent }]}>
+                              {isSelected && <Text style={{ color: c.bg, fontSize: 10, fontWeight: '700' }}>✓</Text>}
+                            </View>
+                          )}
+                          <View style={s.foodInfo}>
+                            <Text style={s.foodName} numberOfLines={1}>{entry.food.name}</Text>
+                            <Text style={s.foodServing}>
+                              {entry.quantity} × {entry.servingSize.label}
+                              {entry.food.brand ? ` · ${entry.food.brand}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={s.foodCals}>{Math.round(entry.nutrition.calories)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {/* Multi-select action bar */}
+                    {inSelectMode && selectedIds.size > 0 && (
+                      <View style={s.selectActions}>
+                        <TouchableOpacity style={s.selectActionBtn} onPress={() => openMoveCopyForSelected('move', slot)}>
+                          <Text style={s.selectActionText}>Move</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.selectActionBtn} onPress={() => openMoveCopyForSelected('copy', slot)}>
+                          <Text style={s.selectActionText}>Copy</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.selectActionBtn, { borderColor: c.error }]} onPress={() => removeSelected(slot)}>
+                          <Text style={[s.selectActionText, { color: c.error }]}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {!inSelectMode && (
+                      <View style={s.addFoodBtn}>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => openAddFood(slot)}>
+                          <Text style={s.addFoodBtnText}>+ Add food</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => openAddFoodScan(slot)} style={s.addFoodScanBtn}>
+                          <Text style={s.addFoodScanIcon}>⊡</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </>
                 )}
               </View>
@@ -473,13 +575,73 @@ export default function NutritionScreen() {
         </ScrollView>
       )}
 
+      {/* Single-entry Action Sheet */}
+      <Modal visible={actionEntry !== null} animationType="slide" transparent onRequestClose={() => setActionEntry(null)}>
+        <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setActionEntry(null)}>
+          <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
+            <View style={[s.modalHeader, { paddingBottom: 8 }]}>
+              <Text style={[s.modalTitle, { fontSize: fontSize.sm }]} numberOfLines={1}>{actionEntry?.entry.food.name}</Text>
+              <TouchableOpacity onPress={() => setActionEntry(null)}>
+                <Text style={s.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={s.actionSheetRow}
+              onPress={() => { const e = actionEntry!.entry; setActionEntry(null); openEditEntry(e); }}
+            >
+              <Text style={s.actionSheetText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.actionSheetRow}
+              onPress={() => {
+                const { entry, meal } = actionEntry!;
+                setActionEntry(null);
+                setMoveCopyMode('move');
+                setMoveCopyEntries([entry]);
+                setTargetMeal(meal);
+                setTargetDate(date);
+              }}
+            >
+              <Text style={s.actionSheetText}>Move to…</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.actionSheetRow}
+              onPress={() => {
+                const { entry, meal } = actionEntry!;
+                setActionEntry(null);
+                setMoveCopyMode('copy');
+                setMoveCopyEntries([entry]);
+                setTargetMeal(meal);
+                setTargetDate(date);
+              }}
+            >
+              <Text style={s.actionSheetText}>Copy to…</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.actionSheetRow, { borderTopColor: c.border }]}
+              onPress={async () => {
+                const { entry } = actionEntry!;
+                setActionEntry(null);
+                try { await deleteNutritionLogEntry(token, entry.id); load(); }
+                catch { Alert.alert('Error', 'Could not remove entry.'); }
+              }}
+            >
+              <Text style={[s.actionSheetText, { color: c.error }]}>Remove</Text>
+            </TouchableOpacity>
+            <View style={{ height: 16 }} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Move / Copy Modal */}
-      <Modal visible={moveCopyEntry !== null} animationType="slide" transparent onRequestClose={() => setMoveCopyEntry(null)}>
-        <View style={s.moveCopyOverlay}>
-          <View style={s.moveCopySheet}>
+      <Modal visible={moveCopyEntries.length > 0} animationType="slide" transparent onRequestClose={() => setMoveCopyEntries([])}>
+        <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setMoveCopyEntries([])}>
+          <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>{moveCopyMode === 'move' ? 'Move' : 'Copy'} to…</Text>
-              <TouchableOpacity onPress={() => setMoveCopyEntry(null)}>
+              <Text style={s.modalTitle}>
+                {moveCopyMode === 'move' ? 'Move' : 'Copy'} {moveCopyEntries.length > 1 ? `${moveCopyEntries.length} items` : ''} to…
+              </Text>
+              <TouchableOpacity onPress={() => setMoveCopyEntries([])}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -523,8 +685,64 @@ export default function NutritionScreen() {
               </TouchableOpacity>
               <View style={{ height: 24 }} />
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Edit Entry Modal */}
+      <Modal visible={editEntry !== null} animationType="slide" transparent onRequestClose={() => setEditEntry(null)}>
+        <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setEditEntry(null)}>
+          <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle} numberOfLines={1}>{editEntry?.food.name}</Text>
+              <TouchableOpacity onPress={() => setEditEntry(null)}>
+                <Text style={s.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 16 }}>
+              {loadingEditServings ? (
+                <ActivityIndicator color={c.accent} style={{ marginVertical: 24 }} />
+              ) : (
+                <>
+                  <Text style={s.moveCopySection}>Serving size</Text>
+                  {editServingSizes.map((sv) => (
+                    <TouchableOpacity
+                      key={sv.id}
+                      style={[s.servingRow, editServing?.id === sv.id && s.servingRowActive]}
+                      onPress={() => setEditServing(sv)}
+                    >
+                      <Text style={[s.servingLabel, editServing?.id === sv.id && { color: c.accent }]}>{sv.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={[s.moveCopySection, { marginTop: 16 }]}>Quantity</Text>
+                  <TextInput
+                    style={s.quantityInput}
+                    value={editQuantity}
+                    onChangeText={setEditQuantity}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                  />
+                  {editServing && editEntry && (
+                    <Text style={s.nutritionPreview}>
+                      {Math.round(editEntry.food.nutrition.calories * editServing.grams * parseFloat(editQuantity || '0') / 100)} kcal ·{' '}
+                      P: {Math.round(editEntry.food.nutrition.protein * editServing.grams * parseFloat(editQuantity || '0') / 100)}g ·{' '}
+                      C: {Math.round(editEntry.food.nutrition.carbs * editServing.grams * parseFloat(editQuantity || '0') / 100)}g ·{' '}
+                      F: {Math.round(editEntry.food.nutrition.fat * editServing.grams * parseFloat(editQuantity || '0') / 100)}g
+                    </Text>
+                  )}
+                  <TouchableOpacity
+                    style={[s.confirmBtn, { marginTop: 16 }, savingEdit && { opacity: 0.6 }]}
+                    onPress={confirmEdit}
+                    disabled={savingEdit}
+                  >
+                    <Text style={s.confirmBtnText}>{savingEdit ? 'Saving…' : 'Save'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Add Food Modal */}
@@ -763,6 +981,10 @@ function makeStyles(c: Colors) {
     mealCals: { fontSize: fontSize.xs, color: c.muted, marginRight: 8 },
     mealChevron: { color: c.muted, fontSize: 14 },
     foodRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+    checkbox: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: c.border, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
+    selectActions: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+    selectActionBtn: { flex: 1, borderWidth: 1, borderColor: c.accent, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+    selectActionText: { fontSize: fontSize.sm, color: c.accent, fontWeight: '600' },
     foodInfo: { flex: 1, marginRight: 8 },
     foodName: { fontSize: fontSize.sm, color: c.text },
     foodServing: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
@@ -803,6 +1025,9 @@ function makeStyles(c: Colors) {
     nutritionPreview: { fontSize: fontSize.xs, color: c.muted, marginTop: 12, textAlign: 'center' },
     confirmBtn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
     confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
+    // Action sheet
+    actionSheetRow: { paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: c.border },
+    actionSheetText: { fontSize: fontSize.base, color: c.text },
     // Move/Copy modal
     moveCopyOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
     moveCopySheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
