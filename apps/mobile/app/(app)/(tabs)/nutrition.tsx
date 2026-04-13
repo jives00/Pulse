@@ -24,7 +24,21 @@ const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'snack', label: 'Snack' },
 ];
 
-type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'scanning';
+type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'barcode-review';
+
+type BarcodeQueueItem = {
+  key: string;
+  type: 'recipe' | 'food';
+  recipe?: RecipeSearchResult;
+  food?: Food;
+  serving?: ServingSize;
+  quantity: string;
+  editName: string;
+  editCalories: string;
+  editProtein: string;
+  editCarbs: string;
+  editFat: string;
+};
 
 function toDateStr(d: Date) {
   const y = d.getFullYear();
@@ -99,6 +113,9 @@ export default function NutritionScreen() {
   // Barcode scanner
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
+  const [barcodeQueue, setBarcodeQueue] = useState<BarcodeQueueItem[]>([]);
+  const [scanningActive, setScanningActive] = useState(false);
+  const [barcodeScanning, setBarcodeScanning] = useState(false); // lookup in-flight
   const swipe = useSwipeNav(2);
 
   const load = useCallback(async (silent = false) => {
@@ -172,7 +189,7 @@ export default function NutritionScreen() {
       }
     }
     setAddMeal(meal);
-    setModalView('scanning');
+    setModalView('barcode-queue');
     setQuery('');
     setFoodResults([]);
     setRecipeResults([]);
@@ -181,6 +198,8 @@ export default function NutritionScreen() {
     setQuantity('1');
     setSelectedRecipe(null);
     setRecipeServings('1');
+    setBarcodeQueue([]);
+    setScanningActive(true);
     scannedRef.current = false;
   }
 
@@ -207,13 +226,16 @@ export default function NutritionScreen() {
       }
     }
     scannedRef.current = false;
-    setModalView('scanning');
+    setBarcodeQueue([]);
+    setScanningActive(true);
+    setModalView('barcode-queue');
   }
 
   async function handleBarcodeScan(barcode: string) {
     if (scannedRef.current) return;
     scannedRef.current = true;
-    setModalView('search');
+    setScanningActive(false);
+    setBarcodeScanning(true);
 
     try {
       const [recipe, food] = await Promise.all([
@@ -221,17 +243,53 @@ export default function NutritionScreen() {
         getFoodByBarcode(token, barcode).catch(() => null),
       ]);
       if (recipe) {
-        selectRecipe(recipe);
+        const item: BarcodeQueueItem = {
+          key: `${Date.now()}-${Math.random()}`,
+          type: 'recipe',
+          recipe,
+          quantity: '1',
+          editName: recipe.name,
+          editCalories: recipe.calories != null ? String(Math.round(recipe.calories)) : '',
+          editProtein: recipe.protein_g != null ? String(Math.round(recipe.protein_g)) : '',
+          editCarbs: recipe.carbs_g != null ? String(Math.round(recipe.carbs_g)) : '',
+          editFat: recipe.fat_g != null ? String(Math.round(recipe.fat_g)) : '',
+        };
+        setBarcodeQueue((q) => [...q, item]);
       } else if (food) {
-        selectFood(food);
+        const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0] ?? undefined;
+        const item: BarcodeQueueItem = {
+          key: `${Date.now()}-${Math.random()}`,
+          type: 'food',
+          food,
+          serving: def,
+          quantity: '1',
+          editName: food.name,
+          editCalories: def ? String(Math.round(food.nutrition.calories * def.grams / 100)) : '',
+          editProtein: def ? String(Math.round(food.nutrition.protein * def.grams / 100)) : '',
+          editCarbs: def ? String(Math.round(food.nutrition.carbs * def.grams / 100)) : '',
+          editFat: def ? String(Math.round(food.nutrition.fat * def.grams / 100)) : '',
+        };
+        setBarcodeQueue((q) => [...q, item]);
       } else {
         Alert.alert('Barcode not recognized', 'No food found for this barcode.');
         scannedRef.current = false;
+        setScanningActive(true);
       }
     } catch {
       Alert.alert('Error', 'Could not look up barcode.');
       scannedRef.current = false;
+      setScanningActive(true);
+    } finally {
+      setBarcodeScanning(false);
     }
+  }
+
+  function updateQueueItem(key: string, patch: Partial<BarcodeQueueItem>) {
+    setBarcodeQueue((q) => q.map((item) => item.key === key ? { ...item, ...patch } : item));
+  }
+
+  function removeQueueItem(key: string) {
+    setBarcodeQueue((q) => q.filter((item) => item.key !== key));
   }
 
   async function confirmAdd() {
@@ -269,6 +327,45 @@ export default function NutritionScreen() {
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not log recipe.');
+    } finally {
+      setAddingRecipe(false);
+    }
+  }
+
+  async function confirmAddAll() {
+    if (!addMeal || barcodeQueue.length === 0) return;
+    const validItems = barcodeQueue.filter((item) => {
+      const qty = parseFloat(item.quantity);
+      return qty > 0;
+    });
+    if (validItems.length === 0) { Alert.alert('No valid items', 'Enter a quantity greater than 0 for at least one item.'); return; }
+    setAddingRecipe(true);
+    try {
+      await Promise.all(validItems.map((item) => {
+        const qty = parseFloat(item.quantity);
+        if (item.type === 'recipe' && item.recipe) {
+          return logRecipeToNutrition(token, {
+            recipeId: item.recipe.id,
+            meal: addMeal!,
+            servings: qty,
+            logDate: date,
+          });
+        } else if (item.type === 'food' && item.food && item.serving) {
+          return addLogEntry(token, {
+            logDate: date,
+            meal: addMeal!,
+            foodId: item.food.id,
+            servingSizeId: item.serving.id,
+            quantity: qty,
+          });
+        }
+        return Promise.resolve();
+      }));
+      setAddMeal(null);
+      setBarcodeQueue([]);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not add items.');
     } finally {
       setAddingRecipe(false);
     }
@@ -748,27 +845,210 @@ export default function NutritionScreen() {
       {/* Add Food Modal */}
       <Modal visible={addMeal !== null} animationType="slide" onRequestClose={() => setAddMeal(null)}>
         <SafeAreaView style={s.modal}>
-          {/* Scanner view */}
-          {modalView === 'scanning' ? (
+          {/* Barcode queue scanner view */}
+          {modalView === 'barcode-queue' ? (
             <>
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Scan Barcode</Text>
-                <TouchableOpacity onPress={() => setModalView('search')}>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
                   <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
               </View>
-              <View style={s.scannerContainer}>
-                <CameraView
-                  style={StyleSheet.absoluteFillObject}
-                  facing="back"
-                  barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'] }}
-                  onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
-                />
+              <View style={[s.scannerContainer, barcodeQueue.length > 0 && { flex: 0, height: 240 }]}>
+                {scanningActive && (
+                  <CameraView
+                    style={StyleSheet.absoluteFillObject}
+                    facing="back"
+                    barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'] }}
+                    onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
+                  />
+                )}
                 <View style={s.scannerOverlay}>
                   <View style={s.scannerFrame} />
-                  <Text style={s.scannerHint}>Point at a barcode to scan</Text>
+                  <Text style={s.scannerHint}>
+                    {barcodeScanning ? 'Looking up barcode…' : scanningActive ? 'Point at a barcode to scan' : 'Tap "Scan another" to continue'}
+                  </Text>
                 </View>
               </View>
+              {/* Scanned items list */}
+              {barcodeQueue.length > 0 && (
+                <View style={{ flex: 1 }}>
+                  <FlatList
+                    data={barcodeQueue}
+                    keyExtractor={(item) => item.key}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ padding: 12 }}
+                    renderItem={({ item }) => (
+                      <View style={s.queueRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.queueItemName} numberOfLines={1}>{item.editName}</Text>
+                          <Text style={s.queueItemSub}>
+                            {item.editCalories ? `${item.editCalories} kcal` : ''}
+                            {item.editProtein ? ` · P: ${item.editProtein}g` : ''}
+                          </Text>
+                        </View>
+                        <TouchableOpacity onPress={() => removeQueueItem(item.key)} style={s.queueRemoveBtn}>
+                          <Text style={s.queueRemoveText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  />
+                  <View style={s.queueActions}>
+                    <TouchableOpacity
+                      style={s.queueScanMoreBtn}
+                      onPress={() => { scannedRef.current = false; setScanningActive(true); }}
+                    >
+                      <Text style={s.queueScanMoreText}>Scan another</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.queueReviewBtn}
+                      onPress={() => setModalView('barcode-review')}
+                    >
+                      <Text style={s.queueReviewText}>Review & Add ({barcodeQueue.length})</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {barcodeScanning && barcodeQueue.length === 0 && (
+                <View style={{ alignItems: 'center', padding: 24 }}>
+                  <ActivityIndicator color={c.accent} />
+                </View>
+              )}
+            </>
+          ) : modalView === 'barcode-review' ? (
+            /* Review & edit scanned items */
+            <>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('barcode-queue')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle}>Review Items</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
+                {barcodeQueue.map((item) => {
+                  const qty = parseFloat(item.quantity) || 1;
+                  const cal = parseFloat(item.editCalories) || 0;
+                  const pro = parseFloat(item.editProtein) || 0;
+                  const carb = parseFloat(item.editCarbs) || 0;
+                  const fat = parseFloat(item.editFat) || 0;
+                  return (
+                    <View key={item.key} style={s.reviewCard}>
+                      <View style={s.reviewCardHeader}>
+                        <TextInput
+                          style={[s.reviewNameInput, { flex: 1 }]}
+                          value={item.editName}
+                          onChangeText={(v) => updateQueueItem(item.key, { editName: v })}
+                          placeholder="Name"
+                          placeholderTextColor={c.muted}
+                        />
+                        <TouchableOpacity onPress={() => removeQueueItem(item.key)} style={s.queueRemoveBtn}>
+                          <Text style={s.queueRemoveText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {/* Serving size selector for food items */}
+                      {item.type === 'food' && item.food && item.food.servingSizes.length > 1 && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                          {item.food.servingSizes.map((sv) => (
+                            <TouchableOpacity
+                              key={sv.id}
+                              style={[s.servingRow, item.serving?.id === sv.id && s.servingRowActive, { marginBottom: 0 }]}
+                              onPress={() => {
+                                const def = sv;
+                                updateQueueItem(item.key, {
+                                  serving: def,
+                                  editCalories: String(Math.round(item.food!.nutrition.calories * def.grams / 100)),
+                                  editProtein: String(Math.round(item.food!.nutrition.protein * def.grams / 100)),
+                                  editCarbs: String(Math.round(item.food!.nutrition.carbs * def.grams / 100)),
+                                  editFat: String(Math.round(item.food!.nutrition.fat * def.grams / 100)),
+                                });
+                              }}
+                            >
+                              <Text style={[s.servingLabel, item.serving?.id === sv.id && { color: c.accent }]}>{sv.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <View style={s.reviewRow}>
+                        <Text style={s.reviewFieldLabel}>Servings</Text>
+                        <TextInput
+                          style={[s.reviewFieldInput, { flex: 0, width: 72 }]}
+                          value={item.quantity}
+                          onChangeText={(v) => updateQueueItem(item.key, { quantity: v })}
+                          keyboardType="decimal-pad"
+                          selectTextOnFocus
+                        />
+                        {item.serving && (
+                          <Text style={[s.reviewFieldLabel, { flex: 1 }]}>× {item.serving.label}</Text>
+                        )}
+                        {item.type === 'recipe' && item.recipe?.servings && (
+                          <Text style={[s.reviewFieldLabel, { flex: 1 }]}>× 1 serving</Text>
+                        )}
+                      </View>
+                      <View style={s.reviewMacroRow}>
+                        <View style={s.reviewMacroField}>
+                          <Text style={s.reviewFieldLabel}>Cal</Text>
+                          <TextInput
+                            style={s.reviewFieldInput}
+                            value={item.editCalories}
+                            onChangeText={(v) => updateQueueItem(item.key, { editCalories: v })}
+                            keyboardType="number-pad"
+                            selectTextOnFocus
+                          />
+                        </View>
+                        <View style={s.reviewMacroField}>
+                          <Text style={s.reviewFieldLabel}>P (g)</Text>
+                          <TextInput
+                            style={s.reviewFieldInput}
+                            value={item.editProtein}
+                            onChangeText={(v) => updateQueueItem(item.key, { editProtein: v })}
+                            keyboardType="number-pad"
+                            selectTextOnFocus
+                          />
+                        </View>
+                        <View style={s.reviewMacroField}>
+                          <Text style={s.reviewFieldLabel}>C (g)</Text>
+                          <TextInput
+                            style={s.reviewFieldInput}
+                            value={item.editCarbs}
+                            onChangeText={(v) => updateQueueItem(item.key, { editCarbs: v })}
+                            keyboardType="number-pad"
+                            selectTextOnFocus
+                          />
+                        </View>
+                        <View style={s.reviewMacroField}>
+                          <Text style={s.reviewFieldLabel}>F (g)</Text>
+                          <TextInput
+                            style={s.reviewFieldInput}
+                            value={item.editFat}
+                            onChangeText={(v) => updateQueueItem(item.key, { editFat: v })}
+                            keyboardType="number-pad"
+                            selectTextOnFocus
+                          />
+                        </View>
+                      </View>
+                      <Text style={s.nutritionPreview}>
+                        {Math.round(cal * qty)} kcal · P: {Math.round(pro * qty)}g · C: {Math.round(carb * qty)}g · F: {Math.round(fat * qty)}g
+                      </Text>
+                    </View>
+                  );
+                })}
+                {barcodeQueue.length === 0 && (
+                  <Text style={[s.emptyText, { padding: 24 }]}>No items — go back to scan.</Text>
+                )}
+                <TouchableOpacity
+                  style={[s.confirmBtn, (addingRecipe || barcodeQueue.length === 0) && { opacity: 0.5 }]}
+                  onPress={confirmAddAll}
+                  disabled={addingRecipe || barcodeQueue.length === 0}
+                >
+                  <Text style={s.confirmBtnText}>
+                    {addingRecipe ? 'Adding…' : `Add all to ${mealLabel} (${barcodeQueue.length} item${barcodeQueue.length !== 1 ? 's' : ''})`}
+                  </Text>
+                </TouchableOpacity>
+                <View style={{ height: 24 }} />
+              </ScrollView>
             </>
           ) : modalView === 'recipe-pick' && selectedRecipe ? (
             /* Recipe serving picker */
@@ -1044,5 +1324,25 @@ function makeStyles(c: Colors) {
     scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
     scannerFrame: { width: 240, height: 160, borderWidth: 2, borderColor: c.accent, borderRadius: 12 },
     scannerHint: { marginTop: 16, color: 'white', fontSize: fontSize.sm, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+    // Barcode queue
+    queueRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: c.border },
+    queueItemName: { color: c.text, fontSize: fontSize.base, fontWeight: '500' },
+    queueItemSub: { color: c.muted, fontSize: fontSize.sm, marginTop: 2 },
+    queueRemoveBtn: { padding: 8 },
+    queueRemoveText: { color: c.muted, fontSize: fontSize.base },
+    queueActions: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: c.border },
+    queueScanMoreBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: c.accent, alignItems: 'center' },
+    queueScanMoreText: { color: c.accent, fontSize: fontSize.base, fontWeight: '600' },
+    queueReviewBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: c.accent, alignItems: 'center' },
+    queueReviewText: { color: '#fff', fontSize: fontSize.base, fontWeight: '600' },
+    // Review screen
+    reviewCard: { backgroundColor: c.card, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: c.border },
+    reviewCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+    reviewNameInput: { color: c.text, fontSize: fontSize.base, fontWeight: '600', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 4 },
+    reviewRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 12 },
+    reviewFieldLabel: { color: c.muted, fontSize: fontSize.sm, minWidth: 48 },
+    reviewFieldInput: { flex: 1, color: c.text, fontSize: fontSize.base, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: c.bg },
+    reviewMacroRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    reviewMacroField: { flex: 1, gap: 4 },
   });
 }
