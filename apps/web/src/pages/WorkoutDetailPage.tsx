@@ -534,7 +534,7 @@ export default function WorkoutDetailPage() {
     setStartedAt(null);
     setDuration(String(durationMinutes));
     try {
-      await workoutsApi.update(workout.id, { durationMinutes });
+      await workoutsApi.update(workout.id, { durationMinutes, completed: true });
       setWorkout((prev) => prev ? { ...prev, durationMinutes, startedAt: null } : prev);
     } catch {
       // ignore
