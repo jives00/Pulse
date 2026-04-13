@@ -292,9 +292,7 @@ function RoutineExerciseBlock({
     finally { setAdding(false); }
   }
 
-  const trackedFields = re.exercise.trackedFields
-    ? re.exercise.trackedFields.split(',')
-    : ['reps', 'weight'];
+  const trackedFields = re.exercise.trackedFields ?? ['reps', 'weight'];
   const showWeightHeader   = trackedFields.includes('weight');
   const showRepsHeader     = trackedFields.includes('reps');
   const showDurationHeader = trackedFields.includes('duration');
