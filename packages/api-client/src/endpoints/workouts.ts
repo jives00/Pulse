@@ -223,7 +223,7 @@ export const workoutsApi = {
   create: (data?: { name?: string; workoutDate?: string }) =>
     apiClient.post<WorkoutDetail>('/workouts', data ?? {}).then((r) => r.data),
 
-  update: (id: number, data: Partial<{ name: string; notes: string; durationMinutes: number; caloriesBurned: number; workoutDate: string }>) =>
+  update: (id: number, data: Partial<{ name: string; notes: string; durationMinutes: number; caloriesBurned: number; workoutDate: string; completed: boolean }>) =>
     apiClient.put<WorkoutDetail>(`/workouts/${id}`, data).then((r) => r.data),
 
   delete: (id: number) =>
