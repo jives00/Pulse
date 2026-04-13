@@ -321,7 +321,7 @@ interface Props {
 
 export default function MealSection({ meal, entries, photoUrl }: Props) {
   const currentDate = useLogStore((s) => s.currentDate);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [activeEntry, setActiveEntry] = useState<LogEntry | null>(null);
   const meta = MEAL_META[meal];
 

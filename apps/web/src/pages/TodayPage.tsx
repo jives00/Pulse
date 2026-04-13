@@ -4,7 +4,6 @@ import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
 import RecipeForm from '../components/RecipeForm';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
-import NutritionHistoryCharts from '../components/NutritionHistoryCharts';
 import { recipesApi, goalsApi, GLASS_OZ } from '@pulse/api-client';
 import type { MealSlot, GoalsSummary } from '@pulse/api-client';
 
@@ -211,12 +210,6 @@ export default function TodayPage() {
               waterOz={waterTotal}
               waterGoalOz={waterGoal}
               onAddWater={(oz) => addWater(oz)}
-            />
-
-            {/* 30-day history charts */}
-            <NutritionHistoryCharts
-              calorieGoal={goals?.calories}
-              proteinGoal={goals?.proteinG}
             />
 
             {/* Copy from yesterday */}
