@@ -552,12 +552,26 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const conn = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]);
+    await conn.beginTransaction();
+    // Clean up shadow food and its log entries (created by the nutrition log bridge)
+    const [foods] = await conn.query<any[]>('SELECT id FROM foods WHERE recipe_id = ?', [id]);
+    if (foods.length > 0) {
+      const foodId = foods[0].id;
+      await conn.query('DELETE FROM food_log WHERE food_id = ?', [foodId]);
+      await conn.query('DELETE FROM serving_sizes WHERE food_id = ?', [foodId]);
+      await conn.query('DELETE FROM foods WHERE id = ?', [foodId]);
+    }
+    await conn.query('DELETE FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]);
+    await conn.commit();
     res.json({ success: true });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
   }
 });
 
