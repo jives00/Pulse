@@ -255,6 +255,8 @@ export default function NutritionScreen() {
           editFat: recipe.fat_g != null ? String(Math.round(recipe.fat_g)) : '',
         };
         setBarcodeQueue((q) => [...q, item]);
+        scannedRef.current = false;
+        setScanningActive(true);
       } else if (food) {
         const def = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0] ?? undefined;
         const item: BarcodeQueueItem = {
@@ -270,6 +272,8 @@ export default function NutritionScreen() {
           editFat: def ? String(Math.round(food.nutrition.fat * def.grams / 100)) : '',
         };
         setBarcodeQueue((q) => [...q, item]);
+        scannedRef.current = false;
+        setScanningActive(true);
       } else {
         Alert.alert('Barcode not recognized', 'No food found for this barcode.');
         scannedRef.current = false;
@@ -866,7 +870,7 @@ export default function NutritionScreen() {
                 <View style={s.scannerOverlay}>
                   <View style={s.scannerFrame} />
                   <Text style={s.scannerHint}>
-                    {barcodeScanning ? 'Looking up barcode…' : scanningActive ? 'Point at a barcode to scan' : 'Tap "Scan another" to continue'}
+                    {barcodeScanning ? 'Looking up barcode…' : scanningActive ? 'Point at a barcode to scan' : 'Tap "Scan another" to scan more'}
                   </Text>
                 </View>
               </View>

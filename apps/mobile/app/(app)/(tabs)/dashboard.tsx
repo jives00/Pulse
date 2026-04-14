@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, View, RefreshControl,
+  ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, RefreshControl,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -346,12 +346,19 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
   );
 }
 
+// ── Segmented tab bar (matches workouts style) ────────────────────────────────
+
+const DASHBOARD_TABS = ['nutrition', 'exercise', 'other'] as const;
+type DashboardTab = typeof DASHBOARD_TABS[number];
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
   const s = makeStyles(c);
+  const seg = makeSegStyles(c);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('nutrition');
   const swipe = useSwipeNav(0);
 
   const [loading, setLoading] = useState(true);
@@ -448,13 +455,34 @@ export default function DashboardScreen() {
   const calSeries    = days30.map((d) => historyByDate[d]?.calories ?? 0);
   const proteinSeries = days30.map((d) => historyByDate[d]?.proteinG ?? 0);
   const waterSeries  = days30.map((d) => Math.round((waterByDate[d] ?? 0) / GLASS_OZ * 10) / 10);
-  const burnedSeries = days30.map((d) => d === todayStr && todayTDEE ? todayTDEE.total : burnedByDate[d] ?? 0);
+  // Use BMR+NEAT baseline + per-day TEF + exercise for all 30 days when TDEE is available
+  const tdeeSeries = todayTDEE
+    ? days30.map((d) => {
+        const cals = historyByDate[d]?.calories ?? 0;
+        const exercise = burnedByDate[d] ?? 0;
+        if (cals === 0 && exercise === 0) return 0;
+        const tef = Math.round(cals * 0.1);
+        return (todayTDEE.bmr + todayTDEE.neat) + tef + exercise;
+      })
+    : null;
+  const burnedSeries = tdeeSeries ?? days30.map((d) => burnedByDate[d] ?? 0);
   const hasBurned    = burnedSeries.some((v) => v > 0);
 
   const creatineData = computeCreatineSaturation(foodLogHistory);
 
   // Recent workouts (last 5 completed)
   const recentWorkouts = workouts.slice(0, 5);
+
+  // 30-day TDEE table rows (newest first)
+  const tdeeTableRows = todayTDEE ? days30.map((date) => {
+    const caloriesIn = historyByDate[date]?.calories ?? 0;
+    const exercise = burnedByDate[date] ?? 0;
+    const tef = Math.round(caloriesIn * 0.1);
+    const tdee = (todayTDEE.bmr + todayTDEE.neat) + tef + exercise;
+    const net = caloriesIn > 0 || exercise > 0 ? caloriesIn - tdee : null;
+    const label = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+    return { date, label, caloriesIn, tef, exercise, tdee, net };
+  }).reverse() : [];
 
   if (loading) return <ActivityIndicator style={{ marginTop: 60 }} color={c.accent} />;
 
@@ -471,13 +499,24 @@ export default function DashboardScreen() {
         <Text style={s.pageTitle}>Dashboard</Text>
       </View>
 
+      {/* Tab bar */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={seg.scroll} contentContainerStyle={seg.row}>
+        {DASHBOARD_TABS.map((t) => (
+          <TouchableOpacity key={t} style={[seg.btn, activeTab === t && seg.btnActive]} onPress={() => setActiveTab(t)}>
+            <Text style={[seg.label, activeTab === t && seg.labelActive]}>
+              {t === 'nutrition' ? 'Nutrition' : t === 'exercise' ? 'Exercise' : 'Other'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <ScrollView
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
       >
 
-        {/* ══ Nutrition section ══ */}
-        <Text style={s.sectionHeader}>Nutrition</Text>
+        {/* ══ Nutrition tab ══ */}
+        {activeTab === 'nutrition' && (<>
 
         {/* ── Fuel Today ── */}
         <View style={s.card}>
@@ -524,7 +563,7 @@ export default function DashboardScreen() {
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: fontSize.xs, color: '#fb923c', fontWeight: '600' }}>Calories</Text>
-              {hasBurned && <Text style={{ fontSize: 9, color: c.muted }}>— burned</Text>}
+              {hasBurned && <Text style={{ fontSize: 9, color: c.muted }}>— {tdeeSeries ? 'TDEE' : 'burned'}</Text>}
               {caloriesGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal</Text>}
             </View>
             {/* Calories area + burned overlay — shared scale so burned is proportional to consumed */}
@@ -602,8 +641,10 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ══ Exercise section ══ */}
-        <Text style={s.sectionHeader}>Exercise</Text>
+        </>)}
+
+        {/* ══ Exercise tab ══ */}
+        {activeTab === 'exercise' && (<>
 
         {/* ── This Week Volume ── */}
         <View style={s.card}>
@@ -627,68 +668,6 @@ export default function DashboardScreen() {
             <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
           </View>
         )}
-
-        {/* ══ Other section ══ */}
-        <Text style={s.sectionHeader}>Other</Text>
-
-        {/* ── North Star Goals ── */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>North Star Goals</Text>
-          {DISPLAYED_METRICS.map((key) => {
-            const cfg = METRIC_CONFIG[key];
-            const sorted = measurements
-              .filter((m) => m.metric === key)
-              .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-            const latest = sorted[0];
-            const goal = measGoals[key];
-            const displayVal = latest
-              ? (key === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
-              : null;
-            const { status, pct, projectedDate } = goal
-              ? computeGoalPace(measurements, key, goal, cfg.dir)
-              : { status: 'red' as PaceStatus, pct: 0, projectedDate: null };
-            const paceColor = PACE_COLORS[status];
-            const delta = goal && displayVal != null ? (goal.targetValue - Number(displayVal)).toFixed(1) : null;
-            const deltaNum = delta != null ? Number(delta) : null;
-            return (
-              <View key={key} style={[s.metricRow, { borderTopColor: c.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
-                  <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '22' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <Text style={s.metricCurrent}>
-                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.xs, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
-                  </Text>
-                  {goal && (
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
-                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{goal.targetValue} {cfg.unit}</Text>
-                      {deltaNum != null && deltaNum !== 0 && (
-                        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: paceColor }}>
-                          {deltaNum > 0 ? '+' : ''}{delta} {cfg.unit}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-                <View style={s.progressTrack}>
-                  <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
-                </View>
-                {projectedDate && (
-                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>Proj: {projectedDate}</Text>
-                )}
-                {key === 'weight' && creatineData && creatineData.satPct > 0 && creatineData.satPct < 1 && (
-                  <View style={{ backgroundColor: 'rgba(56,189,248,0.10)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)', padding: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#38bdf8', marginBottom: 2 }}>💧 Water Weight Loading</Text>
-                    <Text style={{ fontSize: 10, color: '#94a3b8', lineHeight: 14 }}>Creatine may add 1–3 lbs of water weight. Scale bump is expected.</Text>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
 
         {/* ── Personal Bests ── */}
         <View style={s.card}>
@@ -752,6 +731,114 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        </>)}
+
+        {/* ══ Other tab ══ */}
+        {activeTab === 'other' && (<>
+
+        {/* ── North Star Goals ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>North Star Goals</Text>
+          {DISPLAYED_METRICS.map((key) => {
+            const cfg = METRIC_CONFIG[key];
+            const sorted = measurements
+              .filter((m) => m.metric === key)
+              .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+            const latest = sorted[0];
+            const goal = measGoals[key];
+            const displayVal = latest
+              ? (key === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
+              : null;
+            const { status, pct, projectedDate } = goal
+              ? computeGoalPace(measurements, key, goal, cfg.dir)
+              : { status: 'red' as PaceStatus, pct: 0, projectedDate: null };
+            const paceColor = PACE_COLORS[status];
+            const delta = goal && displayVal != null ? (goal.targetValue - Number(displayVal)).toFixed(1) : null;
+            const deltaNum = delta != null ? Number(delta) : null;
+            return (
+              <View key={key} style={[s.metricRow, { borderTopColor: c.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                  <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '22' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <Text style={s.metricCurrent}>
+                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.xs, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
+                  </Text>
+                  {goal && (
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
+                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{goal.targetValue} {cfg.unit}</Text>
+                      {deltaNum != null && deltaNum !== 0 && (
+                        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: paceColor }}>
+                          {deltaNum > 0 ? '+' : ''}{delta} {cfg.unit}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+                <View style={s.progressTrack}>
+                  <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
+                </View>
+                {projectedDate && (
+                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>Proj: {projectedDate}</Text>
+                )}
+                {key === 'weight' && creatineData && creatineData.satPct > 0 && creatineData.satPct < 1 && (
+                  <View style={{ backgroundColor: 'rgba(56,189,248,0.10)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)', padding: 8 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#38bdf8', marginBottom: 2 }}>💧 Water Weight Loading</Text>
+                    <Text style={{ fontSize: 10, color: '#94a3b8', lineHeight: 14 }}>Creatine may add 1–3 lbs of water weight. Scale bump is expected.</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* ── 30-Day TDEE Table ── */}
+        {todayTDEE && tdeeTableRows.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Last 30 Days — Calories vs. TDEE</Text>
+            <Text style={{ fontSize: 10, color: c.muted }}>
+              BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF (10% of intake) + exercise per day
+            </Text>
+            {/* Header row */}
+            <View style={[s.tdeeRow, { borderBottomColor: c.border, borderBottomWidth: 1, paddingBottom: 4 }]}>
+              <Text style={[s.tdeeDateCol, { color: c.muted, fontWeight: '600' }]}>Date</Text>
+              <Text style={[s.tdeeNumCol, { color: c.muted, fontWeight: '600' }]}>Cal In</Text>
+              <Text style={[s.tdeeNumCol, { color: c.muted, fontWeight: '600' }]}>TDEE</Text>
+              <Text style={[s.tdeeNumColLast, { color: c.muted, fontWeight: '600' }]}>Net</Text>
+            </View>
+            {tdeeTableRows.map((row) => {
+              const hasActivity = row.caloriesIn > 0 || row.exercise > 0;
+              const netColor = !hasActivity ? c.muted : row.net === null ? c.muted : row.net < 0 ? '#34d399' : row.net > 0 ? '#f87171' : c.muted;
+              return (
+                <View key={row.date} style={[s.tdeeRow, { borderBottomColor: c.border + '44', borderBottomWidth: 1 }]}>
+                  <Text style={[s.tdeeDateCol, { color: c.muted }]}>{row.label}</Text>
+                  <Text style={[s.tdeeNumCol, { color: hasActivity ? c.text : c.muted }]}>
+                    {hasActivity ? row.caloriesIn.toLocaleString() : '—'}
+                  </Text>
+                  <Text style={[s.tdeeNumCol, { color: hasActivity ? c.text : c.muted }]}>
+                    {hasActivity ? row.tdee.toLocaleString() : '—'}
+                  </Text>
+                  <Text style={[s.tdeeNumColLast, { color: netColor, fontWeight: hasActivity ? '600' : '400' }]}>
+                    {row.net === null || !hasActivity ? '—' : (row.net > 0 ? '+' : '') + row.net.toLocaleString()}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+        {!todayTDEE && (
+          <View style={s.card}>
+            <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>
+              Set your body measurements to enable TDEE tracking.
+            </Text>
+          </View>
+        )}
+
+        </>)}
+
         <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
@@ -790,5 +877,22 @@ function makeStyles(c: Colors) {
 
     // Recent workouts
     workoutRow: { gap: 2 },
+
+    // TDEE table
+    tdeeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
+    tdeeDateCol: { fontSize: 11, width: 42 },
+    tdeeNumCol: { fontSize: 11, flex: 1, textAlign: 'right' },
+    tdeeNumColLast: { fontSize: 11, width: 56, textAlign: 'right' },
+  });
+}
+
+function makeSegStyles(c: Colors) {
+  return StyleSheet.create({
+    scroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: c.border },
+    row: { flexDirection: 'row', alignItems: 'stretch' },
+    btn: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+    btnActive: { borderBottomWidth: 2, borderBottomColor: c.accent },
+    label: { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
+    labelActive: { color: c.accent, fontWeight: '700' },
   });
 }
