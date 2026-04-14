@@ -112,8 +112,10 @@ export interface WorkoutExerciseSummary {
   name: string;
   setCount: number;
   avgReps: number | null;
+  totalReps: number | null;
   maxWeightKg: number | null;
   totalDurationSeconds: number | null;
+  totalDistanceMeters: number | null;
 }
 
 export interface WorkoutSummary {

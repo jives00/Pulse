@@ -2226,11 +2226,12 @@ function TodaysBlurb({
 
     if (isStairs) {
       const stairsEx = w.exercises.find((e) => /stair/i.test(e.name));
-      const reps = stairsEx?.avgReps != null && stairsEx.setCount > 0
-        ? Math.round(stairsEx.avgReps * stairsEx.setCount)
-        : null;
-      const dur = w.durationMinutes ? formatDuration(w.durationMinutes) : null;
-      const detail = [reps != null ? `${reps.toLocaleString()} stairs` : null, dur].filter(Boolean).join(' in ');
+      const reps = stairsEx?.totalDistanceMeters ?? stairsEx?.totalReps ?? null;
+      const totalSec = stairsEx?.totalDurationSeconds ?? null;
+      const dur = totalSec != null
+        ? `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`
+        : w.durationMinutes ? formatDuration(w.durationMinutes) : null;
+      const detail = [reps != null ? `${reps.toLocaleString()}` : null, dur].filter(Boolean).join(' in ');
       return `${name} completed${detail ? ` — ${detail}` : ''}`;
     }
 
