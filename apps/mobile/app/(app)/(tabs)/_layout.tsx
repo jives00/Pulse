@@ -54,8 +54,8 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
         style={[style, styles.btn]}
         activeOpacity={0.7}
       >
-        <Text style={{ color, fontSize: 20 }}>•••</Text>
-        <Text style={{ color, fontSize: 10, marginTop: 2 }}>More</Text>
+        <Text style={{ color, fontSize: 24 }}>•••</Text>
+        <Text style={{ color, fontSize: 12, marginTop: 2 }}>More</Text>
       </TouchableOpacity>
 
       <Modal transparent visible={visible} animationType="fade" onRequestClose={() => setVisible(false)}>
@@ -131,26 +131,28 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 18 },
+        tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 18, height: 68, paddingBottom: 10 },
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.muted,
+        tabBarLabelStyle: { fontSize: 12 },
+        tabBarIconStyle: { marginBottom: -2 },
       }}
     >
       <Tabs.Screen
         name="dashboard"
-        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🧭</Text> }}
+        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>🧭</Text> }}
       />
       <Tabs.Screen
         name="index"
-        options={{ title: 'Recipes', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🍽️</Text> }}
+        options={{ title: 'Recipes', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>🍽️</Text> }}
       />
       <Tabs.Screen
         name="nutrition"
-        options={{ title: 'Food Log', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🥗</Text> }}
+        options={{ title: 'Food Log', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>🥗</Text> }}
       />
       <Tabs.Screen
         name="workouts"
-        options={{ title: 'Workouts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💪</Text> }}
+        options={{ title: 'Workouts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>💪</Text> }}
       />
       <Tabs.Screen
         name="more"
