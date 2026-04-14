@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { PanResponder } from 'react-native';
 import { useRouter } from 'expo-router';
 
-// Ordered list of visible bottom tabs
+// Ordered list of all swipeable screens — includes links + settings even though they're under the More menu
 const BOTTOM_TABS = [
   '/(app)/(tabs)/dashboard',
   '/(app)/(tabs)/',
@@ -18,7 +18,7 @@ const SWIPE_RATIO = 2.5;    // horizontal must be this many times larger than ve
 /**
  * Returns a PanResponder for swipe-left/right navigation.
  *
- * @param currentTabIndex  Index into BOTTOM_TABS for the current screen (0–4)
+ * @param currentTabIndex  Index into BOTTOM_TABS for the current screen (0–5)
  * @param internalTabs     Ordered list of internal tab keys (if the page has its own tabs)
  * @param currentInternalTab  The currently active internal tab key
  * @param setInternalTab   Setter to change the internal tab
