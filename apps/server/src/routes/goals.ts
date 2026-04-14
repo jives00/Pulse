@@ -185,7 +185,7 @@ router.get('/tdee', async (req, res) => {
       res.json({ available: false, reason: 'no_weight' }); return;
     }
     const wt = wtRows[0];
-    const weightKg = wt.unit === 'lb' ? Number(wt.value) / 2.20462 : Number(wt.value);
+    const weightKg = (wt.unit === 'lb' || wt.unit === 'lbs') ? Number(wt.value) / 2.20462 : Number(wt.value);
 
     // Today's food calories
     const [foodRows] = await pool.query<RowDataPacket[]>(
