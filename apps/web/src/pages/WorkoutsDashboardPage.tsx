@@ -881,12 +881,11 @@ function SemiCircleGauge({ pct, color, size = 120 }: { pct: number; color: strin
 }
 
 function GoalGaugeCard({
-  measurements, goals, metric, creatineSatPct,
+  measurements, goals, metric,
 }: {
   measurements: BodyMeasurement[];
   goals: Record<string, MeasurementGoal>;
   metric: string;
-  creatineSatPct?: number | null;
 }) {
   const cfg = METRIC_CONFIG[metric];
   const goal = goals[metric];
@@ -942,15 +941,6 @@ function GoalGaugeCard({
       {projectedDate && (
         <div className="text-sm font-medium text-center" style={{ width: 120, color: paceColor }}>Proj: {projectedDate}</div>
       )}
-      {/* Water weight callout during creatine loading phase */}
-      {metric === 'weight' && creatineSatPct != null && creatineSatPct > 0 && creatineSatPct < 1 && (
-        <div className="mt-2 px-2 py-1.5 rounded-lg text-center" style={{ backgroundColor: 'rgba(56,189,248,0.10)', border: '1px solid rgba(56,189,248,0.25)' }}>
-          <div className="text-[10px] font-semibold" style={{ color: '#38bdf8' }}>💧 Water Weight Loading</div>
-          <div className="text-[10px] text-slate-400 leading-snug mt-0.5">
-            Creatine may add 1–3 lbs of water weight. Scale bump is expected — muscle gains are real.
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -974,9 +964,11 @@ function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]): {
   if (creatineDays.length === 0) return null;
 
   const firstDate = creatineDays[0];
-  const firstMs = new Date(firstDate + 'T12:00:00').getTime();
-  // +1 to count both the start day and today (e.g. started 7 days ago = 8 days: day0…day7)
-  const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)) + 1);
+  // Count days from firstDate through today inclusive using date strings (avoids timezone drift)
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const firstMs = new Date(firstDate + 'T00:00:00').getTime();
+  const todayMs = new Date(todayStr + 'T00:00:00').getTime();
+  const daysSinceStart = Math.max(1, Math.round((todayMs - firstMs) / (24 * 3600 * 1000)) + 1);
   const loggedDays = creatineDays.length;
 
   // Compliance = fraction of days since start that had creatine logged
@@ -1119,14 +1111,24 @@ function NutritionFuelWidget({
 
   const today = localDateStr();
 
+  // BMR+NEAT baseline from today's TDEE (constant across days for a given person)
+  const baselineKcal = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+
   const chartData = days30.map((date) => {
     const food = foodByDate[date];
     const waterOz = waterByDate[date] ?? 0;
     const calories = food?.calories ?? 0;
-    // For today use full TDEE total; for past days use exercise calories only
-    const burned = date === today && todayTDEE
-      ? todayTDEE.total
-      : exerciseByDate[date] ?? 0;
+    let burned: number;
+    let isTDEE = false;
+    if (todayTDEE && baselineKcal !== null) {
+      // Use TDEE for all days: BMR + NEAT + TEF(calories eaten that day) + exercise
+      const dayExercise = exerciseByDate[date] ?? 0;
+      const dayTef = Math.round(calories * 0.1);
+      burned = baselineKcal + dayTef + dayExercise;
+      isTDEE = true;
+    } else {
+      burned = exerciseByDate[date] ?? 0;
+    }
     const net = calories > 0 || burned > 0 ? calories - burned : 0;
     return {
       date,
@@ -1137,7 +1139,7 @@ function NutritionFuelWidget({
       protein: food?.protein ?? 0,
       water: Math.round(waterOz / GLASS * 10) / 10,
       waterGoalGlasses: waterGoal / GLASS,
-      isTDEE: date === today && !!todayTDEE,
+      isTDEE,
     };
   });
 
@@ -1195,7 +1197,7 @@ function NutritionFuelWidget({
           </span>
           {hasBurnedData && (
             <span className="flex items-center gap-1.5 text-sm text-slate-400">
-              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> {todayTDEE ? 'TDEE (today) / exercise' : 'exercise'}
+              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> {todayTDEE ? 'TDEE' : 'exercise'}
             </span>
           )}
           {caloriesGoal && (
@@ -1219,9 +1221,9 @@ function NutritionFuelWidget({
                     {row && row.calories > 0 && <div style={{ color: '#fb923c' }}>{row.calories.toLocaleString()} kcal in</div>}
                     {row && row.burned > 0 && row.isTDEE && todayTDEE ? (
                       <div style={{ color: '#f87171' }}>
-                        <div>{row.burned.toLocaleString()} kcal burned (TDEE)</div>
+                        <div>{row.burned.toLocaleString()} kcal TDEE</div>
                         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF {todayTDEE.tef} + Exercise {todayTDEE.exercise}
+                          BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF {Math.round(row.calories * 0.1)} + Exercise {exerciseByDate[row.date] ?? 0}
                         </div>
                       </div>
                     ) : row && row.burned > 0 ? (
@@ -1701,9 +1703,7 @@ function DashboardV2({
   const cardCls = 'bg-dram-card rounded-2xl border border-dram-border overflow-hidden';
   const cardHeaderCls = 'text-sm font-semibold text-slate-300 uppercase tracking-wider px-5 pt-4 pb-2';
 
-  // Creatine data needed by both CreatineWidget and the weight GoalGaugeCard callout
   const creatineData = computeCreatineSaturation(foodLogHistory);
-  const creatineSatPct = creatineData?.satPct ?? null;
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -1721,7 +1721,6 @@ function DashboardV2({
                 measurements={measurements}
                 goals={measurementGoals}
                 metric={key}
-                creatineSatPct={key === 'weight' ? creatineSatPct : null}
               />
             ))}
           </div>
