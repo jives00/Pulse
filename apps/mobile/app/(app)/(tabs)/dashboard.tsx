@@ -458,13 +458,26 @@ export default function DashboardScreen() {
 
   if (loading) return <ActivityIndicator style={{ marginTop: 60 }} color={c.accent} />;
 
+  // Carbs and fat derived values
+  const carbsGoal = nutritionSummary?.nutrition.goals?.carbsG ?? null;
+  const carbsConsumed = Math.round(nutritionSummary?.nutrition.actual.carbsG ?? 0);
+  const fatGoal = nutritionSummary?.nutrition.goals?.fatG ?? null;
+  const fatConsumed = Math.round(nutritionSummary?.nutrition.actual.fatG ?? 0);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']} {...swipe.panHandlers}>
+      {/* Fixed header — matches other tabs */}
+      <View style={s.pageHeader}>
+        <Text style={s.pageTitle}>Dashboard</Text>
+      </View>
+
       <ScrollView
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
       >
-        <Text style={s.pageTitle}>Dashboard</Text>
+
+        {/* ══ Nutrition section ══ */}
+        <Text style={s.sectionHeader}>Nutrition</Text>
 
         {/* ── Fuel Today ── */}
         <View style={s.card}>
@@ -480,30 +493,27 @@ export default function DashboardScreen() {
               </Text>
             </View>
           )}
-          <ProgressBar2 label="Protein" actual={proteinConsumed} goal={proteinGoal} unit="g" color="#60a5fa" c={c} />
-          <ProgressBar2
-            label={`Water (goal: ${waterGoalGlasses} glasses)`}
-            actual={waterGlasses}
-            goal={waterGoalGlasses}
-            unit=" gl"
-            color="#38bdf8"
-            c={c}
-          />
-        </View>
-
-        {/* ── This Week Volume ── */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>This Week</Text>
-          <ProgressBar2 label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit=" lbs" color="#a78bfa" c={c} />
-          {weeklyData.some((w) => w.volumeLbs > 0) && (
-            <View style={{ gap: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Volume / wk (13 wks)</Text>
-                {volumeGoal != null && <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Goal: {volumeGoal >= 1000 ? `${(volumeGoal / 1000).toFixed(0)}k` : volumeGoal} lbs</Text>}
-              </View>
-              <MiniLineChart data={weeklyData.map((w) => w.volumeLbs)} color="#a78bfa" goalLine={volumeGoal} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <View style={{ width: '47%' }}>
+              <ProgressBar2 label="Protein" actual={proteinConsumed} goal={proteinGoal} unit="g" color="#60a5fa" c={c} />
             </View>
-          )}
+            <View style={{ width: '47%' }}>
+              <ProgressBar2 label="Carbs" actual={carbsConsumed} goal={carbsGoal} unit="g" color="#34d399" c={c} />
+            </View>
+            <View style={{ width: '47%' }}>
+              <ProgressBar2 label="Fat" actual={fatConsumed} goal={fatGoal} unit="g" color="#facc15" c={c} />
+            </View>
+            <View style={{ width: '47%' }}>
+              <ProgressBar2
+                label="Water"
+                actual={waterGlasses}
+                goal={waterGoalGlasses}
+                unit=" gl"
+                color="#38bdf8"
+                c={c}
+              />
+            </View>
+          </View>
         </View>
 
         {/* ── Nutrition Charts (30 days) ── */}
@@ -552,14 +562,6 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* ── Volume Heatmap ── */}
-        {workouts.some((w) => w.routineId) && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Volume Heatmap</Text>
-            <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
-          </View>
-        )}
-
         {/* ── Creatine ── */}
         {creatineData && (
           <View style={s.card}>
@@ -599,6 +601,35 @@ export default function DashboardScreen() {
             </View>
           </View>
         )}
+
+        {/* ══ Exercise section ══ */}
+        <Text style={s.sectionHeader}>Exercise</Text>
+
+        {/* ── This Week Volume ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>This Week</Text>
+          <ProgressBar2 label="Volume" actual={weekVolumeLbs} goal={volumeGoal} unit=" lbs" color="#a78bfa" c={c} />
+          {weeklyData.some((w) => w.volumeLbs > 0) && (
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Volume / wk (13 wks)</Text>
+                {volumeGoal != null && <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Goal: {volumeGoal >= 1000 ? `${(volumeGoal / 1000).toFixed(0)}k` : volumeGoal} lbs</Text>}
+              </View>
+              <MiniLineChart data={weeklyData.map((w) => w.volumeLbs)} color="#a78bfa" goalLine={volumeGoal} />
+            </View>
+          )}
+        </View>
+
+        {/* ── Volume Heatmap ── */}
+        {workouts.some((w) => w.routineId) && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Volume Heatmap</Text>
+            <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
+          </View>
+        )}
+
+        {/* ══ Other section ══ */}
+        <Text style={s.sectionHeader}>Other</Text>
 
         {/* ── North Star Goals ── */}
         <View style={s.card}>
@@ -729,8 +760,10 @@ export default function DashboardScreen() {
 
 function makeStyles(c: Colors) {
   return StyleSheet.create({
+    pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    pageTitle: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
     scroll: { padding: 14, gap: 12 },
-    pageTitle: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, marginBottom: 4 },
+    sectionHeader: { fontSize: fontSize.xs, fontWeight: '700', color: c.muted, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 4 },
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
     cardTitle: { fontSize: fontSize.xs, fontWeight: '700', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8 },
 
