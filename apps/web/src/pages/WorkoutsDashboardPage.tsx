@@ -2266,6 +2266,7 @@ function TodaysBlurb({
       const label = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       tdeeRows.push({ date, label, caloriesIn, tef, exercise, tdee, net });
     }
+    tdeeRows.reverse();
   }
 
   return (
