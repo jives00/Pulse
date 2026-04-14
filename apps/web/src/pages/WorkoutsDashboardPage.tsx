@@ -2205,10 +2205,12 @@ function TodaysBlurb({
   workouts,
   foodLogHistory,
   waterHistory,
+  todayTDEE,
 }: {
   workouts: WorkoutSummary[];
   foodLogHistory: FoodLogHistoryDay[];
   waterHistory: WaterHistory | null;
+  todayTDEE: TDEEBreakdown | null;
 }) {
   const GLASS = 8;
   const today = localDateStr();
@@ -2241,8 +2243,33 @@ function TodaysBlurb({
 
   const hasData = todayWorkouts.length > 0 || todayFood != null || todayWaterOz > 0;
 
+  // Build 30-day TDEE table rows
+  const tdeeRows: { date: string; label: string; caloriesIn: number; tef: number; exercise: number; tdee: number; net: number }[] = [];
+  if (todayTDEE) {
+    const baseline = todayTDEE.bmr + todayTDEE.neat;
+    const exerciseByDate: Record<string, number> = {};
+    for (const w of workouts) {
+      if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+    }
+    const foodByDate: Record<string, number> = {};
+    for (const d of foodLogHistory) foodByDate[d.date] = d.calories;
+
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const date = d.toISOString().slice(0, 10);
+      const caloriesIn = foodByDate[date] ?? 0;
+      const exercise = exerciseByDate[date] ?? 0;
+      const tef = Math.round(caloriesIn * 0.1);
+      const tdee = baseline + tef + exercise;
+      const net = caloriesIn > 0 || exercise > 0 ? caloriesIn - tdee : 0;
+      const label = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+      tdeeRows.push({ date, label, caloriesIn, tef, exercise, tdee, net });
+    }
+  }
+
   return (
-    <div className="max-w-xl py-6 px-2 space-y-3 text-sm text-slate-300">
+    <div className="max-w-xl py-6 px-2 space-y-6 text-sm text-slate-300">
       {!hasData && (
         <p className="text-dram-muted italic">No data logged today yet.</p>
       )}
@@ -2262,6 +2289,46 @@ function TodaysBlurb({
               <li>Water: {todayWaterGlasses} glasses</li>
             )}
           </ul>
+        </div>
+      )}
+
+      {todayTDEE && tdeeRows.length > 0 && (
+        <div>
+          <p className="font-semibold text-slate-200 mb-2">Last 30 Days — Calories In vs. TDEE</p>
+          <p className="text-xs text-dram-muted mb-3">
+            BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF (10% of intake) + exercise per day
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="text-dram-muted border-b border-dram-border">
+                  <th className="text-left py-1.5 pr-3 font-medium">Date</th>
+                  <th className="text-right py-1.5 px-3 font-medium">Cal In</th>
+                  <th className="text-right py-1.5 px-3 font-medium">TEF</th>
+                  <th className="text-right py-1.5 px-3 font-medium">Exercise</th>
+                  <th className="text-right py-1.5 px-3 font-medium">TDEE</th>
+                  <th className="text-right py-1.5 pl-3 font-medium">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tdeeRows.map((row) => {
+                  const hasActivity = row.caloriesIn > 0 || row.exercise > 0;
+                  return (
+                    <tr key={row.date} className="border-b border-dram-border/40 hover:bg-dram-card/40">
+                      <td className="py-1.5 pr-3 text-dram-muted">{row.label}</td>
+                      <td className="py-1.5 px-3 text-right">{hasActivity ? row.caloriesIn.toLocaleString() : '—'}</td>
+                      <td className="py-1.5 px-3 text-right text-dram-muted">{hasActivity ? row.tef : '—'}</td>
+                      <td className="py-1.5 px-3 text-right text-dram-muted">{row.exercise > 0 ? row.exercise : '—'}</td>
+                      <td className="py-1.5 px-3 text-right">{hasActivity ? row.tdee.toLocaleString() : '—'}</td>
+                      <td className={`py-1.5 pl-3 text-right font-medium ${!hasActivity ? 'text-dram-muted' : row.net < 0 ? 'text-emerald-400' : row.net > 0 ? 'text-red-400' : 'text-dram-muted'}`}>
+                        {hasActivity ? (row.net > 0 ? '+' : '') + row.net.toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -2289,7 +2356,7 @@ export default function WorkoutsDashboardPage() {
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'blurb'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'other'>('dashboard');
 
   function load() {
     Promise.all([
@@ -2367,7 +2434,7 @@ export default function WorkoutsDashboardPage() {
           </div>
         </div>
         <div className="flex gap-1">
-          {(['dashboard', 'blurb'] as const).map((tab) => (
+          {(['dashboard', 'other'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -2377,7 +2444,7 @@ export default function WorkoutsDashboardPage() {
                   : 'border-transparent text-dram-muted hover:text-slate-200'
               }`}
             >
-              {tab === 'dashboard' ? 'Dashboard' : "Today's Blurb"}
+              {tab === 'dashboard' ? 'Dashboard' : 'Other'}
             </button>
           ))}
         </div>
@@ -2462,7 +2529,7 @@ export default function WorkoutsDashboardPage() {
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-6">
-          <TodaysBlurb workouts={workouts} foodLogHistory={foodLogHistory} waterHistory={waterHistory} />
+          <TodaysBlurb workouts={workouts} foodLogHistory={foodLogHistory} waterHistory={waterHistory} todayTDEE={todayTDEE} />
         </div>
       )}
     </div>
