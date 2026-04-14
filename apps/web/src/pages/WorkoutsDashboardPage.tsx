@@ -2205,19 +2205,24 @@ function formatDuration(minutes: number | null): string {
 function TodaysBlurb({
   workouts,
   foodLogHistory,
+  waterHistory,
 }: {
   workouts: WorkoutSummary[];
   foodLogHistory: FoodLogHistoryDay[];
+  waterHistory: WaterHistory | null;
 }) {
+  const GLASS = 8;
   const today = localDateStr();
   const todayWorkouts = workouts.filter((w) => w.workoutDate === today);
   const todayFood = foodLogHistory.find((d) => d.date === today);
+  const todayWaterOz = waterHistory?.days.find((d) => d.date === today)?.totalOz ?? 0;
+  const todayWaterGlasses = Math.round(todayWaterOz / GLASS * 10) / 10;
 
   const totalCarbs = Math.round(todayFood?.entries.reduce((s, e) => s + e.carbsG, 0) ?? 0);
   const totalFat = Math.round(todayFood?.entries.reduce((s, e) => s + e.fatG, 0) ?? 0);
 
   const workoutLines = todayWorkouts.map((w) => {
-    const name = w.name ?? 'Workout';
+    const name = w.routineName ?? w.name ?? 'Workout';
     const isStairs = w.exercises.some((e) => /stair/i.test(e.name));
 
     if (isStairs) {
@@ -2234,14 +2239,14 @@ function TodaysBlurb({
     return `${name} completed — total volume of ${volumeLbs.toLocaleString()} lbs`;
   });
 
-  const hasData = todayWorkouts.length > 0 || todayFood != null;
+  const hasData = todayWorkouts.length > 0 || todayFood != null || todayWaterOz > 0;
 
   return (
     <div className="max-w-xl py-6 px-2 space-y-3 text-sm text-slate-300">
       {!hasData && (
         <p className="text-dram-muted italic">No data logged today yet.</p>
       )}
-      {workoutLines.length > 0 && (
+      {(workoutLines.length > 0 || todayFood != null || todayWaterOz > 0) && (
         <div>
           <p className="font-semibold text-slate-200 mb-1">Today's stats:</p>
           <ul className="space-y-1 list-disc list-inside">
@@ -2253,16 +2258,9 @@ function TodaysBlurb({
                 Calories: {todayFood.calories.toLocaleString()}, Protein: {Math.round(todayFood.protein)}g, Carbs: {totalCarbs}g, Fats: {totalFat}g
               </li>
             )}
-          </ul>
-        </div>
-      )}
-      {workoutLines.length === 0 && todayFood && (
-        <div>
-          <p className="font-semibold text-slate-200 mb-1">Today's stats:</p>
-          <ul className="space-y-1 list-disc list-inside">
-            <li>
-              Calories: {todayFood.calories.toLocaleString()}, Protein: {Math.round(todayFood.protein)}g, Carbs: {totalCarbs}g, Fats: {totalFat}g
-            </li>
+            {todayWaterOz > 0 && (
+              <li>Water: {todayWaterGlasses} glasses</li>
+            )}
           </ul>
         </div>
       )}
@@ -2464,7 +2462,7 @@ export default function WorkoutsDashboardPage() {
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-6">
-          <TodaysBlurb workouts={workouts} foodLogHistory={foodLogHistory} />
+          <TodaysBlurb workouts={workouts} foodLogHistory={foodLogHistory} waterHistory={waterHistory} />
         </div>
       )}
     </div>
