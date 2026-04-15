@@ -401,7 +401,7 @@ export default function NutritionScreen() {
     setMoveCopyMode(mode);
     setMoveCopyEntries(entries);
     setTargetMeal(currentMeal);
-    setTargetDate(date);
+    setTargetDate(toDateStr(new Date()));
   }
 
   async function removeSelected(currentMeal: MealSlot) {
@@ -700,7 +700,7 @@ export default function NutritionScreen() {
                 setMoveCopyMode('move');
                 setMoveCopyEntries([entry]);
                 setTargetMeal(meal);
-                setTargetDate(date);
+                setTargetDate(toDateStr(new Date()));
               }}
             >
               <Text style={s.actionSheetText}>Move to…</Text>
@@ -713,7 +713,7 @@ export default function NutritionScreen() {
                 setMoveCopyMode('copy');
                 setMoveCopyEntries([entry]);
                 setTargetMeal(meal);
-                setTargetDate(date);
+                setTargetDate(toDateStr(new Date()));
               }}
             >
               <Text style={s.actionSheetText}>Copy to…</Text>
@@ -947,6 +947,7 @@ export default function NutritionScreen() {
                           onChangeText={(v) => updateQueueItem(item.key, { editName: v })}
                           placeholder="Name"
                           placeholderTextColor={c.muted}
+                          scrollEnabled={false}
                         />
                         <TouchableOpacity onPress={() => removeQueueItem(item.key)} style={s.queueRemoveBtn}>
                           <Text style={s.queueRemoveText}>✕</Text>

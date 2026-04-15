@@ -74,17 +74,17 @@ function computeGoalPace(
   if (!goal.targetDate || sorted.length < 2) return { status: 'yellow', pct, projectedDate: null };
 
   const firstMs = new Date(oldest.measuredAt + 'T12:00:00').getTime();
-  const latestMs = new Date(latest.measuredAt + 'T12:00:00').getTime();
   const targetMs = new Date(goal.targetDate + 'T12:00:00').getTime();
-  const elapsed = latestMs - firstMs;
-  if (elapsed <= 0) return { status: 'yellow', pct, projectedDate: null };
+  const nowMs = Date.now();
+  const elapsedMs = nowMs - firstMs;
+  if (elapsedMs <= 0) return { status: 'yellow', pct, projectedDate: null };
 
-  const actualRate = actualChange / elapsed;
+  const actualRate = actualChange / elapsedMs;
   const neededRate = totalChange / Math.max(targetMs - firstMs, 1);
   const ratio = neededRate > 0 ? actualRate / neededRate : 0;
   const status: PaceStatus = ratio >= 1 ? 'green' : ratio >= 0.8 ? 'yellow' : 'red';
   const remaining = totalChange - actualChange;
-  const projMs = actualRate > 0 ? Date.now() + (remaining / actualRate) : null;
+  const projMs = actualRate > 0 ? nowMs + (remaining / actualRate) : null;
   const projectedDate = projMs
     ? new Date(projMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
@@ -100,8 +100,11 @@ function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]) {
     .sort();
   if (creatineDays.length === 0) return null;
   const firstDate = creatineDays[0];
-  const firstMs = new Date(firstDate + 'T12:00:00').getTime();
-  const daysSinceStart = Math.max(1, Math.floor((Date.now() - firstMs) / (24 * 3600 * 1000)));
+  // Use midnight-to-midnight day counting (same as web) to avoid timezone drift
+  const firstMs = new Date(firstDate + 'T00:00:00').getTime();
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const todayMs = new Date(todayStr + 'T00:00:00').getTime();
+  const daysSinceStart = Math.max(1, Math.round((todayMs - firstMs) / (24 * 3600 * 1000)) + 1);
   const loggedDays = creatineDays.length;
   const compliancePct = Math.min(loggedDays / daysSinceStart, 1);
   const timePct = Math.min(daysSinceStart / SATURATION_DAYS, 1);
@@ -359,7 +362,7 @@ export default function DashboardScreen() {
   const s = makeStyles(c);
   const seg = makeSegStyles(c);
   const [activeTab, setActiveTab] = useState<DashboardTab>('nutrition');
-  const swipe = useSwipeNav(0);
+  const swipe = useSwipeNav(0, DASHBOARD_TABS, activeTab, setActiveTab);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -783,12 +786,6 @@ export default function DashboardScreen() {
                 </View>
                 {projectedDate && (
                   <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>Proj: {projectedDate}</Text>
-                )}
-                {key === 'weight' && creatineData && creatineData.satPct > 0 && creatineData.satPct < 1 && (
-                  <View style={{ backgroundColor: 'rgba(56,189,248,0.10)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)', padding: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#38bdf8', marginBottom: 2 }}>💧 Water Weight Loading</Text>
-                    <Text style={{ fontSize: 10, color: '#94a3b8', lineHeight: 14 }}>Creatine may add 1–3 lbs of water weight. Scale bump is expected.</Text>
-                  </View>
                 )}
               </View>
             );
