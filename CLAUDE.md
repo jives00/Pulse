@@ -47,6 +47,23 @@ Run DB migrations:
 npm run migrate --workspace=apps/server
 ```
 
+## Test commands
+
+Tests live in `testing/` — a standalone folder with its own packages. Each suite runs independently.
+
+```
+# Server (Jest + ts-jest) — unit tests for services
+cd testing/server && npm test
+
+# Web (Vitest + jsdom) — component + store tests
+cd testing/web && npm test
+
+# Mobile (Jest + @react-native/jest-preset) — store + hook tests
+cd testing/mobile && npm test
+```
+
+Note: `testing/mobile` has its own `node_modules` (isolated from root `testing/`). Run `npm install` inside it if cloning fresh. See `.plans/TestingInfrastructure.md` for full setup details.
+
 ## Tech stack
 
 | Layer | Stack |
