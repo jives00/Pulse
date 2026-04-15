@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi, profileApi, GLASS_OZ,
+  authApi, tagsApi, goalsApi, measurementsApi, profileApi, GLASS_OZ, apiClient,
   type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
   type UserProfile, type ActivityLevel,
 } from '@pulse/api-client';
@@ -29,13 +29,14 @@ function StatusMsg({ error, success }: { error?: string; success?: string }) {
 
 // ─── Tab bar ──────────────────────────────────────────────────
 
-type Tab = 'options' | 'goals' | 'user' | 'delete';
+type Tab = 'options' | 'goals' | 'user' | 'delete' | 'export';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'options', label: 'Options' },
   { id: 'goals',   label: 'Goals' },
   { id: 'user',    label: 'User' },
   { id: 'delete',  label: 'Delete Data' },
+  { id: 'export',  label: 'Export' },
 ];
 
 // ─── Options tab ──────────────────────────────────────────────
@@ -788,6 +789,77 @@ function DeleteDataTab() {
   );
 }
 
+// ─── Export tab ───────────────────────────────────────────────
+
+function dateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function ExportTab() {
+  const defaultEnd = new Date();
+  const defaultStart = new Date();
+  defaultStart.setMonth(defaultStart.getMonth() - 3);
+
+  const [startDate, setStartDate] = useState(dateStr(defaultStart));
+  const [endDate, setEndDate] = useState(dateStr(defaultEnd));
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await apiClient.get('/export/excel', {
+        params: { start: startDate, end: endDate },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pulse-export-${startDate}-${endDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <Section title="Download All Data">
+      <p className="text-sm text-dram-muted">
+        Exports your food log, TDEE breakdown, workout log, body measurements, and water log as a single Excel file with separate sheets.
+      </p>
+      <div className="flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-400">Start date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={inputCls + ' w-40 [color-scheme:dark]'}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-400">End date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={inputCls + ' w-40 [color-scheme:dark]'}
+          />
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting || !startDate || !endDate}
+          className="px-4 py-2 rounded-lg text-sm font-semibold bg-dram-accent text-black hover:brightness-110 transition disabled:opacity-40"
+        >
+          {exporting ? 'Exporting…' : '↓ Download'}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -822,6 +894,7 @@ export default function SettingsPage() {
         {activeTab === 'goals'   && <GoalsTab />}
         {activeTab === 'user'    && <UserTab />}
         {activeTab === 'delete'  && <DeleteDataTab />}
+        {activeTab === 'export'  && <ExportTab />}
       </div>
     </div>
   );

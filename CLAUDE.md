@@ -110,7 +110,7 @@ USDA_API_KEY        (optional, food database)
 /workouts/routines/:id → RoutineDetailPage
 /workouts/:id          → WorkoutDetailPage
 /goals                 → (removed; redirects to /food)
-/history               → RecipeHistory (3 tabs: Recipes, Workouts, Nutrition)
+/history               → RecipeHistory (4 tabs: Workouts, Nutrition, Measurements, Charts)
 /links                 → Links
 /settings              → SettingsPage
 ```
@@ -147,7 +147,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/exercises/*       Exercise library CRUD — GET /, GET /:id, POST / (custom), PUT /:id (any), DELETE /:id (custom only), GET /:id/stats, GET /:id/history, GET /categories
 /api/routines/*        Saved workout routines CRUD + start (POST /:id/start creates workout from routine)
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
-/api/export/*          Excel export
+/api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
 ```
 
 ## Deployment
@@ -164,7 +164,7 @@ CI/CD via GitHub Actions: push to `main` → SSH to EC2 → `git pull` → `npm 
 | `Library` | `apps/web/src/pages/Library.tsx` | Food and Drinks recipe grid. Filter state is URL-driven (`?sub=main` etc.). Tags scoped to current user + page type (food vs cocktail). |
 | `RecipeForm` | `apps/web/src/components/RecipeForm.tsx` | Grouped pill picker for tags (Health/Cuisine/Category). Pulls from `tag_definitions` table — no free-text entry. Accepts `initialType` prop. Three types: cocktail, food, prepackaged. Food shows subcategory (main/side/breakfast/dessert) + timing + nutrition. Prepackaged shows servings + nutrition + barcode. Cocktail shows glass/ABV + optional nutrition. Barcode saved to `recipe_barcodes` on submit. |
 | `FoodSearchModal` | `apps/web/src/components/FoodSearchModal.tsx` | Searches recipes (`GET /recipes/search`) + foods in parallel. "My Recipes" section at top. Selecting a recipe opens a servings picker that logs via `POST /log/recipe`. Accepts `onCreateCustomFood` prop; if provided, "Create custom food" calls it instead of the inline create flow. |
-| `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Tabbed layout: **Options** (Color Scheme, Default Sort (Recipes), Default Sort (Exercises), Tags), **Goals** (nutrition daily macros + workout weekly goals + body measurement goals — all in one place), **User** (change username/password), **Delete Data** (danger zone). Left-aligned layout matching History/Links pages. |
+| `SettingsPage` | `apps/web/src/pages/SettingsPage.tsx` | Tabbed layout: **Options** (Color Scheme, Default Sort (Recipes), Default Sort (Exercises), Tags), **Goals** (nutrition daily macros + workout weekly goals + body measurement goals — all in one place), **User** (change username/password), **Delete Data** (danger zone), **Export** (date range pickers + download all data as xlsx). Left-aligned layout matching History/Links pages. |
 | `TodayPage` | `apps/web/src/pages/TodayPage.tsx` | Daily nutrition log with date nav, summary card, history charts, meal sections. Toolbar has "Edit Goals" (nutrition goal modal), "Create Custom Food", and "Log Food" buttons. `FoodSearchModal` passes `onCreateCustomFood` to bridge the two flows. |
 | `WorkoutsDashboardPage` | `apps/web/src/pages/WorkoutsDashboardPage.tsx` | Home page. 3-column V2 dashboard: col 1 = North Star Goal gauge cards (weight/waist/bicep with `SemiCircleGauge`, pace badge, projected date); col 2 = This Week progress bars + routine heatmap + Fuel Today (calories in/TDEE/net via `ComposedChart`, protein + water line charts); col 3 = Creatine widget (saturation gauge, phase badge, compliance stats, milestone countdown) + Personal Bests. Header toolbar: "Edit Goals" + "+ Start Workout". No tabs — loads all data eagerly on mount. TDEE shown for all 30 days using BMR+NEAT baseline from user profile + per-day TEF (10% of calories eaten) + per-day exercise. |
 | `WorkoutsPage` | `apps/web/src/pages/WorkoutsPage.tsx` | Two tabs: **Routines** (inline routine grid with ▶ Start button on each card, + New Routine modal), **Exercises** (inline exercise grid with search/filter, + New Exercise modal). Progress dashboard has moved to `/dashboard` (WorkoutsDashboardPage). |

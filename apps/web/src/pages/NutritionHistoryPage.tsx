@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '@pulse/api-client';
 import {
   ResponsiveContainer,
   LineChart, Line,
@@ -39,7 +38,6 @@ export default function HistoryPage() {
   const [weekly, setWeekly] = useState<WeeklyHistoryEntry[]>([]);
   const [goals, setGoals] = useState<UserGoals | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const days = RANGES.find((r) => r.value === range)!.days;
@@ -59,30 +57,6 @@ export default function HistoryPage() {
       setGoals(g);
     }).finally(() => setLoading(false));
   }, [range]);
-
-  async function handleExport() {
-    const d = RANGES.find((r) => r.value === range)!.days;
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - d + 1);
-    setExporting(true);
-    try {
-      const res = await apiClient.get('/export/excel', {
-        params: { start: dateStr(start), end: dateStr(end) },
-        responseType: 'blob',
-      });
-      const url = URL.createObjectURL(res.data as Blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `food-tracker-${dateStr(start)}-${dateStr(end)}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // ignore
-    } finally {
-      setExporting(false);
-    }
-  }
 
   const calGoal = goals?.calories ?? 2000;
 
@@ -127,13 +101,6 @@ export default function HistoryPage() {
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-slate-200">History</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="border border-dram-border text-slate-300 hover:text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
-          >
-            {exporting ? 'Exporting…' : '↓ Export'}
-          </button>
           <div className="flex gap-1 bg-dram-card rounded-lg p-1">
             {RANGES.map((r) => (
               <button

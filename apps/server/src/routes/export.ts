@@ -12,9 +12,9 @@ router.get('/excel', async (req, res) => {
     return;
   }
   try {
-    const buffer = await buildExport(start, end);
+    const buffer = await buildExport(req.userId!, start, end);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="food-tracker-${start}-${end}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="pulse-export-${start}-${end}.xlsx"`);
     res.send(buffer);
   } catch (err) {
     console.error(err);
