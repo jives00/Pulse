@@ -10,14 +10,13 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#111111"
+      "backgroundColor": "#1a3a4a"
     },
     "android": {
       "package": "com.jives00.dram",
       "adaptiveIcon": {
-        "backgroundColor": "#111111",
+        "backgroundColor": "#1a3a4a",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "usesCleartextTraffic": true
