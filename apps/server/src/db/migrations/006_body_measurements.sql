@@ -1,4 +1,5 @@
--- Body measurements tracking + goals, plus volume goal for exercise_goals
+-- @delimiter $$
+-- Migration 006: body measurements tracking + goals, plus volume goal for exercise_goals
 
 -- ─── Body measurements ────────────────────────────────────────────────────────
 
@@ -13,7 +14,7 @@ CREATE TABLE IF NOT EXISTS body_measurements (
   created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_user_metric_date (user_id, metric, measured_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci $$
 
 -- ─── Body measurement goals ───────────────────────────────────────────────────
 
@@ -28,8 +29,19 @@ CREATE TABLE IF NOT EXISTS body_measurement_goals (
   updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_metric (user_id, metric),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci $$
 
 -- ─── Volume goal on exercise_goals ───────────────────────────────────────────
--- Handled idempotently in migrate.ts post-migration hook (ALTER TABLE IF NOT EXISTS
--- is not supported in older MySQL versions).
+
+DROP PROCEDURE IF EXISTS _m006 $$
+CREATE PROCEDURE _m006()
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'exercise_goals' AND COLUMN_NAME = 'volume_lbs_per_week'
+  ) THEN
+    ALTER TABLE exercise_goals ADD COLUMN volume_lbs_per_week INT UNSIGNED NULL;
+  END IF;
+END $$
+CALL _m006() $$
+DROP PROCEDURE IF EXISTS _m006 $$
