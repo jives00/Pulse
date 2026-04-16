@@ -55,16 +55,15 @@ function computeGoalPace(
 ): { status: PaceStatus; pct: number; projectedDate: string | null } {
   const sorted = measurements
     .filter((m) => m.metric === key)
-    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt) || a.id - b.id);
   if (sorted.length === 0) return { status: 'red', pct: 0, projectedDate: null };
 
   const oldest = sorted[0];
   const latest = sorted[sorted.length - 1];
-  let rawVal = (m: BodyMeasurement) => m.value;
-  if (key === 'weight' && latest.unit === 'kg') rawVal = (m) => m.value * KG_TO_LBS;
+  const toDisplay = (m: BodyMeasurement) => key === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
 
-  const oldestVal = rawVal(oldest);
-  const latestVal = rawVal(latest);
+  const oldestVal = toDisplay(oldest);
+  const latestVal = toDisplay(latest);
   const target = goal.targetValue;
   const totalChange = dir === 'down' ? oldestVal - target : target - oldestVal;
   const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;

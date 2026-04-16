@@ -17,6 +17,27 @@ import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 
+// TextInput that always shows the start of its value when unfocused (not scrolled to the end)
+function StartAlignedInput({ style, value, onChangeText, placeholder, placeholderTextColor }: {
+  style?: any; value: string; onChangeText: (v: string) => void;
+  placeholder?: string; placeholderTextColor?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <TextInput
+      style={style}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={placeholderTextColor}
+      scrollEnabled={false}
+      selection={focused ? undefined : { start: 0, end: 0 }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    />
+  );
+}
+
 const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'breakfast', label: 'Breakfast' },
   { slot: 'lunch', label: 'Lunch' },
@@ -870,7 +891,7 @@ export default function NutritionScreen() {
                 <View style={s.scannerOverlay}>
                   <View style={s.scannerFrame} />
                   <Text style={s.scannerHint}>
-                    {barcodeScanning ? 'Looking up barcode…' : scanningActive ? 'Point at a barcode to scan' : 'Tap "Scan another" to scan more'}
+                    {barcodeScanning ? 'Looking up barcode…' : 'Point at a barcode to scan'}
                   </Text>
                 </View>
               </View>
@@ -898,12 +919,6 @@ export default function NutritionScreen() {
                     )}
                   />
                   <View style={s.queueActions}>
-                    <TouchableOpacity
-                      style={s.queueScanMoreBtn}
-                      onPress={() => { scannedRef.current = false; setScanningActive(true); }}
-                    >
-                      <Text style={s.queueScanMoreText}>Scan another</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                       style={s.queueReviewBtn}
                       onPress={() => setModalView('barcode-review')}
@@ -941,13 +956,12 @@ export default function NutritionScreen() {
                   return (
                     <View key={item.key} style={s.reviewCard}>
                       <View style={s.reviewCardHeader}>
-                        <TextInput
+                        <StartAlignedInput
                           style={[s.reviewNameInput, { flex: 1 }]}
                           value={item.editName}
                           onChangeText={(v) => updateQueueItem(item.key, { editName: v })}
                           placeholder="Name"
                           placeholderTextColor={c.muted}
-                          scrollEnabled={false}
                         />
                         <TouchableOpacity onPress={() => removeQueueItem(item.key)} style={s.queueRemoveBtn}>
                           <Text style={s.queueRemoveText}>✕</Text>

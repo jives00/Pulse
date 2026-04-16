@@ -448,7 +448,7 @@ function computeGoalPace(
 ): PaceResult {
   const forMetric = measurements
     .filter((m) => m.metric === key)
-    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt) || b.id - a.id);
 
   const latest = forMetric[0];
   const oldest = forMetric[forMetric.length - 1];
