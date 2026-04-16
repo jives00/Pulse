@@ -8,59 +8,16 @@ import {
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
   type WaterHistory, type FoodLogHistoryDay, type TDEEBreakdown,
+  type WeekBucket,
+  localDateStr, getWeekStart, shortDate, formatDate,
+  buildWeeklyData, computeGoalPace, computeCreatineSaturation,
+  type PaceStatus,
+  KG_TO_LBS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function localDateStr(d: Date = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function getWeekStart(dateStr: string) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return localDateStr(d);
-}
-
-type WeekBucket = { weekStart: string; label: string; workouts: number; minutes: number; calories: number; volumeLbs: number };
-
-function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
-  const now = new Date();
-  const weeks: WeekBucket[] = [];
-  for (let i = 12; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    const ws = getWeekStart(localDateStr(d));
-    const weekDate = new Date(ws + 'T12:00:00');
-    weeks.push({
-      weekStart: ws,
-      label: weekDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-      workouts: 0,
-      minutes: 0,
-      calories: 0,
-      volumeLbs: 0,
-    });
-  }
-  for (const w of workouts) {
-    const ws = getWeekStart(w.workoutDate);
-    const week = weeks.find((wk) => wk.weekStart === ws);
-    if (week) {
-      week.workouts++;
-      week.minutes += w.durationMinutes ?? 0;
-      week.calories += w.caloriesBurned ?? 0;
-      week.volumeLbs += (w.totalVolumeKg ?? 0) * 2.20462;
-    }
-  }
-  return weeks;
-}
 
 function computeDayStreak(workouts: WorkoutSummary[]): number {
   if (workouts.length === 0) return 0;
@@ -412,8 +369,7 @@ function computeMeasurementProgress(
 
 // ─── Dashboard: on-pace helpers ───────────────────────────────────────────────
 
-type PaceStatus = 'green' | 'yellow' | 'red' | 'done';
-interface PaceResult { status: PaceStatus; projectedDate: string | null; pct: number; }
+type PaceResult = { status: PaceStatus; projectedDate: string | null; pct: number; }
 
 const PACE_COLORS: Record<PaceStatus, string> = {
   green:  '#34d399',
@@ -440,67 +396,6 @@ function PaceBadge({ status }: { status: PaceStatus }) {
   );
 }
 
-function computeGoalPace(
-  measurements: BodyMeasurement[],
-  key: string,
-  goal: MeasurementGoal,
-  dir: 'up' | 'down',
-): PaceResult {
-  const forMetric = measurements
-    .filter((m) => m.metric === key)
-    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt) || b.id - a.id);
-
-  const latest = forMetric[0];
-  const oldest = forMetric[forMetric.length - 1];
-
-  if (!latest) return { status: 'red', projectedDate: null, pct: 0 };
-
-  // Convert weight from kg to lbs if needed
-  const latestVal  = key === 'weight' && latest.unit === 'kg'  ? latest.value  * 2.20462 : latest.value;
-  const oldestVal  = oldest  ? (key === 'weight' && oldest.unit === 'kg'  ? oldest.value  * 2.20462 : oldest.value) : latestVal;
-  const target     = goal.targetValue; // always stored in display unit (lbs/in/%)
-
-  const totalChange  = dir === 'down' ? oldestVal - target : target - oldestVal;
-  const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;
-
-  const pct = totalChange > 0
-    ? Math.min(Math.max(actualChange / totalChange, 0), 1)
-    : (dir === 'down' ? (latestVal <= target ? 1 : 0) : (latestVal >= target ? 1 : 0));
-
-  if (pct >= 1) return { status: 'done', projectedDate: null, pct: 1 };
-
-  let projectedDate: string | null = null;
-  let status: PaceStatus = 'red';
-
-  if (goal.targetDate && oldest && oldest.measuredAt !== latest.measuredAt && actualChange > 0) {
-    const startMs   = new Date(oldest.measuredAt + 'T12:00:00').getTime();
-    const endMs     = new Date(goal.targetDate   + 'T12:00:00').getTime();
-    const nowMs     = Date.now();
-    const totalMs   = endMs - startMs;
-    const elapsedMs = nowMs - startMs;
-
-    if (totalMs > 0 && elapsedMs > 0) {
-      const neededRate = totalChange / totalMs;
-      const actualRate = actualChange / elapsedMs;
-      const ratio      = actualRate / neededRate;
-
-      const remainingChange = totalChange - actualChange;
-      const msTillDone      = remainingChange / actualRate;
-      const projMs          = nowMs + msTillDone;
-      projectedDate = new Date(projMs).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-      });
-
-      if (ratio >= 1)        status = 'green';
-      else if (ratio >= 0.8) status = 'yellow';
-      else                   status = 'red';
-    }
-  } else if (actualChange <= 0 && totalChange > 0) {
-    status = 'red';
-  }
-
-  return { status, projectedDate, pct };
-}
 
 // ─── Dashboard: compact volume sparkline ─────────────────────────────────────
 
@@ -768,11 +663,11 @@ function BodyMeasurementsCard({
 
 function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
   const weightLbs = bests?.heaviestLift
-    ? Math.round(bests.heaviestLift.weightKg * 2.20462 * 10) / 10
+    ? Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10
     : null;
 
   const volLbs = bests?.bestSessionVolume
-    ? Math.round(bests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()
+    ? Math.round(bests.bestSessionVolume.volumeKg * KG_TO_LBS).toLocaleString()
     : null;
 
   const items = [
@@ -824,8 +719,6 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
 // ─── Dashboard V2 ────────────────────────────────────────────────────────────
 
 const CREATINE_FOOD_NAME = 'Creatine Monohydrate';
-// Saturation model: ~28 days to full saturation after consistent daily dosing
-const SATURATION_DAYS = 28;
 
 // Palette for per-routine lines in heatmap
 const ROUTINE_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fb923c', '#f472b6', '#facc15', '#38bdf8'];
@@ -893,7 +786,7 @@ function GoalGaugeCard({
   const latest = sorted[0];
 
   const displayVal = latest
-    ? (metric === 'weight' && latest.unit === 'kg' ? (latest.value * 2.20462).toFixed(1) : String(latest.value))
+    ? (metric === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
     : null;
 
   const { status, projectedDate, pct } = goal
@@ -945,57 +838,6 @@ function GoalGaugeCard({
   );
 }
 
-/** Derives creatine saturation data from food log history. Returns null if no creatine found. */
-function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]): {
-  satPct: number;
-  daysSinceStart: number;
-  loggedDays: number;
-  firstDate: string;
-  daysToFull: number;
-  phase: string;
-  compliancePct: number;
-} | null {
-  // All days in history that had creatine logged
-  const creatineDays = foodLogHistory
-    .filter((day) => day.entries.some((e) => e.foodName.toLowerCase().includes('creatine')))
-    .map((day) => day.date)
-    .sort();
-
-  if (creatineDays.length === 0) return null;
-
-  const firstDate = creatineDays[0];
-  // Count days from firstDate through today inclusive using date strings (avoids timezone drift)
-  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const firstMs = new Date(firstDate + 'T00:00:00').getTime();
-  const todayMs = new Date(todayStr + 'T00:00:00').getTime();
-  const daysSinceStart = Math.max(1, Math.round((todayMs - firstMs) / (24 * 3600 * 1000)) + 1);
-  const loggedDays = creatineDays.length;
-
-  // Compliance = fraction of days since start that had creatine logged
-  const compliancePct = Math.min(loggedDays / daysSinceStart, 1);
-
-  // Saturation model: 28-day curve, weighted by compliance
-  const timePct = Math.min(daysSinceStart / SATURATION_DAYS, 1);
-  const satPct = timePct * compliancePct;
-
-  // Days remaining to projected full saturation at current compliance rate
-  const daysToFull = satPct >= 1
-    ? 0
-    : compliancePct > 0
-      ? Math.ceil((SATURATION_DAYS - daysSinceStart / compliancePct) / compliancePct)
-      : SATURATION_DAYS - daysSinceStart;
-
-  // Phase label
-  const phase = daysSinceStart <= 7
-    ? 'Initial Uptake'
-    : satPct >= 1
-      ? 'Full Saturation'
-      : daysSinceStart <= 21
-        ? 'The Build'
-        : 'Peak Performance';
-
-  return { satPct, daysSinceStart, loggedDays, firstDate, daysToFull: Math.max(0, daysToFull), phase, compliancePct };
-}
 
 function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[] }) {
   const data = computeCreatineSaturation(foodLogHistory);
@@ -1404,7 +1246,7 @@ function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]
     if (!w.routineId || w.totalVolumeKg <= 0) continue;
     const ws = getWeekStart(w.workoutDate);
     if (!routineVolumes[w.routineId]) routineVolumes[w.routineId] = {};
-    routineVolumes[w.routineId][ws] = (routineVolumes[w.routineId][ws] ?? 0) + w.totalVolumeKg * 2.20462;
+    routineVolumes[w.routineId][ws] = (routineVolumes[w.routineId][ws] ?? 0) + w.totalVolumeKg * KG_TO_LBS;
   }
 
   // Only keep routines that appear in our 13-week window and have volume
@@ -1417,7 +1259,7 @@ function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]
   for (const w of workouts) {
     if (w.totalVolumeKg <= 0) continue;
     const ws = getWeekStart(w.workoutDate);
-    weeklyTotals[ws] = (weeklyTotals[ws] ?? 0) + w.totalVolumeKg * 2.20462;
+    weeklyTotals[ws] = (weeklyTotals[ws] ?? 0) + w.totalVolumeKg * KG_TO_LBS;
   }
   const lineData = weeks.map((wk) => ({
     label: wk.label,
@@ -1527,7 +1369,7 @@ function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; ro
     <div className="space-y-1">
       {last10.length === 0 && <div className="text-xs text-dram-muted py-2">No workouts yet.</div>}
       {last10.map((w) => {
-        const volLbs = Math.round(w.totalVolumeKg * 2.20462);
+        const volLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
         const routineName = w.routineId ? (routineNameById[w.routineId] ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
 
         // Find prior session of same routine (or same name if no routine)
@@ -1536,7 +1378,7 @@ function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; ro
           prior = completed.find((x) => x.id !== w.id && x.routineId === w.routineId && x.workoutDate < w.workoutDate);
         }
 
-        const priorVolLbs = prior ? Math.round(prior.totalVolumeKg * 2.20462) : null;
+        const priorVolLbs = prior ? Math.round(prior.totalVolumeKg * KG_TO_LBS) : null;
         const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
         const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
 
@@ -1609,7 +1451,7 @@ function PersonalBestsColumn({
   const routineVolBests: Record<number, { volumeLbs: number; date: string }> = {};
   for (const w of workouts) {
     if (!w.routineId || w.totalVolumeKg <= 0) continue;
-    const volLbs = Math.round(w.totalVolumeKg * 2.20462);
+    const volLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
     const cur = routineVolBests[w.routineId];
     if (!cur || volLbs > cur.volumeLbs) {
       routineVolBests[w.routineId] = { volumeLbs: volLbs, date: w.workoutDate };
@@ -1624,7 +1466,7 @@ function PersonalBestsColumn({
       icon: '🏋️',
       label: 'Heaviest Lift',
       color: '#34d399',
-      value: bests?.heaviestLift ? `${Math.round(bests.heaviestLift.weightKg * 2.20462 * 10) / 10} lbs` : null,
+      value: bests?.heaviestLift ? `${Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10} lbs` : null,
       sub: bests?.heaviestLift
         ? `${bests.heaviestLift.exerciseName}${bests.heaviestLift.reps != null ? ` · ${bests.heaviestLift.reps} reps` : ''}`
         : null,
@@ -2237,7 +2079,7 @@ function TodaysBlurb({
       return `${name} completed${detail ? ` — ${detail}` : ''}`;
     }
 
-    const volumeLbs = Math.round(w.totalVolumeKg * 2.20462);
+    const volumeLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
     return `${name} completed — total volume of ${volumeLbs.toLocaleString()} lbs`;
   });
 

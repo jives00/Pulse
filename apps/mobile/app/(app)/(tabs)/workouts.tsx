@@ -15,14 +15,13 @@ import {
   getPersonalBests, type PersonalBests,
   getActiveWorkout, type WorkoutDetail,
 } from '../../../src/api/client';
+import { KG_TO_LBS } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, PALETTES, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import FilterChip from '../../../src/components/FilterChip';
-
-const KG_TO_LBS = 2.20462;
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 const WORKOUT_TABS_ORDER = ['routines', 'exercises', 'log'] as const;
 
@@ -960,17 +959,17 @@ function ProgressTab() {
             </View>
           </View>
         ) : null}
-        {personalBests?.longestSession ? (
+        {personalBests?.bestStairPace ? (
           <View style={p.recordRow}>
-            <Text style={p.recordIcon}>⏱️</Text>
+            <Text style={p.recordIcon}>🪜</Text>
             <View style={{ flex: 1 }}>
-              <Text style={p.recordLabel}>Longest session</Text>
-              <Text style={p.recordVal}>{personalBests.longestSession.durationMinutes} min</Text>
-              <Text style={p.recordSub}>{personalBests.longestSession.workoutDate}</Text>
+              <Text style={p.recordLabel}>Best stair pace</Text>
+              <Text style={p.recordVal}>{personalBests.bestStairPace.secsPerRep.toFixed(1)}s/rep</Text>
+              <Text style={p.recordSub}>{personalBests.bestStairPace.workoutDate}</Text>
             </View>
           </View>
         ) : null}
-        {!personalBests?.heaviestLift && !personalBests?.bestSessionVolume && !personalBests?.longestSession && (
+        {!personalBests?.heaviestLift && !personalBests?.bestSessionVolume && !personalBests?.bestStairPace && (
           <Text style={p.recordEmpty}>Complete some workouts to see records.</Text>
         )}
       </View>

@@ -13,11 +13,10 @@ import {
   getExercises, getExerciseCategories, createCustomExercise,
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
 } from '../../../src/api/client';
+import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
-
-const KG_TO_LBS = 2.20462;
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -31,9 +30,7 @@ function formatTimer(seconds: number) {
 
 function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return _secondsToMMSS(sec);
 }
 
 function mmssToSeconds(val: string): number | null {

@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-
-const KG_TO_LBS = 2.20462;
 
 function kgToLbs(kg: number): number {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
@@ -22,9 +20,7 @@ function fmtWeight(kg: number | null) {
 
 function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return _secondsToMMSS(sec);
 }
 
 function mmssToSeconds(val: string): number | null {
@@ -38,15 +34,6 @@ function mmssToSeconds(val: string): number | null {
   }
   const n = parseInt(trimmed, 10);
   return isNaN(n) ? null : n;
-}
-
-function formatElapsed(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 // ─── Set row ─────────────────────────────────────────────────────────────────

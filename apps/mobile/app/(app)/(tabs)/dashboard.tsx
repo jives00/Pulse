@@ -13,12 +13,16 @@ import {
   type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
   type DailyHistoryEntry, type RoutineSummary, type TDEEBreakdown,
 } from '../../../src/api/client';
+import {
+  KG_TO_LBS, SATURATION_DAYS,
+  localDateStr, getWeekStart, shortDate,
+  buildWeeklyData, computeGoalPace, computeCreatineSaturation,
+  type WeekBucket, type PaceStatus,
+} from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
-const KG_TO_LBS = 2.20462;
-const SATURATION_DAYS = 28;
 const GLASS_OZ = 8;
 
 const METRIC_CONFIG: Record<string, { label: string; unit: string; color: string; dir: 'up' | 'down' }> = {
@@ -28,119 +32,10 @@ const METRIC_CONFIG: Record<string, { label: string; unit: string; color: string
 };
 const DISPLAYED_METRICS = ['weight', 'waist', 'bicep'];
 
-function localDateStr(d: Date = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function getWeekStart(dateStr: string) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const day = d.getDay();
-  d.setDate(d.getDate() - day);
-  return localDateStr(d);
-}
-
-function shortDate(dateStr: string) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-}
-
 // ── Pace computation ──────────────────────────────────────────────────────────
 
-type PaceStatus = 'green' | 'yellow' | 'red' | 'done';
 const PACE_COLORS: Record<PaceStatus, string> = { green: '#34d399', yellow: '#facc15', red: '#f87171', done: '#34d399' };
 const PACE_LABELS: Record<PaceStatus, string> = { green: 'On pace', yellow: 'Slightly behind', red: 'Behind', done: 'Done!' };
-
-function computeGoalPace(
-  measurements: BodyMeasurement[], key: string,
-  goal: MeasurementGoal, dir: 'up' | 'down'
-): { status: PaceStatus; pct: number; projectedDate: string | null } {
-  const sorted = measurements
-    .filter((m) => m.metric === key)
-    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt) || a.id - b.id);
-  if (sorted.length === 0) return { status: 'red', pct: 0, projectedDate: null };
-
-  const oldest = sorted[0];
-  const latest = sorted[sorted.length - 1];
-  const toDisplay = (m: BodyMeasurement) => key === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-
-  const oldestVal = toDisplay(oldest);
-  const latestVal = toDisplay(latest);
-  const target = goal.targetValue;
-  const totalChange = dir === 'down' ? oldestVal - target : target - oldestVal;
-  const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;
-  if (totalChange <= 0) return { status: 'done', pct: 1, projectedDate: null };
-  const pct = Math.min(Math.max(actualChange / totalChange, 0), 1);
-  if (pct >= 1) return { status: 'done', pct: 1, projectedDate: null };
-  if (!goal.targetDate || sorted.length < 2) return { status: 'yellow', pct, projectedDate: null };
-
-  const firstMs = new Date(oldest.measuredAt + 'T12:00:00').getTime();
-  const targetMs = new Date(goal.targetDate + 'T12:00:00').getTime();
-  const nowMs = Date.now();
-  const elapsedMs = nowMs - firstMs;
-  if (elapsedMs <= 0) return { status: 'yellow', pct, projectedDate: null };
-
-  const actualRate = actualChange / elapsedMs;
-  const neededRate = totalChange / Math.max(targetMs - firstMs, 1);
-  const ratio = neededRate > 0 ? actualRate / neededRate : 0;
-  const status: PaceStatus = ratio >= 1 ? 'green' : ratio >= 0.8 ? 'yellow' : 'red';
-  const remaining = totalChange - actualChange;
-  const projMs = actualRate > 0 ? nowMs + (remaining / actualRate) : null;
-  const projectedDate = projMs
-    ? new Date(projMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null;
-  return { status, pct, projectedDate };
-}
-
-// ── Creatine ──────────────────────────────────────────────────────────────────
-
-function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]) {
-  const creatineDays = foodLogHistory
-    .filter((day) => day.entries.some((e) => e.foodName.toLowerCase().includes('creatine')))
-    .map((day) => day.date)
-    .sort();
-  if (creatineDays.length === 0) return null;
-  const firstDate = creatineDays[0];
-  // Use midnight-to-midnight day counting (same as web) to avoid timezone drift
-  const firstMs = new Date(firstDate + 'T00:00:00').getTime();
-  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const todayMs = new Date(todayStr + 'T00:00:00').getTime();
-  const daysSinceStart = Math.max(1, Math.round((todayMs - firstMs) / (24 * 3600 * 1000)) + 1);
-  const loggedDays = creatineDays.length;
-  const compliancePct = Math.min(loggedDays / daysSinceStart, 1);
-  const timePct = Math.min(daysSinceStart / SATURATION_DAYS, 1);
-  const satPct = timePct * compliancePct;
-  const daysToFull = satPct >= 1 ? 0 : compliancePct > 0
-    ? Math.max(0, Math.ceil((SATURATION_DAYS - daysSinceStart / compliancePct) / compliancePct))
-    : SATURATION_DAYS - daysSinceStart;
-  const phase = daysSinceStart <= 7 ? 'Initial Uptake'
-    : satPct >= 1 ? 'Full Saturation'
-    : daysSinceStart <= 21 ? 'The Build'
-    : 'Peak Performance';
-  return { satPct, daysSinceStart, loggedDays, firstDate, daysToFull, phase, compliancePct };
-}
-
-// ── Weekly bucketing ──────────────────────────────────────────────────────────
-
-type WeekBucket = { weekStart: string; volumeLbs: number; workoutCount: number };
-
-function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
-  const now = new Date();
-  const weeks: WeekBucket[] = [];
-  for (let i = 12; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    const ws = getWeekStart(localDateStr(d));
-    weeks.push({ weekStart: ws, volumeLbs: 0, workoutCount: 0 });
-  }
-  for (const w of workouts) {
-    const ws = getWeekStart(w.workoutDate);
-    const week = weeks.find((wk) => wk.weekStart === ws);
-    if (week) {
-      week.workoutCount++;
-      week.volumeLbs += (w.totalVolumeKg ?? 0) * KG_TO_LBS;
-    }
-  }
-  return weeks;
-}
 
 // ── Mini line chart (pure RN, no SVG lib) ────────────────────────────────────
 
@@ -694,17 +589,17 @@ export default function DashboardScreen() {
               </View>
             </View>
           ) : null}
-          {personalBests?.longestSession ? (
+          {personalBests?.bestStairPace ? (
             <View style={s.recordRow}>
-              <Text style={s.recordIcon}>⏱️</Text>
+              <Text style={s.recordIcon}>🪜</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.recordLabel}>Longest Session</Text>
-                <Text style={s.recordVal}>{personalBests.longestSession.durationMinutes} min</Text>
-                <Text style={s.recordSub}>{personalBests.longestSession.workoutDate}</Text>
+                <Text style={s.recordLabel}>Best Stair Pace</Text>
+                <Text style={s.recordVal}>{personalBests.bestStairPace.secsPerRep.toFixed(1)}s/rep</Text>
+                <Text style={s.recordSub}>{personalBests.bestStairPace.workoutDate}</Text>
               </View>
             </View>
           ) : null}
-          {!personalBests?.heaviestLift && !personalBests?.bestSessionVolume && !personalBests?.longestSession && (
+          {!personalBests?.heaviestLift && !personalBests?.bestSessionVolume && !personalBests?.bestStairPace && (
             <Text style={s.empty}>Complete workouts to see records.</Text>
           )}
         </View>

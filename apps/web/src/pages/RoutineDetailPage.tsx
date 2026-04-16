@@ -5,9 +5,8 @@ import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet,
   type Exercise, type WorkoutSummary,
+  KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS,
 } from '@pulse/api-client';
-
-const KG_TO_LBS = 2.20462;
 
 function kgToLbs(kg: number) { return Math.round(kg * KG_TO_LBS * 10) / 10; }
 function lbsToKg(lbs: number) { return Math.round((lbs / KG_TO_LBS) * 1000) / 1000; }
@@ -16,14 +15,9 @@ function fmtWeight(kg: number | null) {
   const lbs = kgToLbs(kg);
   return String(lbs % 1 === 0 ? lbs : lbs.toFixed(1));
 }
-function shortDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-}
 function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return _secondsToMMSS(sec);
 }
 function mmssToSeconds(val: string): number | null {
   const trimmed = val.trim();

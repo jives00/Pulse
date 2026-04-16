@@ -13,25 +13,16 @@ import {
   uploadExerciseMuscleImageFromUrl, getExerciseMuscleImageUploadUrl,
   type Exercise, type ExerciseStats, type ExerciseHistoryEntry,
 } from '../../../src/api/client';
+import { KG_TO_LBS, shortDate, formatDate as fmtDate } from '../../../../../packages/api-client/src/index';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
-const KG_TO_LBS = 2.20462;
-
 function fmtLbs(kg: number | null) {
   if (kg == null) return '—';
   const lbs = Math.round(kg * KG_TO_LBS * 10) / 10;
   return `${lbs % 1 === 0 ? lbs : lbs.toFixed(1)} lbs`;
-}
-
-function shortDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function fmtDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 const METRICS = [

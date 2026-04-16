@@ -6,6 +6,7 @@ import {
   type FoodLogHistoryDay, type FoodLogHistoryEntry,
   type BodyMeasurement,
   type DailyHistoryEntry, type WeeklyHistoryEntry, type UserGoals,
+  KG_TO_LBS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import {
@@ -420,7 +421,7 @@ export default function History() {
                             )}
                             <p className="text-xs text-gray-500 mt-0.5">
                               {w.durationMinutes != null && `${w.durationMinutes} min · `}
-                              {Math.round((w.totalVolumeKg ?? 0) * 2.20462).toLocaleString()} lbs volume
+                              {Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS).toLocaleString()} lbs volume
                             </p>
                           </div>
                           <button
@@ -440,7 +441,7 @@ export default function History() {
                                 <span className="text-slate-500 shrink-0">
                                   {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
                                   {ex.avgReps != null && ` × ${ex.avgReps} reps`}
-                                  {ex.maxWeightKg != null && ` · ${Math.round(ex.maxWeightKg * 2.20462 * 10) / 10} lbs`}
+                                  {ex.maxWeightKg != null && ` · ${Math.round(ex.maxWeightKg * KG_TO_LBS * 10) / 10} lbs`}
                                   {ex.totalDurationSeconds != null && ` · ${Math.floor(ex.totalDurationSeconds / 60)}:${String(ex.totalDurationSeconds % 60).padStart(2, '0')}`}
                                 </span>
                               </div>

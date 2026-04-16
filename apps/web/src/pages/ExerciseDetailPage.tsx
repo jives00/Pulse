@@ -1,9 +1,7 @@
 import { useState, useEffect, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry } from '@pulse/api-client';
-
-const KG_TO_LBS = 2.20462;
+import { exercisesApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, KG_TO_LBS, shortDate, formatDate } from '@pulse/api-client';
 
 function kgToLbs(kg: number) {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
@@ -13,14 +11,6 @@ function fmtLbs(kg: number | null) {
   if (kg == null) return '—';
   const lbs = kgToLbs(kg);
   return `${lbs % 1 === 0 ? lbs : lbs.toFixed(1)} lbs`;
-}
-
-function shortDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 const METRICS = [

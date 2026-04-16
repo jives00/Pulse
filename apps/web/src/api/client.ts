@@ -6,8 +6,44 @@ import type {
   RecipeSuggestion,
   RecipeFilters,
   MakeLogEntry,
+  LinkItem,
+  LinkCategory,
+  HistoryEntry,
+  TagDefinitions,
+  Exercise,
+  ExerciseSet,
+  WorkoutExercise,
+  WorkoutSummary,
+  WorkoutDetail,
+  ExerciseStats,
+  ExerciseHistoryEntry,
+  RoutineSummary,
+  RoutineExercise,
+  RoutineExerciseSet,
+  RoutineDetail,
+  RecipeSearchResult,
+  PersonalBests,
+  BodyMeasurement,
+  MeasurementGoal,
+  WaterHistoryDay,
+  WaterHistory,
+  FoodLogHistoryEntry,
+  FoodLogHistoryDay,
+  UserProfile,
+  ActivityLevel,
+  DeleteScope,
 } from '../../../../packages/api-client/src/index';
 import { buildRecipeParams } from '../../../../packages/api-client/src/index';
+
+export type {
+  LinkItem, LinkCategory, HistoryEntry, TagDefinitions,
+  Exercise, ExerciseSet, WorkoutExercise, WorkoutSummary, WorkoutDetail,
+  ExerciseStats, ExerciseHistoryEntry,
+  RoutineSummary, RoutineExercise, RoutineExerciseSet, RoutineDetail,
+  RecipeSearchResult, PersonalBests, BodyMeasurement, MeasurementGoal,
+  WaterHistoryDay, WaterHistory, FoodLogHistoryEntry, FoodLogHistoryDay,
+  UserProfile, ActivityLevel, DeleteScope,
+};
 
 // In production nginx proxies /pulse/api/ → localhost:3000/api/
 // VITE_API_URL overrides for custom deployments (e.g. mobile dev)
@@ -54,8 +90,6 @@ export async function changePassword(token: string, currentPassword: string, new
   });
   return handle<{ token: string }>(res);
 }
-
-export type DeleteScope = 'recipes' | 'history' | 'workouts' | 'goals' | 'links';
 
 export async function deleteData(token: string, scope: DeleteScope) {
   const res = await fetch(`${BASE}/api/auth/data?scope=${scope}`, {
@@ -196,12 +230,6 @@ export async function getTags(token: string, type?: 'food' | 'cocktail'): Promis
   return data.map((t) => t.name);
 }
 
-export interface TagDefinitions {
-  health:   string[];
-  cuisine:  string[];
-  category: string[];
-}
-
 export async function getTagDefinitions(token: string): Promise<TagDefinitions> {
   const res = await fetch(`${BASE}/api/tags/definitions`, { headers: headers(token) });
   return handle<TagDefinitions>(res);
@@ -232,25 +260,6 @@ export async function parseRecipeText(token: string, text: string, typeHint?: st
     body: JSON.stringify({ text, typeHint }),
   });
   return handle<ScrapedRecipe>(res);
-}
-
-export interface LinkItem {
-  id: number;
-  url: string;
-  title: string;
-  favicon_url: string | null;
-  created_at: string;
-}
-
-export interface HistoryEntry {
-  log_id: number;
-  made_at: string;
-  recipe_id: number;
-  name: string;
-  photo_key: string | null;
-  photo_url: string | null;
-  type: string;
-  subcategory: string | null;
 }
 
 export async function getHistory(token: string): Promise<HistoryEntry[]> {
@@ -294,52 +303,6 @@ export async function getSuggestions(token: string, prompt?: string): Promise<Re
   if (prompt) params.set('prompt', prompt);
   const res = await fetch(`${BASE}/api/recipes/suggest?${params}`, { headers: headers(token) });
   return handle<RecipeSuggestion[]>(res);
-}
-
-// ─── Workout / Exercise types ────────────────────────────────
-
-export interface Exercise {
-  id: number;
-  name: string;
-  category: string;
-  exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration';
-  musclesPrimary: string[];
-  musclesSecondary: string[];
-  isCustom: boolean;
-}
-
-export interface ExerciseSet {
-  id: number;
-  setNumber: number;
-  reps: number | null;
-  weightKg: number | null;
-  durationSeconds: number | null;
-  distanceMeters: number | null;
-  completed: boolean;
-}
-
-export interface WorkoutExercise {
-  id: number;
-  sortOrder: number;
-  notes: string | null;
-  exercise: Exercise;
-  sets: ExerciseSet[];
-}
-
-export interface WorkoutSummary {
-  id: number;
-  workoutDate: string;
-  name: string | null;
-  durationMinutes: number | null;
-  caloriesBurned: number | null;
-  exerciseCount: number;
-  setCount: number;
-  createdAt: string;
-}
-
-export interface WorkoutDetail extends WorkoutSummary {
-  notes: string | null;
-  exercises: WorkoutExercise[];
 }
 
 // ─── Exercise endpoints ──────────────────────────────────────

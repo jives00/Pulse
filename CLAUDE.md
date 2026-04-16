@@ -12,7 +12,7 @@ apps/
   web/             React SPA (Vite + Tailwind)
   mobile/          Android app (Expo SDK 55, React Native)
 packages/
-  api-client/      Shared types and API client (used by web and server)
+  api-client/      Shared types, API client, and utility functions (used by web, mobile, and server)
   theme/           Color palette source of truth (used by web + mobile)
 ```
 
@@ -257,7 +257,7 @@ Android-only Expo app. Key conventions:
 - **Auth store**: `src/store/auth.ts` — Zustand + expo-secure-store, key `pulse-auth`
 - **Settings store**: `src/store/settings.ts` — Zustand + expo-secure-store, key `pulse-settings`. Persists `defaultSort` (recipes), `defaultExerciseSort` (`name` or `created_at`), and `colorScheme` (`blue`, `slate`, or `sand`).
 - **Routing**: expo-router file-based. Tabs live in `app/(app)/(tabs)/`. `app/(app)/_layout.tsx` is a Stack with `(tabs)` as the first screen and detail screens (`workout/[id]`, `exercise/[id]`, `recipe/[id]`, `recipe/edit`) as sibling Stack.Screens — this gives proper back-navigation to the previous tab screen rather than always going to Recipes. Hidden tab routes (history, goals) use `href: null` in the Tabs layout.
-- **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS = 2.20462`
+- **Weights**: Same as web — stored kg, displayed lbs. `KG_TO_LBS` imported from `@pulse/api-client`
 
 ### Mobile tab structure
 | Tab | File | Notes |
@@ -282,6 +282,8 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `routine/[id]`, `ex
 
 ## Design decisions
 
+- **Shared utilities in api-client**: `packages/api-client/src/utils/` contains shared logic used by both web and mobile to prevent divergence. Four modules: `conversions.ts` (`KG_TO_LBS`, `kgToLbs`, `lbsToKg`, `fmtLbs`), `dates.ts` (`localDateStr`, `getWeekStart` [Monday-based], `shortDate`, `formatDate`), `time.ts` (`secondsToMMSS`, `mmssToSeconds`, `formatElapsed`), `calculations.ts` (`buildWeeklyData`, `computeGoalPace`, `computeCreatineSaturation`, `SATURATION_DAYS`). All exported from `@pulse/api-client` top-level. **Never re-define these inline** — always import from `@pulse/api-client` (web) or `../../../../../packages/api-client/src/index` (mobile, 5 levels up from `app/(app)/(tabs)/`). Tests live in `testing/web/src/__tests__/utils.test.ts`.
+
 - **Prepackaged recipe type**: `prepackaged` is a first-class `type` in the `recipes` table (alongside `food` and `cocktail`). It is NOT a subcategory of food. Web nav shows it as a sub-nav item under "Recipes" (`/food?sub=prepackaged`); Library.tsx sends `type=prepackaged` to the API. Data migration: `UPDATE recipes SET type = 'prepackaged', subcategory = NULL WHERE type = 'food' AND subcategory = 'prepackaged';` — run manually on EC2 (migration 014). `GET /api/recipes/search` (nutrition food picker) includes both `food` and `prepackaged` types.
 - **Tags**: Stored in `tag_definitions` (user-scoped, 3 categories: health/cuisine/category). Auto-seeded with defaults on first `GET /api/tags/definitions`. Tag filter only shows tags used by actual recipes on the current page type (food vs cocktail).
 - **`food_log.dram_recipe_id`**: Added via `ALTER TABLE` in migration 009 post-hook — links a nutrition log entry back to the originating recipe.
@@ -290,7 +292,7 @@ Hidden routes: `recipe/[id]`, `recipe/edit`, `workout/[id]`, `routine/[id]`, `ex
 - **Default sort**: Stored in Zustand `settingsStore` (persisted to localStorage), applied to Library on mount.
 - **Theming**: CSS variables as bare RGB channels in `index.css` (generated from `packages/theme/src/index.ts`); Tailwind uses `rgb(var(--color-X) / alpha)`. Always use `dram-*` palette, not hardcoded colors.
 - **Nutrition components**: `NutritionSummaryCard` and `NutritionHistoryCharts` are used by TodayPage. Water quick-add only shows when `onAddWater` prop is passed.
-- **Workout weights**: All weights stored in kg in DB (`weight_kg`, `total_volume_kg`). WorkoutsPage and WorkoutDetailPage display/accept in lbs using `KG_TO_LBS = 2.20462`. Always convert at the UI boundary.
+- **Workout weights**: All weights stored in kg in DB (`weight_kg`, `total_volume_kg`). WorkoutsPage and WorkoutDetailPage display/accept in lbs using `KG_TO_LBS` from `@pulse/api-client`. Always convert at the UI boundary.
 - **Exercise goals secondary sort**: `ORDER BY effective_from DESC, id DESC LIMIT 1` — the secondary `id DESC` is critical to avoid returning an old row with NULL `volume_lbs_per_week` when multiple rows share the same `effective_from` date.
 - **Migration 006**: `006_body_measurements.sql` creates `body_measurements` and `body_measurement_goals`. The `volume_lbs_per_week` column on `exercise_goals` is added via a post-migration hook in `migrate.ts` (checks `information_schema` first — MySQL < 8 doesn't support `ADD COLUMN IF NOT EXISTS`).
 - **Migration 007**: `007_workout_routines.sql` creates `workout_routines`, `routine_exercises`, `routine_exercise_sets`. The `started_at` and `routine_id` columns on `workout_logs` were added manually via `ALTER TABLE` (not in the migration file).

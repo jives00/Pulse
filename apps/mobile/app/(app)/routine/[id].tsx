@@ -13,12 +13,11 @@ import {
   getWorkouts, getExercises, getExerciseCategories, createCustomExercise,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet, type Exercise,
 } from '../../../src/api/client';
+import { KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import FilterChip from '../../../src/components/FilterChip';
-
-const KG_TO_LBS = 2.20462;
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -29,9 +28,7 @@ function fmtWeight(kg: number | null) {
 }
 function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return _secondsToMMSS(sec);
 }
 function mmssToSeconds(val: string): number | null {
   const trimmed = val.trim();
@@ -44,9 +41,6 @@ function mmssToSeconds(val: string): number | null {
   }
   const n = parseInt(trimmed, 10);
   return isNaN(n) ? null : n;
-}
-function shortDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
 
 // ── Volume line chart (pure RN, no SVG lib) ───────────────────────────────────

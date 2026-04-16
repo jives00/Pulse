@@ -39,3 +39,10 @@ export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, Wo
 export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet } from './endpoints/routines';
 export type { FoodLogHistoryDay, FoodLogHistoryEntry } from './endpoints/log';
 export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
+
+// Shared utilities
+export { KG_TO_LBS, kgToLbs, lbsToKg, fmtLbs } from './utils/conversions';
+export { localDateStr, getWeekStart, shortDate, formatDate } from './utils/dates';
+export { secondsToMMSS, mmssToSeconds, formatElapsed } from './utils/time';
+export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation } from './utils/calculations';
+export type { WeekBucket, PaceStatus } from './utils/calculations';

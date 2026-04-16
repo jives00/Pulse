@@ -6,6 +6,7 @@ import {
   type WorkoutSummary, type ExerciseGoals,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
+  KG_TO_LBS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
@@ -54,7 +55,7 @@ function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
       week.workouts++;
       week.minutes += w.durationMinutes ?? 0;
       week.calories += w.caloriesBurned ?? 0;
-      week.volumeLbs += (w.totalVolumeKg ?? 0) * 2.20462;
+      week.volumeLbs += (w.totalVolumeKg ?? 0) * KG_TO_LBS;
     }
   }
   return weeks;
@@ -652,11 +653,11 @@ function BodyMeasurementsCard({
 
 function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
   const weightLbs = bests?.heaviestLift
-    ? Math.round(bests.heaviestLift.weightKg * 2.20462 * 10) / 10
+    ? Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10
     : null;
 
   const volLbs = bests?.bestSessionVolume
-    ? Math.round(bests.bestSessionVolume.volumeKg * 2.20462).toLocaleString()
+    ? Math.round(bests.bestSessionVolume.volumeKg * KG_TO_LBS).toLocaleString()
     : null;
 
   const items = [
