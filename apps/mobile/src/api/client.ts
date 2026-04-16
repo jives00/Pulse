@@ -359,6 +359,10 @@ export async function startWorkoutTimer(token: string, id: number): Promise<{ st
   const res = await fetch(`${API_BASE}/api/workouts/${id}/start-timer`, { method: 'POST', headers: headers(token) });
   return handle<{ startedAt: string }>(res);
 }
+export async function estimateWorkoutCalories(token: string, id: number): Promise<{ caloriesBurned: number }> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}/estimate-calories`, { method: 'POST', headers: headers(token) });
+  return handle<{ caloriesBurned: number }>(res);
+}
 export async function addWorkoutExercise(token: string, workoutId: number, exerciseId: number): Promise<WorkoutExercise> {
   const res = await fetch(`${API_BASE}/api/workouts/${workoutId}/exercises`, { method: 'POST', headers: headers(token), body: JSON.stringify({ exerciseId }) });
   return handle<WorkoutExercise>(res);

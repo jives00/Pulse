@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer,
+  getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer, estimateWorkoutCalories,
   addWorkoutExercise, removeWorkoutExercise, updateWorkoutExercise,
   addWorkoutSet, updateWorkoutSet, deleteWorkoutSet,
   getExercises, getExerciseCategories, createCustomExercise,
@@ -164,6 +164,8 @@ export default function WorkoutDetailScreen() {
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
       await updateWorkout(token, workoutId, { durationMinutes, completed: true });
+      // Non-blocking: estimate calories burned in the background (mirrors web behavior)
+      estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });
       router.back();
     } catch {
       Alert.alert('Error', 'Could not finish workout.');
