@@ -16,7 +16,7 @@ packages/
 ```
 
 npm workspaces — install from the root: `npm install`
-**Note**: `apps/mobile` is NOT in the root workspace. Install its deps separately: `cd apps/mobile && npm install`
+All packages including `apps/mobile` are in the root workspace. A single `npm install` from the root installs everything.
 
 ## Dev commands
 
@@ -33,7 +33,7 @@ npm run dev --workspace=apps/web
 
 Mobile (Android emulator — start emulator in Android Studio first):
 ```
-cd apps/mobile && npx expo start
+npm run dev:mobile
 # then press 'a' to open in emulator
 ```
 
