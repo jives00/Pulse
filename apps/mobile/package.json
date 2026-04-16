@@ -8,6 +8,7 @@
     "build:android": "eas build --platform android"
   },
   "dependencies": {
+    "@pulse/theme": "*",
     "axios": "^1.7.0",
     "babel-preset-expo": "^55.0.12",
     "expo": "~55.0.11",

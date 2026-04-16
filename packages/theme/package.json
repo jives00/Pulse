@@ -1,0 +1,12 @@
+{
+  "name": "@pulse/theme",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "generate-css": "npx tsx scripts/generateCssVars.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

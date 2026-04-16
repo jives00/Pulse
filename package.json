@@ -6,7 +6,8 @@
     "apps/server",
     "apps/web",
     "apps/mobile",
-    "packages/api-client"
+    "packages/api-client",
+    "packages/theme"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/web\"",

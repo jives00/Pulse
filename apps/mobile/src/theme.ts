@@ -1,39 +1,5 @@
-export type ColorScheme = 'blue' | 'slate' | 'sand';
-
-export type Colors = typeof PALETTES.blue;
-
-export const PALETTES = {
-  blue: {
-    bg: '#193549',
-    card: '#0d2137',
-    accent: '#D4A843',
-    border: '#1e4a6e',
-    text: '#FFFFFF',
-    muted: '#6fa7c5',
-    error: '#F87171',
-  },
-  slate: {
-    bg: '#0f172a',
-    card: '#1e293b',
-    accent: '#D4A843',
-    border: '#334155',
-    text: '#FFFFFF',
-    muted: '#94a3b8',
-    error: '#F87171',
-  },
-  sand: {
-    bg: '#785a3c',
-    card: '#5a4128',
-    accent: '#D4A843',
-    border: '#967350',
-    text: '#FFFFFF',
-    muted: '#d4b896',
-    error: '#F87171',
-  },
-} as const;
-
-/** Fallback static export — use useColors() hook in components for reactive theming */
-export const colors = PALETTES.blue;
+export type { ColorScheme, Colors } from '@pulse/theme';
+export { PALETTES, colors } from '@pulse/theme';
 
 export const fontSize = {
   xs: 13,
