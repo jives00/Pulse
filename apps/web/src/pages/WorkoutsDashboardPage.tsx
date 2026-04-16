@@ -2257,7 +2257,7 @@ function TodaysBlurb({
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const date = d.toISOString().slice(0, 10);
+      const date = localDateStr(d);
       const caloriesIn = foodByDate[date] ?? 0;
       const exercise = exerciseByDate[date] ?? 0;
       const tef = Math.round(caloriesIn * 0.1);
