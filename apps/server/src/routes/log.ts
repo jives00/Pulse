@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { upsertRecipeNutritionLog } from './recipes';
 import type { MealSlot, NutritionSnapshot } from '../types';
 
@@ -161,8 +161,9 @@ router.post('/recipe', async (req, res) => {
     res.status(400).json({ error: 'servings must be positive' }); return;
   }
 
+  const conn = await pool.getConnection();
   try {
-    const [recipes] = await pool.query<RowDataPacket[]>(
+    const [recipes] = await conn.query<RowDataPacket[]>(
       'SELECT * FROM recipes WHERE id = ? AND user_id = ?',
       [recipeId, req.userId]
     );
@@ -172,12 +173,17 @@ router.post('/recipe', async (req, res) => {
       res.status(400).json({ error: 'Recipe has no nutrition data' }); return;
     }
 
-    await upsertRecipeNutritionLog(pool as any, recipe, req.userId!, meal, qty, logDate ?? null);
+    await conn.beginTransaction();
+    await upsertRecipeNutritionLog(conn, recipe, req.userId!, meal, qty, logDate ?? null);
+    await conn.commit();
 
     res.status(201).json({ success: true });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
     res.status(500).json({ error: 'Failed to log recipe' });
+  } finally {
+    conn.release();
   }
 });
 

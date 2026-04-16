@@ -681,31 +681,40 @@ router.post('/:id/log', async (req: Request, res: Response) => {
   const { meal, servings, logDate } = req.body;
   const validMeals = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+  const conn = await pool.getConnection();
   try {
-    await pool.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [id, req.userId]);
+    await conn.beginTransaction();
+
+    await conn.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [id, req.userId]);
 
     // If meal + servings provided, also log to nutrition
     if (meal && servings != null) {
       if (!validMeals.includes(meal)) {
+        await conn.rollback();
         res.status(400).json({ error: 'Invalid meal slot' }); return;
       }
       const qty = Number(servings);
       if (!qty || qty <= 0) {
+        await conn.rollback();
         res.status(400).json({ error: 'servings must be positive' }); return;
       }
-      const [recipeRows] = await pool.query<RowDataPacket[]>(
+      const [recipeRows] = await conn.query<RowDataPacket[]>(
         'SELECT * FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]
       );
       const recipe = recipeRows[0];
       if (recipe?.calories != null) {
-        await upsertRecipeNutritionLog(pool, recipe, req.userId, meal, qty, logDate ?? null);
+        await upsertRecipeNutritionLog(conn, recipe, req.userId, meal, qty, logDate ?? null);
       }
     }
 
+    await conn.commit();
     res.json({ success: true });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -828,7 +837,7 @@ router.put('/:id/tags', async (req: Request, res: Response) => {
  * so food_log.quantity = number of servings (0.5, 1, 1.5, etc.).
  */
 export async function upsertRecipeNutritionLog(
-  db: Pool,
+  db: PoolConnection,
   recipe: RowDataPacket,
   userId: number,
   meal: string,
