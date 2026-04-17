@@ -42,25 +42,28 @@ const PACE_LABELS: Record<PaceStatus, string> = { green: 'On pace', yellow: 'Sli
 const CHART_H = 56;
 const DOT_R = 2.5;
 
-function MiniLineChart({ data, color, goalLine, maxOverride }: {
+function MiniLineChart({ data, color, goalLine, maxOverride, minOverride }: {
   data: number[];
   color: string;
   goalLine?: number | null;
   maxOverride?: number;
+  minOverride?: number;
 }) {
   const { width: screenWidth } = useWindowDimensions();
   const chartWidth = screenWidth - 56;
   const maxVal = maxOverride ?? Math.max(...data, goalLine ?? 0, 1);
+  const minVal = minOverride ?? 0;
+  const range = maxVal - minVal || 1;
   if (data.length < 2) return <View style={{ height: CHART_H }} />;
 
   const pts = data.map((val, i) => ({
     x: (i / (data.length - 1)) * chartWidth,
-    y: CHART_H - DOT_R - Math.max((val / maxVal) * (CHART_H - DOT_R * 2), 0),
+    y: CHART_H - DOT_R - Math.max(((val - minVal) / range) * (CHART_H - DOT_R * 2), 0),
     val,
   }));
 
   const goalY = goalLine != null
-    ? CHART_H - DOT_R - Math.max((goalLine / maxVal) * (CHART_H - DOT_R * 2), 0)
+    ? CHART_H - DOT_R - Math.max(((goalLine - minVal) / range) * (CHART_H - DOT_R * 2), 0)
     : null;
 
   return (
@@ -172,6 +175,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
 
   const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineVolumes[rid])), 1);
   const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  relevantIds.sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
 
   // Cell sizing: available width minus name column
   const nameColW = 90;
@@ -365,6 +369,28 @@ export default function DashboardScreen() {
   const burnedSeries = tdeeSeries ?? days30.map((d) => burnedByDate[d] ?? 0);
   const hasBurned    = burnedSeries.some((v) => v > 0);
 
+  // Weight series (lbs, carry-forward from measurements)
+  const weightMeasurements = measurements
+    .filter((m) => m.metric === 'weight')
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
+  const weightByDate2: Record<string, number> = {};
+  for (const m of weightMeasurements) {
+    weightByDate2[m.measuredAt] = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
+  }
+  let lastWeightVal: number | null = null;
+  const weightSeries: number[] = days30.map((d) => {
+    if (weightByDate2[d] != null) lastWeightVal = weightByDate2[d];
+    return lastWeightVal ?? 0;
+  });
+  const hasWeight = weightSeries.some((v) => v > 0);
+  const weightGoalRaw = measGoals['weight'];
+  const weightGoalLbs = weightGoalRaw
+    ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue)
+    : null;
+  const allWeightVals = [...weightSeries.filter(Boolean), ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
+  const weightMin = allWeightVals.length ? Math.min(...allWeightVals) * 0.98 : 0;
+  const weightMax = allWeightVals.length ? Math.max(...allWeightVals) * 1.02 : 1;
+
   const creatineData = computeCreatineSaturation(foodLogHistory);
 
   // Recent workouts (last 5 completed)
@@ -496,6 +522,17 @@ export default function DashboardScreen() {
             </View>
             <MiniLineChart data={waterSeries} color="#38bdf8" goalLine={waterGoalGlasses} />
           </View>
+
+          {/* Weight */}
+          {hasWeight && (
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: fontSize.xs, color: '#a78bfa', fontWeight: '600' }}>Weight</Text>
+                {weightGoalLbs != null && <Text style={{ fontSize: 9, color: c.muted }}>- - goal {weightGoalLbs.toFixed(1)} lbs</Text>}
+              </View>
+              <MiniLineChart data={weightSeries} color="#a78bfa" goalLine={weightGoalLbs} maxOverride={weightMax} minOverride={weightMin} />
+            </View>
+          )}
         </View>
 
         {/* ── Creatine ── */}

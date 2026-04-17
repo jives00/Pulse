@@ -805,23 +805,23 @@ function GoalGaugeCard({
     : null;
 
   return (
-    <div className="flex flex-col items-center gap-1.5 py-4 px-3">
+    <div className="flex flex-col items-center gap-2 py-6 px-3">
       {/* Label + pace badge above gauge */}
       <div className="flex items-center gap-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: cfg.color }}>{cfg.label}</span>
         <PaceBadge status={status} />
       </div>
       {/* Gauge */}
-      <div className="relative flex items-end justify-center mt-2" style={{ width: 120, height: 68 }}>
-        <SemiCircleGauge pct={pct} color={paceColor} size={120} />
+      <div className="relative flex items-end justify-center mt-2" style={{ width: 160, height: 90 }}>
+        <SemiCircleGauge pct={pct} color={paceColor} size={160} />
         <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
-          <span className="text-xl font-bold text-white leading-none">{displayVal ?? '—'}</span>
-          <span className="text-[10px] text-dram-muted leading-none">{cfg.unit}</span>
+          <span className="text-2xl font-bold text-white leading-none">{displayVal ?? '—'}</span>
+          <span className="text-xs text-dram-muted leading-none">{cfg.unit}</span>
         </div>
       </div>
       {/* Target + delta — aligned to semicircle endpoints */}
       {goal ? (
-        <div className="flex justify-between mt-0.5" style={{ width: 120 }}>
+        <div className="flex justify-between mt-0.5" style={{ width: 160 }}>
           <span className="text-sm font-semibold text-dram-muted">{goal.targetValue} <span className="font-normal text-xs">{cfg.unit}</span></span>
           {deltaDisplay && deltaNum !== 0 && (
             <span className="text-sm font-semibold" style={{ color: paceColor }}>{deltaDisplay}</span>
@@ -832,7 +832,7 @@ function GoalGaugeCard({
       )}
       {/* Projected date — centered */}
       {projectedDate && (
-        <div className="text-sm font-medium text-center" style={{ width: 120, color: paceColor }}>Proj: {projectedDate}</div>
+        <div className="text-sm font-medium text-center" style={{ width: 160, color: paceColor }}>Proj: {projectedDate}</div>
       )}
     </div>
   );
@@ -923,6 +923,8 @@ function NutritionFuelWidget({
   caloriesGoal,
   proteinGoal,
   todayTDEE,
+  measurements,
+  measurementGoals,
 }: {
   foodLogHistory: FoodLogHistoryDay[];
   waterHistory: WaterHistory | null;
@@ -930,6 +932,8 @@ function NutritionFuelWidget({
   caloriesGoal: number | null;
   proteinGoal: number | null;
   todayTDEE: TDEEBreakdown | null;
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
 }) {
   const now = new Date();
   const days30 = Array.from({ length: 30 }, (_, i) => {
@@ -986,6 +990,36 @@ function NutritionFuelWidget({
   });
 
   const hasBurnedData = Object.keys(exerciseByDate).length > 0 || !!todayTDEE;
+
+  // Weight measurements mapped to the 30-day window (lbs)
+  const weightMeasurements = measurements
+    .filter((m) => m.metric === 'weight')
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
+  const weightByDate: Record<string, number> = {};
+  for (const m of weightMeasurements) {
+    const lbs = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
+    weightByDate[m.measuredAt] = lbs;
+  }
+  // For each of the 30 days, carry forward the last known weight
+  const weightSeries: { date: string; weight: number | null }[] = [];
+  let lastWeight: number | null = null;
+  for (const date of days30) {
+    if (weightByDate[date] != null) lastWeight = weightByDate[date];
+    weightSeries.push({ date, weight: lastWeight });
+  }
+  const hasWeightData = weightSeries.some((d) => d.weight != null);
+  const weightChartData = days30.map((date, i) => ({
+    ...chartData[i],
+    weight: weightSeries[i].weight,
+  }));
+  const weightValues = weightSeries.map((d) => d.weight ?? 0).filter(Boolean);
+  const weightGoalRaw = measurementGoals['weight'];
+  const weightGoalLbs = weightGoalRaw
+    ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue)
+    : null;
+  const allWeightVals = [...weightValues, ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
+  const weightMin = allWeightVals.length ? Math.min(...allWeightVals) * 0.98 : 0;
+  const weightMax = allWeightVals.length ? Math.max(...allWeightVals) * 1.02 : 1;
 
   // Sparse x-axis tick: show label every ~5 days
   const xTicks = chartData
@@ -1185,6 +1219,55 @@ function NutritionFuelWidget({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* ── Weight ── */}
+      {hasWeightData && (
+        <div>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className="text-sm text-slate-400">Weight</span>
+            {weightGoalLbs != null && (
+              <span className="flex items-center gap-1 text-xs text-slate-500">
+                <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(167,139,250,0.35)' }} /> goal {weightGoalLbs.toFixed(1)} lbs
+              </span>
+            )}
+          </div>
+          <ResponsiveContainer width="100%" height={chartH + 18}>
+            <LineChart data={weightChartData} margin={margin}>
+              <YAxis hide domain={[weightMin, weightMax]} />
+              {xAxis}
+              <Tooltip
+                {...tooltipStyle}
+                content={({ active, payload, label: lbl }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = weightChartData.find((d) => d.date === lbl);
+                  return (
+                    <div style={tooltipStyle.contentStyle}>
+                      <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
+                      {row?.weight != null && <div style={{ color: '#a78bfa' }}>{row.weight.toFixed(1)} lbs</div>}
+                    </div>
+                  );
+                }}
+              />
+              {weightGoalLbs != null && (
+                <ReferenceLine y={weightGoalLbs} stroke="rgba(167,139,250,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
+              )}
+              <Line
+                type="monotone"
+                dataKey="weight"
+                stroke="#a78bfa"
+                strokeWidth={1.5}
+                dot={(props) => {
+                  const { cx, cy, payload } = props as any;
+                  if (payload.weight == null || !weightByDate[payload.date]) return <g key={props.key} />;
+                  return <circle key={props.key} cx={cx} cy={cy} r={3} fill="#a78bfa" stroke="none" />;
+                }}
+                activeDot={{ r: 3, fill: '#a78bfa' }}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -1281,6 +1364,7 @@ function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]
   );
 
   const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  relevantRoutineIds.sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
 
   // Sticky-column approach: wrap in a relative container, scroll only the week columns,
   // keep routine name column pinned to the left at all times.
@@ -1589,7 +1673,7 @@ function DashboardV2({
           <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#fb923c' }} />
           <div className={cardHeaderCls}>Nutrition &amp; Fuel</div>
           <div className="px-5 pb-4">
-            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} todayTDEE={todayTDEE} />
+            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} todayTDEE={todayTDEE} measurements={measurements} measurementGoals={measurementGoals} />
           </div>
         </div>
 
