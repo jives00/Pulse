@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import pool from '../db';
+import { pool } from '../config/database';
 import type { Pool, RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { suggestTags } from '../services/claude';
 import { runText } from '../services/aiProvider';
@@ -29,6 +29,47 @@ function isSafePhotoUrl(raw: string): boolean {
     if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1)/i.test(hostname)) return false;
     return true;
   } catch { return false; }
+}
+
+async function upsertRecipeIngredients(
+  conn: PoolConnection,
+  recipeId: number,
+  ingredients: { name: string; quantity: string; unit: string }[]
+) {
+  await conn.query('DELETE FROM recipe_ingredients WHERE recipe_id = ?', [recipeId]);
+  const seenIngredientIds = new Set<number>();
+  let sortOrder = 0;
+  for (const { name: rawIngName, quantity, unit } of ingredients) {
+    const ingName = (rawIngName || '').trim();
+    if (!ingName) continue;
+    const [existing] = await conn.query('SELECT id, name FROM ingredients WHERE name = ?', [ingName]);
+    let ingredientId: number;
+    if ((existing as RowDataPacket[]).length > 0) {
+      ingredientId = (existing as RowDataPacket[])[0].id as number;
+      if ((existing as RowDataPacket[])[0].name !== ingName) {
+        await conn.query('UPDATE ingredients SET name = ? WHERE id = ?', [ingName, ingredientId]);
+      }
+    } else {
+      const [ins] = await conn.query('INSERT INTO ingredients (name) VALUES (?)', [ingName]);
+      ingredientId = (ins as ResultSetHeader).insertId;
+    }
+    if (seenIngredientIds.has(ingredientId)) continue;
+    seenIngredientIds.add(ingredientId);
+    await conn.query(
+      'INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, sort_order) VALUES (?, ?, ?, ?, ?)',
+      [recipeId, ingredientId, quantity, unit, sortOrder++]
+    );
+  }
+}
+
+async function upsertRecipeSteps(conn: PoolConnection, recipeId: number, steps: string[]) {
+  await conn.query('DELETE FROM recipe_steps WHERE recipe_id = ?', [recipeId]);
+  for (let i = 0; i < steps.length; i++) {
+    await conn.query(
+      'INSERT INTO recipe_steps (recipe_id, step_number, instruction) VALUES (?, ?, ?)',
+      [recipeId, i + 1, steps[i]]
+    );
+  }
 }
 
 // DELETE /api/recipes/history — clear all make log entries for this user
@@ -409,38 +450,11 @@ router.post('/', async (req: Request, res: Response) => {
     const recipeId = (result as ResultSetHeader).insertId;
 
     if (ingredients?.length) {
-      const seenIngredientIds = new Set<number>();
-      let sortOrder = 0;
-      for (const { name: rawIngName, quantity, unit } of ingredients) {
-        const ingName = (rawIngName || '').trim();
-        if (!ingName) continue;
-        const [existing] = await conn.query('SELECT id, name FROM ingredients WHERE name = ?', [ingName]);
-        let ingredientId: number;
-        if ((existing as RowDataPacket[]).length > 0) {
-          ingredientId = (existing as RowDataPacket[])[0].id as number;
-          if ((existing as RowDataPacket[])[0].name !== ingName) {
-            await conn.query('UPDATE ingredients SET name = ? WHERE id = ?', [ingName, ingredientId]);
-          }
-        } else {
-          const [ins] = await conn.query('INSERT INTO ingredients (name) VALUES (?)', [ingName]);
-          ingredientId = (ins as ResultSetHeader).insertId;
-        }
-        if (seenIngredientIds.has(ingredientId)) continue;
-        seenIngredientIds.add(ingredientId);
-        await conn.query(
-          'INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, sort_order) VALUES (?, ?, ?, ?, ?)',
-          [recipeId, ingredientId, quantity, unit, sortOrder++]
-        );
-      }
+      await upsertRecipeIngredients(conn, recipeId, ingredients);
     }
 
     if (steps?.length) {
-      for (let i = 0; i < steps.length; i++) {
-        await conn.query(
-          'INSERT INTO recipe_steps (recipe_id, step_number, instruction) VALUES (?, ?, ?)',
-          [recipeId, i + 1, steps[i]]
-        );
-      }
+      await upsertRecipeSteps(conn, recipeId, steps);
     }
 
     if (tags?.length) {
@@ -497,40 +511,11 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (photo_key !== undefined) clearPresignedUrlCache(photo_key);
 
     if (ingredients !== undefined) {
-      await conn.query('DELETE FROM recipe_ingredients WHERE recipe_id = ?', [id]);
-      const seenIngredientIds = new Set<number>();
-      let sortOrder = 0;
-      for (const { name: rawIngName, quantity, unit } of ingredients) {
-        const ingName = (rawIngName || '').trim();
-        if (!ingName) continue;
-        const [existing] = await conn.query('SELECT id, name FROM ingredients WHERE name = ?', [ingName]);
-        let ingredientId: number;
-        if ((existing as RowDataPacket[]).length > 0) {
-          ingredientId = (existing as RowDataPacket[])[0].id as number;
-          if ((existing as RowDataPacket[])[0].name !== ingName) {
-            await conn.query('UPDATE ingredients SET name = ? WHERE id = ?', [ingName, ingredientId]);
-          }
-        } else {
-          const [ins] = await conn.query('INSERT INTO ingredients (name) VALUES (?)', [ingName]);
-          ingredientId = (ins as ResultSetHeader).insertId;
-        }
-        if (seenIngredientIds.has(ingredientId)) continue;
-        seenIngredientIds.add(ingredientId);
-        await conn.query(
-          'INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, sort_order) VALUES (?, ?, ?, ?, ?)',
-          [id, ingredientId, quantity, unit, sortOrder++]
-        );
-      }
+      await upsertRecipeIngredients(conn, id, ingredients);
     }
 
     if (steps !== undefined) {
-      await conn.query('DELETE FROM recipe_steps WHERE recipe_id = ?', [id]);
-      for (let i = 0; i < steps.length; i++) {
-        await conn.query(
-          'INSERT INTO recipe_steps (recipe_id, step_number, instruction) VALUES (?, ?, ?)',
-          [id, i + 1, steps[i]]
-        );
-      }
+      await upsertRecipeSteps(conn, id, steps);
     }
 
     if (tags !== undefined) {

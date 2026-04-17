@@ -3,6 +3,12 @@ import { pool } from '../config/database';
 import type { RowDataPacket } from 'mysql2';
 import { calcTDEE, type ActivityLevel } from './tdee';
 
+const DEFAULTS: { calorieGoal: number; waterGoalOz: number; weightKg: number } = {
+  calorieGoal: 2000,
+  waterGoalOz: 64,
+  weightKg: 75,
+};
+
 export async function buildExport(userId: number, start: string, end: string): Promise<ExcelJS.Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Pulse';
@@ -72,7 +78,7 @@ export async function buildExport(userId: number, start: string, end: string): P
     `SELECT calories FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
     [userId, end]
   );
-  const calGoal = goalRows.length ? Number(goalRows[0].calories) : 2000;
+  const calGoal = goalRows.length ? Number(goalRows[0].calories) : DEFAULTS.calorieGoal;
 
   const [dailyRows] = await pool.query<RowDataPacket[]>(
     `SELECT log_date,
@@ -208,7 +214,7 @@ export async function buildExport(userId: number, start: string, end: string): P
     );
 
     // Build weight carry-forward map
-    let lastWeightKg = 75; // fallback
+    let lastWeightKg = DEFAULTS.weightKg;
     const weightByDate = new Map<string, number>();
     for (const w of weightRows) {
       const kg = w.unit === 'kg' ? Number(w.value) : Number(w.value) / 2.20462;
@@ -359,7 +365,7 @@ export async function buildExport(userId: number, start: string, end: string): P
     `SELECT water_goal_oz FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
     [userId, end]
   );
-  const waterGoal = waterGoalRows.length ? Number(waterGoalRows[0].water_goal_oz) : 64;
+  const waterGoal = waterGoalRows.length ? Number(waterGoalRows[0].water_goal_oz) : DEFAULTS.waterGoalOz;
 
   const [waterRows] = await pool.query<RowDataPacket[]>(
     `SELECT log_date, ROUND(SUM(amount_oz), 1) AS total_oz

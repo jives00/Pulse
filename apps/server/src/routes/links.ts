@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-import pool from '../db';
+import { pool } from '../config/database';
 import type { ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();

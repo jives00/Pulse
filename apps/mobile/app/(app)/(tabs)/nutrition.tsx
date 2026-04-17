@@ -16,6 +16,7 @@ import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import { localDateStr } from '../../../../../packages/api-client/src/index';
 
 // TextInput that always shows the start of its value when unfocused (not scrolled to the end)
 function StartAlignedInput({ style, value, onChangeText, placeholder, placeholderTextColor }: {
@@ -61,16 +62,9 @@ type BarcodeQueueItem = {
   editFat: string;
 };
 
-function toDateStr(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 function formatDate(dateStr: string) {
-  const today = toDateStr(new Date());
-  const yesterday = toDateStr(new Date(Date.now() - 86400000));
+  const today = localDateStr();
+  const yesterday = localDateStr(new Date(Date.now() - 86400000));
   if (dateStr === today) return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -80,7 +74,7 @@ function formatDate(dateStr: string) {
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
-  const [date, setDate] = useState(toDateStr(new Date()));
+  const [date, setDate] = useState(localDateStr(new Date()));
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,7 +90,7 @@ export default function NutritionScreen() {
   const [moveCopyEntries, setMoveCopyEntries] = useState<NutritionLogEntry[]>([]);
   const [moveCopyMode, setMoveCopyMode] = useState<'move' | 'copy'>('move');
   const [targetMeal, setTargetMeal] = useState<MealSlot>('breakfast');
-  const [targetDate, setTargetDate] = useState(toDateStr(new Date()));
+  const [targetDate, setTargetDate] = useState(localDateStr(new Date()));
   const [savingMoveCopy, setSavingMoveCopy] = useState(false);
 
   // Single-entry action sheet state
@@ -165,7 +159,7 @@ export default function NutritionScreen() {
   function shiftDate(days: number) {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + days);
-    setDate(toDateStr(d));
+    setDate(localDateStr(d));
   }
 
   function handleSearch(text: string) {
@@ -422,7 +416,7 @@ export default function NutritionScreen() {
     setMoveCopyMode(mode);
     setMoveCopyEntries(entries);
     setTargetMeal(currentMeal);
-    setTargetDate(toDateStr(new Date()));
+    setTargetDate(localDateStr(new Date()));
   }
 
   async function removeSelected(currentMeal: MealSlot) {
@@ -529,9 +523,9 @@ export default function NutritionScreen() {
           <TouchableOpacity
             onPress={() => shiftDate(1)}
             style={s.dateArrow}
-            disabled={date >= toDateStr(new Date())}
+            disabled={date >= localDateStr(new Date())}
           >
-            <Text style={[s.dateArrowText, date >= toDateStr(new Date()) && { opacity: 0.3 }]}>›</Text>
+            <Text style={[s.dateArrowText, date >= localDateStr(new Date()) && { opacity: 0.3 }]}>›</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -721,7 +715,7 @@ export default function NutritionScreen() {
                 setMoveCopyMode('move');
                 setMoveCopyEntries([entry]);
                 setTargetMeal(meal);
-                setTargetDate(toDateStr(new Date()));
+                setTargetDate(localDateStr(new Date()));
               }}
             >
               <Text style={s.actionSheetText}>Move to…</Text>
@@ -734,7 +728,7 @@ export default function NutritionScreen() {
                 setMoveCopyMode('copy');
                 setMoveCopyEntries([entry]);
                 setTargetMeal(meal);
-                setTargetDate(toDateStr(new Date()));
+                setTargetDate(localDateStr(new Date()));
               }}
             >
               <Text style={s.actionSheetText}>Copy to…</Text>
@@ -785,7 +779,7 @@ export default function NutritionScreen() {
               <Text style={s.moveCopySection}>Date</Text>
               <View style={s.dateChipRow}>
                 {[-1, 0, 1].map((offset) => {
-                  const d = toDateStr(new Date(Date.now() + offset * 86400000));
+                  const d = localDateStr(new Date(Date.now() + offset * 86400000));
                   const label = offset === -1 ? 'Yesterday' : offset === 0 ? 'Today' : 'Tomorrow';
                   return (
                     <TouchableOpacity

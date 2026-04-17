@@ -11,9 +11,6 @@ const envSchema = z.object({
   DB_PASSWORD: z.string(),
   DB_NAME:     z.string().default('pulse'),
   JWT_SECRET:  z.string().min(32),
-  // Phase 1: single-user env-var auth — removed in Phase 2
-  AUTH_USERNAME: z.string().optional(),
-  AUTH_PASSWORD: z.string().optional(),
   // AWS / S3
   AWS_ACCESS_KEY_ID:     z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),

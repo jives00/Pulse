@@ -15,20 +15,16 @@ import {
   getPersonalBests, type PersonalBests,
   getActiveWorkout, type WorkoutDetail,
 } from '../../../src/api/client';
-import { KG_TO_LBS } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
-import { fontSize, PALETTES, type Colors } from '../../../src/theme';
+import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import FilterChip from '../../../src/components/FilterChip';
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 const WORKOUT_TABS_ORDER = ['routines', 'exercises', 'log'] as const;
 
-function fmtDate(dateStr: string) {
-  const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function fmtVolume(kg: number) {
   const lbs = Math.round(kg * KG_TO_LBS);
@@ -121,7 +117,7 @@ function LogTab() {
           onLongPress={() => handleDelete(item.id)}
         >
           <View style={s.cardTop}>
-            <Text style={s.cardDate}>{fmtDate(item.workoutDate)}</Text>
+            <Text style={s.cardDate}>{sharedFormatDate(item.workoutDate)}</Text>
             {item.durationMinutes != null && (
               <Text style={s.cardDuration}>{item.durationMinutes} min</Text>
             )}
@@ -666,16 +662,6 @@ const METRIC_CONFIG: Record<string, { label: string; unit: string; icon: string;
   bicep:  { label: 'Bicep',  unit: 'in',  icon: '💪', color: '#818cf8', dir: 'up'   },
 };
 
-function localDateStr(d: Date = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function getWeekStart(dateStr: string) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return localDateStr(d);
-}
 
 type WeekBucket = { weekStart: string; label: string; volumeLbs: number; workouts: number };
 

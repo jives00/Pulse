@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool from '../db';
+import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { estimateCaloriesBurned } from '../services/calorieEstimation';
 

@@ -93,8 +93,8 @@ async function migrate() {
     if (file === '001_pulse_initial.sql') {
       const [userRows] = await conn.query('SELECT id FROM users LIMIT 1');
       if ((userRows as any[]).length === 0) {
-        const username = env.AUTH_USERNAME ?? 'admin';
-        const password = env.AUTH_PASSWORD ?? 'changeme';
+        const username = 'admin';
+        const password = 'changeme';
         const passwordHash = await bcrypt.hash(password, 12);
         await conn.query(
           'INSERT INTO users (id, username, password_hash) VALUES (1, ?, ?)',
