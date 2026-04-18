@@ -2177,7 +2177,7 @@ function TrendingSection({
   caloriesGoal?: number | null;
   proteinGoal: number | null;
 }) {
-  const [range, setRange] = useState<'30d' | '90d' | '1yr' | 'all'>('90d');
+  const [range, setRange] = useState<'30d' | '90d' | '1yr' | 'all'>('30d');
   const ranges = ['30d', '90d', '1yr', 'all'] as const;
   return (
     <div className="pt-4">
