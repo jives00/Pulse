@@ -251,14 +251,17 @@ function OptionsTab() {
 // ─── Goals tab ────────────────────────────────────────────────
 
 const METRIC_CONFIG: Record<string, { label: string; unit: string }> = {
-  weight:   { label: 'Weight',   unit: 'lbs' },
-  waist:    { label: 'Waist',    unit: 'in'  },
-  bicep:    { label: 'Bicep',    unit: 'in'  },
-  chest:    { label: 'Chest',    unit: 'in'  },
-  hips:     { label: 'Hips',     unit: 'in'  },
-  body_fat: { label: 'Body Fat', unit: '%'   },
+  weight:      { label: 'Weight',      unit: 'lbs' },
+  waist:       { label: 'Waist',       unit: 'in'  },
+  bicep:       { label: 'Bicep',       unit: 'in'  },
+  chest:       { label: 'Chest',       unit: 'in'  },
+  hips:        { label: 'Hips',        unit: 'in'  },
+  body_fat:    { label: 'Body Fat',    unit: '%'   },
+  bmi:         { label: 'BMI',         unit: ''    },
+  muscle_mass: { label: 'Muscle Mass', unit: 'lbs' },
+  water_pct:   { label: 'Hydration',   unit: '%'   },
 };
-const DISPLAYED_METRICS = ['weight', 'waist', 'bicep'];
+const DISPLAYED_METRICS = ['weight', 'waist', 'bicep', 'bmi', 'body_fat', 'muscle_mass', 'water_pct'];
 
 function GoalsTab() {
   const [loading, setLoading] = useState(true);
