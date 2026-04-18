@@ -312,12 +312,15 @@ function WeeklyChart({ data, dataKey, label, icon, color, goal, unit }: {
 // ─── Body measurements card ───────────────────────────────────────────────────
 
 const METRIC_CONFIG: Record<string, { label: string; unit: string; icon: string; color: string; defaultGoalDir: 'down' | 'up' }> = {
-  weight:   { label: 'Weight',   unit: 'lbs', icon: '⚖️', color: '#60a5fa', defaultGoalDir: 'down' },
-  waist:    { label: 'Waist',    unit: 'in',  icon: '📏', color: '#fb923c', defaultGoalDir: 'down' },
-  bicep:    { label: 'Bicep',    unit: 'in',  icon: '💪', color: '#818cf8', defaultGoalDir: 'up'   },
-  chest:    { label: 'Chest',    unit: 'in',  icon: '🫁', color: '#34d399', defaultGoalDir: 'up'   },
-  hips:     { label: 'Hips',     unit: 'in',  icon: '📐', color: '#f472b6', defaultGoalDir: 'down' },
-  body_fat: { label: 'Body Fat', unit: '%',   icon: '🔥', color: '#facc15', defaultGoalDir: 'down' },
+  weight:      { label: 'Weight',      unit: 'lbs', icon: '⚖️', color: '#60a5fa', defaultGoalDir: 'down' },
+  waist:       { label: 'Waist',       unit: 'in',  icon: '📏', color: '#fb923c', defaultGoalDir: 'down' },
+  bicep:       { label: 'Bicep',       unit: 'in',  icon: '💪', color: '#818cf8', defaultGoalDir: 'up'   },
+  chest:       { label: 'Chest',       unit: 'in',  icon: '🫁', color: '#34d399', defaultGoalDir: 'up'   },
+  hips:        { label: 'Hips',        unit: 'in',  icon: '📐', color: '#f472b6', defaultGoalDir: 'down' },
+  body_fat:    { label: 'Body Fat',    unit: '%',   icon: '🔥', color: '#facc15', defaultGoalDir: 'down' },
+  bmi:         { label: 'BMI',         unit: '',    icon: '📊', color: '#D4A843', defaultGoalDir: 'down' },
+  muscle_mass: { label: 'Muscle Mass', unit: 'lbs', icon: '🦾', color: '#86AA80', defaultGoalDir: 'up'   },
+  water_pct:   { label: 'Water Mass',  unit: '%',   icon: '💧', color: '#7C9ECB', defaultGoalDir: 'up'   },
 };
 
 const DISPLAYED_METRICS = ['weight', 'waist', 'bicep'];
@@ -654,1053 +657,6 @@ function BodyMeasurementsCard({
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Personal bests card ───────────────────────────────────────────────────────
-
-function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
-  const weightLbs = bests?.heaviestLift
-    ? Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10
-    : null;
-
-  const volLbs = bests?.bestSessionVolume
-    ? Math.round(bests.bestSessionVolume.volumeKg * KG_TO_LBS).toLocaleString()
-    : null;
-
-  const items = [
-    {
-      icon: '🏋️',
-      color: '#34d399',
-      label: 'Heaviest lift',
-      value: weightLbs != null ? `${weightLbs}` : '—',
-      unit: weightLbs != null ? 'lbs' : '',
-      sub: bests?.heaviestLift?.exerciseName ?? null,
-    },
-    {
-      icon: '📈',
-      color: '#60a5fa',
-      label: 'Best session volume',
-      value: volLbs ?? '—',
-      unit: volLbs != null ? 'lbs' : '',
-      sub: bests?.bestSessionVolume
-        ? formatDate(bests.bestSessionVolume.workoutDate)
-        : null,
-    },
-  ];
-
-  return (
-    <div className="bg-dram-card rounded-2xl overflow-hidden">
-      <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
-      <div className="px-6 py-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Personal Bests</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {items.map(({ icon, color, label, value, unit, sub }) => (
-            <div key={label} className="flex flex-col gap-1.5">
-              <span className="text-2xl leading-none">{icon}</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold" style={{ color: value !== '—' ? 'white' : '#475569' }}>{value}</span>
-                {unit && <span className="text-xs text-slate-400">{unit}</span>}
-              </div>
-              <span className="text-sm text-slate-300">{label}</span>
-              {sub && <span className="text-sm text-slate-400 truncate">{sub}</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Dashboard V2 ────────────────────────────────────────────────────────────
-
-const CREATINE_FOOD_NAME = 'Creatine Monohydrate';
-
-// Palette for per-routine lines in heatmap
-const ROUTINE_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fb923c', '#f472b6', '#facc15', '#38bdf8'];
-
-function SemiCircleGauge({ pct, color, size = 120 }: { pct: number; color: string; size?: number }) {
-  const strokeW = 10;
-  const r = (size - strokeW) / 2;
-  const cx = size / 2;
-  // Place arc center at the BOTTOM of the SVG so the semicircle opens upward.
-  // SVG height = r + strokeW so the arc fits exactly.
-  const cy = r + strokeW / 2; // = size/2 (since r = (size-strokeW)/2)
-  // Both endpoints sit on the horizontal center line (cy):
-  //   left  = (cx - r, cy)
-  //   right = (cx + r, cy)
-  // We want the arc to go through the TOP (lower Y in SVG).
-  // sweep-flag=1 (clockwise in SVG screen coords) goes UP through the top.
-  const left  = { x: cx - r, y: cy };
-  const right = { x: cx + r, y: cy };
-  // Background: full semicircle left→top→right, sweep=1
-  const bgPath = `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${right.x} ${right.y}`;
-
-  const clampedPct = Math.min(Math.max(pct, 0), 1);
-
-  // Foreground: partial arc from left endpoint, sweeping right by pct*180°.
-  // Angle in SVG: 0° = right, going clockwise. The left endpoint is at 180°.
-  // End angle = 180° - clampedPct*180° (in standard math coords, which maps to SVG sweep).
-  // We parameterise points as: x = cx + r*cos(θ), y = cy - r*sin(θ)
-  //   θ=180° → left endpoint ✓
-  //   θ=90°  → top of arc (cx, cy-r) ✓ (lower Y = higher on screen)
-  //   θ=0°   → right endpoint ✓
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const endDeg = 180 - clampedPct * 180;
-  const ex = cx + r * Math.cos(toRad(endDeg));
-  const ey = cy - r * Math.sin(toRad(endDeg));
-
-  // large-arc-flag=1 when pct>0.5 (arc spans more than 180° would, but since max is 180° here,
-  // we actually only need it when the arc passes through the midpoint top → use 0 always because
-  // our arc is always ≤180°; EXCEPT at exactly pct=1 start=end so we split into two arcs).
-  const fgPath = clampedPct <= 0
-    ? null
-    : clampedPct >= 1
-      // Split into two 90° arcs to avoid degenerate start=end path
-      ? `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${right.x} ${right.y}`
-      : `M ${left.x} ${left.y} A ${r} ${r} 0 0 1 ${ex} ${ey}`;
-
-  const svgH = r + strokeW;
-  return (
-    <svg width={size} height={svgH} style={{ overflow: 'visible' }}>
-      <path d={bgPath} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} strokeLinecap="round" />
-      {fgPath && <path d={fgPath} fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.5s ease' }} />}
-    </svg>
-  );
-}
-
-function GoalGaugeCard({
-  measurements, goals, metric,
-}: {
-  measurements: BodyMeasurement[];
-  goals: Record<string, MeasurementGoal>;
-  metric: string;
-}) {
-  const cfg = METRIC_CONFIG[metric];
-  const goal = goals[metric];
-  const sorted = measurements.filter((m) => m.metric === metric).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-  const latest = sorted[0];
-
-  const displayVal = latest
-    ? (metric === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
-    : null;
-
-  const { status, projectedDate, pct } = goal
-    ? computeGoalPace(measurements, metric, goal, cfg.defaultGoalDir)
-    : { status: 'red' as PaceStatus, projectedDate: null, pct: 0 };
-
-  const paceColor = PACE_COLORS[status];
-
-  // Delta from current to goal (signed: negative = need to lose, positive = need to gain)
-  const delta = goal && displayVal != null
-    ? (goal.targetValue - Number(displayVal)).toFixed(1)
-    : null;
-  const deltaNum = delta != null ? Number(delta) : null;
-  const deltaDisplay = deltaNum != null
-    ? `${deltaNum > 0 ? '+' : ''}${delta} ${cfg.unit}`
-    : null;
-
-  return (
-    <div className="flex flex-col items-center gap-2 py-6 px-3">
-      {/* Label + pace badge above gauge */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: cfg.color }}>{cfg.label}</span>
-        <PaceBadge status={status} />
-      </div>
-      {/* Gauge */}
-      <div className="relative flex items-end justify-center mt-2" style={{ width: 160, height: 90 }}>
-        <SemiCircleGauge pct={pct} color={paceColor} size={160} />
-        <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
-          <span className="text-2xl font-bold text-white leading-none">{displayVal ?? '—'}</span>
-          <span className="text-xs text-dram-muted leading-none">{cfg.unit}</span>
-        </div>
-      </div>
-      {/* Target + delta — aligned to semicircle endpoints */}
-      {goal ? (
-        <div className="flex justify-between mt-0.5" style={{ width: 160 }}>
-          <span className="text-sm font-semibold text-dram-muted">{goal.targetValue} <span className="font-normal text-xs">{cfg.unit}</span></span>
-          {deltaDisplay && deltaNum !== 0 && (
-            <span className="text-sm font-semibold" style={{ color: paceColor }}>{deltaDisplay}</span>
-          )}
-        </div>
-      ) : (
-        <div className="text-sm text-dram-muted">No goal set</div>
-      )}
-      {/* Projected date — centered */}
-      {projectedDate && (
-        <div className="text-sm font-medium text-center" style={{ width: 160, color: paceColor }}>Proj: {projectedDate}</div>
-      )}
-    </div>
-  );
-}
-
-
-function CreatineWidget({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[] }) {
-  const data = computeCreatineSaturation(foodLogHistory);
-
-  if (!data) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
-        <div className="text-2xl">🧪</div>
-        <div className="text-xs text-dram-muted">No creatine logged in the last 30 days</div>
-      </div>
-    );
-  }
-
-  const { satPct, daysSinceStart, loggedDays, firstDate, daysToFull, phase, compliancePct } = data;
-  const satDisplay = Math.round(satPct * 100);
-  const satColor = satPct >= 0.9 ? '#34d399' : satPct >= 0.5 ? '#facc15' : '#f87171';
-  const complianceColor = compliancePct >= 0.9 ? '#34d399' : compliancePct >= 0.7 ? '#facc15' : '#f87171';
-
-  const startFormatted = new Date(firstDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-  return (
-    <div className="flex flex-col gap-4 px-5 py-4">
-      {/* Gauge + center label */}
-      <div className="flex flex-col items-center gap-1">
-        <div className="relative flex items-end justify-center" style={{ width: 120, height: 68 }}>
-          <SemiCircleGauge pct={satPct} color={satColor} size={120} />
-          <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-1">
-            <span className="text-xl font-bold text-white leading-none">{satDisplay}%</span>
-            <span className="text-xs text-dram-muted leading-none">saturated</span>
-          </div>
-        </div>
-        {/* Phase badge */}
-        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full mt-1"
-          style={{ color: satColor, backgroundColor: `${satColor}22` }}>
-          {phase}
-        </span>
-      </div>
-
-      {/* Milestone countdown */}
-      {satPct < 1 && (
-        <div className="text-center text-sm text-dram-muted">
-          {daysToFull > 0
-            ? <><span className="text-slate-300 font-semibold">{daysToFull}d</span> to peak performance</>
-            : <span className="text-slate-300 font-semibold">Almost there!</span>
-          }
-        </div>
-      )}
-      {satPct >= 1 && (
-        <div className="text-center text-sm font-semibold" style={{ color: '#34d399' }}>
-          Peak performance achieved 🎯
-        </div>
-      )}
-
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-          <div className="text-base font-bold text-white">{daysSinceStart}d</div>
-          <div className="text-xs text-dram-muted">since {startFormatted}</div>
-        </div>
-        <div className="rounded-lg py-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-          <div className="text-base font-bold" style={{ color: complianceColor }}>{Math.round(compliancePct * 100)}%</div>
-          <div className="text-xs text-dram-muted">{loggedDays} / {daysSinceStart} days</div>
-        </div>
-      </div>
-
-      {/* Compliance label */}
-      <div className="text-center text-xs text-dram-muted -mt-2">compliance</div>
-
-      {/* Compliance bar */}
-      <div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${compliancePct * 100}%`, backgroundColor: complianceColor }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function NutritionFuelWidget({
-  foodLogHistory,
-  waterHistory,
-  workouts,
-  caloriesGoal,
-  proteinGoal,
-  todayTDEE,
-  measurements,
-  measurementGoals,
-}: {
-  foodLogHistory: FoodLogHistoryDay[];
-  waterHistory: WaterHistory | null;
-  workouts: WorkoutSummary[];
-  caloriesGoal: number | null;
-  proteinGoal: number | null;
-  todayTDEE: TDEEBreakdown | null;
-  measurements: BodyMeasurement[];
-  measurementGoals: Record<string, MeasurementGoal>;
-}) {
-  const now = new Date();
-  const days30 = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (29 - i));
-    return localDateStr(d);
-  });
-
-  const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
-  const waterByDate = Object.fromEntries((waterHistory?.days ?? []).map((d) => [d.date, d.totalOz]));
-  const waterGoal = waterHistory?.goalOz ?? 64;
-  const GLASS = 8;
-
-  // Exercise calories burned per day from workouts
-  const exerciseByDate: Record<string, number> = {};
-  for (const w of workouts) {
-    if (w.caloriesBurned) {
-      exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
-    }
-  }
-
-  const today = localDateStr();
-
-  // BMR+NEAT baseline from today's TDEE (constant across days for a given person)
-  const baselineKcal = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
-
-  const chartData = days30.map((date) => {
-    const food = foodByDate[date];
-    const waterOz = waterByDate[date] ?? 0;
-    const calories = food?.calories ?? 0;
-    let burned: number;
-    let isTDEE = false;
-    if (todayTDEE && baselineKcal !== null) {
-      // Use TDEE for all days: BMR + NEAT + TEF(calories eaten that day) + exercise
-      const dayExercise = exerciseByDate[date] ?? 0;
-      const dayTef = Math.round(calories * 0.1);
-      burned = baselineKcal + dayTef + dayExercise;
-      isTDEE = true;
-    } else {
-      burned = exerciseByDate[date] ?? 0;
-    }
-    const net = calories > 0 || burned > 0 ? calories - burned : 0;
-    return {
-      date,
-      label: new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-      calories,
-      burned,
-      net,
-      protein: food?.protein ?? 0,
-      water: Math.round(waterOz / GLASS * 10) / 10,
-      waterGoalGlasses: waterGoal / GLASS,
-      isTDEE,
-    };
-  });
-
-  const hasBurnedData = Object.keys(exerciseByDate).length > 0 || !!todayTDEE;
-
-  // Weight measurements mapped to the 30-day window (lbs)
-  const weightMeasurements = measurements
-    .filter((m) => m.metric === 'weight')
-    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
-  const weightByDate: Record<string, number> = {};
-  for (const m of weightMeasurements) {
-    const lbs = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-    weightByDate[m.measuredAt] = lbs;
-  }
-  // For each of the 30 days, carry forward the last known weight
-  const weightSeries: { date: string; weight: number | null }[] = [];
-  let lastWeight: number | null = null;
-  for (const date of days30) {
-    if (weightByDate[date] != null) lastWeight = weightByDate[date];
-    weightSeries.push({ date, weight: lastWeight });
-  }
-  const hasWeightData = weightSeries.some((d) => d.weight != null);
-  const weightChartData = days30.map((date, i) => ({
-    ...chartData[i],
-    weight: weightSeries[i].weight,
-  }));
-  const weightValues = weightSeries.map((d) => d.weight ?? 0).filter(Boolean);
-  const weightGoalRaw = measurementGoals['weight'];
-  const weightGoalLbs = weightGoalRaw
-    ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue)
-    : null;
-  const allWeightVals = [...weightValues, ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
-  const weightMin = allWeightVals.length ? Math.min(...allWeightVals) * 0.98 : 0;
-  const weightMax = allWeightVals.length ? Math.max(...allWeightVals) * 1.02 : 1;
-
-  // Sparse x-axis tick: show label every ~5 days
-  const xTicks = chartData
-    .filter((_, i) => i % 5 === 0 || i === chartData.length - 1)
-    .map((d) => d.date);
-
-  const chartH = 80;
-  const margin = { top: 4, right: 4, left: 0, bottom: 0 };
-
-  const xAxis = (
-    <XAxis
-      dataKey="date"
-      ticks={xTicks}
-      tickFormatter={(v) => {
-        const d = new Date(v + 'T12:00:00');
-        return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-      }}
-      tick={{ fontSize: 11, fill: '#64748b' }}
-      tickLine={false}
-      axisLine={false}
-      height={20}
-    />
-  );
-
-  const tooltipStyle = {
-    contentStyle: { backgroundColor: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '6px 10px', fontSize: 13 },
-    itemStyle: { color: '#e2e8f0' },
-    labelStyle: { color: '#64748b', marginBottom: 2, fontSize: 12 },
-    cursor: { stroke: 'rgba(255,255,255,0.08)' },
-  };
-
-  const calDomain: [number, number] = [
-    0,
-    Math.max(
-      ...chartData.map((d) => Math.max(d.calories, d.burned)),
-      caloriesGoal ?? 0,
-      1
-    ) * 1.1,
-  ];
-
-  return (
-    <div className="flex flex-col gap-4 pt-3">
-      <div className="text-xs font-semibold text-dram-muted uppercase tracking-wide">Last 30 Days</div>
-
-      {/* ── Calories ── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-sm text-slate-400">Calories</span>
-          <span className="flex items-center gap-1.5 text-sm text-slate-400">
-            <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: '#fb923c' }} /> in
-          </span>
-          {hasBurnedData && (
-            <span className="flex items-center gap-1.5 text-sm text-slate-400">
-              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: '#f87171' }} /> {todayTDEE ? 'TDEE' : 'exercise'}
-            </span>
-          )}
-          {caloriesGoal && (
-            <span className="flex items-center gap-1.5 text-sm text-slate-400">
-              <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: 'rgba(251,146,60,0.55)' }} /> goal
-            </span>
-          )}
-        </div>
-        <ResponsiveContainer width="100%" height={chartH + 18}>
-          <ComposedChart data={chartData} margin={margin}>
-            <YAxis hide domain={calDomain} />
-            {xAxis}
-            <Tooltip
-              {...tooltipStyle}
-              content={({ active, payload, label: lbl }) => {
-                if (!active || !payload?.length) return null;
-                const row = chartData.find((d) => d.date === lbl);
-                return (
-                  <div style={tooltipStyle.contentStyle}>
-                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
-                    {row && row.calories > 0 && <div style={{ color: '#fb923c' }}>{row.calories.toLocaleString()} kcal in</div>}
-                    {row && row.burned > 0 && row.isTDEE && todayTDEE ? (
-                      <div style={{ color: '#f87171' }}>
-                        <div>{row.burned.toLocaleString()} kcal TDEE</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF {Math.round(row.calories * 0.1)} + Exercise {exerciseByDate[row.date] ?? 0}
-                        </div>
-                      </div>
-                    ) : row && row.burned > 0 ? (
-                      <div style={{ color: '#f87171' }}>{row.burned.toLocaleString()} kcal exercise</div>
-                    ) : null}
-                    {row && (row.calories > 0 || row.burned > 0) && (
-                      <div style={{ color: '#facc15' }}>net: {(row.calories - row.burned).toLocaleString()}</div>
-                    )}
-                  </div>
-                );
-              }}
-            />
-            {caloriesGoal && (
-              <ReferenceLine y={caloriesGoal} stroke="rgba(251,146,60,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
-            )}
-            <Area
-              type="monotone"
-              dataKey="calories"
-              stroke="#fb923c"
-              strokeWidth={1.5}
-              fill="#fb923c"
-              fillOpacity={0.12}
-              dot={false}
-              activeDot={{ r: 3, fill: '#fb923c' }}
-            />
-            {hasBurnedData && (
-              <Line
-                type="monotone"
-                dataKey="burned"
-                stroke="#f87171"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                dot={false}
-                activeDot={{ r: 3, fill: '#f87171' }}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Protein ── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-sm text-slate-400">Protein</span>
-          {proteinGoal && (
-            <span className="flex items-center gap-1 text-xs text-slate-500">
-              <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(96,165,250,0.35)' }} /> goal {proteinGoal}g
-            </span>
-          )}
-        </div>
-        <ResponsiveContainer width="100%" height={chartH + 18}>
-          <LineChart data={chartData} margin={margin}>
-            <YAxis hide domain={[0, Math.max(...chartData.map((d) => d.protein), proteinGoal ?? 0, 1) * 1.1]} />
-            {xAxis}
-            <Tooltip
-              {...tooltipStyle}
-              content={({ active, payload, label: lbl }) => {
-                if (!active || !payload?.length) return null;
-                const row = chartData.find((d) => d.date === lbl);
-                return (
-                  <div style={tooltipStyle.contentStyle}>
-                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
-                    {row && <div style={{ color: '#60a5fa' }}>{row.protein}g protein</div>}
-                  </div>
-                );
-              }}
-            />
-            {proteinGoal && (
-              <ReferenceLine y={proteinGoal} stroke="rgba(96,165,250,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
-            )}
-            <Line
-              type="monotone"
-              dataKey="protein"
-              stroke="#60a5fa"
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={{ r: 3, fill: '#60a5fa' }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Water ── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-sm text-slate-400">Water</span>
-          <span className="flex items-center gap-1 text-xs text-slate-500">
-            <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(56,189,248,0.35)' }} /> goal {Math.round(waterGoal / GLASS)} glasses
-          </span>
-        </div>
-        <ResponsiveContainer width="100%" height={chartH + 18}>
-          <LineChart data={chartData} margin={margin}>
-            <YAxis hide domain={[0, Math.max(Math.ceil(waterGoal / GLASS) + 2, ...chartData.map((d) => d.water))]} />
-            {xAxis}
-            <Tooltip
-              {...tooltipStyle}
-              content={({ active, payload, label: lbl }) => {
-                if (!active || !payload?.length) return null;
-                const row = chartData.find((d) => d.date === lbl);
-                return (
-                  <div style={tooltipStyle.contentStyle}>
-                    <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
-                    {row && <div style={{ color: '#38bdf8' }}>{row.water} glasses ({Math.round(row.water * GLASS)} oz)</div>}
-                  </div>
-                );
-              }}
-            />
-            <ReferenceLine y={waterGoal / GLASS} stroke="rgba(56,189,248,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
-            <Line
-              type="monotone"
-              dataKey="water"
-              stroke="#38bdf8"
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={{ r: 3, fill: '#38bdf8' }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Weight ── */}
-      {hasWeightData && (
-        <div>
-          <div className="flex items-center gap-3 mb-1.5">
-            <span className="text-sm text-slate-400">Weight</span>
-            {weightGoalLbs != null && (
-              <span className="flex items-center gap-1 text-xs text-slate-500">
-                <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: 'rgba(167,139,250,0.35)' }} /> goal {weightGoalLbs.toFixed(1)} lbs
-              </span>
-            )}
-          </div>
-          <ResponsiveContainer width="100%" height={chartH + 18}>
-            <LineChart data={weightChartData} margin={margin}>
-              <YAxis hide domain={[weightMin, weightMax]} />
-              {xAxis}
-              <Tooltip
-                {...tooltipStyle}
-                content={({ active, payload, label: lbl }) => {
-                  if (!active || !payload?.length) return null;
-                  const row = weightChartData.find((d) => d.date === lbl);
-                  return (
-                    <div style={tooltipStyle.contentStyle}>
-                      <div style={tooltipStyle.labelStyle}>{row?.label ?? lbl}</div>
-                      {row?.weight != null && <div style={{ color: '#a78bfa' }}>{row.weight.toFixed(1)} lbs</div>}
-                    </div>
-                  );
-                }}
-              />
-              {weightGoalLbs != null && (
-                <ReferenceLine y={weightGoalLbs} stroke="rgba(167,139,250,0.55)" strokeDasharray="4 3" strokeWidth={1.5} />
-              )}
-              <Line
-                type="monotone"
-                dataKey="weight"
-                stroke="#a78bfa"
-                strokeWidth={1.5}
-                dot={(props) => {
-                  const { cx, cy, payload } = props as any;
-                  if (payload.weight == null || !weightByDate[payload.date]) return <g key={props.key} />;
-                  return <circle key={props.key} cx={cx} cy={cy} r={3} fill="#a78bfa" stroke="none" />;
-                }}
-                activeDot={{ r: 3, fill: '#a78bfa' }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Weekly total volume line chart (13 weeks)
-function WeeklyVolumeChart({ data }: { data: { label: string; volume: number | null }[] }) {
-  const hasData = data.some((d) => d.volume !== null);
-  if (!hasData) return null;
-  return (
-    <div className="mt-4">
-      <div className="text-sm text-dram-muted mb-1">Total volume / week (lbs)</div>
-      <ResponsiveContainer width="100%" height={72}>
-        <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-          <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-dram-muted, #94a3b8)' }} tickLine={false} axisLine={false} />
-          <YAxis hide />
-          <Tooltip
-            contentStyle={{ background: 'var(--color-dram-card, #1e2433)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, fontSize: 11 }}
-            labelStyle={{ color: 'var(--color-dram-muted, #94a3b8)' }}
-            itemStyle={{ color: '#a78bfa' }}
-            formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
-          />
-          <Line
-            type="monotone"
-            dataKey="volume"
-            stroke="#a78bfa"
-            strokeWidth={2}
-            dot={{ r: 2, fill: '#a78bfa', strokeWidth: 0 }}
-            activeDot={{ r: 4 }}
-            connectNulls={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-// Routine volume heatmap — 13 weeks × routines grid
-function RoutineHeatmap({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
-  }, [workouts.length]);
-  // Build 13-week buckets
-  const now = new Date();
-  const weeks = Array.from({ length: 13 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (12 - i) * 7);
-    const ws = getWeekStart(localDateStr(d));
-    const weekDate = new Date(ws + 'T12:00:00');
-    return {
-      weekStart: ws,
-      label: weekDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-    };
-  });
-
-  // Get routines that have volume (any workout using that routine with totalVolumeKg > 0)
-  const routineVolumes: Record<number, Record<string, number>> = {}; // routineId → weekStart → volumeLbs
-  for (const w of workouts) {
-    if (!w.routineId || w.totalVolumeKg <= 0) continue;
-    const ws = getWeekStart(w.workoutDate);
-    if (!routineVolumes[w.routineId]) routineVolumes[w.routineId] = {};
-    routineVolumes[w.routineId][ws] = (routineVolumes[w.routineId][ws] ?? 0) + w.totalVolumeKg * KG_TO_LBS;
-  }
-
-  // Only keep routines that appear in our 13-week window and have volume
-  const relevantRoutineIds = Object.keys(routineVolumes)
-    .map(Number)
-    .filter((rid) => weeks.some((wk) => (routineVolumes[rid][wk.weekStart] ?? 0) > 0));
-
-  // Weekly totals for the line chart (all routines combined, including non-routine workouts)
-  const weeklyTotals: Record<string, number> = {};
-  for (const w of workouts) {
-    if (w.totalVolumeKg <= 0) continue;
-    const ws = getWeekStart(w.workoutDate);
-    weeklyTotals[ws] = (weeklyTotals[ws] ?? 0) + w.totalVolumeKg * KG_TO_LBS;
-  }
-  const lineData = weeks.map((wk) => ({
-    label: wk.label,
-    volume: weeklyTotals[wk.weekStart] ? Math.round(weeklyTotals[wk.weekStart]) : null,
-  }));
-
-  if (relevantRoutineIds.length === 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="text-xs text-dram-muted py-4 text-center">No routine volume data in the last 13 weeks</div>
-        <WeeklyVolumeChart data={lineData} />
-      </div>
-    );
-  }
-
-  // Global max across all routines — so cells scale relative to each other
-  const globalMax = Math.max(
-    ...relevantRoutineIds.flatMap((rid) => Object.values(routineVolumes[rid]))
-  );
-
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
-  relevantRoutineIds.sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
-
-  // Sticky-column approach: wrap in a relative container, scroll only the week columns,
-  // keep routine name column pinned to the left at all times.
-  return (
-    <div className="flex flex-col gap-2">
-      <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        <table className="text-xs border-collapse" style={{ tableLayout: 'auto' }}>
-          <thead>
-            <tr>
-              {/* Sticky routine label header */}
-              <th
-                className="text-left text-dram-muted font-normal pb-1 pr-3 whitespace-nowrap"
-                style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--color-dram-card, #1e2433)' }}
-              >
-                Routine
-              </th>
-              {weeks.map((wk) => (
-                <th key={wk.weekStart} className="text-dram-muted font-normal pb-1 px-0.5 text-center" style={{ minWidth: 28 }}>
-                  {wk.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {relevantRoutineIds.map((rid) => {
-              return (
-                <tr key={rid}>
-                  {/* Sticky routine name cell */}
-                  <td
-                    className="text-slate-300 pr-3 py-0.5 whitespace-nowrap"
-                    style={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'var(--color-dram-card, #1e2433)', maxWidth: 120 }}
-                  >
-                    <span className="block truncate max-w-[110px]">{routineNameById[rid] ?? `Routine ${rid}`}</span>
-                  </td>
-                  {weeks.map((wk) => {
-                    const vol = routineVolumes[rid][wk.weekStart] ?? 0;
-                    const intensity = globalMax > 0 ? vol / globalMax : 0;
-                    // Higher volume = dark purple; low volume = light/muted purple
-                    const r = Math.round(167 - intensity * (167 - 80));
-                    const g = Math.round(139 - intensity * (139 - 60));
-                    const b = Math.round(250 - intensity * (250 - 160));
-                    const bgColor = vol > 0
-                      ? `rgb(${r},${g},${b})`
-                      : 'rgba(255,255,255,0.04)';
-                    return (
-                      <td key={wk.weekStart} className="px-0.5 py-0.5">
-                        <div
-                          title={vol > 0 ? `${Math.round(vol).toLocaleString()} lbs` : 'No workout'}
-                          className="rounded-sm mx-auto cursor-default"
-                          style={{ width: 24, height: 20, backgroundColor: bgColor }}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {/* Legend */}
-      <div className="flex items-center gap-2 text-[10px] text-dram-muted">
-        <span>Lower</span>
-        <div className="flex gap-0.5">
-          {[0.1, 0.3, 0.55, 0.75, 1.0].map((t) => {
-            const r = Math.round(167 - t * (167 - 80));
-            const g = Math.round(139 - t * (139 - 60));
-            const b = Math.round(250 - t * (250 - 160));
-            return <div key={t} className="w-3 h-3 rounded-sm" style={{ backgroundColor: `rgb(${r},${g},${b})` }} />;
-          })}
-        </div>
-        <span>Higher volume</span>
-      </div>
-      <WeeklyVolumeChart data={lineData} />
-    </div>
-  );
-}
-
-// Last 10 workouts log with delta vs prior same-routine session
-function WorkoutLog({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
-  const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
-  const last10 = completed.slice(0, 10);
-
-  return (
-    <div className="space-y-1">
-      {last10.length === 0 && <div className="text-xs text-dram-muted py-2">No workouts yet.</div>}
-      {last10.map((w) => {
-        const volLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
-        const routineName = w.routineId ? (routineNameById[w.routineId] ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
-
-        // Find prior session of same routine (or same name if no routine)
-        let prior: WorkoutSummary | undefined;
-        if (w.routineId) {
-          prior = completed.find((x) => x.id !== w.id && x.routineId === w.routineId && x.workoutDate < w.workoutDate);
-        }
-
-        const priorVolLbs = prior ? Math.round(prior.totalVolumeKg * KG_TO_LBS) : null;
-        const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
-        const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
-
-        // For duration-only workouts, sum exercise set durations for precise MM:SS
-        const totalDurSecs = volLbs === 0
-          ? w.exercises.reduce((sum, ex) => sum + (ex.totalDurationSeconds ?? 0), 0)
-          : 0;
-        const durationDisplay = volLbs > 0
-          ? `${volLbs.toLocaleString()} lbs`
-          : totalDurSecs > 0
-            ? `${Math.floor(totalDurSecs / 60)}:${String(totalDurSecs % 60).padStart(2, '0')}`
-            : w.durationMinutes
-              ? `${w.durationMinutes} min`
-              : '—';
-
-        return (
-          <div key={w.id} className="flex items-center gap-2 py-2 border-b border-dram-border/60 last:border-0">
-            <div className="flex-1 min-w-0">
-              <div className="text-sm text-slate-200 font-medium truncate">{routineName}</div>
-              <div className="text-xs text-dram-muted">{new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="text-sm text-slate-200">{durationDisplay}</div>
-              {delta !== null && deltaPct !== null ? (
-                <div className="flex items-center justify-end gap-0.5 text-xs font-semibold" style={{ color: delta >= 0 ? '#34d399' : '#f87171' }}>
-                  <span>{delta >= 0 ? '▲' : '▼'}</span>
-                  <span>{Math.abs(Math.round(deltaPct))}%</span>
-                </div>
-              ) : prior === undefined && w.routineId ? (
-                <div className="text-xs text-dram-muted">first run</div>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Personal bests column — 1 stat per row
-function PersonalBestsColumn({
-  bests,
-  workouts,
-  routinesList,
-  foodLogHistory,
-  waterHistory,
-}: {
-  bests: PersonalBests | null;
-  workouts: WorkoutSummary[];
-  routinesList: RoutineSummary[];
-  foodLogHistory: FoodLogHistoryDay[];
-  waterHistory: WaterHistory | null;
-}) {
-  const GLASS = 8;
-
-  // Highest protein day from food log history
-  const highProteinDay = foodLogHistory.reduce<{ protein: number; date: string } | null>((best, day) => {
-    if (!best || day.protein > best.protein) return { protein: day.protein, date: day.date };
-    return best;
-  }, null);
-
-  // Highest water day from water history
-  const highWaterDay = (waterHistory?.days ?? []).reduce<{ oz: number; date: string } | null>((best, day) => {
-    if (!best || day.totalOz > best.oz) return { oz: day.totalOz, date: day.date };
-    return best;
-  }, null);
-
-  // Per-routine best session volume and longest session
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
-  const routineVolBests: Record<number, { volumeLbs: number; date: string }> = {};
-  for (const w of workouts) {
-    if (!w.routineId || w.totalVolumeKg <= 0) continue;
-    const volLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
-    const cur = routineVolBests[w.routineId];
-    if (!cur || volLbs > cur.volumeLbs) {
-      routineVolBests[w.routineId] = { volumeLbs: volLbs, date: w.workoutDate };
-    }
-  }
-  const routineVolItems = Object.entries(routineVolBests)
-    .map(([rid, v]) => ({ routineId: Number(rid), name: routineNameById[Number(rid)] ?? `Routine ${rid}`, ...v }))
-    .sort((a, b) => b.volumeLbs - a.volumeLbs);
-
-  const items: { icon: string; label: string; color: string; value: string | null; sub: string | null; date: string | null }[] = [
-    {
-      icon: '🏋️',
-      label: 'Heaviest Lift',
-      color: '#34d399',
-      value: bests?.heaviestLift ? `${Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10} lbs` : null,
-      sub: bests?.heaviestLift
-        ? `${bests.heaviestLift.exerciseName}${bests.heaviestLift.reps != null ? ` · ${bests.heaviestLift.reps} reps` : ''}`
-        : null,
-      date: bests?.heaviestLift?.workoutDate ?? null,
-    },
-    ...(bests?.bestStairPace ? [{
-      icon: '🪜',
-      label: 'Best Stair Pace',
-      color: '#fb923c',
-      value: `${bests.bestStairPace.secsPerRep.toFixed(1)}s/step`,
-      sub: `${bests.bestStairPace.reps} steps · ${Math.floor(bests.bestStairPace.durationSeconds / 60)}m${bests.bestStairPace.durationSeconds % 60}s`,
-      date: bests.bestStairPace.workoutDate,
-    }] : []),
-    ...(highProteinDay ? [{
-      icon: '🥩',
-      label: 'Highest Protein Day',
-      color: '#60a5fa',
-      value: `${highProteinDay.protein}g`,
-      sub: null,
-      date: highProteinDay.date,
-    }] : []),
-    ...(highWaterDay ? [{
-      icon: '💧',
-      label: 'Most Water in a Day',
-      color: '#38bdf8',
-      value: `${Math.round(highWaterDay.oz / GLASS * 10) / 10} glasses`,
-      sub: `${highWaterDay.oz} oz`,
-      date: highWaterDay.date,
-    }] : []),
-    ...routineVolItems.map((r) => ({
-      icon: '🔁',
-      label: `Best Volume: ${r.name}`,
-      color: '#a78bfa',
-      value: `${r.volumeLbs.toLocaleString()} lbs`,
-      sub: null,
-      date: r.date,
-    })),
-  ];
-
-  return (
-    <div className="space-y-0">
-      {items.map(({ icon, label, color, value, sub, date }) => (
-        <div key={label} className="flex items-start gap-3 py-3 border-b border-dram-border last:border-0">
-          <span className="text-xl leading-none mt-0.5">{icon}</span>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-dram-muted uppercase tracking-wide mb-0.5">{label}</div>
-            <div className="text-lg font-bold" style={{ color: value ? 'white' : '#475569' }}>{value ?? '—'}</div>
-            {sub && <div className="text-xs text-slate-400 truncate mt-0.5">{sub}</div>}
-            {date && <div className="text-xs text-dram-muted mt-0.5">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DashboardV2({
-  workouts, measurements, measurementGoals, personalBests,
-  waterHistory, foodLogHistory, routinesList, loading,
-  caloriesGoal, proteinGoal, todayTDEE,
-}: {
-  workouts: WorkoutSummary[];
-  measurements: BodyMeasurement[];
-  measurementGoals: Record<string, MeasurementGoal>;
-  personalBests: PersonalBests | null;
-  waterHistory: WaterHistory | null;
-  foodLogHistory: FoodLogHistoryDay[];
-  routinesList: RoutineSummary[];
-  loading: boolean;
-  caloriesGoal: number | null;
-  proteinGoal: number | null;
-  todayTDEE: TDEEBreakdown | null;
-}) {
-  if (loading) return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading…</div>;
-
-  const cardCls = 'bg-dram-card rounded-2xl border border-dram-border overflow-hidden';
-  const cardHeaderCls = 'text-sm font-semibold text-slate-300 uppercase tracking-wider px-5 pt-4 pb-2';
-
-  const creatineData = computeCreatineSaturation(foodLogHistory);
-
-  return (
-    <div className="flex-1 overflow-y-auto p-6">
-      {/* 3-column grid: col1=50%, col2=25%, col3=25% */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: '2fr 1fr 1fr', gridTemplateRows: 'auto auto' }}>
-
-        {/* ── Col 1, Row 1: Body Goal Gauges ── */}
-        <div className={cardCls}>
-          <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
-          <div className={cardHeaderCls}>North Star Goals</div>
-          <div className="grid grid-cols-3 divide-x divide-dram-border border-t border-dram-border">
-            {DISPLAYED_METRICS.map((key) => (
-              <GoalGaugeCard
-                key={key}
-                measurements={measurements}
-                goals={measurementGoals}
-                metric={key}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Col 2, Row 1: Routine Heatmap ── */}
-        <div className={`${cardCls} col-start-2`}>
-          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#a78bfa' }} />
-          <div className={cardHeaderCls}>Volume Heatmap</div>
-          <div className="px-4 pb-4">
-            <RoutineHeatmap workouts={workouts} routinesList={routinesList} />
-          </div>
-        </div>
-
-        {/* ── Col 3, Row 1: Creatine Saturation ── */}
-        <div className={`${cardCls} col-start-3`}>
-          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#a78bfa' }} />
-          <div className={cardHeaderCls}>Creatine</div>
-          <CreatineWidget foodLogHistory={foodLogHistory} />
-        </div>
-
-        {/* ── Col 1, Row 2: Nutrition & Fuel ── */}
-        <div className={cardCls}>
-          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#fb923c' }} />
-          <div className={cardHeaderCls}>Nutrition &amp; Fuel</div>
-          <div className="px-5 pb-4">
-            <NutritionFuelWidget foodLogHistory={foodLogHistory} waterHistory={waterHistory} workouts={workouts} caloriesGoal={caloriesGoal} proteinGoal={proteinGoal} todayTDEE={todayTDEE} measurements={measurements} measurementGoals={measurementGoals} />
-          </div>
-        </div>
-
-        {/* ── Col 2, Row 2: Last 10 Workouts ── */}
-        <div className={`${cardCls} col-start-2`}>
-          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#60a5fa' }} />
-          <div className={cardHeaderCls}>Recent Workouts</div>
-          <div className="px-4 pb-4">
-            <WorkoutLog workouts={workouts} routinesList={routinesList} />
-          </div>
-        </div>
-
-        {/* ── Col 3, Row 2: Personal Bests ── */}
-        <div className={`${cardCls} col-start-3`}>
-          <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: '#34d399' }} />
-          <div className={cardHeaderCls}>Personal Bests</div>
-          <div className="px-5 pb-4">
-            <PersonalBestsColumn
-              bests={personalBests}
-              workouts={workouts}
-              routinesList={routinesList}
-              foodLogHistory={foodLogHistory}
-              waterHistory={waterHistory}
-            />
-          </div>
-        </div>
-
       </div>
     </div>
   );
@@ -2262,6 +1218,1814 @@ function TodaysBlurb({
   );
 }
 
+// ─── Dashboard V3 ────────────────────────────────────────────────────────────
+
+const GOLD = '#D4A843';
+const BODY_COMP_METRICS = ['bmi', 'body_fat', 'muscle_mass'] as const;
+
+// ── V3 primitives ─────────────────────────────────────────────────────────────
+
+function V3GoldRule({ w = 18 }: { w?: number }) {
+  return <div className="bg-gold shrink-0" style={{ width: w, height: 2 }} />;
+}
+
+function V3CardHeader({ label, meta, action }: { label: string; meta?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between px-6 py-4 border-b border-bd">
+      <div className="flex items-center gap-3">
+        <V3GoldRule />
+        <span className="micro font-semibold text-white tracking-wider">{label}</span>
+        {meta && <span className="t-xs text-muted font-mono">· {meta}</span>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function V3CalorieRing({ pct, actual, goal }: { pct: number; actual: number; goal: number | null }) {
+  const size = 148, sw = 10;
+  const r = (size - sw) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = pct * circ;
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgb(var(--color-border))" strokeWidth={sw} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgb(var(--color-accent))" strokeWidth={sw}
+          strokeDasharray={`${filled} ${circ}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="font-display font-semibold text-[34px] tnum leading-none">{fmtNum(actual)}</div>
+        <div className="t-xs text-muted font-mono mt-1">/ {goal ? fmtNum(goal) : '—'} kcal</div>
+        <div className="t-xs gold font-mono mt-1">{Math.round(pct * 100)}%</div>
+      </div>
+    </div>
+  );
+}
+
+function V3MacroRow({ label, actual, goal, unit, color }: { label: string; actual: number; goal: number | null; unit: string; color: string }) {
+  const pct = goal ? Math.min(actual / goal, 1) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="t-sm text-muted">{label}</span>
+        <span className="t-sm font-mono tnum">
+          <span>{actual}</span><span className="text-muted"> / {goal ?? '—'}{unit}</span>
+        </span>
+      </div>
+      <div className="h-[6px] bg-bg rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: color, transition: 'width 0.6s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+function V3WaterGlasses({ filled, total }: { filled: number; total: number }) {
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {Array.from({ length: total }).map((_, i) => (
+        <div key={i} className={`w-2.5 h-5 rounded-sm ${i < filled ? 'bg-gold' : 'bg-bg border border-bd'}`} />
+      ))}
+    </div>
+  );
+}
+
+function V3GlassIcon() {
+  return (
+    <svg width="18" height="20" viewBox="0 0 18 20" fill="none" className="text-muted shrink-0">
+      <path d="M3 2 L15 2 L13.5 18 Q13 19 12 19 L6 19 Q5 19 4.5 18 Z" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+      <path d="M4 10 L14 10" stroke="currentColor" strokeWidth="1" opacity="0.5"/>
+      <path d="M5 13 Q9 14.5 13 13 L12.5 18 Q12 19 11 19 L7 19 Q6 19 5.5 18 Z" fill="currentColor" opacity="0.25"/>
+    </svg>
+  );
+}
+
+function V3BottleIcon() {
+  return (
+    <svg width="18" height="20" viewBox="0 0 18 20" fill="none" className="text-muted shrink-0">
+      <rect x="7" y="1" width="4" height="2.5" stroke="currentColor" strokeWidth="1.2" fill="none" rx="0.5"/>
+      <path d="M6 3.5 L12 3.5 L13 6 Q13 7 13 8 L13 17 Q13 19 11 19 L7 19 Q5 19 5 17 L5 8 Q5 7 6 6 Z" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+      <path d="M6 11 Q9 12.5 12 11 L12 17 Q12 18 11 18 L7 18 Q6 18 6 17 Z" fill="currentColor" opacity="0.3"/>
+    </svg>
+  );
+}
+
+// ── FuelTodayCard ──────────────────────────────────────────────────────────────
+
+function FuelTodayCard({
+  foodLogHistory,
+  waterHistory,
+  workouts,
+  caloriesGoal,
+  proteinGoal,
+  carbsGoal,
+  fatGoal,
+  todayTDEE,
+  onWaterLogged,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  waterHistory: WaterHistory | null;
+  workouts: WorkoutSummary[];
+  caloriesGoal: number | null;
+  proteinGoal: number | null;
+  carbsGoal: number | null;
+  fatGoal: number | null;
+  todayTDEE: TDEEBreakdown | null;
+  measurements?: BodyMeasurement[];
+  onWaterLogged?: () => void;
+}) {
+  const navigate = useNavigate();
+  const today = localDateStr();
+  const GLASS = 8;
+  const todayFood = foodLogHistory.find((d) => d.date === today);
+  const calories = Math.round(todayFood?.calories ?? 0);
+  const protein = Math.round(todayFood?.protein ?? 0);
+  const carbs = Math.round(todayFood?.entries.reduce((s, e) => s + e.carbsG, 0) ?? 0);
+  const fat = Math.round(todayFood?.entries.reduce((s, e) => s + e.fatG, 0) ?? 0);
+  const [waterBonus, setWaterBonus] = useState(0);
+  const [savingWater, setSavingWater] = useState(false);
+
+  const waterOzBase = waterHistory?.days.find((d) => d.date === today)?.totalOz ?? 0;
+  const waterOz = waterOzBase + waterBonus;
+  const waterGoalOz = waterHistory?.goalOz ?? 64;
+  const waterGlasses = Math.round(waterOz / GLASS);
+  const waterGoalGlasses = Math.round(waterGoalOz / GLASS);
+
+  const burnedToday = workouts
+    .filter((w) => w.workoutDate === today)
+    .reduce((s, w) => s + (w.caloriesBurned ?? 0), 0);
+
+  let tdeeToday: number | null = null;
+  if (todayTDEE) {
+    tdeeToday = todayTDEE.bmr + todayTDEE.neat + Math.round(calories * 0.1) + burnedToday;
+  }
+  const net = tdeeToday != null ? calories - tdeeToday : null;
+  const calPct = caloriesGoal ? Math.min(calories / caloriesGoal, 1) : 0;
+
+  async function logWater(oz: number) {
+    if (savingWater) return;
+    setSavingWater(true);
+    setWaterBonus(b => b + oz);
+    try {
+      await waterApi.add(today, oz);
+      onWaterLogged?.();
+    } catch {
+      setWaterBonus(b => b - oz);
+    } finally {
+      setSavingWater(false);
+    }
+  }
+
+  const MEAL_ORDER: Array<'breakfast' | 'lunch' | 'dinner' | 'snack'> = ['breakfast', 'lunch', 'dinner', 'snack'];
+  const MEAL_LABEL: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+  const mealsBySlot: Record<string, { calories: number; protein: number }> = {};
+  for (const entry of todayFood?.entries ?? []) {
+    const slot = entry.meal ?? 'snack';
+    if (!mealsBySlot[slot]) mealsBySlot[slot] = { calories: 0, protein: 0 };
+    mealsBySlot[slot].calories += entry.calories;
+    mealsBySlot[slot].protein += entry.proteinG;
+  }
+  const totalMeals = Object.keys(mealsBySlot).length;
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader
+        label="Fuel Today"
+        meta={`${totalMeals} meals logged${tdeeToday ? ` · TDEE ${fmtNum(tdeeToday)} kcal` : ''}`}
+      />
+      <div className="grid" style={{ gridTemplateColumns: '1.2fr 1fr 1.4fr' }}>
+
+        {/* Col 1 — Calorie ring + macros */}
+        <div className="p-6 border-r border-bd flex items-center gap-6">
+          <V3CalorieRing pct={calPct} actual={calories} goal={caloriesGoal} />
+          <div className="flex-1 space-y-3.5">
+            <V3MacroRow label="Protein" actual={protein} goal={proteinGoal} unit="g" color="#D4A843" />
+            <V3MacroRow label="Carbs"   actual={carbs}   goal={carbsGoal}   unit="g" color="#7C9ECB" />
+            <V3MacroRow label="Fat"     actual={fat}     goal={fatGoal}     unit="g" color="#C5896E" />
+          </div>
+        </div>
+
+        {/* Col 2 — Water */}
+        <div className="p-6 border-r border-bd flex flex-col">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="micro font-semibold text-white tracking-wider">Water</span>
+              <span className="t-xs font-mono text-muted tnum">{Math.round(Math.min(waterOz / waterGoalOz, 1) * 100)}%</span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-2 mb-3">
+              <span className="font-display font-semibold text-[36px] tnum">{waterGlasses}</span>
+              <span className="t-base text-muted font-mono">/ {waterGoalGlasses} glasses</span>
+            </div>
+            <V3WaterGlasses filled={waterGlasses} total={waterGoalGlasses} />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => logWater(8)}
+                disabled={savingWater}
+                className="flex-1 border border-bd hover:border-gold bg-bg/50 rounded-md px-2 py-2 flex items-center gap-2 group transition-colors disabled:opacity-50"
+              >
+                <V3GlassIcon />
+                <div className="text-left leading-tight">
+                  <div className="t-xs font-semibold">+ 1 glass</div>
+                  <div className="text-[10px] text-muted">8 oz</div>
+                </div>
+              </button>
+              <button
+                onClick={() => logWater(20)}
+                disabled={savingWater}
+                className="flex-1 border border-bd hover:border-gold bg-bg/50 rounded-md px-2 py-2 flex items-center gap-2 group transition-colors disabled:opacity-50"
+              >
+                <V3BottleIcon />
+                <div className="text-left leading-tight">
+                  <div className="t-xs font-semibold">+ Bottle</div>
+                  <div className="text-[10px] text-muted">20 oz</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Col 3 — Meals timeline */}
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="micro font-semibold text-white tracking-wider">Meals</span>
+          </div>
+          {totalMeals === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-bd rounded-lg">
+              <div className="t-sm text-muted mb-2">Nothing logged yet.</div>
+              <button onClick={() => navigate('/nutrition/today')} className="t-xs gold font-medium">
+                Add your first meal →
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {MEAL_ORDER.filter((slot) => mealsBySlot[slot]).map((slot) => {
+                const meal = mealsBySlot[slot];
+                return (
+                  <div key={slot} className="flex items-baseline justify-between py-1.5 border-b border-bd/60 last:border-0">
+                    <span className="t-base font-medium">{MEAL_LABEL[slot]}</span>
+                    <div className="flex items-baseline gap-4 font-mono t-base">
+                      <span className="tnum">{fmtNum(meal.calories)} <span className="text-muted t-sm">kcal</span></span>
+                      <span className="tnum text-muted">{Math.round(meal.protein)}<span className="t-sm">g</span></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Net vs TDEE below the 3 columns */}
+      {(net != null || burnedToday > 0) && (
+        <div className="px-6 py-4 border-t border-bd flex items-center gap-8">
+          <div>
+            <span className="micro font-semibold text-white tracking-wider">Net vs TDEE</span>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="font-display font-semibold text-[28px] tnum">
+                {net != null ? (net > 0 ? '+' : '') + fmtNum(net) : fmtNum(calories)}
+              </span>
+              <span className="t-sm text-muted font-mono">kcal</span>
+            </div>
+          </div>
+          <div className="t-sm text-muted">
+            {net != null
+              ? (net < 0 ? 'In deficit' : net > 0 ? 'In surplus' : 'Maintenance')
+              : (burnedToday > 0 ? `${fmtNum(burnedToday)} kcal burned` : 'No TDEE data')}
+          </div>
+          {tdeeToday != null && (
+            <div className="t-xs text-muted font-mono ml-auto">
+              Intake {fmtNum(calories)} · TDEE {fmtNum(tdeeToday)} · Net {net != null ? (net > 0 ? '+' : '') + fmtNum(net) : '—'} kcal
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── ThisWeekCard ───────────────────────────────────────────────────────────────
+
+function ThisWeekCardV3({
+  workouts,
+  exGoals,
+  weeklyData: _weeklyData,
+}: {
+  workouts: WorkoutSummary[];
+  exGoals: ExerciseGoals | null;
+  weeklyData: WeekBucket[];
+}) {
+  const today = localDateStr();
+  const weekStart = getWeekStart(today);
+  const streak = computeDayStreak(workouts);
+
+  const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === weekStart);
+  const weekVolumeLbs = Math.round(weekWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0));
+  const weekCount = weekWorkouts.length;
+
+  const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
+  const workoutGoal = exGoals?.workoutsPerWeek ?? null;
+
+  const weekDayLabels = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
+  const weekDayBars = weekDayLabels.map((label, i) => {
+    const d = new Date(weekStart + 'T12:00:00');
+    d.setDate(d.getDate() + i);
+    const dateStr = localDateStr(d);
+    const isToday = dateStr === today;
+    const dayWorkouts = workouts.filter((w) => w.workoutDate === dateStr);
+    const volumeLbs = dayWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
+    const cardioProxy = dayWorkouts.filter((w) => (w.totalVolumeKg ?? 0) === 0).reduce((s, w) => s + (w.caloriesBurned ?? 0) * 10, 0);
+    const barVal = volumeLbs > 0 ? volumeLbs : cardioProxy;
+    const isCardio = volumeLbs === 0 && cardioProxy > 0;
+    return { label, dateStr, isToday, barVal, isCardio, vol: Math.round(barVal) };
+  });
+
+  const maxVol = Math.max(...weekDayBars.map((d) => d.barVal), 1);
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  const weekLabel = weekStart
+    ? new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="This Week" meta={`Week of ${weekLabel} · ${streak}-day streak`} />
+      <div className="grid" style={{ gridTemplateColumns: '1fr 2.2fr' }}>
+        <div className="border-r border-bd divide-y divide-bd">
+          {/* Workouts stat */}
+          <div className="p-6">
+            <div className="flex items-baseline justify-between mb-2.5">
+              <span className="micro text-muted">Workouts</span>
+              <span className={`t-xs font-mono font-medium ${workoutGoal && weekCount >= workoutGoal ? 'gold' : 'text-muted'}`}>
+                {workoutGoal ? Math.round(Math.min(weekCount / workoutGoal, 1) * 100) : 0}%
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mb-3">
+              <span className="font-display font-semibold text-[38px] tnum leading-none">{weekCount}</span>
+              <span className="t-sm text-muted font-mono">/ {workoutGoal ?? '—'}</span>
+            </div>
+            <div className="h-[5px] bg-bg rounded-full overflow-hidden">
+              <div className="h-full bg-gold rounded-full" style={{ width: `${workoutGoal ? Math.min(weekCount / workoutGoal, 1) * 100 : 0}%`, transition: 'width 0.6s ease' }} />
+            </div>
+          </div>
+          {/* Volume stat */}
+          <div className="p-6">
+            <div className="flex items-baseline justify-between mb-2.5">
+              <span className="micro text-muted">Volume</span>
+              <span className={`t-xs font-mono font-medium ${volumeGoal && weekVolumeLbs >= volumeGoal ? 'gold' : 'text-muted'}`}>
+                {volumeGoal ? Math.round(Math.min(weekVolumeLbs / volumeGoal, 1) * 100) : 0}%
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mb-3">
+              <span className="font-display font-semibold text-[38px] tnum leading-none">{fmtNum(weekVolumeLbs)}</span>
+              <span className="t-sm text-muted font-mono">/ {volumeGoal ? fmtNum(volumeGoal) : '—'} lbs</span>
+            </div>
+            <div className="h-[5px] bg-bg rounded-full overflow-hidden">
+              <div className="h-full bg-gold rounded-full" style={{ width: `${volumeGoal ? Math.min(weekVolumeLbs / volumeGoal, 1) * 100 : 0}%`, transition: 'width 0.6s ease' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Day bars */}
+        <div className="p-6">
+          <div className="flex items-baseline justify-between mb-4">
+            <span className="micro text-muted">Volume by day</span>
+            <span className="t-xs text-muted font-mono">lbs</span>
+          </div>
+          <div className="flex items-end gap-3 h-[140px]">
+            {weekDayBars.map((d, i) => {
+              const h = (d.barVal / maxVol) * 100;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full">
+                  <div className="flex-1 flex flex-col justify-end w-full relative">
+                    {d.isToday && (
+                      <div className="absolute -top-5 left-0 right-0 text-center">
+                        <span className="t-xs gold font-mono">today</span>
+                      </div>
+                    )}
+                    {d.isCardio && d.barVal > 0 ? (
+                      <div className="w-full rounded-t-sm" style={{ height: `${Math.max(h, 4)}%`, minHeight: 4, borderWidth: 2, borderStyle: 'dashed', borderColor: GOLD + 'B3', background: GOLD + '33' }} />
+                    ) : d.barVal > 0 ? (
+                      <div className="w-full rounded-t-sm bg-gold" style={{ height: `${Math.max(h, 3)}%`, minHeight: 3 }} />
+                    ) : (
+                      <div className="w-full h-[2px] rounded-full" style={{ background: 'rgb(var(--color-border))' }} />
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className={`t-xs font-mono ${d.isToday ? 'gold font-semibold' : 'text-muted'}`}>{d.label}</div>
+                    <div className={`font-mono tnum ${d.vol ? '' : 'text-muted'}`} style={{ fontSize: 10 }}>
+                      {d.isCardio && d.vol ? '≈' : ''}{d.vol ? fmtNum(d.vol) : '—'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── BodyCompositionCard ────────────────────────────────────────────────────────
+
+function BodyCompositionCardV3({ measurements, onMeasurementLogged }: { measurements: BodyMeasurement[]; onMeasurementLogged?: () => void }) {
+  const today = localDateStr();
+  const thirtyDaysAgo = (() => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - 30);
+    return localDateStr(d);
+  })();
+  const [logMetric, setLogMetric] = useState<string | null>(null);
+  const [logValue, setLogValue] = useState('');
+  const [logSaving, setLogSaving] = useState(false);
+
+  async function saveLog() {
+    if (!logMetric || !logValue) return;
+    const cfg = METRIC_CONFIG[logMetric];
+    if (!cfg) return;
+    setLogSaving(true);
+    try {
+      await measurementsApi.add({ metric: logMetric, value: Number(logValue), unit: cfg.unit });
+      setLogMetric(null);
+      setLogValue('');
+      onMeasurementLogged?.();
+    } catch { /* ignore */ } finally { setLogSaving(false); }
+  }
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader
+        label="Body Composition"
+        meta="latest readings"
+        action={
+          <div className="flex gap-1">
+            {(['waist', 'bicep'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setLogMetric(m === logMetric ? null : m); setLogValue(''); }}
+                title={`Log ${METRIC_CONFIG[m]?.label}`}
+                className="flex items-center gap-1 border border-bd hover:border-gold px-2 py-1 rounded transition-colors text-muted hover:gold"
+                style={{ color: logMetric === m ? 'rgb(var(--color-accent))' : undefined, borderColor: logMetric === m ? 'rgb(var(--color-accent))' : undefined }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8.5 1.5l2 2L4 10H2v-2L8.5 1.5z"/>
+                </svg>
+                <span className="t-xs font-mono">{METRIC_CONFIG[m]?.label}</span>
+              </button>
+            ))}
+          </div>
+        }
+      />
+      {/* Quick-log inline */}
+      {logMetric && (
+        <div className="px-6 py-3 border-b border-bd bg-bg/40 flex items-center gap-3">
+          <span className="t-sm text-muted">{METRIC_CONFIG[logMetric]?.label}</span>
+          <input
+            autoFocus
+            type="number"
+            step="0.1"
+            value={logValue}
+            onChange={(e) => setLogValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveLog(); if (e.key === 'Escape') setLogMetric(null); }}
+            placeholder={`value in ${METRIC_CONFIG[logMetric]?.unit}`}
+            className="flex-1 bg-bg border border-bd rounded px-3 py-1.5 t-sm font-mono text-white outline-none focus:border-gold"
+          />
+          <button onClick={saveLog} disabled={logSaving || !logValue} className="bg-gold text-slate-900 font-semibold px-3 py-1.5 rounded t-xs disabled:opacity-50">
+            {logSaving ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => setLogMetric(null)} className="t-xs text-muted hover:gold">Cancel</button>
+        </div>
+      )}
+      <div className="flex justify-center divide-x divide-bd">
+        {BODY_COMP_METRICS.map((key) => {
+          const cfg = METRIC_CONFIG[key];
+          const forMetric = measurements
+            .filter((m) => m.metric === key)
+            .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+          const latest = forMetric[0];
+          const monthAgo = forMetric.find((m) => m.measuredAt <= thirtyDaysAgo);
+
+          const metricKey = key as string;
+          const displayVal = latest
+            ? (metricKey === 'weight' && latest.unit === 'kg'
+              ? (latest.value * KG_TO_LBS).toFixed(1)
+              : String(latest.value))
+            : null;
+
+          let deltaText: string | null = null;
+          let deltaColor = 'rgb(var(--color-muted))';
+          if (latest && monthAgo && monthAgo.id !== latest.id) {
+            const latestNum = metricKey === 'weight' && latest.unit === 'kg' ? latest.value * KG_TO_LBS : latest.value;
+            const prevNum = metricKey === 'weight' && monthAgo.unit === 'kg' ? monthAgo.value * KG_TO_LBS : monthAgo.value;
+            const delta = latestNum - prevNum;
+            const dir = cfg.defaultGoalDir === 'up' ? (delta >= 0 ? 'good' : 'bad') : (delta <= 0 ? 'good' : 'bad');
+            const sign = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+            deltaText = `${sign} ${Math.abs(Math.round(delta * 10) / 10)}${cfg.unit} this month`;
+            deltaColor = dir === 'good' ? '#86AA80' : prevNum > 0 && Math.abs(delta / prevNum) > 0.05 ? '#C5896E' : '#D4A843';
+          }
+
+          return (
+            <div key={key} className="p-6 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cfg.color }} />
+                <span className="micro text-muted">{cfg.label}</span>
+              </div>
+              {displayVal != null ? (
+                <>
+                  <div className="flex items-baseline gap-1.5 mt-2">
+                    <span className="font-display font-semibold text-[36px] tnum leading-none">{displayVal}</span>
+                    {cfg.unit && <span className="t-base text-muted font-mono">{cfg.unit}</span>}
+                  </div>
+                  {deltaText && <div className="t-sm mt-1.5" style={{ color: deltaColor }}>{deltaText}</div>}
+                </>
+              ) : (
+                <div className="mt-2">
+                  <span className="font-display font-semibold text-[36px] text-muted/30">—</span>
+                  <div className="mt-1">
+                    <button onClick={() => { setLogMetric(key); setLogValue(''); }} className="t-xs gold font-medium">
+                      Log it →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ── CaloriesVsTDEE (SVG) ───────────────────────────────────────────────────────
+
+function CaloriesVsTDEECard({
+  foodLogHistory,
+  workouts,
+  todayTDEE,
+  range,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  workouts: WorkoutSummary[];
+  todayTDEE: TDEEBreakdown | null;
+  caloriesGoal?: number | null;
+  range?: '30d' | '90d' | '1yr' | 'all';
+}) {
+  const now = new Date();
+  const numDays = range === '90d' ? 90 : range === '1yr' ? 365 : range === 'all' ? 365 : 30;
+  const days30 = Array.from({ length: numDays }, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - (numDays - 1 - i)); return localDateStr(d);
+  });
+  const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
+  const exerciseByDate: Record<string, number> = {};
+  for (const w of workouts) { if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned; }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+
+  const points = days30.map((date) => {
+    const food = foodByDate[date];
+    const cal = food?.calories ?? 0;
+    const tdee = baseline != null ? baseline + Math.round(cal * 0.1) + (exerciseByDate[date] ?? 0) : null;
+    return { date, cal, tdee };
+  });
+
+  const W = 460, H = 160;
+  const padT = 8, padB = 28, padL = 4, padR = 20;
+  const cW = W - padL - padR;
+  const cH = H - padT - padB;
+
+  const allVals = points.flatMap((p) => [p.cal, p.tdee ?? 0]).filter(Boolean);
+  const yMax = allVals.length ? Math.max(...allVals) * 1.1 : 3000;
+  const toX = (i: number) => padL + (i / (points.length - 1)) * cW;
+  const toY = (v: number) => padT + cH - (v / yMax) * cH;
+
+  const calPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(p.cal).toFixed(1)}`).join(' ');
+  const calFill = calPath + ` L${toX(points.length - 1).toFixed(1)},${(padT + cH).toFixed(1)} L${toX(0).toFixed(1)},${(padT + cH).toFixed(1)} Z`;
+
+  const tdeeSegs: string[] = [];
+  let seg = '';
+  points.forEach((p, i) => {
+    if (p.tdee != null) {
+      seg += (seg === '' ? 'M' : 'L') + `${toX(i).toFixed(1)},${toY(p.tdee).toFixed(1)} `;
+    } else if (seg) { tdeeSegs.push(seg.trim()); seg = ''; }
+  });
+  if (seg) tdeeSegs.push(seg.trim());
+
+  const xLabelIdxs = [0, Math.floor(points.length / 3), Math.floor(2 * points.length / 3), points.length - 1];
+
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg || points.length < 2) return;
+    const rect = svg.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const svgX = xRatio * W;
+    const idx = Math.round((svgX - padL) / cW * (points.length - 1));
+    setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)));
+  }
+
+  const hoverPt = hoverIdx != null ? points[hoverIdx] : null;
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="Calories vs TDEE" meta={`last ${numDays}d`} />
+      <div className="px-6 pb-2 flex items-center gap-4 pt-3">
+        <span className="flex items-center gap-1.5 t-xs text-muted">
+          <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="rgb(var(--color-accent))" strokeWidth="2" strokeLinecap="round"/></svg>
+          Intake
+        </span>
+        {baseline != null && (
+          <span className="flex items-center gap-1.5 t-xs text-muted">
+            <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="rgb(var(--color-muted))" strokeWidth="1.5" strokeDasharray="4 3"/></svg>
+            TDEE
+          </span>
+        )}
+        {hoverPt && (
+          <span className="ml-auto t-xs font-mono text-muted">
+            {new Date(hoverPt.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {' · '}<span style={{ color: 'rgb(var(--color-accent))' }}>{fmtNum(hoverPt.cal)} kcal</span>
+            {hoverPt.tdee != null && <> · TDEE {fmtNum(hoverPt.tdee)}</>}
+          </span>
+        )}
+      </div>
+      <div className="px-6 pb-6">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ height: 180 }}
+          preserveAspectRatio="none"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <defs>
+            <linearGradient id="v3calGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={calFill} fill="url(#v3calGrad)" />
+          <path d={calPath} fill="none" stroke="rgb(var(--color-accent))" strokeWidth="1.8" strokeLinecap="round" />
+          {tdeeSegs.map((d, i) => (
+            <path key={i} d={d} fill="none" stroke="rgb(var(--color-muted))" strokeWidth="1.4" strokeDasharray="5 4" />
+          ))}
+          {/* Hover crosshair */}
+          {hoverIdx != null && hoverPt && (
+            <>
+              <line x1={toX(hoverIdx)} y1={padT} x2={toX(hoverIdx)} y2={padT + cH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+              <circle cx={toX(hoverIdx)} cy={toY(hoverPt.cal)} r="3.5" fill="rgb(var(--color-accent))" />
+              {hoverPt.tdee != null && (
+                <circle cx={toX(hoverIdx)} cy={toY(hoverPt.tdee)} r="3" fill="rgb(var(--color-muted))" />
+              )}
+            </>
+          )}
+          {xLabelIdxs.map((i) => i < points.length && (
+            <text key={i} x={toX(i)} y={H - 4} textAnchor={i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+              {new Date(points[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+            </text>
+          ))}
+          {hoverIdx == null && points.length > 0 && (
+            <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].cal)} r="3" fill="rgb(var(--color-accent))" />
+          )}
+        </svg>
+      </div>
+    </section>
+  );
+}
+
+// ── WeightTrendCard (SVG) ──────────────────────────────────────────────────────
+
+function WeightTrendCard({
+  measurements,
+  measurementGoals,
+  range,
+}: {
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  range: '30d' | '90d' | '1yr' | 'all';
+}) {
+  const weightMeasurements = measurements
+    .filter((m) => m.metric === 'weight')
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
+
+  const now = new Date();
+  const cutoff = (() => {
+    if (range === '30d') { const d = new Date(now); d.setDate(d.getDate() - 30); return localDateStr(d); }
+    if (range === '90d') { const d = new Date(now); d.setDate(d.getDate() - 90); return localDateStr(d); }
+    if (range === '1yr') { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return localDateStr(d); }
+    return null;
+  })();
+
+  const filtered = cutoff ? weightMeasurements.filter((m) => m.measuredAt >= cutoff) : weightMeasurements;
+  const data = filtered.map((m) => ({
+    date: m.measuredAt,
+    weight: m.unit === 'kg' ? Math.round(m.value * KG_TO_LBS * 10) / 10 : m.value,
+  }));
+
+  const weightGoalRaw = measurementGoals['weight'];
+  const weightGoalLbs = weightGoalRaw
+    ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue)
+    : null;
+
+  const vals = data.map((d) => d.weight);
+  const allVals = [...vals, ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
+  const yMinW = allVals.length ? Math.min(...allVals) * 0.98 : 0;
+  const yMaxW = allVals.length ? Math.max(...allVals) * 1.02 : 1;
+  const current = data[data.length - 1]?.weight ?? null;
+  const avg = vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
+  const delta = data.length >= 2 ? Math.round((data[data.length - 1].weight - data[0].weight) * 10) / 10 : null;
+
+  const W = 460, H = 160;
+  const padT = 8, padB = 28, padL = 4, padR = 20;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const toX = (i: number) => padL + (i / Math.max(data.length - 1, 1)) * cW;
+  const toY = (v: number) => padT + cH - ((v - yMinW) / Math.max(yMaxW - yMinW, 0.001)) * cH;
+
+  const wPath = data.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(p.weight).toFixed(1)}`).join(' ');
+  const wFill = data.length > 1 ? wPath + ` L${toX(data.length-1).toFixed(1)},${(padT+cH).toFixed(1)} L${toX(0).toFixed(1)},${(padT+cH).toFixed(1)} Z` : '';
+  const xLabelIdxs = data.length <= 4
+    ? data.map((_, i) => i)
+    : [0, Math.floor(data.length / 3), Math.floor(2 * data.length / 3), data.length - 1];
+
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef2 = useRef<SVGSVGElement>(null);
+
+  function handleMouseMoveW(e: React.MouseEvent<SVGSVGElement>) {
+    const svg = svgRef2.current;
+    if (!svg || data.length < 2) return;
+    const rect = svg.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const idx = Math.round(xRatio * (data.length - 1));
+    setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)));
+  }
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="Weight" meta={range} />
+      {data.length < 2 ? (
+        <div className="p-6 t-xs text-muted text-center py-10">Not enough weight data</div>
+      ) : (
+        <>
+          <div className="px-6 pb-2 flex items-center gap-4 pt-3">
+            <span className="flex items-center gap-1.5 t-xs text-muted">
+              <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="rgb(var(--color-accent))" strokeWidth="2" strokeLinecap="round"/></svg>
+              Weight
+            </span>
+            {weightGoalLbs != null && (
+              <span className="flex items-center gap-1.5 t-xs text-muted">
+                <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="rgb(var(--color-accent))" strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="4 3"/></svg>
+                Goal
+              </span>
+            )}
+            {hoverIdx != null ? (
+              <span className="ml-auto t-xs font-mono text-muted">
+                {new Date(data[hoverIdx].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {' · '}<span style={{ color: 'rgb(var(--color-accent))' }}>{data[hoverIdx].weight} lbs</span>
+                {weightGoalLbs != null && <> · goal {Math.round(weightGoalLbs * 10) / 10}</>}
+              </span>
+            ) : (
+              <span className="ml-auto t-xs font-mono text-muted flex gap-3">
+                {current != null && <span>Current <span className="text-white font-semibold">{current} lbs</span></span>}
+                {delta != null && <span style={{ color: delta <= 0 ? '#86AA80' : '#C5896E' }}>{delta > 0 ? '+' : ''}{delta} lbs</span>}
+              </span>
+            )}
+          </div>
+          <div className="px-6 pb-6">
+            <svg
+              ref={svgRef2}
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full"
+              style={{ height: 160 }}
+              preserveAspectRatio="none"
+              onMouseMove={handleMouseMoveW}
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              <defs>
+                <linearGradient id="v3wGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {wFill && <path d={wFill} fill="url(#v3wGrad)" />}
+              {weightGoalLbs != null && (
+                <line x1={0} y1={toY(weightGoalLbs)} x2={W} y2={toY(weightGoalLbs)}
+                  stroke="rgb(var(--color-accent))" strokeOpacity="0.4" strokeWidth="1.2" strokeDasharray="4 3" />
+              )}
+              <path d={wPath} fill="none" stroke="rgb(var(--color-accent))" strokeWidth="1.8" strokeLinecap="round" />
+              {hoverIdx != null && (
+                <>
+                  <line x1={toX(hoverIdx)} y1={padT} x2={toX(hoverIdx)} y2={padT + cH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                  <circle cx={toX(hoverIdx)} cy={toY(data[hoverIdx].weight)} r="3.5" fill="rgb(var(--color-accent))" />
+                </>
+              )}
+              {hoverIdx == null && data.length > 0 && (
+                <circle cx={toX(data.length-1)} cy={toY(data[data.length-1].weight)} r="3" fill="rgb(var(--color-accent))" />
+              )}
+              {xLabelIdxs.map((i) => i < data.length && (
+                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+                  {new Date(data[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                </text>
+              ))}
+            </svg>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── ProteinTrendCard (SVG) ─────────────────────────────────────────────────────
+
+function ProteinTrendCard({
+  foodLogHistory,
+  proteinGoal,
+  range,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  proteinGoal: number | null;
+  range: '30d' | '90d' | '1yr' | 'all';
+}) {
+  const now = new Date();
+  const numDays = range === '30d' ? 30 : range === '90d' ? 90 : range === '1yr' ? 365 : 365;
+  const days30 = Array.from({ length: numDays }, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - (numDays - 1 - i)); return localDateStr(d);
+  });
+  const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
+  const data = days30.map((date) => ({ date, protein: foodByDate[date]?.protein ?? null }));
+
+  const vals = data.map((d) => d.protein).filter((v): v is number => v != null);
+  const avg = vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
+  const last = data.filter((d) => d.protein != null).at(-1)?.protein ?? null;
+  const delta = vals.length >= 2 ? Math.round(vals[vals.length - 1] - vals[0]) : null;
+
+  const W = 460, H = 160;
+  const padT = 8, padB = 28, padL = 4, padR = 20;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const yMax = vals.length ? Math.max(...vals, proteinGoal ?? 0) * 1.15 : 200;
+  const toX = (i: number) => padL + (i / (data.length - 1)) * cW;
+  const toY = (v: number) => padT + cH - (v / Math.max(yMax, 1)) * cH;
+
+  const segs: string[] = [];
+  let currentSeg = '';
+  data.forEach((p, i) => {
+    if (p.protein != null) {
+      currentSeg += (currentSeg === '' ? 'M' : 'L') + `${toX(i).toFixed(1)},${toY(p.protein).toFixed(1)} `;
+    } else if (currentSeg) { segs.push(currentSeg.trim()); currentSeg = ''; }
+  });
+  if (currentSeg) segs.push(currentSeg.trim());
+
+  const pxLabelIdxs = data.length <= 30
+    ? [0, 7, 14, 21, data.length - 1]
+    : [0, Math.floor(data.length / 4), Math.floor(data.length / 2), Math.floor(3 * data.length / 4), data.length - 1];
+
+  const [hoverIdxP, setHoverIdxP] = useState<number | null>(null);
+  const svgRefP = useRef<SVGSVGElement>(null);
+
+  function handleMouseMoveP(e: React.MouseEvent<SVGSVGElement>) {
+    const svg = svgRefP.current;
+    if (!svg || data.length < 2) return;
+    const rect = svg.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const idx = Math.round(xRatio * (data.length - 1));
+    setHoverIdxP(Math.max(0, Math.min(data.length - 1, idx)));
+  }
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="Protein" meta={`last ${numDays}d`} />
+      {vals.length < 2 ? (
+        <div className="p-6 t-xs text-muted text-center py-10">Not enough protein data</div>
+      ) : (
+        <>
+          <div className="px-6 pb-2 flex items-center gap-4 pt-3">
+            <span className="flex items-center gap-1.5 t-xs text-muted">
+              <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="#7C9ECB" strokeWidth="2" strokeLinecap="round"/></svg>
+              Protein
+            </span>
+            {proteinGoal != null && (
+              <span className="flex items-center gap-1.5 t-xs text-muted">
+                <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="rgb(var(--color-accent))" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="4 3"/></svg>
+                Goal
+              </span>
+            )}
+            {hoverIdxP != null && data[hoverIdxP]?.protein != null ? (
+              <span className="ml-auto t-xs font-mono text-muted">
+                {new Date(data[hoverIdxP].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {' · '}<span style={{ color: '#7C9ECB' }}>{Math.round(data[hoverIdxP].protein!)}g protein</span>
+                {proteinGoal != null && <> · goal {proteinGoal}g</>}
+              </span>
+            ) : (
+              <span className="ml-auto t-xs font-mono text-muted flex gap-3">
+                {last != null && <span>Current <span style={{ color: '#7C9ECB' }} className="font-semibold">{last}g</span></span>}
+                {avg != null && <span>{numDays}d avg <span className="text-muted">{avg}g</span></span>}
+                {delta != null && <span style={{ color: delta >= 0 ? '#86AA80' : '#C5896E' }}>{delta >= 0 ? '+' : ''}{delta}g</span>}
+              </span>
+            )}
+          </div>
+          <div className="px-6 pb-6">
+            <svg
+              ref={svgRefP}
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full"
+              style={{ height: 160 }}
+              preserveAspectRatio="none"
+              onMouseMove={handleMouseMoveP}
+              onMouseLeave={() => setHoverIdxP(null)}
+            >
+              {proteinGoal != null && (
+                <line x1={0} y1={toY(proteinGoal)} x2={W} y2={toY(proteinGoal)}
+                  stroke="rgb(var(--color-accent))" strokeOpacity="0.5" strokeWidth="1.2" strokeDasharray="4 3" />
+              )}
+              {segs.map((d, i) => (
+                <path key={i} d={d} fill="none" stroke="#7C9ECB" strokeWidth="1.8" strokeLinecap="round" />
+              ))}
+              {hoverIdxP != null && data[hoverIdxP]?.protein != null && (
+                <>
+                  <line x1={toX(hoverIdxP)} y1={padT} x2={toX(hoverIdxP)} y2={padT + cH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                  <circle cx={toX(hoverIdxP)} cy={toY(data[hoverIdxP].protein!)} r="3.5" fill="#7C9ECB" />
+                </>
+              )}
+              {hoverIdxP == null && last != null && (
+                <circle cx={toX(data.length - 1)} cy={toY(last)} r="3" fill="#7C9ECB" />
+              )}
+              {pxLabelIdxs.map((i) => i < data.length && (
+                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+                  {new Date(data[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                </text>
+              ))}
+            </svg>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── TrendingSection (owns range state shared across Weight + Protein + Calories) ─
+
+function TrendingSection({
+  foodLogHistory, workouts, measurements, measurementGoals, routinesList, todayTDEE, caloriesGoal, proteinGoal,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  workouts: WorkoutSummary[];
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  routinesList: RoutineSummary[];
+  todayTDEE: TDEEBreakdown | null;
+  caloriesGoal?: number | null;
+  proteinGoal: number | null;
+}) {
+  const [range, setRange] = useState<'30d' | '90d' | '1yr' | 'all'>('90d');
+  const ranges = ['30d', '90d', '1yr', 'all'] as const;
+  return (
+    <div className="pt-4">
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1.5">
+            <V3GoldRule />
+            <span className="micro text-muted font-semibold tracking-wider">Progress over time</span>
+          </div>
+          <h2 className="font-display font-semibold text-[22px] tracking-tight text-white">How you're trending</h2>
+        </div>
+        <div className="flex gap-0.5 items-center">
+          {ranges.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className="px-2.5 py-1 rounded t-xs font-mono transition-colors"
+              style={{
+                color: range === r ? '#0f172a' : 'rgb(var(--color-muted))',
+                background: range === r ? 'rgb(var(--color-accent))' : 'transparent',
+                fontWeight: range === r ? 600 : 400,
+              }}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-6">
+          <CaloriesVsTDEECard foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} caloriesGoal={caloriesGoal} range={range} />
+          <VolumeHeatmapCard workouts={workouts} routinesList={routinesList} />
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          <WeightTrendCard measurements={measurements} measurementGoals={measurementGoals} range={range} />
+          <ProteinTrendCard foodLogHistory={foodLogHistory} proteinGoal={proteinGoal} range={range} />
+        </div>
+        <WeeklyAveragesCard foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} />
+      </div>
+    </div>
+  );
+}
+
+// ── VolumeHeatmapCard ──────────────────────────────────────────────────────────
+
+function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<{ clientX: number; clientY: number; label: string; vol: number; week: string } | null>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+  }, [workouts]);
+
+  const NUM_WEEKS = 13;
+  const today = localDateStr();
+  const weekStarts: string[] = [];
+  for (let i = NUM_WEEKS - 1; i >= 0; i--) {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - i * 7);
+    weekStarts.push(getWeekStart(localDateStr(d)));
+  }
+
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const routineIds = [...new Set(workouts.filter((w) => w.routineId).map((w) => w.routineId!))]
+    .filter((rId) => !/stair/i.test(routineNameById[rId] ?? ''))
+    .sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
+
+  const grid: Record<string, Record<string, number>> = {};
+  for (const rId of routineIds) {
+    grid[rId] = {};
+    for (const ws of weekStarts) {
+      const vol = workouts
+        .filter((w) => w.routineId === rId && getWeekStart(w.workoutDate) === ws)
+        .reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
+      grid[rId][ws] = Math.round(vol);
+    }
+  }
+
+  const allVols = Object.values(grid).flatMap((row) => Object.values(row)).filter((v) => v > 0);
+  const maxVol = allVols.length ? Math.max(...allVols) : 1;
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  if (routineIds.length === 0) {
+    return (
+      <section className="card overflow-hidden">
+        <V3CardHeader label="Volume Heatmap" meta="by routine × week" />
+        <div className="p-6 t-xs text-muted text-center py-10">No routine workout data yet.</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="Volume Heatmap" meta="by routine × week" />
+      <div className="px-6 pb-4">
+        <div ref={scrollRef} className="overflow-x-auto">
+          <table className="border-collapse">
+            <thead>
+              <tr>
+                <th className="text-left pb-2 pr-4 micro text-muted font-normal whitespace-nowrap" style={{ minWidth: 80 }}>Routine</th>
+                {weekStarts.map((ws) => {
+                  const d = new Date(ws + 'T12:00:00');
+                  return (
+                    <th key={ws} className="text-center pb-2 px-0.5 micro text-muted font-normal" style={{ minWidth: 28 }}>
+                      {d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {routineIds.map((rId) => (
+                <tr key={rId}>
+                  <td className="pr-4 py-1 t-xs text-muted whitespace-nowrap" style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {routineNameById[rId] ?? `Routine ${rId}`}
+                  </td>
+                  {weekStarts.map((ws) => {
+                    const vol = grid[rId][ws];
+                    const opacity = vol > 0 ? 0.12 + (vol / maxVol) * 0.88 : 0;
+                    return (
+                      <td key={ws} className="px-0.5 py-1 text-center">
+                        <div
+                          onMouseEnter={(e) => {
+                            const rect = (e.target as HTMLElement).getBoundingClientRect();
+                            setTooltip({
+                              clientX: rect.left + rect.width / 2,
+                              clientY: rect.top - 8,
+                              label: routineNameById[rId] ?? `Routine ${rId}`,
+                              vol,
+                              week: new Date(ws + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            });
+                          }}
+                          onMouseLeave={() => setTooltip(null)}
+                          style={{
+                            width: 22, height: 22, borderRadius: 3,
+                            background: vol > 0 ? `rgba(212,168,67,${opacity})` : 'rgb(var(--color-bg))',
+                            border: '1px solid rgb(var(--color-border))',
+                            cursor: vol > 0 ? 'default' : undefined,
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-2 t-xs text-muted mt-3">
+          <span>less</span>
+          {[0.12, 0.35, 0.55, 0.75, 1].map((o) => (
+            <div key={o} style={{ width: 12, height: 12, borderRadius: 2, background: `rgba(212,168,67,${o})` }} />
+          ))}
+          <span>more</span>
+        </div>
+      </div>
+      {/* Custom tooltip — fixed to viewport so overflow-hidden doesn't clip it */}
+      {tooltip && (
+        <div
+          className="pointer-events-none fixed z-50 px-2.5 py-1.5 rounded-md border border-bd"
+          style={{
+            background: 'rgb(var(--color-card))',
+            left: tooltip.clientX,
+            top: tooltip.clientY,
+            transform: 'translate(-50%, -100%)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <div className="t-xs text-muted font-mono">{tooltip.label} · wk of {tooltip.week}</div>
+          {tooltip.vol > 0 ? (
+            <div className="t-sm font-mono font-semibold gold tnum">{fmtNum(tooltip.vol)} lbs</div>
+          ) : (
+            <div className="t-xs text-muted">—</div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── WeeklyAveragesCard ─────────────────────────────────────────────────────────
+
+function WeeklyAveragesCard({
+  foodLogHistory,
+  workouts,
+  todayTDEE,
+}: {
+  foodLogHistory: FoodLogHistoryDay[];
+  workouts: WorkoutSummary[];
+  todayTDEE: TDEEBreakdown | null;
+}) {
+  const now = new Date();
+  const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
+
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const ws = getWeekStart(localDateStr(d));
+    const weekDate = new Date(ws + 'T12:00:00');
+    weeks.push({
+      weekStart: ws,
+      label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      calories: 0, protein: 0, carbs: 0, fat: 0, tdee: null, net: null,
+      isCurrentWeek: ws === getWeekStart(localDateStr()),
+      days: 0,
+    });
+  }
+
+  const exerciseByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+  }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+
+  for (const day of foodLogHistory) {
+    const ws = getWeekStart(day.date);
+    const week = weeks.find((wk) => wk.weekStart === ws);
+    if (!week) continue;
+    week.calories += day.calories;
+    week.protein += day.protein;
+    week.carbs += day.entries.reduce((s, e) => s + e.carbsG, 0);
+    week.fat += day.entries.reduce((s, e) => s + e.fatG, 0);
+    week.days++;
+    if (baseline != null) {
+      const dayTef = Math.round(day.calories * 0.1);
+      const dayEx = exerciseByDate[day.date] ?? 0;
+      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx;
+    }
+  }
+
+  for (const week of weeks) {
+    if (week.days > 0) {
+      week.calories = Math.round(week.calories / week.days);
+      week.protein = Math.round(week.protein / week.days);
+      week.carbs = Math.round(week.carbs / week.days);
+      week.fat = Math.round(week.fat / week.days);
+      if (week.tdee != null) {
+        week.tdee = Math.round(week.tdee / week.days);
+        week.net = week.calories - week.tdee;
+      }
+    }
+  }
+
+  const displayWeeks = [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek);
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="Weekly Averages" meta="per-day avg" />
+      <div className="overflow-x-auto px-6 pb-5">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-bd">
+              <th className="text-left py-3 pr-4 micro text-muted font-normal whitespace-nowrap">Week of</th>
+              <th className="text-right py-3 px-3 micro text-muted font-normal">Calories</th>
+              <th className="text-right py-3 px-3 micro text-muted font-normal">Protein (g)</th>
+              <th className="text-right py-3 px-3 micro text-muted font-normal">Carbs (g)</th>
+              <th className="text-right py-3 px-3 micro text-muted font-normal">Fat (g)</th>
+              {todayTDEE && <th className="text-right py-3 px-3 micro text-muted font-normal">TDEE</th>}
+              {todayTDEE && <th className="text-right py-3 pl-3 micro text-muted font-normal">Net</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {displayWeeks.map((week) => (
+              <tr
+                key={week.weekStart}
+                className="border-b border-bd/40 last:border-0"
+                style={{ background: week.isCurrentWeek ? 'rgba(212,168,67,0.04)' : undefined }}
+              >
+                <td className="py-3 pr-4 whitespace-nowrap">
+                  <span className="t-sm font-medium">{week.label}</span>
+                  {week.isCurrentWeek && <span className="ml-2 micro gold font-semibold">current</span>}
+                </td>
+                <td className="py-3 px-3 text-right font-mono tnum t-sm font-medium">{week.days > 0 ? fmtNum(week.calories) : <span className="text-muted">—</span>}</td>
+                <td className="py-3 px-3 text-right font-mono tnum t-sm" style={{ color: '#D4A843' }}>{week.days > 0 ? week.protein : <span className="text-muted">—</span>}</td>
+                <td className="py-3 px-3 text-right font-mono tnum t-sm" style={{ color: '#7C9ECB' }}>{week.days > 0 ? week.carbs : <span className="text-muted">—</span>}</td>
+                <td className="py-3 px-3 text-right font-mono tnum t-sm" style={{ color: '#C5896E' }}>{week.days > 0 ? week.fat : <span className="text-muted">—</span>}</td>
+                {todayTDEE && <td className="py-3 px-3 text-right font-mono tnum t-sm text-muted">{week.tdee != null && week.days > 0 ? fmtNum(week.tdee) : '—'}</td>}
+                {todayTDEE && (
+                  <td className="py-3 pl-3 text-right font-mono tnum t-sm font-semibold">
+                    {week.net != null && week.days > 0 ? (
+                      <span style={{ color: week.net < 0 ? '#86AA80' : week.net > 300 ? '#C5896E' : 'rgb(var(--color-muted))' }}>
+                        {week.net > 0 ? '+' : ''}{fmtNum(week.net)}
+                      </span>
+                    ) : <span className="text-muted">—</span>}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ── NorthStarCard ──────────────────────────────────────────────────────────────
+
+function V3Sparkline({ values }: { values: number[] }) {
+  const w = 240, h = 30;
+  if (values.length < 2) return null;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - ((v - min) / range) * h] as [number, number]);
+  const d = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(' ');
+  const fillD = d + ` L${w},${h} L0,${h} Z`;
+  const gradId = `nsgrad${Math.round(min)}x${Math.round(max)}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-7" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={fillD} fill={`url(#${gradId})`} />
+      <path d={d} fill="none" stroke="rgb(var(--color-accent))" strokeWidth="1.4" />
+      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill="rgb(var(--color-accent))" />
+    </svg>
+  );
+}
+
+function NorthStarCardV3({
+  measurements,
+  measurementGoals,
+}: {
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+}) {
+  const ICONS: Record<string, string> = { weight: '⚖️', waist: '📏', bicep: '💪', bmi: '📊', body_fat: '🔥', muscle_mass: '🏋️', water_pct: '💧' };
+  const metricsToShow = DISPLAYED_METRICS.slice(0, 3);
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader label="North Star Goals" meta="Body composition · tracking to target" />
+      <div className="grid grid-cols-3 divide-x divide-bd">
+        {metricsToShow.map((key) => {
+          const cfg = METRIC_CONFIG[key];
+          const goal = measurementGoals[key];
+          const sorted = measurements
+            .filter((m) => m.metric === key)
+            .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+          const latest = sorted[0];
+          const last10 = sorted.slice(0, 10).reverse();
+
+          const displayVal = latest
+            ? (key === 'weight' && latest.unit === 'kg'
+              ? (latest.value * KG_TO_LBS).toFixed(1)
+              : Number(latest.value).toFixed(1))
+            : null;
+          const targetVal = goal
+            ? (key === 'weight' && goal.unit === 'kg'
+              ? (goal.targetValue * KG_TO_LBS).toFixed(1)
+              : Number(goal.targetValue).toFixed(1))
+            : null;
+
+          const { status, projectedDate, pct } = goal
+            ? computeGoalPace(measurements, key, goal, cfg.defaultGoalDir)
+            : { status: 'red' as PaceStatus, projectedDate: null, pct: 0 };
+
+          const paceColor = status === 'green' ? '#86AA80' : status === 'yellow' ? GOLD : '#C5896E';
+          const paceLabel = status === 'green' ? '↑ Ahead' : status === 'yellow' ? '→ On track' : '↓ Behind';
+
+          const sparkValues = last10.map((m) =>
+            key === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value
+          );
+
+          const size = 82, sw = 7;
+          const r2 = (size - sw) / 2;
+          const c2 = 2 * Math.PI * r2;
+          const filled2 = pct * c2;
+
+          return (
+            <div key={key} className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="t-base text-muted leading-none">{ICONS[key] ?? '●'}</span>
+                    <span className="micro text-muted">{cfg.label}</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-2">
+                    <span className="font-display font-semibold text-[36px] tnum leading-none">{displayVal ?? '—'}</span>
+                    <span className="t-base text-muted font-mono">{cfg.unit}</span>
+                  </div>
+                  {targetVal && <div className="t-sm text-muted font-mono mt-1">target {targetVal} {cfg.unit}</div>}
+                </div>
+                <div className="relative shrink-0" style={{ width: size, height: size }}>
+                  <svg width={size} height={size} className="-rotate-90">
+                    <circle cx={size/2} cy={size/2} r={r2} fill="none" stroke="rgb(var(--color-border))" strokeWidth={sw} />
+                    <circle cx={size/2} cy={size/2} r={r2} fill="none" stroke={paceColor} strokeWidth={sw}
+                      strokeDasharray={`${filled2} ${c2}`} strokeLinecap="round" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center t-xs font-mono tnum" style={{ color: paceColor }}>
+                    {Math.round(pct * 100)}%
+                  </div>
+                </div>
+              </div>
+              {sparkValues.length >= 2 && <V3Sparkline values={sparkValues} />}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-bd">
+                <div>
+                  <div className="t-xs text-muted">Pace</div>
+                  <div className="t-sm font-medium mt-0.5" style={{ color: paceColor }}>{paceLabel}</div>
+                </div>
+                <div className="text-right">
+                  <div className="t-xs text-muted">ETA</div>
+                  <div className="t-sm font-mono tnum mt-0.5">{projectedDate ?? '—'}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ── CreatineCard ───────────────────────────────────────────────────────────────
+
+function CreatineCardV3({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[] }) {
+  const creatine = computeCreatineSaturation(foodLogHistory);
+  if (!creatine) return null;
+  const { satPct, loggedDays, daysToFull, phase } = creatine;
+  const size = 120, sw = 9;
+  const r = (size - sw) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = satPct * circ;
+
+  // Count actual creatine-logged days in the last 7 calendar days
+  const today = localDateStr();
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - i);
+    return localDateStr(d);
+  });
+  const creatineDaySet = new Set(
+    foodLogHistory
+      .filter((day) => day.entries.some((e) => e.foodName.toLowerCase().includes('creatine')))
+      .map((day) => day.date)
+  );
+  const last7 = last7Days.filter((d) => creatineDaySet.has(d)).length;
+
+  return (
+    <section className="card overflow-hidden h-full flex flex-col">
+      <V3CardHeader label="Creatine" meta={phase} />
+      <div className="p-6 flex-1 flex flex-col">
+        <div className="flex items-center gap-5">
+          <div className="relative shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgb(var(--color-border))" strokeWidth={sw} />
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#A78BFA" strokeWidth={sw}
+                strokeDasharray={`${filled} ${circ}`} strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="font-display font-semibold text-[26px] tnum">{Math.round(satPct * 100)}%</div>
+              <div className="t-sm text-muted">saturated</div>
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="inline-block px-2 py-0.5 rounded-sm text-[10.5px] font-semibold uppercase tracking-wider mb-2"
+              style={{ background: 'rgba(167,139,250,0.15)', color: '#C4B5FD' }}>
+              {phase}
+            </div>
+            <div className="t-base text-muted leading-snug">Consistent 5g/day keeps intramuscular creatine topped up.</div>
+          </div>
+        </div>
+        <div className="mt-6 space-y-3">
+          <div className="flex items-baseline justify-between">
+            <span className="t-base text-muted">Days logged</span>
+            <span className="t-base font-mono tnum">{loggedDays}</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="t-base text-muted">7-day compliance</span>
+            <span className={`t-base font-mono tnum ${last7 === 7 ? 'gold font-semibold' : ''}`}>{last7}/7</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="t-base text-muted">Next milestone</span>
+            <span className="t-base font-mono tnum">{daysToFull > 0 ? `in ${daysToFull} days` : 'achieved'}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── PersonalBestsCard ──────────────────────────────────────────────────────────
+
+function PersonalBestsCardV3({ personalBests, workouts, routinesList }: {
+  personalBests: PersonalBests | null;
+  workouts: WorkoutSummary[];
+  routinesList: RoutineSummary[];
+}) {
+  const rows: { lift: string; meta: string; value: string }[] = [];
+  const fmtLbs = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+
+  // Row 1: heaviest single lift
+  if (personalBests?.heaviestLift) {
+    const lift = personalBests.heaviestLift;
+    rows.push({
+      lift: lift.exerciseName,
+      meta: `${lift.reps != null ? lift.reps + ' rep' + (lift.reps !== 1 ? 's' : '') + ' · ' : ''}${new Date(lift.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
+      value: `${fmtLbs(lift.weightKg * KG_TO_LBS)} lbs`,
+    });
+  }
+
+  // Row 2: best session volume — show routine name if available
+  if (personalBests?.bestSessionVolume) {
+    const bsv = personalBests.bestSessionVolume;
+    const bestWorkout = workouts.find((w) => w.workoutDate === bsv.workoutDate && Math.abs((w.totalVolumeKg ?? 0) - bsv.volumeKg) < 1);
+    const routineName = bestWorkout?.routineId ? routineNameById[bestWorkout.routineId] : null;
+    rows.push({
+      lift: routineName ?? bsv.workoutName ?? 'Best Session',
+      meta: `Best session · ${new Date(bsv.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
+      value: `${fmtLbs(bsv.volumeKg * KG_TO_LBS)} lbs`,
+    });
+  }
+
+  // Row 3: 2nd-highest individual lift (different exercise from Row 1)
+  if (workouts.length > 0) {
+    const topLiftExercise = personalBests?.heaviestLift?.exerciseName?.toLowerCase();
+    // Collect all exercise maxWeightKg from all workouts, excluding the Row 1 exercise
+    const liftMap = new Map<string, { weightKg: number; workoutDate: string }>();
+    for (const w of workouts) {
+      for (const ex of w.exercises) {
+        if (!ex.maxWeightKg) continue;
+        const nameLower = ex.name.toLowerCase();
+        if (topLiftExercise && nameLower === topLiftExercise) continue;
+        const existing = liftMap.get(ex.name);
+        if (!existing || ex.maxWeightKg > existing.weightKg) {
+          liftMap.set(ex.name, { weightKg: ex.maxWeightKg, workoutDate: w.workoutDate });
+        }
+      }
+    }
+    const [secondName, secondData] = [...liftMap.entries()].sort((a, b) => b[1].weightKg - a[1].weightKg)[0] ?? [];
+    if (secondName && secondData) {
+      rows.push({
+        lift: secondName,
+        meta: `Heaviest set · ${new Date(secondData.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
+        value: `${fmtLbs(secondData.weightKg * KG_TO_LBS)} lbs`,
+      });
+    }
+  }
+
+  // Row 4: best stair pace if available
+  if (rows.length < 4 && personalBests?.bestStairPace) {
+    const bp = personalBests.bestStairPace;
+    rows.push({
+      lift: bp.exerciseName,
+      meta: `Best pace · ${new Date(bp.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
+      value: `${bp.reps} reps`,
+    });
+  }
+
+  return (
+    <section className="card overflow-hidden h-full flex flex-col">
+      <V3CardHeader label="Personal Bests" meta="All time" />
+      <div className="flex-1 divide-y divide-bd">
+        {rows.length === 0 ? (
+          <div className="p-6 t-xs text-muted text-center py-10">No workout data yet.</div>
+        ) : rows.map((pb, i) => (
+          <div key={i} className="flex items-baseline justify-between px-6 py-4">
+            <div>
+              <div className="t-base font-medium">{pb.lift}</div>
+              <div className="t-sm text-muted font-mono mt-0.5">{pb.meta}</div>
+            </div>
+            <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{pb.value}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── RecentWorkoutsCard ─────────────────────────────────────────────────────────
+
+function computeWorkoutHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string | null {
+  const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
+  // PR on any exercise?
+  for (const ex of w.exercises) {
+    if (!ex.maxWeightKg) continue;
+    const prevMax = allWorkouts
+      .filter((prev) => prev.workoutDate < w.workoutDate)
+      .flatMap((prev) => prev.exercises)
+      .filter((e) => e.name === ex.name && e.maxWeightKg != null)
+      .reduce((max, e) => Math.max(max, e.maxWeightKg!), 0);
+    if (prevMax > 0 && ex.maxWeightKg > prevMax) {
+      return `PR: ${ex.name} ${Math.round(ex.maxWeightKg * KG_TO_LBS)} lbs`;
+    }
+  }
+  // Best volume for this routine?
+  if (w.routineId && volLbs > 0) {
+    const prevBest = allWorkouts
+      .filter((prev) => prev.routineId === w.routineId && prev.workoutDate < w.workoutDate)
+      .reduce((best, prev) => Math.max(best, Math.round((prev.totalVolumeKg ?? 0) * KG_TO_LBS)), 0);
+    if (prevBest > 0 && volLbs > prevBest) return `Best volume for this routine`;
+  }
+  // High calorie burn?
+  if (w.caloriesBurned && w.caloriesBurned >= 400) return `${w.caloriesBurned} kcal burned`;
+  // New exercise added?
+  const exerciseNames = new Set(w.exercises.map((e) => e.name));
+  const allPriorNames = new Set(allWorkouts.filter((prev) => prev.workoutDate < w.workoutDate).flatMap((p) => p.exercises.map((e) => e.name)));
+  for (const name of exerciseNames) {
+    if (!allPriorNames.has(name)) return `First time: ${name}`;
+  }
+  return null;
+}
+
+function RecentWorkoutsCardV3({
+  workouts,
+  routinesList,
+}: {
+  workouts: WorkoutSummary[];
+  routinesList: RoutineSummary[];
+}) {
+  const navigate = useNavigate();
+  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
+  const last10 = completed.slice(0, 10);
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+  return (
+    <section className="card overflow-hidden">
+      <V3CardHeader
+        label="Recent Workouts"
+        meta={`Last ${last10.length} sessions`}
+        action={<button onClick={() => navigate('/workouts')} className="t-xs text-muted hover:gold font-mono transition-colors">View all →</button>}
+      />
+      {last10.length === 0 ? (
+        <div className="p-10 text-center"><div className="t-sm text-muted">No workouts logged yet.</div></div>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-bd">
+              <th className="text-left px-6 py-3 micro text-muted">Date</th>
+              <th className="text-left px-4 py-3 micro text-muted">Session</th>
+              <th className="text-right px-4 py-3 micro text-muted">Volume</th>
+              <th className="text-right px-4 py-3 micro text-muted">Calories</th>
+              <th className="text-left px-4 py-3 micro text-muted">Highlight</th>
+              <th className="text-right px-4 py-3 micro text-muted">vs Prior</th>
+              <th className="px-6 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {last10.map((w) => {
+              const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
+              const isCardio = volLbs === 0;
+              const routineName = w.routineId ? (routineNameById[w.routineId] ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
+              const totalDurSecs = isCardio ? w.exercises.reduce((sum, ex) => sum + (ex.totalDurationSeconds ?? 0), 0) : 0;
+              const volumeDisplay = !isCardio
+                ? <span>{fmtNum(volLbs)}<span className="text-muted"> lbs</span></span>
+                : totalDurSecs > 0
+                  ? <span>{Math.floor(totalDurSecs / 60)}<span className="text-muted"> min</span></span>
+                  : w.durationMinutes
+                    ? <span>{w.durationMinutes}<span className="text-muted"> min</span></span>
+                    : <span className="text-muted">—</span>;
+
+              let prior: WorkoutSummary | undefined;
+              if (w.routineId) {
+                prior = completed.find((x) => x.id !== w.id && x.routineId === w.routineId && x.workoutDate < w.workoutDate);
+              }
+              const priorVolLbs = prior ? Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS) : null;
+              const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
+              const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
+
+              return (
+                <tr
+                  key={w.id}
+                  className="border-b border-bd/60 last:border-0 hover:bg-bg/40 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/workouts/${w.id}`)}
+                >
+                  <td className="px-6 py-4 t-base font-mono tnum text-muted whitespace-nowrap">
+                    {new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </td>
+                  <td className="px-4 py-4 t-base font-medium">{routineName}</td>
+                  <td className="px-4 py-4 t-base text-right font-mono tnum">{volumeDisplay}</td>
+                  <td className="px-4 py-4 t-base text-right font-mono tnum">
+                    {w.caloriesBurned ? <span>{fmtNum(w.caloriesBurned)}<span className="text-muted"> kcal</span></span> : <span className="text-muted">—</span>}
+                  </td>
+                  <td className="px-4 py-4 t-base">
+                    {(() => {
+                      const highlight = computeWorkoutHighlight(w, completed);
+                      return highlight
+                        ? <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-gold shrink-0" /><span className="gold">{highlight}</span></span>
+                        : <span className="text-muted/40">—</span>;
+                    })()}
+                  </td>
+                  <td className="px-4 py-4 t-base text-right">
+                    {deltaPct != null ? (
+                      <span className="font-mono tnum font-semibold" style={{ color: delta! >= 0 ? '#86AA80' : '#C5896E' }}>
+                        {delta! >= 0 ? '▲' : '▼'}{Math.abs(Math.round(deltaPct))}%
+                      </span>
+                    ) : prior === undefined && w.routineId ? (
+                      <span className="text-muted t-xs">first</span>
+                    ) : (
+                      <span style={{ color: 'rgba(var(--color-muted), 0.4)' }}>—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className="t-xs text-muted hover:gold cursor-pointer font-mono">open →</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+// ── DashboardV3 shell ──────────────────────────────────────────────────────────
+
+function DashboardV3({
+  workouts, measurements, measurementGoals,
+  waterHistory, foodLogHistory, routinesList,
+  caloriesGoal, proteinGoal, carbsGoal, fatGoal,
+  todayTDEE, exGoals, weeklyData, personalBests,
+  loading, onWaterLogged, onMeasurementLogged,
+}: {
+  workouts: WorkoutSummary[];
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  waterHistory: WaterHistory | null;
+  foodLogHistory: FoodLogHistoryDay[];
+  routinesList: RoutineSummary[];
+  caloriesGoal: number | null;
+  proteinGoal: number | null;
+  carbsGoal: number | null;
+  fatGoal: number | null;
+  todayTDEE: TDEEBreakdown | null;
+  exGoals: ExerciseGoals | null;
+  weeklyData: WeekBucket[];
+  personalBests: PersonalBests | null;
+  loading: boolean;
+  onWaterLogged?: () => void;
+  onMeasurementLogged?: () => void;
+}) {
+  if (loading) return <div className="flex-1 flex items-center justify-center text-muted t-sm">Loading…</div>;
+
+  const today = localDateStr();
+  const sessionsLeftThisWeek = (() => {
+    const goal = exGoals?.workoutsPerWeek ?? null;
+    if (!goal) return null;
+    const weekStart = getWeekStart(today);
+    const done = workouts.filter((w) => getWeekStart(w.workoutDate) === weekStart).length;
+    return Math.max(0, goal - done);
+  })();
+  const streak = computeDayStreak(workouts);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {/* Slim header */}
+      <div className="border-b border-bd">
+        <div className="px-8 pt-9 pb-7 flex items-end justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="micro text-muted">Dashboard — {dateStr}</span>
+              <V3GoldRule />
+              <span className="t-xs text-muted font-mono">{timeStr}</span>
+            </div>
+            <h1 className="font-display font-semibold tracking-tight t-display">
+              {greeting}, <span className="gold">Jeff.</span>
+            </h1>
+            <p className="t-base text-muted mt-2 max-w-[60ch]">
+              {sessionsLeftThisWeek != null
+                ? `${sessionsLeftThisWeek} session${sessionsLeftThisWeek !== 1 ? 's' : ''} left this week to hit your target. ${streak}-day streak.`
+                : `You're all set this week. ${streak}-day streak — keep it going.`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 pb-1">
+            <a href="/nutrition/today" className="border border-bd hover:border-gold t-sm px-4 py-2.5 rounded-md whitespace-nowrap transition-colors">
+              + Log food
+            </a>
+            <a href="/workouts" className="bg-gold text-slate-900 font-semibold t-sm px-5 py-2.5 rounded-md hover:brightness-110 whitespace-nowrap transition-all">
+              + Start workout
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <main className="px-8 py-10 space-y-6">
+        <FuelTodayCard
+          foodLogHistory={foodLogHistory}
+          waterHistory={waterHistory}
+          workouts={workouts}
+          caloriesGoal={caloriesGoal}
+          proteinGoal={proteinGoal}
+          carbsGoal={carbsGoal}
+          fatGoal={fatGoal}
+          todayTDEE={todayTDEE}
+          onWaterLogged={onWaterLogged}
+        />
+
+        <ThisWeekCardV3 workouts={workouts} exGoals={exGoals} weeklyData={weeklyData} />
+
+        <BodyCompositionCardV3 measurements={measurements} onMeasurementLogged={onMeasurementLogged} />
+
+        {/* Progress over time */}
+        <TrendingSection
+          foodLogHistory={foodLogHistory}
+          workouts={workouts}
+          measurements={measurements}
+          measurementGoals={measurementGoals}
+          routinesList={routinesList}
+          todayTDEE={todayTDEE}
+          caloriesGoal={caloriesGoal}
+          proteinGoal={proteinGoal}
+        />
+
+        {/* Long game */}
+        <div className="pt-4">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-3 mb-1.5">
+                <V3GoldRule />
+                <span className="micro text-muted font-semibold tracking-wider">Long game</span>
+              </div>
+              <h2 className="font-display font-semibold text-[22px] tracking-tight text-white">North star goals</h2>
+            </div>
+          </div>
+          <NorthStarCardV3 measurements={measurements} measurementGoals={measurementGoals} />
+        </div>
+
+        <div className="grid grid-cols-[1fr_1fr] gap-6">
+          <CreatineCardV3 foodLogHistory={foodLogHistory} />
+          <PersonalBestsCardV3 personalBests={personalBests} workouts={workouts} routinesList={routinesList} />
+        </div>
+
+        <RecentWorkoutsCardV3 workouts={workouts} routinesList={routinesList} />
+
+        <footer className="pt-8 pb-4 flex items-center justify-between t-xs text-muted font-mono">
+          <div className="flex items-center gap-3">
+            <V3GoldRule w={14} />
+            <span>Pulse · health tracker</span>
+          </div>
+          <div>Last sync {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkoutsDashboardPage() {
@@ -2350,15 +3114,6 @@ export default function WorkoutsDashboardPage() {
       <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
         <div className="flex items-center justify-between pb-3">
           <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setStartPickerOpen(true)}
-              disabled={starting || startingRoutineId != null}
-              className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              {starting || startingRoutineId != null ? 'Starting…' : '+ Start Workout'}
-            </button>
-          </div>
         </div>
         <div className="flex gap-1">
           {(['dashboard', 'other'] as const).map((tab) => (
@@ -2441,7 +3196,7 @@ export default function WorkoutsDashboardPage() {
       )}
 
       {activeTab === 'dashboard' ? (
-        <DashboardV2
+        <DashboardV3
           workouts={workouts}
           measurements={measurements}
           measurementGoals={measurementGoals}
@@ -2452,7 +3207,20 @@ export default function WorkoutsDashboardPage() {
           loading={loading || (v2Loading && !v2Loaded)}
           caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
           proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}
+          carbsGoal={nutritionSummary?.nutrition.goals?.carbsG ?? null}
+          fatGoal={nutritionSummary?.nutrition.goals?.fatG ?? null}
           todayTDEE={todayTDEE}
+          exGoals={exGoals}
+          weeklyData={buildWeeklyData(workouts)}
+          onWaterLogged={() => {
+            const end = localDateStr();
+            const startD = new Date(); startD.setDate(startD.getDate() - 29);
+            const start = localDateStr(startD);
+            waterApi.getHistory(start, end).catch(() => null).then((wh) => { if (wh) setWaterHistory(wh); });
+          }}
+          onMeasurementLogged={() => {
+            measurementsApi.getAll().catch(() => []).then((ms) => setMeasurements(ms as BodyMeasurement[]));
+          }}
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-6">
