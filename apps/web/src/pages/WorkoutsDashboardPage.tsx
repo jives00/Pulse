@@ -1221,7 +1221,7 @@ function TodaysBlurb({
 // ─── Dashboard V3 ────────────────────────────────────────────────────────────
 
 const GOLD = '#D4A843';
-const BODY_COMP_METRICS = ['bmi', 'body_fat', 'muscle_mass'] as const;
+const BODY_COMP_METRICS = ['weight', 'bmi', 'body_fat', 'muscle_mass'] as const;
 
 // ── V3 primitives ─────────────────────────────────────────────────────────────
 

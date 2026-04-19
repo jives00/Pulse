@@ -130,15 +130,15 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
       setFatG(data.fat_g ? String(data.fat_g) : '');
       setFiberG(data.fiber_g ? String(data.fiber_g) : '');
       setSodiumMg(data.sodium_mg ? String(data.sodium_mg) : '');
-      if (data.ingredients.length) {
+      if (data.ingredients?.length) {
         setIngredients(data.ingredients.map((i) => ({
           name: i.name,
           quantity: i.quantity != null ? String(i.quantity) : '',
           unit: normalizeUnit(i.unit),
         })));
       }
-      if (data.steps.length) setSteps(data.steps);
-      if (data.suggested_tags.length && tagDefs) {
+      if (data.steps?.length) setSteps(data.steps);
+      if (data.suggested_tags?.length && tagDefs) {
         const allDefined = [...tagDefs.health, ...tagDefs.cuisine, ...tagDefs.category];
         const matched = data.suggested_tags
           .map((t: string) => allDefined.find(d => d.toLowerCase() === t.toLowerCase()))
@@ -174,15 +174,15 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
       setFatG((data as any).fat_g ? String((data as any).fat_g) : '');
       setFiberG((data as any).fiber_g ? String((data as any).fiber_g) : '');
       setSodiumMg((data as any).sodium_mg ? String((data as any).sodium_mg) : '');
-      if (data.ingredients.length) {
+      if (data.ingredients?.length) {
         setIngredients(data.ingredients.map((i) => ({
           name: i.name,
           quantity: i.quantity != null ? String(i.quantity) : '',
           unit: normalizeUnit(i.unit),
         })));
       }
-      if (data.steps.length) setSteps(data.steps);
-      if (data.suggested_tags.length && tagDefs) {
+      if (data.steps?.length) setSteps(data.steps);
+      if (data.suggested_tags?.length && tagDefs) {
         const allDefined = [...tagDefs.health, ...tagDefs.cuisine, ...tagDefs.category];
         const matched = data.suggested_tags
           .map((t: string) => allDefined.find(d => d.toLowerCase() === t.toLowerCase()))

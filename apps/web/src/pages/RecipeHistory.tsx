@@ -1,40 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, logApi, measurementsApi, historyApi, goalsApi,
+  workoutsApi, logApi, measurementsApi,
   type WorkoutSummary,
   type FoodLogHistoryDay, type FoodLogHistoryEntry,
   type BodyMeasurement,
-  type DailyHistoryEntry, type WeeklyHistoryEntry, type UserGoals,
   KG_TO_LBS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
-import {
-  ResponsiveContainer,
-  LineChart, Line,
-  BarChart, Bar,
-  XAxis, YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  Legend,
-} from 'recharts';
 
-type Tab = 'workouts' | 'nutrition' | 'measurements' | 'charts';
-
-type ChartRange = '14d' | '30d' | '90d';
-const CHART_RANGES: { label: string; value: ChartRange; days: number }[] = [
-  { label: '2 weeks', value: '14d', days: 14 },
-  { label: '30 days', value: '30d', days: 30 },
-  { label: '90 days', value: '90d', days: 90 },
-];
-
-function chartDateStr(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function fmtChartDate(iso: string) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+type Tab = 'workouts' | 'nutrition' | 'measurements';
 
 const METRICS = [
   { key: 'weight', label: 'Weight', unit: 'lbs' },
@@ -128,36 +103,11 @@ export default function History() {
   const [editModal, setEditModal] = useState<MeasurementEditModal>(EMPTY_MODAL);
   const [savingMeasurement, setSavingMeasurement] = useState(false);
 
-  // Charts state
-  const [chartRange, setChartRange] = useState<ChartRange>('30d');
-  const [chartDaily, setChartDaily] = useState<DailyHistoryEntry[]>([]);
-  const [chartWeekly, setChartWeekly] = useState<WeeklyHistoryEntry[]>([]);
-  const [chartGoals, setChartGoals] = useState<UserGoals | null>(null);
-  const [chartsLoading, setChartsLoading] = useState(false);
-
   useEffect(() => {
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
     logApi.getHistory(90).then(setFoodLogDays).finally(() => setNutritionLoading(false));
     measurementsApi.getAll().then(setMeasurements).finally(() => setMeasurementsLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (activeTab !== 'charts') return;
-    const rangeDef = CHART_RANGES.find((r) => r.value === chartRange)!;
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - rangeDef.days + 1);
-    setChartsLoading(true);
-    Promise.all([
-      historyApi.daily(chartDateStr(start), chartDateStr(end)),
-      historyApi.weekly(end.getFullYear()),
-      goalsApi.get().catch(() => null),
-    ]).then(([d, w, g]) => {
-      setChartDaily(d);
-      setChartWeekly(w);
-      setChartGoals(g);
-    }).finally(() => setChartsLoading(false));
-  }, [activeTab, chartRange]);
 
   async function handleDeleteWorkout(e: React.MouseEvent, id: number) {
     e.stopPropagation();
@@ -201,40 +151,7 @@ export default function History() {
   }
 
   const workoutGroups = groupWorkoutsByDate(workouts);
-  const loading = activeTab === 'workouts' ? workoutsLoading : activeTab === 'nutrition' ? nutritionLoading : activeTab === 'measurements' ? measurementsLoading : false;
-
-  // Charts derived values
-  const calGoal = chartGoals?.calories ?? 2000;
-  const chartDays = CHART_RANGES.find((r) => r.value === chartRange)!.days;
-  const filledDaily = (() => {
-    const map = new Map(chartDaily.map((d) => [d.date, d]));
-    const result: (DailyHistoryEntry & { display: string })[] = [];
-    for (let i = chartDays - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = chartDateStr(d);
-      const entry = map.get(iso);
-      result.push({
-        date: iso,
-        display: fmtChartDate(iso),
-        calories: entry?.calories ?? 0,
-        carbsG: entry?.carbsG ?? 0,
-        proteinG: entry?.proteinG ?? 0,
-        fatG: entry?.fatG ?? 0,
-        entryCount: entry?.entryCount ?? 0,
-      });
-    }
-    return result;
-  })();
-  const chartCutoff = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - chartDays + 1);
-    return chartDateStr(d);
-  })();
-  const filteredWeekly = chartWeekly.filter((w) => w.endDate >= chartCutoff);
-  const avgCal = chartDaily.length
-    ? Math.round(chartDaily.reduce((s, d) => s + d.calories, 0) / chartDaily.length)
-    : 0;
+  const loading = activeTab === 'workouts' ? workoutsLoading : activeTab === 'nutrition' ? nutritionLoading : measurementsLoading;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
@@ -242,7 +159,7 @@ export default function History() {
       <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
         <h1 className="text-xl font-semibold text-slate-200">History</h1>
         <div className="flex gap-1 mt-3">
-          {(['workouts', 'nutrition', 'measurements', 'charts'] as Tab[]).map((tab) => (
+          {(['workouts', 'nutrition', 'measurements'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -260,137 +177,7 @@ export default function History() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'charts' ? (
-          chartsLoading ? (
-            <div className="flex justify-center mt-16"><Spinner size={10} /></div>
-          ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
-              {/* Range selector */}
-              <div className="flex justify-end">
-                <div className="flex gap-1 bg-dram-card rounded-lg p-1">
-                  {CHART_RANGES.map((r) => (
-                    <button
-                      key={r.value}
-                      onClick={() => setChartRange(r.value)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                        chartRange === r.value
-                          ? 'bg-dram-accent text-black font-semibold'
-                          : 'text-dram-muted hover:text-slate-200'
-                      }`}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Summary stats */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Days logged', value: chartDaily.length },
-                  { label: 'Avg calories', value: avgCal },
-                  { label: 'Calorie goal', value: calGoal },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-dram-card border border-dram-border rounded-xl p-4 text-center">
-                    <div className="text-2xl font-semibold text-slate-100">{value.toLocaleString()}</div>
-                    <div className="text-xs text-slate-500 mt-1">{label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Calorie line chart */}
-              <div className="bg-dram-card border border-dram-border rounded-xl p-4">
-                <h2 className="text-sm font-medium text-slate-300 mb-4">Calories</h2>
-                {chartDaily.length === 0 ? (
-                  <div className="text-center text-slate-600 text-sm py-8">No data yet</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={filledDaily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="display" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} interval={Math.floor(chartDays / 6)} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                        labelStyle={{ color: '#cbd5e1', fontSize: 12 }}
-                        itemStyle={{ color: '#10b981', fontSize: 12 }}
-                        formatter={(v: number) => [v ? `${v} kcal` : '–', 'Calories']}
-                      />
-                      <ReferenceLine y={calGoal} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.6} />
-                      <Line type="monotone" dataKey="calories" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              {/* Macro bar chart */}
-              <div className="bg-dram-card border border-dram-border rounded-xl p-4">
-                <h2 className="text-sm font-medium text-slate-300 mb-4">Macros per day</h2>
-                {chartDaily.length === 0 ? (
-                  <div className="text-center text-slate-600 text-sm py-8">No data yet</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={filledDaily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }} barSize={chartRange === '90d' ? 3 : 6}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="display" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} interval={Math.floor(chartDays / 6)} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                        labelStyle={{ color: '#cbd5e1', fontSize: 12 }}
-                        itemStyle={{ fontSize: 12 }}
-                        formatter={(v: number, name: string) => [`${v}g`, name]}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
-                      <Bar dataKey="carbsG"   name="Carbs"   fill="#f59e0b" stackId="a" />
-                      <Bar dataKey="proteinG" name="Protein" fill="#3b82f6" stackId="a" />
-                      <Bar dataKey="fatG"     name="Fat"     fill="#a78bfa" stackId="a" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              {/* Weekly summary table */}
-              <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-dram-border">
-                  <h2 className="text-sm font-medium text-slate-300">Weekly averages</h2>
-                </div>
-                {filteredWeekly.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-slate-600">No data yet</div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-xs text-slate-500 border-b border-dram-border">
-                        <th className="px-4 py-2 text-left font-normal">Week of</th>
-                        <th className="px-4 py-2 text-right font-normal">Calories</th>
-                        <th className="px-4 py-2 text-right font-normal">Carbs</th>
-                        <th className="px-4 py-2 text-right font-normal">Protein</th>
-                        <th className="px-4 py-2 text-right font-normal">Fat</th>
-                        <th className="px-4 py-2 text-right font-normal">Days</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-dram-border/50">
-                      {filteredWeekly.map((w) => {
-                        const over = w.avgCalories > calGoal * 1.1;
-                        const under = w.avgCalories < calGoal * 0.9 && w.avgCalories > 0;
-                        return (
-                          <tr key={`${w.year}-${w.week}`} className="hover:bg-white/5">
-                            <td className="px-4 py-2.5 text-slate-300">{fmtChartDate(w.startDate)}</td>
-                            <td className={`px-4 py-2.5 text-right font-medium ${over ? 'text-red-400' : under ? 'text-yellow-400' : 'text-slate-200'}`}>
-                              {Math.round(w.avgCalories).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-slate-400">{Math.round(w.avgCarbsG)}g</td>
-                            <td className="px-4 py-2.5 text-right text-slate-400">{Math.round(w.avgProteinG)}g</td>
-                            <td className="px-4 py-2.5 text-right text-slate-400">{Math.round(w.avgFatG)}g</td>
-                            <td className="px-4 py-2.5 text-right text-slate-500">{w.daysLogged}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )
-        ) : loading ? (
+        {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>
         ) : activeTab === 'workouts' ? (
           /* ── Workout history ─────────────────────────────────────── */
