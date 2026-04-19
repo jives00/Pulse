@@ -9,7 +9,7 @@ import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getExerciseGoals, getMeasurements, getMeasurementGoals, getPersonalBests,
   getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  addWater,
+  getRoutineGoals, addWater,
   type WorkoutSummary, type ExerciseGoals, type BodyMeasurement, type MeasurementGoal,
   type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
   type DailyHistoryEntry, type RoutineSummary, type TDEEBreakdown,
@@ -77,44 +77,58 @@ function CalorieRing({ pct, color, size = 100, c }: { pct: number; color: string
   const sw = 10;
   const r = size / 2;
 
-  const rot1 = Math.min(degrees, 180) - 180;      // -180→0  (right blade, 0–50%)
-  const rot2 = -(Math.max(degrees - 180, 0));      // 0→-180  (left blade, 50–100%)
+  // Classic RN pie technique:
+  // Each half-clipper is overflow:hidden, width=r, height=size.
+  // Inside it a full-size (size×size) pivot rotates around the circle center.
+  // The pivot contains a solid-color rectangle covering its own right half — this is the "blade".
+  // As the pivot rotates, the blade sweeps the arc. The outer ring + inner mask convert it to a ring.
+  //
+  // Right clipper (left=r): blade starts hidden (-180deg) and sweeps to 0deg at 50%.
+  // Left clipper (left=0): blade starts hidden (0deg) and sweeps to -180deg from 50–100%.
+  //
+  // Pivot rotation is around its own center (r, r) which equals the circle center.
+  // The blade is a rect: top:0, left:r (right half of pivot), width:r, height:size.
+
+  const rot1 = degrees <= 180 ? degrees - 180 : 0;
+  const rot2 = degrees > 180 ? -(360 - degrees) : 0;
 
   return (
-    <View style={{ width: size, height: size, overflow: 'hidden' }}>
-      <View style={{ width: size, height: size, position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Track ring (background) */}
-        <View style={{ position: 'absolute', width: size, height: size, borderRadius: r, borderWidth: sw, borderColor: 'rgba(255,255,255,0.08)' }} />
+    <View style={{ width: size, height: size, borderRadius: r, overflow: 'hidden' }}>
+      {/* Track ring */}
+      <View style={{
+        position: 'absolute', width: size, height: size,
+        borderRadius: r, borderWidth: sw, borderColor: 'rgba(255,255,255,0.08)',
+      }} />
 
-        {/* Right blade: fills 0–180° */}
-        <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, overflow: 'hidden' }}>
-          <View style={{ position: 'absolute', top: 0, left: -r, width: size, height: size, transform: [{ rotate: `${rot1}deg` }] }}>
-            <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, backgroundColor: color }} />
+      {/* Right clipper: reveals 0–180° */}
+      <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, overflow: 'hidden' }}>
+        <View style={{ position: 'absolute', top: 0, left: -r, width: size, height: size, transform: [{ rotate: `${rot1}deg` }] }}>
+          <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, backgroundColor: color }} />
+        </View>
+      </View>
+
+      {/* Left clipper: reveals 180–360°, only mounted past 50% */}
+      {degrees > 180 && (
+        <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, overflow: 'hidden' }}>
+          <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, transform: [{ rotate: `${rot2}deg` }] }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, backgroundColor: color }} />
           </View>
         </View>
+      )}
 
-        {/* Left blade: fills 180–360°, only rendered when past halfway */}
-        {degrees > 180 && (
-          <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, overflow: 'hidden' }}>
-            <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, transform: [{ rotate: `${rot2}deg` }] }}>
-              <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, backgroundColor: color }} />
-            </View>
-          </View>
-        )}
+      {/* Inner mask: punches out center to create the ring stroke */}
+      <View style={{
+        position: 'absolute', top: sw + 1, left: sw + 1,
+        width: size - sw * 2 - 2, height: size - sw * 2 - 2,
+        borderRadius: (size - sw * 2 - 2) / 2,
+        backgroundColor: c.card,
+      }} />
 
-        {/* Outer cover ring: large card-colored border covers blade corners outside radius r.
-            Clipped to size×size by the parent overflow:hidden wrapper. */}
-        <View style={{ position: 'absolute', width: size * 2, height: size * 2, borderRadius: size, borderWidth: size / 2, borderColor: c.card }} />
-
-        {/* Inner mask: punches out center to create the ring stroke */}
-        <View style={{ position: 'absolute', width: size - sw * 2 - 2, height: size - sw * 2 - 2, borderRadius: r, backgroundColor: c.card }} />
-
-        {/* Center label */}
-        <View style={{ position: 'absolute', alignItems: 'center' }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>
-            {Math.round(clampedPct * 100)}%
-          </Text>
-        </View>
+      {/* Center label */}
+      <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>
+          {Math.round(clampedPct * 100)}%
+        </Text>
       </View>
     </View>
   );
@@ -178,7 +192,12 @@ function MiniLineChart({ data, color, goalLine, maxOverride, minOverride }: {
 }
 
 // ── 7-bar day-of-week chart for current week ──────────────────────────────────
-function DayVolumeBars({ workouts, c }: { workouts: WorkoutSummary[]; c: Colors }) {
+function DayVolumeBars({ workouts, volumeGoal, routineGoals, c }: {
+  workouts: WorkoutSummary[];
+  volumeGoal: number | null;
+  routineGoals: Record<number, number>;
+  c: Colors;
+}) {
   const { width: screenWidth } = useWindowDimensions();
   const today = localDateStr();
   const weekStart = getWeekStart(today);
@@ -191,20 +210,27 @@ function DayVolumeBars({ workouts, c }: { workouts: WorkoutSummary[]; c: Colors 
   }
 
   const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const volByDate: Record<string, number> = {};
-  for (const w of workouts) {
-    if (!days.includes(w.workoutDate)) continue;
-    const rt = (w as any).routineType as string | null | undefined;
-    let val = 0;
-    if (rt === 'steps') val = (w as any).totalSteps ?? 0;
-    else if (rt === 'cardio_distance') val = ((w as any).totalDistanceMeters ?? 0) / 1609.34 * 1000;
-    else if (rt === 'cardio_duration') val = ((w as any).totalDurationSeconds ?? 0);
-    else val = (w.totalVolumeKg ?? 0) * KG_TO_LBS;
-    volByDate[w.workoutDate] = (volByDate[w.workoutDate] ?? 0) + val;
+
+  // Normalize bar heights same as web: strength = volumeLbs/volumeGoal, non-strength = sessions/targetPerWeek
+  const pctByDate: Record<string, number> = {};
+  for (const d of days) {
+    const dayWorkouts = workouts.filter((w) => w.workoutDate === d);
+    if (dayWorkouts.length === 0) { pctByDate[d] = 0; continue; }
+    const hasStrength = dayWorkouts.some((w) => !w.routineType || w.routineType === 'strength' || w.routineType === 'bodyweight');
+    if (hasStrength) {
+      const volLbs = dayWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
+      pctByDate[d] = volumeGoal ? volLbs / volumeGoal : volLbs / 10000;
+    } else {
+      pctByDate[d] = dayWorkouts
+        .filter((w) => w.routineType && w.routineType !== 'strength' && w.routineType !== 'bodyweight')
+        .reduce((sum, w) => {
+          const target = w.routineId ? (routineGoals[w.routineId] ?? null) : null;
+          return sum + 1 / (target ?? 3);
+        }, 0);
+    }
   }
 
-  const values = days.map((d) => volByDate[d] ?? 0);
-  const maxVal = Math.max(...values, 1);
+  const maxPct = Math.max(...days.map((d) => pctByDate[d]), 0.01);
   const BAR_H = 40;
   const availW = screenWidth - 56;
   const barW = Math.floor((availW - 6 * 4) / 7);
@@ -212,10 +238,10 @@ function DayVolumeBars({ workouts, c }: { workouts: WorkoutSummary[]; c: Colors 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 20 }}>
       {days.map((d, i) => {
-        const val = values[i];
+        const pct = pctByDate[d];
         const isToday = d === today;
-        const barH = val > 0 ? Math.max((val / maxVal) * BAR_H, 4) : 2;
-        const barColor = isToday ? COL_GOLD : val > 0 ? `${COL_VOL}99` : 'rgba(255,255,255,0.08)';
+        const barH = pct > 0 ? Math.max((pct / maxPct) * BAR_H, 4) : 2;
+        const barColor = isToday ? COL_GOLD : pct > 0 ? `${COL_GOLD}99` : 'rgba(255,255,255,0.08)';
         return (
           <View key={d} style={{ width: barW, alignItems: 'center', gap: 4 }}>
             <View style={{ height: BAR_H, justifyContent: 'flex-end' }}>
@@ -479,6 +505,7 @@ export default function DashboardScreen() {
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
+  const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [waterBonusOz, setWaterBonusOz] = useState(0);
 
@@ -489,7 +516,7 @@ export default function DashboardScreen() {
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
 
-      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl, tdee] = await Promise.all([
+      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl, tdee, rg] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -501,6 +528,7 @@ export default function DashboardScreen() {
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
         getTDEE(token).catch(() => null),
+        getRoutineGoals(token).catch(() => []),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -512,7 +540,8 @@ export default function DashboardScreen() {
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
-      setTodayTDEE(tdee && tdee.available ? tdee : null);
+      setTodayTDEE(tdee && (tdee as any).available ? tdee : null);
+      setRoutineGoals(Object.fromEntries((rg as { routineId: number; targetPerWeek: number }[]).map((g) => [g.routineId, g.targetPerWeek])));
       setWaterBonusOz(0);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
@@ -905,7 +934,7 @@ export default function DashboardScreen() {
           <CardHeader title="This Week" c={c} />
           <ProgressBar label="Workouts" actual={weekWorkouts} goal={weekWorkoutGoal} unit="" color={COL_GOLD} c={c} />
           <ProgressBar label="Volume"   actual={weekVolumeLbs} goal={volumeGoal}    unit=" lbs" color={COL_VOL} c={c} />
-          <DayVolumeBars workouts={workouts} c={c} />
+          <DayVolumeBars workouts={workouts} volumeGoal={volumeGoal} routineGoals={routineGoals} c={c} />
         </View>
 
         {/* ── Volume Heatmap ── */}

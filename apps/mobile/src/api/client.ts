@@ -512,6 +512,10 @@ export async function updateRoutineTemplateSet(token: string, routineId: number,
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets/${setId}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
 }
+export async function getRoutineGoals(token: string): Promise<{ routineId: number; targetPerWeek: number }[]> {
+  const res = await fetch(`${API_BASE}/api/routines/goals`, { headers: headers(token) });
+  return handle(res);
+}
 export async function deleteRoutineTemplateSet(token: string, routineId: number, reId: number, setId: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets/${setId}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
