@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getRoutine, updateRoutine, deleteRoutine, startRoutine,
-  addRoutineExercise, removeRoutineExercise,
+  addRoutineExercise, removeRoutineExercise, reorderRoutineExercises,
   addRoutineTemplateSet, updateRoutineTemplateSet, deleteRoutineTemplateSet,
   getWorkouts, getExercises, getExerciseCategories, createCustomExercise,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet, type Exercise,
@@ -140,7 +140,6 @@ function TemplateSetRow({
   const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
 
   async function handleBlur() {
-    Keyboard.dismiss();
     const newReps      = showReps     && reps     !== '' ? Number(reps)     : null;
     const newWeightLbs = showWeight   && weight   !== '' ? Number(weight)   : null;
     const newWeightKg  = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
@@ -253,12 +252,14 @@ function TemplateSetRow({
 // ── Routine exercise block ────────────────────────────────────────────────────
 
 function RoutineExerciseBlock({
-  re, routineId, onRemove, onSetsChanged, c,
+  re, routineId, onRemove, onSetsChanged, onMoveUp, onMoveDown, c,
 }: {
   re: RoutineExercise;
   routineId: number;
   onRemove: (reId: number) => void;
   onSetsChanged: (reId: number, sets: RoutineExerciseSet[]) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   c: Colors;
 }) {
   const token = useAuthStore((s) => s.token)!;
@@ -303,9 +304,17 @@ function RoutineExerciseBlock({
           </Text>
           <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>{re.exercise.category}</Text>
         </View>
-        <TouchableOpacity onPress={() => onRemove(re.id)} style={{ paddingLeft: 8 }}>
-          <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Remove</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
+          <TouchableOpacity onPress={onMoveUp} disabled={!onMoveUp} style={{ paddingHorizontal: 4, opacity: onMoveUp ? 1 : 0.2 }}>
+            <Text style={{ fontSize: fontSize.base, color: c.muted }}>↑</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onMoveDown} disabled={!onMoveDown} style={{ paddingHorizontal: 4, opacity: onMoveDown ? 1 : 0.2 }}>
+            <Text style={{ fontSize: fontSize.base, color: c.muted }}>↓</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onRemove(re.id)} style={{ paddingLeft: 4 }}>
+            <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Remove</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Last performed reference */}
@@ -530,6 +539,23 @@ export default function RoutineDetailScreen() {
     } : prev);
   }
 
+  async function handleMoveExercise(reId: number, direction: 'up' | 'down') {
+    if (!routine) return;
+    const idx = routine.exercises.findIndex((e) => e.id === reId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= routine.exercises.length) return;
+    const reordered = [...routine.exercises];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const withOrder = reordered.map((e, i) => ({ ...e, sortOrder: i }));
+    setRoutine((prev) => prev ? { ...prev, exercises: withOrder } : prev);
+    try {
+      await reorderRoutineExercises(token, routine.id, withOrder.map((e) => ({ id: e.id, sortOrder: e.sortOrder })));
+    } catch {
+      setRoutine((prev) => prev ? { ...prev, exercises: routine.exercises } : prev);
+    }
+  }
+
   async function handleDelete() {
     if (!routine) return;
     Alert.alert('Delete Routine', `Delete "${routine.name}"?`, [
@@ -603,13 +629,15 @@ export default function RoutineDetailScreen() {
           )}
 
           {/* Exercise blocks */}
-          {routine.exercises.map((re) => (
+          {routine.exercises.map((re, idx) => (
             <RoutineExerciseBlock
               key={re.id}
               re={re}
               routineId={routine.id}
               onRemove={handleRemoveExercise}
               onSetsChanged={handleSetsChanged}
+              onMoveUp={idx > 0 ? () => handleMoveExercise(re.id, 'up') : undefined}
+              onMoveDown={idx < routine.exercises.length - 1 ? () => handleMoveExercise(re.id, 'down') : undefined}
               c={c}
             />
           ))}

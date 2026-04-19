@@ -500,6 +500,10 @@ export async function removeRoutineExercise(token: string, routineId: number, re
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
 }
+export async function reorderRoutineExercises(token: string, routineId: number, order: { id: number; sortOrder: number }[]): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/reorder`, { method: 'PUT', headers: headers(token), body: JSON.stringify({ order }) });
+  await handle(res);
+}
 export async function addRoutineTemplateSet(token: string, routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<RoutineExerciseSet> {
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<RoutineExerciseSet>(res);

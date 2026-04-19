@@ -114,12 +114,14 @@ function TemplateSetRow({
 // ─── Routine exercise block ───────────────────────────────────────────────────
 
 function RoutineExerciseBlock({
-  re, routineId, onRemove, onSetsChanged,
+  re, routineId, onRemove, onSetsChanged, onMoveUp, onMoveDown,
 }: {
   re: RoutineExercise;
   routineId: number;
   onRemove: (reId: number) => void;
   onSetsChanged: (reId: number, sets: RoutineExerciseSet[]) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const [sets, setSets] = useState<RoutineExerciseSet[]>(re.templateSets);
   const [adding, setAdding] = useState(false);
@@ -165,12 +167,16 @@ function RoutineExerciseBlock({
           </Link>
           <div className="text-sm text-slate-300">{re.exercise.category}</div>
         </div>
-        <button
-          onClick={() => onRemove(re.id)}
-          className="text-slate-600 hover:text-red-400 transition-colors text-sm ml-2 shrink-0"
-        >
-          Remove
-        </button>
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          <button onClick={onMoveUp} disabled={!onMoveUp} className="text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors px-1 text-base leading-none" title="Move up">↑</button>
+          <button onClick={onMoveDown} disabled={!onMoveDown} className="text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors px-1 text-base leading-none" title="Move down">↓</button>
+          <button
+            onClick={() => onRemove(re.id)}
+            className="text-slate-600 hover:text-red-400 transition-colors text-sm ml-1 shrink-0"
+          >
+            Remove
+          </button>
+        </div>
       </div>
 
       {/* Last performed reference (read-only when no template sets) */}
@@ -395,6 +401,23 @@ export default function RoutineDetailPage() {
     } : prev);
   }
 
+  async function handleMoveExercise(reId: number, direction: 'up' | 'down') {
+    if (!routine) return;
+    const idx = routine.exercises.findIndex((e) => e.id === reId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= routine.exercises.length) return;
+    const reordered = [...routine.exercises];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const withOrder = reordered.map((e, i) => ({ ...e, sortOrder: i }));
+    setRoutine((prev) => prev ? { ...prev, exercises: withOrder } : prev);
+    try {
+      await routinesApi.reorderExercises(routine.id, withOrder.map((e) => ({ id: e.id, sortOrder: e.sortOrder })));
+    } catch {
+      setRoutine((prev) => prev ? { ...prev, exercises: routine.exercises } : prev);
+    }
+  }
+
   async function handleDelete() {
     if (!routine || !confirm('Delete this routine?')) return;
     try {
@@ -493,13 +516,15 @@ export default function RoutineDetailPage() {
           )}
 
           {/* Exercise blocks */}
-          {routine.exercises.map((re) => (
+          {routine.exercises.map((re, idx) => (
             <RoutineExerciseBlock
               key={re.id}
               re={re}
               routineId={routine.id}
               onRemove={handleRemoveExercise}
               onSetsChanged={handleSetsChanged}
+              onMoveUp={idx > 0 ? () => handleMoveExercise(re.id, 'up') : undefined}
+              onMoveDown={idx < routine.exercises.length - 1 ? () => handleMoveExercise(re.id, 'down') : undefined}
             />
           ))}
 

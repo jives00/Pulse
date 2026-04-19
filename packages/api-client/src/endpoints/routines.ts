@@ -72,6 +72,9 @@ export const routinesApi = {
   removeExercise: (routineId: number, reId: number) =>
     apiClient.delete(`/routines/${routineId}/exercises/${reId}`).then(() => {}),
 
+  reorderExercises: (routineId: number, order: { id: number; sortOrder: number }[]) =>
+    apiClient.put(`/routines/${routineId}/exercises/reorder`, { order }).then(() => {}),
+
   addTemplateSet: (routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }) =>
     apiClient.post<RoutineExerciseSet>(`/routines/${routineId}/exercises/${reId}/sets`, data).then((r) => r.data),
 

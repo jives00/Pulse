@@ -320,6 +320,28 @@ router.post('/:id/exercises', async (req, res) => {
   }
 });
 
+// PUT /api/routines/:id/exercises/reorder
+router.put('/:id/exercises/reorder', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const { order } = req.body as { order: { id: number; sortOrder: number }[] };
+  if (!Array.isArray(order) || order.length === 0) { res.status(400).json({ error: 'order array required' }); return; }
+
+  try {
+    await Promise.all(
+      order.map(({ id: reId, sortOrder }) =>
+        pool.query('UPDATE routine_exercises SET sort_order = ? WHERE id = ? AND routine_id = ?', [sortOrder, reId, id])
+      )
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE /api/routines/:id/exercises/:reId
 router.delete('/:id/exercises/:reId', async (req, res) => {
   const id = parseId(req.params.id);
