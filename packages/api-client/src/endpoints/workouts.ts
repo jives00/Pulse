@@ -33,8 +33,8 @@ export interface PersonalBests {
   bestStairPace: {
     exerciseName: string;
     durationSeconds: number;
-    reps: number;
-    secsPerRep: number;
+    steps: number;
+    secsPerStep: number;
     workoutDate: string;
   } | null;
 }
@@ -97,6 +97,7 @@ export interface ExerciseSet {
   weightKg: number | null;
   durationSeconds: number | null;
   distanceMeters: number | null;
+  steps: number | null;
   completed: boolean;
 }
 
@@ -116,6 +117,7 @@ export interface WorkoutExerciseSummary {
   maxWeightKg: number | null;
   totalDurationSeconds: number | null;
   totalDistanceMeters: number | null;
+  totalSteps: number | null;
 }
 
 export interface WorkoutSummary {
@@ -123,11 +125,15 @@ export interface WorkoutSummary {
   workoutDate: string;
   name: string | null;
   routineName: string | null;
+  routineType: string | null;
   durationMinutes: number | null;
   caloriesBurned: number | null;
   exerciseCount: number;
   setCount: number;
   totalVolumeKg: number;
+  totalSteps: number | null;
+  totalDistanceMeters: number | null;
+  totalDurationSeconds: number | null;
   createdAt: string;
   routineId: number | null;
   exercises: WorkoutExerciseSummary[];
@@ -136,6 +142,7 @@ export interface WorkoutSummary {
 export interface WorkoutDetail extends Omit<WorkoutSummary, 'exercises'> {
   notes: string | null;
   startedAt: string | null;
+  completed: boolean;
   routineId: number | null;
   exercises: WorkoutExercise[];
 }
@@ -238,10 +245,10 @@ export const workoutsApi = {
   removeExercise: (workoutId: number, weId: number) =>
     apiClient.delete(`/workouts/${workoutId}/exercises/${weId}`).then(() => {}),
 
-  addSet: (workoutId: number, weId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }) =>
+  addSet: (workoutId: number, weId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number }) =>
     apiClient.post<ExerciseSet>(`/workouts/${workoutId}/exercises/${weId}/sets`, data).then((r) => r.data),
 
-  updateSet: (workoutId: number, weId: number, setId: number, data: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; completed?: boolean }) =>
+  updateSet: (workoutId: number, weId: number, setId: number, data: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; steps?: number | null; completed?: boolean }) =>
     apiClient.put(`/workouts/${workoutId}/exercises/${weId}/sets/${setId}`, data).then(() => {}),
 
   deleteSet: (workoutId: number, weId: number, setId: number) =>

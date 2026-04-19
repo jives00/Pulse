@@ -1,12 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet,
-  type Exercise, type WorkoutSummary,
+  type Exercise, type WorkoutSummary, type RoutineType,
   KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS,
 } from '@pulse/api-client';
+
+const ROUTINE_TYPE_LABELS: Record<RoutineType, string> = {
+  strength:        'Strength / Weight',
+  bodyweight:      'Bodyweight',
+  cardio_distance: 'Cardio — Distance (running, cycling)',
+  cardio_duration: 'Cardio — Duration (elliptical, row)',
+  steps:           'Steps / Stairs',
+};
 
 function kgToLbs(kg: number) { return Math.round(kg * KG_TO_LBS * 10) / 10; }
 function lbsToKg(lbs: number) { return Math.round((lbs / KG_TO_LBS) * 1000) / 1000; }
@@ -48,11 +56,13 @@ function TemplateSetRow({
   const showReps     = trackedFields.includes('reps');
   const showDuration = trackedFields.includes('duration');
   const showDistance = trackedFields.includes('distance');
+  const showSteps    = trackedFields.includes('steps');
 
   const [reps, setReps]         = useState(String(set.reps ?? ''));
   const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
   const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
   const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
+  const [steps, setSteps]       = useState(String((set as any).steps ?? ''));
 
   async function handleBlur() {
     const newReps       = showReps     && reps     !== '' ? Number(reps)     : null;
@@ -60,19 +70,22 @@ function TemplateSetRow({
     const newWeightKg   = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
     const newDuration   = showDuration ? mmssToSeconds(duration)             : null;
     const newDistance   = showDistance && distance !== '' ? Number(distance) : null;
+    const newSteps      = showSteps    && steps    !== '' ? Number(steps)    : null;
     try {
       await routinesApi.updateTemplateSet(routineId, reId, set.id, {
         reps: newReps ?? undefined,
         weightKg: newWeightKg ?? undefined,
         durationSeconds: newDuration ?? undefined,
         distanceMeters: newDistance ?? undefined,
+        steps: newSteps ?? undefined,
       });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance, steps: newSteps } as any);
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
       setDuration(secondsToMMSS(set.durationSeconds));
       setDistance(String(set.distanceMeters ?? ''));
+      setSteps(String((set as any).steps ?? ''));
     }
   }
 
@@ -84,7 +97,7 @@ function TemplateSetRow({
   }
 
   const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
-  const fieldCount = [showWeight, showReps, showDuration, showDistance].filter(Boolean).length;
+  const fieldCount = [showWeight, showReps, showDuration, showDistance, showSteps].filter(Boolean).length;
   const gridTemplateColumns = `2rem repeat(${fieldCount}, 1fr) 2rem`;
 
   return (
@@ -105,6 +118,10 @@ function TemplateSetRow({
       {showDistance && (
         <input type="number" min="0" placeholder="dist" value={distance}
           onChange={(e) => setDistance(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {showSteps && (
+        <input type="number" min="0" placeholder="steps" value={steps}
+          onChange={(e) => setSteps(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
       <button onClick={handleDelete} className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none" title="Remove set">✕</button>
     </div>
@@ -154,6 +171,7 @@ function RoutineExerciseBlock({
   const showRepsHeader = trackedFields.includes('reps');
   const showDurationHeader = trackedFields.includes('duration');
   const showDistanceHeader = trackedFields.includes('distance');
+  const showStepsHeader = trackedFields.includes('steps');
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -190,6 +208,7 @@ function RoutineExerciseBlock({
               {s.reps != null && ` × ${s.reps} reps`}
               {s.durationSeconds != null && ` ${secondsToMMSS(s.durationSeconds)}`}
               {s.distanceMeters != null && ` ${s.distanceMeters}m`}
+              {(s as any).steps != null && ` ${(s as any).steps} steps`}
             </div>
           ))}
         </div>
@@ -198,7 +217,7 @@ function RoutineExerciseBlock({
       {sets.length > 0 && (
         <div className="mb-2">
           {(() => {
-            const fieldCount = [showWeightHeader, showRepsHeader, showDurationHeader, showDistanceHeader].filter(Boolean).length;
+            const fieldCount = [showWeightHeader, showRepsHeader, showDurationHeader, showDistanceHeader, showStepsHeader].filter(Boolean).length;
             const gridTemplateColumns = `2rem repeat(${fieldCount}, 1fr) 2rem`;
             return (
               <div className="grid gap-2 mb-1" style={{ gridTemplateColumns }}>
@@ -207,6 +226,7 @@ function RoutineExerciseBlock({
                 {showRepsHeader     && <span className="text-sm text-slate-400 text-center">reps</span>}
                 {showDurationHeader && <span className="text-sm text-slate-400 text-center">time</span>}
                 {showDistanceHeader && <span className="text-sm text-slate-400 text-center">dist</span>}
+                {showStepsHeader    && <span className="text-sm text-slate-400 text-center">steps</span>}
                 <span />
               </div>
             );
@@ -309,7 +329,7 @@ export default function RoutineDetailPage() {
   const [starting, setStarting] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
-  const [volumeHistory, setVolumeHistory] = useState<{ date: string; volumeLbs: number }[]>([]);
+  const [routineWorkouts, setRoutineWorkouts] = useState<WorkoutSummary[]>([]);
 
   // Editable name
   const [editingName, setEditingName] = useState(false);
@@ -329,15 +349,8 @@ export default function RoutineDetailPage() {
       .catch(() => navigate('/workouts?tab=routines'))
       .finally(() => setLoading(false));
 
-    // Fetch volume history for this routine
     workoutsApi.getAll({ limit: 50, routineId: numId })
-      .then((workouts: WorkoutSummary[]) => {
-        const data = workouts
-          .filter((w) => w.totalVolumeKg > 0)
-          .map((w) => ({ date: w.workoutDate, volumeLbs: Math.round(w.totalVolumeKg * KG_TO_LBS) }))
-          .reverse();
-        setVolumeHistory(data);
-      })
+      .then((workouts: WorkoutSummary[]) => setRoutineWorkouts(workouts))
       .catch(() => {});
   }, [id]);
 
@@ -426,6 +439,62 @@ export default function RoutineDetailPage() {
     } catch { /* ignore */ }
   }
 
+  async function saveRoutineType(rt: RoutineType) {
+    if (!routine) return;
+    try {
+      await routinesApi.update(routine.id, { routineType: rt });
+      setRoutine((prev) => prev ? { ...prev, routineType: rt } : prev);
+    } catch { /* ignore */ }
+  }
+
+  const chartData = useMemo(() => {
+    if (!routine || !routineWorkouts.length) return [];
+    const rt = routine.routineType ?? 'strength';
+    return routineWorkouts
+      .slice()
+      .reverse()
+      .map((w) => {
+        let value = 0;
+        switch (rt) {
+          case 'steps':           value = w.totalSteps ?? 0; break;
+          case 'cardio_distance': value = Math.round(((w.totalDistanceMeters ?? 0) / 1609.34) * 100) / 100; break;
+          case 'cardio_duration': value = Math.round((w.totalDurationSeconds ?? 0) / 60); break;
+          default:                value = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS); break;
+        }
+        return { date: w.workoutDate, value };
+      })
+      .filter((d) => d.value > 0);
+  }, [routine, routineWorkouts]);
+
+  const chartLabel = routine ? {
+    strength:        'Volume per session (lbs)',
+    bodyweight:      'Volume per session (lbs)',
+    steps:           'Steps per session',
+    cardio_distance: 'Distance per session (mi)',
+    cardio_duration: 'Duration per session (min)',
+  }[routine.routineType ?? 'strength'] : '';
+
+  const chartFormatter = routine ? (v: number) => {
+    switch (routine.routineType ?? 'strength') {
+      case 'steps':           return [`${v.toLocaleString()} steps`, 'Steps'];
+      case 'cardio_distance': return [`${v} mi`, 'Distance'];
+      case 'cardio_duration': return [`${v} min`, 'Duration'];
+      default:                return [`${v.toLocaleString()} lbs`, 'Volume'];
+    }
+  } : (v: number) => [`${v}`, ''];
+
+  const lastSessionLabel: string | null = (() => {
+    if (!routineWorkouts.length || !routine) return null;
+    const w = routineWorkouts[0];
+    const rt = routine.routineType ?? 'strength';
+    switch (rt) {
+      case 'steps':           return w.totalSteps ? `${w.totalSteps.toLocaleString()} steps` : null;
+      case 'cardio_distance': return w.totalDistanceMeters ? `${((w.totalDistanceMeters) / 1609.34).toFixed(1)} mi` : null;
+      case 'cardio_duration': return w.totalDurationSeconds ? `${Math.round(w.totalDurationSeconds / 60)} min` : null;
+      default:                return w.totalVolumeKg ? `${Math.round(w.totalVolumeKg * KG_TO_LBS).toLocaleString()} lbs` : null;
+    }
+  })();
+
   if (loading) return <div className="text-center text-sm text-slate-500 py-12">Loading…</div>;
   if (!routine) return null;
 
@@ -450,7 +519,25 @@ export default function RoutineDetailPage() {
               {routine.name}
             </button>
           )}
-          <div className="text-sm text-dram-muted">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-sm text-dram-muted">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</span>
+            <span className="text-dram-muted text-sm">·</span>
+            {lastSessionLabel && (
+              <>
+                <span className="text-sm text-dram-muted">Last: {lastSessionLabel}</span>
+                <span className="text-dram-muted text-sm">·</span>
+              </>
+            )}
+            <select
+              value={routine.routineType ?? 'strength'}
+              onChange={(e) => saveRoutineType(e.target.value as RoutineType)}
+              className="text-sm bg-transparent text-dram-muted border-none focus:outline-none cursor-pointer hover:text-slate-200 transition-colors"
+            >
+              {(Object.entries(ROUTINE_TYPE_LABELS) as [RoutineType, string][]).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
           {editingNotes ? (
             <textarea
               ref={notesRef}
@@ -496,20 +583,20 @@ export default function RoutineDetailPage() {
             {starting ? 'Starting…' : 'Start Routine'}
           </button>
 
-          {/* Volume history chart */}
-          {volumeHistory.length > 0 && (
+          {/* Session metric history chart */}
+          {chartData.length > 0 && (
             <div className="bg-dram-card rounded-lg p-3">
-              <div className="text-sm font-medium text-dram-muted mb-2">Volume per session (lbs)</div>
+              <div className="text-sm font-medium text-dram-muted mb-2">{chartLabel}</div>
               <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={volumeHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={30} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} axisLine={false} tickLine={false} width={28} />
+                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} axisLine={false} tickLine={false} width={32} />
                   <Tooltip
                     contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }}
                     labelFormatter={(l) => shortDate(String(l))}
-                    formatter={(v: number) => [`${v.toLocaleString()} lbs`, 'Volume']}
+                    formatter={chartFormatter as any}
                   />
-                  <Line dataKey="volumeLbs" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 4 }} />
+                  <Line dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

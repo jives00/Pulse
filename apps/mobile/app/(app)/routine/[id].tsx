@@ -12,12 +12,21 @@ import {
   addRoutineTemplateSet, updateRoutineTemplateSet, deleteRoutineTemplateSet,
   getWorkouts, getExercises, getExerciseCategories, createCustomExercise,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet, type Exercise,
+  type WorkoutSummary,
 } from '../../../src/api/client';
-import { KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS, type RoutineType } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import FilterChip from '../../../src/components/FilterChip';
+
+const ROUTINE_TYPE_OPTIONS: { value: RoutineType; label: string }[] = [
+  { value: 'strength',        label: 'Strength (lbs)' },
+  { value: 'bodyweight',      label: 'Bodyweight' },
+  { value: 'cardio_distance', label: 'Cardio — Distance' },
+  { value: 'cardio_duration', label: 'Cardio — Duration' },
+  { value: 'steps',           label: 'Steps' },
+];
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -133,11 +142,13 @@ function TemplateSetRow({
   const showReps     = trackedFields.includes('reps');
   const showDuration = trackedFields.includes('duration');
   const showDistance = trackedFields.includes('distance');
+  const showSteps    = trackedFields.includes('steps');
 
   const [reps, setReps]         = useState(String(set.reps ?? ''));
   const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
   const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
   const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
+  const [steps, setSteps]       = useState(String(set.steps ?? ''));
 
   async function handleBlur() {
     const newReps      = showReps     && reps     !== '' ? Number(reps)     : null;
@@ -145,19 +156,22 @@ function TemplateSetRow({
     const newWeightKg  = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
     const newDuration  = showDuration ? mmssToSeconds(duration) : null;
     const newDistance  = showDistance && distance !== '' ? Number(distance) : null;
+    const newSteps     = showSteps    && steps    !== '' ? Number(steps)    : null;
     try {
       await updateRoutineTemplateSet(token, routineId, reId, set.id, {
         reps: newReps ?? undefined,
         weightKg: newWeightKg ?? undefined,
         durationSeconds: newDuration ?? undefined,
         distanceMeters: newDistance ?? undefined,
+        steps: newSteps ?? undefined,
       });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance, steps: newSteps });
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
       setDuration(secondsToMMSS(set.durationSeconds));
       setDistance(String(set.distanceMeters ?? ''));
+      setSteps(String(set.steps ?? ''));
     }
   }
 
@@ -168,7 +182,7 @@ function TemplateSetRow({
     } catch { /* ignore */ }
   }
 
-  const fieldCount = [showWeight, showReps, showDuration, showDistance].filter(Boolean).length;
+  const fieldCount = [showWeight, showReps, showDuration, showDistance, showSteps].filter(Boolean).length;
   const inputStyle = {
     flex: 1,
     backgroundColor: c.bg,
@@ -242,6 +256,20 @@ function TemplateSetRow({
           blurOnSubmit
         />
       )}
+      {showSteps && (
+        <TextInput
+          style={inputStyle}
+          value={steps}
+          onChangeText={setSteps}
+          onBlur={handleBlur}
+          placeholder="steps"
+          placeholderTextColor={c.muted}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          onSubmitEditing={handleBlur}
+          blurOnSubmit
+        />
+      )}
       <TouchableOpacity onPress={handleDelete} style={{ paddingHorizontal: 6 }}>
         <Text style={{ fontSize: fontSize.sm, color: c.muted }}>✕</Text>
       </TouchableOpacity>
@@ -292,6 +320,7 @@ function RoutineExerciseBlock({
   const showRepsHeader     = trackedFields.includes('reps');
   const showDurationHeader = trackedFields.includes('duration');
   const showDistanceHeader = trackedFields.includes('distance');
+  const showStepsHeader    = trackedFields.includes('steps');
 
   const showLastPerformed = sets.length === 0 && re.lastPerformedSets && re.lastPerformedSets.length > 0;
 
@@ -328,6 +357,7 @@ function RoutineExerciseBlock({
               {ls.reps != null && ` × ${ls.reps} reps`}
               {ls.durationSeconds != null && ` ${secondsToMMSS(ls.durationSeconds)}`}
               {ls.distanceMeters != null && ` ${ls.distanceMeters}m`}
+              {(ls as any).steps != null && ` ${(ls as any).steps} steps`}
             </Text>
           ))}
         </View>
@@ -341,6 +371,7 @@ function RoutineExerciseBlock({
           {showRepsHeader     && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>reps</Text>}
           {showDurationHeader && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>time</Text>}
           {showDistanceHeader && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>dist</Text>}
+          {showStepsHeader    && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>steps</Text>}
           <View style={{ width: 28 }} />
         </View>
       )}
@@ -459,7 +490,8 @@ export default function RoutineDetailScreen() {
   const [starting, setStarting] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
-  const [volumeHistory, setVolumeHistory] = useState<{ date: string; volumeLbs: number }[]>([]);
+  const [volumeHistory, setVolumeHistory] = useState<{ date: string; volumeLbs: number; workout: WorkoutSummary }[]>([]);
+  const [showTypePicker, setShowTypePicker] = useState(false);
 
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState('');
@@ -475,8 +507,7 @@ export default function RoutineDetailScreen() {
     getWorkouts(token, { limit: 50, routineId: routineId })
       .then((workouts) => {
         const data = workouts
-          .filter((w) => (w.totalVolumeKg ?? 0) > 0)
-          .map((w) => ({ date: w.workoutDate, volumeLbs: Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS) }))
+          .map((w) => ({ date: w.workoutDate, volumeLbs: Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS), workout: w }))
           .reverse();
         setVolumeHistory(data);
       })
@@ -495,6 +526,15 @@ export default function RoutineDetailScreen() {
       await updateRoutine(token, routine.id, { name: trimmed });
       setRoutine((prev) => prev ? { ...prev, name: trimmed } : prev);
     } catch { setName(routine.name); }
+  }
+
+  async function saveRoutineType(rt: RoutineType) {
+    if (!routine) return;
+    setShowTypePicker(false);
+    try {
+      await updateRoutine(token, routine.id, { routineType: rt });
+      setRoutine((prev) => prev ? { ...prev, routineType: rt } : prev);
+    } catch { /* ignore */ }
   }
 
   async function handleStart() {
@@ -597,7 +637,15 @@ export default function RoutineDetailScreen() {
                 <Text style={s.title} numberOfLines={1}>{routine.name}</Text>
               </TouchableOpacity>
             )}
-            <Text style={s.subtitle}>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Text style={s.subtitle}>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</Text>
+              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>·</Text>
+              <TouchableOpacity onPress={() => setShowTypePicker(true)}>
+                <Text style={{ fontSize: fontSize.xs, color: c.accent }}>
+                  {ROUTINE_TYPE_OPTIONS.find((o) => o.value === routine.routineType)?.label ?? 'Strength (lbs)'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TouchableOpacity onPress={handleDelete} style={s.deleteBtn}>
             <Text style={s.deleteBtnText}>Delete</Text>
@@ -616,17 +664,30 @@ export default function RoutineDetailScreen() {
           </TouchableOpacity>
 
           {/* Volume history chart */}
-          {volumeHistory.length > 0 && (
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Volume per session (lbs)</Text>
-              <VolumeLineChart data={volumeHistory} c={c} />
-              {volumeHistory.length > 0 && (
-                <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'right', marginTop: 2 }}>
-                  Latest: {volumeHistory[volumeHistory.length - 1].volumeLbs.toLocaleString()} lbs
-                </Text>
-              )}
-            </View>
-          )}
+          {volumeHistory.length > 0 && (() => {
+            const rt = routine.routineType ?? 'strength';
+            const chartData = volumeHistory.map((h) => {
+              let value = h.volumeLbs;
+              if (rt === 'steps') value = (h.workout as any).totalSteps ?? 0;
+              else if (rt === 'cardio_distance') value = Math.round(((h.workout as any).totalDistanceMeters ?? 0) / 1609.34 * 10) / 10;
+              else if (rt === 'cardio_duration') value = Math.round(((h.workout as any).totalDurationSeconds ?? 0) / 60);
+              return { date: h.date, volumeLbs: value };
+            }).filter((d) => d.volumeLbs > 0);
+            const unitLabel = rt === 'steps' ? 'steps' : rt === 'cardio_distance' ? 'mi' : rt === 'cardio_duration' ? 'min' : 'lbs';
+            const latest = chartData[chartData.length - 1];
+            if (chartData.length === 0) return null;
+            return (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Per session ({unitLabel})</Text>
+                <VolumeLineChart data={chartData} c={c} />
+                {latest && (
+                  <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'right', marginTop: 2 }}>
+                    Latest: {latest.volumeLbs.toLocaleString()} {unitLabel}
+                  </Text>
+                )}
+              </View>
+            );
+          })()}
 
           {/* Exercise blocks */}
           {routine.exercises.map((re, idx) => (
@@ -654,6 +715,31 @@ export default function RoutineDetailScreen() {
           <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Routine type picker modal */}
+      <Modal visible={showTypePicker} transparent animationType="fade" onRequestClose={() => setShowTypePicker(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowTypePicker(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 32 }}>
+            <TouchableWithoutFeedback>
+              <View style={{ backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
+                <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: c.text, padding: 16, borderBottomWidth: 1, borderBottomColor: c.border }}>
+                  Routine Type
+                </Text>
+                {ROUTINE_TYPE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.border + '44' }}
+                    onPress={() => saveRoutineType(opt.value)}
+                  >
+                    <Text style={{ fontSize: fontSize.sm, color: routine?.routineType === opt.value ? c.accent : c.text }}>{opt.label}</Text>
+                    {routine?.routineType === opt.value && <Text style={{ fontSize: fontSize.sm, color: c.accent }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {showPicker && (
         <ExercisePicker

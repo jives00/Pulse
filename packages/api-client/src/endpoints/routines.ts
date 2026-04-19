@@ -1,13 +1,16 @@
 import { apiClient } from '../client';
 import type { Exercise, WorkoutDetail } from './workouts';
+import type { RoutineType } from '../utils/calculations';
 
 export interface RoutineSummary {
   id: number;
   name: string;
   notes: string | null;
+  routineType: RoutineType;
   exerciseCount: number;
   lastUsedDate: string | null;
   lastVolumeLbs: number | null;
+  lastPrimaryMetric: number | null;
   lastCaloriesBurned: number | null;
   coverImageUrl: string | null;
   createdAt: string;
@@ -20,6 +23,7 @@ export interface RoutineExerciseSet {
   weightKg: number | null;
   durationSeconds: number | null;
   distanceMeters: number | null;
+  steps: number | null;
 }
 
 export interface RoutineExercise {
@@ -34,6 +38,7 @@ export interface RoutineExercise {
     weightKg: number | null;
     durationSeconds: number | null;
     distanceMeters: number | null;
+    steps: number | null;
   }> | null;
 }
 
@@ -41,10 +46,18 @@ export interface RoutineDetail {
   id: number;
   name: string;
   notes: string | null;
+  routineType: RoutineType;
   coverImageUrl: string | null;
   createdAt: string;
   updatedAt: string;
   exercises: RoutineExercise[];
+}
+
+export interface RoutineGoal {
+  id: number;
+  routineId: number;
+  targetPerWeek: number;
+  effectiveFrom: string;
 }
 
 export const routinesApi = {
@@ -54,10 +67,10 @@ export const routinesApi = {
   get: (id: number) =>
     apiClient.get<RoutineDetail>(`/routines/${id}`).then((r) => r.data),
 
-  create: (data: { name: string; notes?: string }) =>
+  create: (data: { name: string; notes?: string; routineType?: RoutineType }) =>
     apiClient.post<RoutineDetail>('/routines', data).then((r) => r.data),
 
-  update: (id: number, data: { name?: string; notes?: string; coverImageKey?: string | null }) =>
+  update: (id: number, data: { name?: string; notes?: string; coverImageKey?: string | null; routineType?: RoutineType }) =>
     apiClient.put<RoutineDetail>(`/routines/${id}`, data).then((r) => r.data),
 
   getPhotoUploadUrl: (id: number, contentType: string) =>
@@ -75,10 +88,10 @@ export const routinesApi = {
   reorderExercises: (routineId: number, order: { id: number; sortOrder: number }[]) =>
     apiClient.put(`/routines/${routineId}/exercises/reorder`, { order }).then(() => {}),
 
-  addTemplateSet: (routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }) =>
+  addTemplateSet: (routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number }) =>
     apiClient.post<RoutineExerciseSet>(`/routines/${routineId}/exercises/${reId}/sets`, data).then((r) => r.data),
 
-  updateTemplateSet: (routineId: number, reId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }) =>
+  updateTemplateSet: (routineId: number, reId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number }) =>
     apiClient.put(`/routines/${routineId}/exercises/${reId}/sets/${setId}`, data).then(() => {}),
 
   deleteTemplateSet: (routineId: number, reId: number, setId: number) =>
@@ -86,4 +99,16 @@ export const routinesApi = {
 
   start: (id: number) =>
     apiClient.post<WorkoutDetail>(`/routines/${id}/start`).then((r) => r.data),
+
+  getGoal: (id: number) =>
+    apiClient.get<RoutineGoal | null>(`/routines/${id}/goal`).then((r) => r.data),
+
+  setGoal: (id: number, targetPerWeek: number) =>
+    apiClient.put<RoutineGoal>(`/routines/${id}/goal`, { targetPerWeek }).then((r) => r.data),
+
+  deleteGoal: (id: number) =>
+    apiClient.delete(`/routines/${id}/goal`).then(() => {}),
+
+  getAllGoals: () =>
+    apiClient.get<RoutineGoal[]>('/routines/goals').then((r) => r.data),
 };

@@ -6,6 +6,29 @@ import { localDateStr, getWeekStart, shortDate } from './dates';
 
 export const SATURATION_DAYS = 28;
 
+export type RoutineType = 'strength' | 'cardio_distance' | 'cardio_duration' | 'steps' | 'bodyweight';
+
+/** Returns the default tracked fields for a given exercise type. Single source of truth. */
+export function defaultTrackedFields(exerciseType: string): string[] {
+  switch (exerciseType) {
+    case 'cardio':    return ['duration', 'distance'];
+    case 'duration':  return ['duration'];
+    case 'bodyweight': return ['reps'];
+    default:          return ['reps', 'weight'];
+  }
+}
+
+/** Returns the default tracked fields for a given routine type. */
+export function defaultTrackedFieldsForRoutineType(routineType: RoutineType): string[] {
+  switch (routineType) {
+    case 'steps':           return ['duration', 'steps'];
+    case 'cardio_distance': return ['duration', 'distance'];
+    case 'cardio_duration': return ['duration'];
+    case 'bodyweight':      return ['reps'];
+    default:                return ['reps', 'weight'];
+  }
+}
+
 export type WeekBucket = {
   weekStart: string;
   label: string;
@@ -13,6 +36,9 @@ export type WeekBucket = {
   minutes: number;
   calories: number;
   volumeLbs: number;
+  totalSteps: number;
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
 };
 
 /** Builds a 13-week rolling window of workout data, bucketed by Monday week start. */
@@ -30,6 +56,9 @@ export function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
       minutes: 0,
       calories: 0,
       volumeLbs: 0,
+      totalSteps: 0,
+      totalDistanceMeters: 0,
+      totalDurationSeconds: 0,
     });
   }
   for (const w of workouts) {
@@ -40,6 +69,9 @@ export function buildWeeklyData(workouts: WorkoutSummary[]): WeekBucket[] {
       week.minutes += w.durationMinutes ?? 0;
       week.calories += w.caloriesBurned ?? 0;
       week.volumeLbs += (w.totalVolumeKg ?? 0) * KG_TO_LBS;
+      week.totalSteps += w.totalSteps ?? 0;
+      week.totalDistanceMeters += w.totalDistanceMeters ?? 0;
+      week.totalDurationSeconds += w.totalDurationSeconds ?? 0;
     }
   }
   return weeks;

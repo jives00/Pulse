@@ -36,7 +36,7 @@ export type { LinkItem, LinkCategory }                                 from './e
 export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, WorkoutSummary, WorkoutDetail,
               BodyMeasurement, MeasurementGoal, PersonalBests,
               ExerciseStats, ExerciseHistoryEntry }                    from './endpoints/workouts';
-export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet } from './endpoints/routines';
+export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet, RoutineGoal } from './endpoints/routines';
 export type { FoodLogHistoryDay, FoodLogHistoryEntry } from './endpoints/log';
 export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 
@@ -44,5 +44,5 @@ export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 export { KG_TO_LBS, kgToLbs, lbsToKg, fmtLbs } from './utils/conversions';
 export { localDateStr, getWeekStart, shortDate, formatDate } from './utils/dates';
 export { secondsToMMSS, mmssToSeconds, formatElapsed } from './utils/time';
-export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation } from './utils/calculations';
-export type { WeekBucket, PaceStatus } from './utils/calculations';
+export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation, defaultTrackedFields, defaultTrackedFieldsForRoutineType } from './utils/calculations';
+export type { WeekBucket, PaceStatus, RoutineType } from './utils/calculations';

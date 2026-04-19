@@ -476,7 +476,7 @@ export async function getRoutine(token: string, id: number): Promise<RoutineDeta
   const res = await fetch(`${API_BASE}/api/routines/${id}`, { headers: headers(token) });
   return handle<RoutineDetail>(res);
 }
-export async function updateRoutine(token: string, id: number, data: { name?: string; notes?: string }): Promise<void> {
+export async function updateRoutine(token: string, id: number, data: { name?: string; notes?: string; routineType?: string }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/routines/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
 }
@@ -504,11 +504,11 @@ export async function reorderRoutineExercises(token: string, routineId: number, 
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/reorder`, { method: 'PUT', headers: headers(token), body: JSON.stringify({ order }) });
   await handle(res);
 }
-export async function addRoutineTemplateSet(token: string, routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<RoutineExerciseSet> {
+export async function addRoutineTemplateSet(token: string, routineId: number, reId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number }): Promise<RoutineExerciseSet> {
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle<RoutineExerciseSet>(res);
 }
-export async function updateRoutineTemplateSet(token: string, routineId: number, reId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number }): Promise<void> {
+export async function updateRoutineTemplateSet(token: string, routineId: number, reId: number, setId: number, data: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/routines/${routineId}/exercises/${reId}/sets/${setId}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
 }

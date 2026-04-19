@@ -62,6 +62,7 @@ export async function getWorkoutDetail(workoutId: number) {
         weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
         durationSeconds: s.duration_seconds ?? null,
         distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
+        steps: s.steps ?? null,
         completed: Boolean(s.completed),
       })),
     };
@@ -77,6 +78,7 @@ export async function getWorkoutDetail(workoutId: number) {
     durationMinutes: w.duration_minutes ?? null,
     caloriesBurned: w.calories_burned ?? null,
     startedAt: w.started_at ? (w.started_at instanceof Date ? w.started_at.toISOString() : String(w.started_at)) : null,
+    completed: Boolean(w.completed),
     routineId: w.routine_id ?? null,
     createdAt: w.created_at,
     exercises,
@@ -84,10 +86,9 @@ export async function getWorkoutDetail(workoutId: number) {
 }
 
 // GET /api/workouts/personal-bests
-// Returns heaviest single lift, best session volume, longest session
 router.get('/personal-bests', async (req, res) => {
   try {
-    // Heaviest single set (weight_kg)
+    // Heaviest single set
     const [liftRows] = await pool.query<RowDataPacket[]>(
       `SELECT e.name AS exercise_name, es.weight_kg, es.reps, wl.workout_date
        FROM exercise_sets es
@@ -100,7 +101,7 @@ router.get('/personal-bests', async (req, res) => {
       [req.userId]
     );
 
-    // Best single-session volume (sum of reps × weight_kg)
+    // Best single-session volume
     const [volRows] = await pool.query<RowDataPacket[]>(
       `SELECT wl.id, wl.name AS workout_name, wl.workout_date,
               SUM(es.reps * es.weight_kg) AS volume_kg
@@ -114,18 +115,20 @@ router.get('/personal-bests', async (req, res) => {
       [req.userId]
     );
 
-    // Best stair pace: lowest duration_seconds per rep for stair exercises
+    // Best stair pace: lowest duration_seconds per step — uses routine_type = 'steps' (falls back to name if no typed routine yet)
     const [stairRows] = await pool.query<RowDataPacket[]>(
-      `SELECT e.name AS exercise_name, es.duration_seconds, es.reps, wl.workout_date,
-              (es.duration_seconds / es.reps) AS secs_per_rep
+      `SELECT e.name AS exercise_name, es.duration_seconds, es.steps, wl.workout_date,
+              (es.duration_seconds / es.steps) AS secs_per_step
        FROM exercise_sets es
        JOIN workout_exercises we ON we.id = es.workout_exercise_id
        JOIN workout_logs wl ON wl.id = we.workout_log_id
        JOIN exercises e ON e.id = we.exercise_id
-       WHERE wl.user_id = ? AND e.name LIKE '%stair%'
+       LEFT JOIN workout_routines wr ON wr.id = wl.routine_id
+       WHERE wl.user_id = ?
+         AND (wr.routine_type = 'steps' OR e.name LIKE '%stair%')
          AND es.duration_seconds IS NOT NULL AND es.duration_seconds > 0
-         AND es.reps IS NOT NULL AND es.reps > 0 AND es.completed = 1
-       ORDER BY secs_per_rep ASC
+         AND es.steps IS NOT NULL AND es.steps > 0 AND es.completed = 1
+       ORDER BY secs_per_step ASC
        LIMIT 1`,
       [req.userId]
     );
@@ -154,8 +157,8 @@ router.get('/personal-bests', async (req, res) => {
       bestStairPace: stair ? {
         exerciseName: stair.exercise_name,
         durationSeconds: Number(stair.duration_seconds),
-        reps: Number(stair.reps),
-        secsPerRep: Number(stair.secs_per_rep),
+        steps: Number(stair.steps),
+        secsPerStep: Number(stair.secs_per_step),
         workoutDate: stair.workout_date instanceof Date
           ? stair.workout_date.toISOString().slice(0, 10)
           : String(stair.workout_date),
@@ -167,7 +170,7 @@ router.get('/personal-bests', async (req, res) => {
   }
 });
 
-// GET /api/workouts/active — returns the user's single in-progress (not completed) workout, or null
+// GET /api/workouts/active
 router.get('/active', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -201,15 +204,34 @@ router.get('/', async (req, res) => {
       `SELECT wl.*,
               COUNT(DISTINCT we.id) AS exercise_count,
               COUNT(DISTINCT es.id) AS set_count,
-              COALESCE(SUM(CASE WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL
-                                THEN es.reps * es.weight_kg ELSE 0 END), 0) AS total_volume_kg,
-              wr.name AS routine_name
+              COALESCE(SUM(CASE
+                WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL THEN es.reps * es.weight_kg
+                WHEN es.reps IS NOT NULL AND (wr.routine_type = 'bodyweight' OR e.exercise_type = 'bodyweight')
+                  THEN es.reps * COALESCE(
+                    (SELECT bm.value / 2.20462
+                     FROM body_measurements bm
+                     WHERE bm.user_id = wl.user_id AND bm.metric = 'weight' AND bm.unit IN ('lbs','lb')
+                     ORDER BY bm.measured_at DESC, bm.id DESC LIMIT 1),
+                    (SELECT bm2.value
+                     FROM body_measurements bm2
+                     WHERE bm2.user_id = wl.user_id AND bm2.metric = 'weight' AND bm2.unit NOT IN ('lbs','lb')
+                     ORDER BY bm2.measured_at DESC, bm2.id DESC LIMIT 1),
+                    0
+                  )
+                ELSE 0
+              END), 0) AS total_volume_kg,
+              COALESCE(SUM(COALESCE(es.steps, 0)), 0) AS total_steps,
+              COALESCE(SUM(COALESCE(es.distance_meters, 0)), 0) AS total_distance_meters,
+              COALESCE(SUM(COALESCE(es.duration_seconds, 0)), 0) AS total_duration_seconds,
+              wr.name AS routine_name,
+              wr.routine_type AS routine_type
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
+       LEFT JOIN exercises e ON e.id = we.exercise_id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
        LEFT JOIN workout_routines wr ON wr.id = wl.routine_id
        ${whereClause}
-       GROUP BY wl.id, wr.name
+       GROUP BY wl.id, wr.name, wr.routine_type
        ORDER BY wl.workout_date DESC, wl.created_at DESC
        LIMIT ? OFFSET ?`,
       queryParams
@@ -222,18 +244,21 @@ router.get('/', async (req, res) => {
         : String(r.workout_date),
       name: r.name ?? null,
       routineName: r.routine_name ?? null,
+      routineType: r.routine_type ?? null,
       durationMinutes: r.duration_minutes ?? null,
       caloriesBurned: r.calories_burned ?? null,
       exerciseCount: Number(r.exercise_count),
       setCount: Number(r.set_count),
       totalVolumeKg: Number(r.total_volume_kg),
+      totalSteps: Number(r.total_steps) || null,
+      totalDistanceMeters: Number(r.total_distance_meters) || null,
+      totalDurationSeconds: Number(r.total_duration_seconds) || null,
       createdAt: r.created_at,
       routineId: r.routine_id ?? null,
     }));
 
     if (!workouts.length) { res.json([]); return; }
 
-    // Fetch exercise summaries for all returned workouts in one query
     const ids = workouts.map((w) => w.id);
     const [exRows] = await pool.query<RowDataPacket[]>(
       `SELECT we.workout_log_id,
@@ -244,7 +269,8 @@ router.get('/', async (req, res) => {
               SUM(es.reps) AS total_reps,
               MAX(es.weight_kg) AS max_weight_kg,
               SUM(es.duration_seconds) AS total_duration_seconds,
-              SUM(es.distance_meters) AS total_distance_meters
+              SUM(es.distance_meters) AS total_distance_meters,
+              SUM(es.steps) AS total_steps
        FROM workout_exercises we
        JOIN exercises e ON e.id = we.exercise_id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id AND es.completed = 1
@@ -254,10 +280,14 @@ router.get('/', async (req, res) => {
       [ids]
     );
 
-    const exercisesByWorkout: Record<number, { name: string; setCount: number; avgReps: number | null; totalReps: number | null; maxWeightKg: number | null; totalDurationSeconds: number | null; totalDistanceMeters: number | null }[]> = {};
+    const exercisesByWorkout: Record<number, {
+      name: string; setCount: number; avgReps: number | null; totalReps: number | null;
+      maxWeightKg: number | null; totalDurationSeconds: number | null;
+      totalDistanceMeters: number | null; totalSteps: number | null;
+    }[]> = {};
     for (const ex of exRows) {
       const setCount = Number(ex.set_count);
-      if (setCount === 0) continue; // skip exercises with no completed sets
+      if (setCount === 0) continue;
       const wid = ex.workout_log_id;
       if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
       exercisesByWorkout[wid].push({
@@ -268,6 +298,7 @@ router.get('/', async (req, res) => {
         maxWeightKg: ex.max_weight_kg != null ? Number(ex.max_weight_kg) : null,
         totalDurationSeconds: ex.total_duration_seconds != null ? Number(ex.total_duration_seconds) : null,
         totalDistanceMeters: ex.total_distance_meters != null ? Number(ex.total_distance_meters) : null,
+        totalSteps: ex.total_steps != null ? Number(ex.total_steps) : null,
       });
     }
 
@@ -296,7 +327,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/workouts/:id/start-timer — idempotent, only sets started_at if currently NULL
+// POST /api/workouts/:id/start-timer
 router.post('/:id/start-timer', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
@@ -320,7 +351,7 @@ router.post('/:id/start-timer', async (req, res) => {
   }
 });
 
-// POST /api/workouts/:id/estimate-calories — AI-estimates calories burned and saves to the workout
+// POST /api/workouts/:id/estimate-calories
 router.post('/:id/estimate-calories', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
@@ -330,7 +361,6 @@ router.post('/:id/estimate-calories', async (req, res) => {
     const detail = await getWorkoutDetail(id);
     if (!detail) { res.status(404).json({ error: 'Not found' }); return; }
 
-    // Look up the user's most recent body weight measurement; fall back to 75 kg
     const [weightRows] = await pool.query<RowDataPacket[]>(
       `SELECT value, unit FROM body_measurements
        WHERE user_id = ? AND metric = 'weight'
@@ -396,12 +426,19 @@ router.put('/:id', async (req, res) => {
 
   const { name, notes, durationMinutes, caloriesBurned, workoutDate, completed } = req.body;
   try {
+    const setClauses = [
+      'name=?', 'notes=?', 'duration_minutes=?', 'calories_burned=?',
+      ...(workoutDate !== undefined ? ['workout_date=?'] : []),
+      'completed=COALESCE(?, completed)',
+    ].join(', ');
+    const params = [
+      name ?? null, notes ?? null, durationMinutes ?? null, caloriesBurned ?? null,
+      ...(workoutDate !== undefined ? [workoutDate] : []),
+      completed != null ? (completed ? 1 : 0) : null, id, req.userId,
+    ];
     await pool.query(
-      `UPDATE workout_logs SET name=?, notes=?, duration_minutes=?, calories_burned=?, workout_date=?,
-       completed=COALESCE(?, completed)
-       WHERE id = ? AND user_id = ?`,
-      [name ?? null, notes ?? null, durationMinutes ?? null, caloriesBurned ?? null,
-       workoutDate ?? localDateStr(), completed != null ? (completed ? 1 : 0) : null, id, req.userId]
+      `UPDATE workout_logs SET ${setClauses} WHERE id = ? AND user_id = ?`,
+      params
     );
     const detail = await getWorkoutDetail(id);
     res.json(detail);
@@ -493,7 +530,7 @@ router.delete('/:id/exercises/:weId', async (req, res) => {
   }
 });
 
-// PUT /api/workouts/:id/exercises/:weId  — update notes on a workout exercise (also syncs to routine template)
+// PUT /api/workouts/:id/exercises/:weId
 router.put('/:id/exercises/:weId', async (req, res) => {
   const id = parseId(req.params.id);
   const weId = parseId(req.params.weId);
@@ -506,7 +543,6 @@ router.put('/:id/exercises/:weId', async (req, res) => {
       'UPDATE workout_exercises SET notes = ? WHERE id = ? AND workout_log_id = ?',
       [notes ?? null, weId, id]
     );
-    // Sync notes back to the routine template if this workout came from a routine
     const [weRows] = await pool.query<RowDataPacket[]>(
       `SELECT we.exercise_id, wl.routine_id
        FROM workout_exercises we
@@ -535,7 +571,7 @@ router.post('/:id/exercises/:weId/sets', async (req, res) => {
   if (!id || !weId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters } = req.body;
+  const { reps, weightKg, durationSeconds, distanceMeters, steps } = req.body;
 
   try {
     const [countRows] = await pool.query<RowDataPacket[]>(
@@ -544,9 +580,9 @@ router.post('/:id/exercises/:weId/sets', async (req, res) => {
     const setNumber = Number((countRows[0] as any).cnt) + 1;
 
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [weId, setNumber, reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null]
+      `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, steps)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [weId, setNumber, reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, steps ?? null]
     );
     res.status(201).json({
       id: result.insertId,
@@ -555,6 +591,7 @@ router.post('/:id/exercises/:weId/sets', async (req, res) => {
       weightKg: weightKg != null ? Number(weightKg) : null,
       durationSeconds: durationSeconds ?? null,
       distanceMeters: distanceMeters != null ? Number(distanceMeters) : null,
+      steps: steps ?? null,
       completed: true,
     });
   } catch (err) {
@@ -571,16 +608,15 @@ router.put('/:id/exercises/:weId/sets/:setId', async (req, res) => {
   if (!id || !weId || !setId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters, completed } = req.body;
+  const { reps, weightKg, durationSeconds, distanceMeters, steps, completed } = req.body;
 
-  // Build a partial update — only touch fields that were explicitly sent in the body.
-  // This prevents toggle-complete calls (which only send `completed`) from zeroing out reps/weight.
   const setClauses: string[] = [];
   const values: (number | null | boolean)[] = [];
   if ('reps' in req.body)            { setClauses.push('reps=?');              values.push(reps ?? null); }
   if ('weightKg' in req.body)        { setClauses.push('weight_kg=?');         values.push(weightKg ?? null); }
   if ('durationSeconds' in req.body) { setClauses.push('duration_seconds=?');  values.push(durationSeconds ?? null); }
   if ('distanceMeters' in req.body)  { setClauses.push('distance_meters=?');   values.push(distanceMeters ?? null); }
+  if ('steps' in req.body)           { setClauses.push('steps=?');             values.push(steps ?? null); }
   if ('completed' in req.body)       { setClauses.push('completed=?');         values.push(completed ? 1 : 0); }
 
   if (setClauses.length === 0) { res.json({ success: true }); return; }

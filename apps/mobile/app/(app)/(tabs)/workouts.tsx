@@ -950,7 +950,7 @@ function ProgressTab() {
             <Text style={p.recordIcon}>🪜</Text>
             <View style={{ flex: 1 }}>
               <Text style={p.recordLabel}>Best stair pace</Text>
-              <Text style={p.recordVal}>{personalBests.bestStairPace.secsPerRep.toFixed(1)}s/rep</Text>
+              <Text style={p.recordVal}>{personalBests.bestStairPace.secsPerStep.toFixed(1)}s/step · {personalBests.bestStairPace.steps} steps</Text>
               <Text style={p.recordSub}>{personalBests.bestStairPace.workoutDate}</Text>
             </View>
           </View>

@@ -3,9 +3,9 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi, profileApi, GLASS_OZ, apiClient,
+  authApi, tagsApi, goalsApi, measurementsApi, profileApi, routinesApi, GLASS_OZ, apiClient,
   type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
-  type UserProfile, type ActivityLevel,
+  type UserProfile, type ActivityLevel, type RoutineSummary, type RoutineGoal,
 } from '@pulse/api-client';
 
 // ─── Shared primitives ────────────────────────────────────────
@@ -278,6 +278,10 @@ function GoalsTab() {
   const [volume, setVolume] = useState('');
   const [workoutCount, setWorkoutCount] = useState('');
 
+  // Per-routine goals
+  const [routines, setRoutines] = useState<RoutineSummary[]>([]);
+  const [routineGoalInputs, setRoutineGoalInputs] = useState<Record<number, string>>({});
+
   // Body measurement goals
   const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
     const init: Record<string, { value: string; date: string }> = {};
@@ -294,7 +298,9 @@ function GoalsTab() {
       goalsApi.getSummary(),
       goalsApi.getExercise(),
       measurementsApi.getGoals(),
-    ]).then(([summary, ex, mGoalsData]) => {
+      routinesApi.getAll(),
+      routinesApi.getAllGoals(),
+    ]).then(([summary, ex, mGoalsData, rList, rGoals]) => {
       const n = summary.nutrition.goals;
       if (n) {
         setCalories(String(n.calories ?? ''));
@@ -316,6 +322,10 @@ function GoalsTab() {
         }
         return updated;
       });
+      setRoutines(rList as RoutineSummary[]);
+      const goalsMap: Record<number, string> = {};
+      for (const g of (rGoals as RoutineGoal[])) goalsMap[g.routineId] = String(g.targetPerWeek);
+      setRoutineGoalInputs(goalsMap);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -348,6 +358,12 @@ function GoalsTab() {
             unit: cfg.unit,
             targetDate: date || null,
           });
+        }),
+        ...routines.map((r) => {
+          const val = routineGoalInputs[r.id];
+          if (val && Number(val) > 0) return routinesApi.setGoal(r.id, Number(val));
+          if (!val || val === '') return routinesApi.deleteGoal(r.id).catch(() => {});
+          return Promise.resolve();
         }),
       ]);
       setSuccess('Goals saved.');
@@ -395,6 +411,25 @@ function GoalsTab() {
           </div>
         </div>
       </Section>
+
+      {routines.length > 0 && (
+        <Section title="Per-Routine Goals (sessions per week)">
+          <div className="grid grid-cols-2 gap-3">
+            {routines.map((r) => (
+              <div key={r.id}>
+                <label className="block text-sm text-gray-400 mb-1">{r.name}</label>
+                <input
+                  type="number" min="0" max="14"
+                  value={routineGoalInputs[r.id] ?? ''}
+                  onChange={(e) => setRoutineGoalInputs((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                  className={inputCls}
+                  placeholder="e.g. 3"
+                />
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="Body Measurements">
         <div className="space-y-4">

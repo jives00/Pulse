@@ -53,11 +53,13 @@ function SetRow({
   const trackReps     = trackedFields.includes('reps');
   const trackDuration = trackedFields.includes('duration');
   const trackDistance = trackedFields.includes('distance');
+  const trackSteps    = trackedFields.includes('steps');
 
   const [reps, setReps]         = useState(String(set.reps ?? ''));
   const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
   const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
   const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
+  const [steps, setSteps]       = useState(String((set as any).steps ?? ''));
   const [saving, setSaving]     = useState(false);
 
   async function handleBlur() {
@@ -67,12 +69,14 @@ function SetRow({
     const newWeightKg    = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
     const newDurSeconds  = trackDuration ? mmssToSeconds(duration)             : null;
     const newDistMeters  = trackDistance && distance !== '' ? Number(distance) : null;
+    const newSteps       = trackSteps    && steps    !== '' ? Number(steps)    : null;
 
     const unchanged =
       newReps       === set.reps &&
       newWeightKg   === set.weightKg &&
       newDurSeconds === set.durationSeconds &&
-      newDistMeters === set.distanceMeters;
+      newDistMeters === set.distanceMeters &&
+      newSteps      === ((set as any).steps ?? null);
     if (unchanged) return;
 
     setSaving(true);
@@ -82,14 +86,16 @@ function SetRow({
         weightKg: newWeightKg,
         durationSeconds: newDurSeconds,
         distanceMeters: newDistMeters,
+        steps: newSteps,
         completed: set.completed,
       });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters });
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters, steps: newSteps } as any);
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
       setDuration(secondsToMMSS(set.durationSeconds));
       setDistance(String(set.distanceMeters ?? ''));
+      setSteps(String((set as any).steps ?? ''));
     } finally {
       setSaving(false);
     }
@@ -117,7 +123,7 @@ function SetRow({
   const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
   const rowCls = isActive && !set.completed ? 'opacity-60' : '';
 
-  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance].filter(Boolean).length;
+  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance, trackSteps].filter(Boolean).length;
   const dataCols = `repeat(${fieldCount}, 1fr)`;
   const gridTemplateColumns = isActive
     ? `2rem ${dataCols} 2rem 2rem`
@@ -141,6 +147,10 @@ function SetRow({
       {trackDistance && (
         <input type="number" min="0" placeholder="dist" value={distance}
           onChange={(e) => setDistance(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackSteps && (
+        <input type="number" min="0" placeholder="steps" value={steps}
+          onChange={(e) => setSteps(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
       {isActive && (
         <button
@@ -194,6 +204,7 @@ function ExerciseBlock({
         weightKg: last?.weightKg ?? undefined,
         durationSeconds: last?.durationSeconds ?? undefined,
         distanceMeters: last?.distanceMeters ?? undefined,
+        steps: (last as any)?.steps ?? undefined,
       });
       updateSets([...sets, s]);
     } catch {
@@ -216,8 +227,9 @@ function ExerciseBlock({
   const trackReps     = tf.includes('reps');
   const trackDuration = tf.includes('duration');
   const trackDistance = tf.includes('distance');
+  const trackSteps    = tf.includes('steps');
 
-  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance].filter(Boolean).length;
+  const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance, trackSteps].filter(Boolean).length;
   const dataCols = `repeat(${fieldCount}, 1fr)`;
   const gridTemplateColumns = isActive
     ? `2rem ${dataCols} 2rem 2rem`
@@ -252,6 +264,7 @@ function ExerciseBlock({
             {trackReps     && <span className="text-sm text-slate-500 text-center">reps</span>}
             {trackDuration && <span className="text-sm text-slate-500 text-center">time</span>}
             {trackDistance && <span className="text-sm text-slate-500 text-center">dist</span>}
+            {trackSteps    && <span className="text-sm text-slate-500 text-center">steps</span>}
             {isActive      && <span className="text-sm text-slate-500 text-center">✓</span>}
             <span />
           </div>
@@ -486,7 +499,7 @@ export default function WorkoutDetailPage() {
         setWorkout(w);
         setName(w.name ?? '');
         setDuration(w.durationMinutes != null ? String(w.durationMinutes) : '');
-        if (w.startedAt) {
+        if (w.startedAt && !w.completed) {
           setStartedAt(w.startedAt);
           const initialElapsed = Math.max(0, Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
           setElapsedSeconds(initialElapsed);
@@ -682,21 +695,33 @@ export default function WorkoutDetailPage() {
                 )}
               </>
             ) : (
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="min"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  onBlur={saveHeader}
-                  className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
-                />
-                <span className="text-sm text-slate-500">min</span>
-              </div>
-            )}
-            {!isActive && workout.caloriesBurned != null && (
-              <span className="text-sm text-slate-500">{workout.caloriesBurned.toLocaleString()} kcal</span>
+              <>
+                {totalVolumeLbs > 0 && (
+                  <>
+                    <span className="text-slate-600 text-sm">·</span>
+                    <span className="text-sm text-slate-400">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
+                  </>
+                )}
+                <span className="text-slate-600 text-sm">·</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="—"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    onBlur={saveHeader}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-sm text-slate-500">min</span>
+                </div>
+                {workout.caloriesBurned != null && (
+                  <>
+                    <span className="text-slate-600 text-sm">·</span>
+                    <span className="text-sm text-slate-500">{workout.caloriesBurned.toLocaleString()} kcal</span>
+                  </>
+                )}
+              </>
             )}
           </div>
         </div>

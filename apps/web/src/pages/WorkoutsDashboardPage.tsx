@@ -1106,17 +1106,28 @@ function TodaysBlurb({
 
   const workoutLines = todayWorkouts.map((w) => {
     const name = w.routineName ?? w.name ?? 'Workout';
-    const isStairs = w.exercises.some((e) => /stair/i.test(e.name));
+    const rt = w.routineType ?? 'strength';
 
-    if (isStairs) {
-      const stairsEx = w.exercises.find((e) => /stair/i.test(e.name));
-      const reps = stairsEx?.totalDistanceMeters ?? stairsEx?.totalReps ?? null;
-      const totalSec = stairsEx?.totalDurationSeconds ?? null;
-      const dur = totalSec != null
+    if (rt === 'steps') {
+      const totalSteps = w.totalSteps ?? w.exercises.reduce((s, e) => s + ((e as any).totalSteps ?? 0), 0);
+      const totalSec = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
+      const dur = totalSec > 0
         ? `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`
         : w.durationMinutes ? formatDuration(w.durationMinutes) : null;
-      const detail = [reps != null ? `${reps.toLocaleString()}` : null, dur].filter(Boolean).join(' in ');
+      const detail = [totalSteps ? `${totalSteps.toLocaleString()} steps` : null, dur].filter(Boolean).join(' in ');
       return `${name} completed${detail ? ` — ${detail}` : ''}`;
+    }
+
+    if (rt === 'cardio_distance') {
+      const miles = ((w.totalDistanceMeters ?? 0) / 1609.34).toFixed(2);
+      const dur = w.durationMinutes ? formatDuration(w.durationMinutes) : null;
+      const detail = [miles !== '0.00' ? `${miles} mi` : null, dur].filter(Boolean).join(' in ');
+      return `${name} completed${detail ? ` — ${detail}` : ''}`;
+    }
+
+    if (rt === 'cardio_duration') {
+      const mins = w.durationMinutes ?? Math.round((w.totalDurationSeconds ?? 0) / 60);
+      return `${name} completed${mins ? ` — ${mins} min` : ''}`;
     }
 
     const volumeLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
@@ -1510,10 +1521,14 @@ function ThisWeekCardV3({
   workouts,
   exGoals,
   weeklyData: _weeklyData,
+  routinesList,
+  routineGoals,
 }: {
   workouts: WorkoutSummary[];
   exGoals: ExerciseGoals | null;
   weeklyData: WeekBucket[];
+  routinesList: RoutineSummary[];
+  routineGoals: Record<number, number>;
 }) {
   const today = localDateStr();
   const weekStart = getWeekStart(today);
@@ -1533,24 +1548,49 @@ function ThisWeekCardV3({
     const dateStr = localDateStr(d);
     const isToday = dateStr === today;
     const dayWorkouts = workouts.filter((w) => w.workoutDate === dateStr);
-    const volumeLbs = dayWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
-    const cardioProxy = dayWorkouts.filter((w) => (w.totalVolumeKg ?? 0) === 0).reduce((s, w) => s + (w.caloriesBurned ?? 0) * 10, 0);
-    const barVal = volumeLbs > 0 ? volumeLbs : cardioProxy;
-    const isCardio = volumeLbs === 0 && cardioProxy > 0;
-    return { label, dateStr, isToday, barVal, isCardio, vol: Math.round(barVal) };
+    const volumeLbs = Math.round(dayWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0));
+    const hasStrength = dayWorkouts.some((w) => !w.routineType || w.routineType === 'strength' || w.routineType === 'bodyweight');
+    const hasSteps = dayWorkouts.some((w) => w.routineType === 'steps');
+    const hasCardioDistance = dayWorkouts.some((w) => w.routineType === 'cardio_distance');
+    const hasCardioDuration = dayWorkouts.some((w) => w.routineType === 'cardio_duration');
+    const totalSteps = dayWorkouts.reduce((s, w) => s + (w.totalSteps ?? 0), 0);
+    const totalDistMi = dayWorkouts.reduce((s, w) => s + (w.totalDistanceMeters ?? 0), 0) / 1609.34;
+    const totalDurMin = dayWorkouts.reduce((s, w) => s + (w.totalDurationSeconds ?? 0), 0) / 60;
+    const nonStrength = !hasStrength && (hasSteps || hasCardioDistance || hasCardioDuration);
+    // Normalize bar height: strength → % of weekly volume goal (or raw lbs if no goal)
+    // Non-strength → contribution of each session toward routine's weekly goal (1/target per session)
+    let barPct: number;
+    if (dayWorkouts.length === 0) {
+      barPct = 0;
+    } else if (hasStrength) {
+      barPct = volumeGoal ? volumeLbs / volumeGoal : volumeLbs / 10000;
+    } else {
+      // Sum pct contributions from each non-strength session
+      barPct = dayWorkouts
+        .filter((w) => w.routineType && w.routineType !== 'strength' && w.routineType !== 'bodyweight')
+        .reduce((sum, w) => {
+          const target = w.routineId ? routineGoals[w.routineId] : null;
+          // Each session = 1/target of the weekly goal; if no goal set, treat 3/week as baseline
+          return sum + 1 / (target ?? 3);
+        }, 0);
+    }
+    return { label, dateStr, isToday, barPct, nonStrength, volumeLbs, totalSteps, totalDistMi, totalDurMin, vol: Math.round(volumeLbs), dayWorkouts };
   });
 
-  const maxVol = Math.max(...weekDayBars.map((d) => d.barVal), 1);
+  const maxPct = Math.max(...weekDayBars.map((d) => d.barPct), 0.01);
   const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
 
   const weekLabel = weekStart
     ? new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '';
 
+  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
+  const hoveredBar = weekDayBars.find((d) => d.dateStr === hoveredDay) ?? null;
+
   return (
     <section className="card overflow-hidden">
       <V3CardHeader label="This Week" meta={`Week of ${weekLabel} · ${streak}-day streak`} />
-      <div className="grid" style={{ gridTemplateColumns: '1fr 2.2fr' }}>
+      <div className="grid" style={{ gridTemplateColumns: '1fr 2.2fr', alignItems: 'stretch' }}>
         <div className="border-r border-bd divide-y divide-bd">
           {/* Workouts stat */}
           <div className="p-6">
@@ -1587,39 +1627,87 @@ function ThisWeekCardV3({
         </div>
 
         {/* Day bars */}
-        <div className="p-6">
-          <div className="flex items-baseline justify-between mb-4">
-            <span className="micro text-muted">Volume by day</span>
-            <span className="t-xs text-muted font-mono">lbs</span>
-          </div>
+        <div className="p-6 flex flex-col gap-4" onMouseLeave={() => setHoveredDay(null)}>
+          <span className="micro text-muted">Activity by day</span>
           <div className="flex items-end gap-3 h-[140px]">
             {weekDayBars.map((d, i) => {
-              const h = (d.barVal / maxVol) * 100;
+              const h = (d.barPct / maxPct) * 100;
+              const isHovered = hoveredDay === d.dateStr;
               return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full">
+                <div
+                  key={i}
+                  className="flex-1 flex flex-col items-center gap-2 h-full cursor-default"
+                  onMouseEnter={() => setHoveredDay(d.dateStr)}
+                >
                   <div className="flex-1 flex flex-col justify-end w-full relative">
                     {d.isToday && (
                       <div className="absolute -top-5 left-0 right-0 text-center">
                         <span className="t-xs gold font-mono">today</span>
                       </div>
                     )}
-                    {d.isCardio && d.barVal > 0 ? (
-                      <div className="w-full rounded-t-sm" style={{ height: `${Math.max(h, 4)}%`, minHeight: 4, borderWidth: 2, borderStyle: 'dashed', borderColor: GOLD + 'B3', background: GOLD + '33' }} />
-                    ) : d.barVal > 0 ? (
-                      <div className="w-full rounded-t-sm bg-gold" style={{ height: `${Math.max(h, 3)}%`, minHeight: 3 }} />
+                    {d.barPct > 0 ? (
+                      <div
+                        className="w-full rounded-t-sm transition-opacity"
+                        style={{ height: `${Math.max(h, 3)}%`, minHeight: 3, backgroundColor: GOLD, opacity: isHovered ? 1 : 0.75 }}
+                      />
                     ) : (
                       <div className="w-full h-[2px] rounded-full" style={{ background: 'rgb(var(--color-border))' }} />
                     )}
                   </div>
                   <div className="text-center">
-                    <div className={`t-xs font-mono ${d.isToday ? 'gold font-semibold' : 'text-muted'}`}>{d.label}</div>
-                    <div className={`font-mono tnum ${d.vol ? '' : 'text-muted'}`} style={{ fontSize: 10 }}>
-                      {d.isCardio && d.vol ? '≈' : ''}{d.vol ? fmtNum(d.vol) : '—'}
+                    <div className={`t-xs font-mono ${d.isToday ? 'gold font-semibold' : isHovered ? 'text-white' : 'text-muted'}`}>{d.label}</div>
+                    <div className={`font-mono tnum ${d.vol || d.nonStrength ? '' : 'text-muted'}`} style={{ fontSize: 10 }}>
+                      {d.nonStrength
+                        ? d.totalSteps > 0 ? fmtNum(d.totalSteps)
+                          : d.totalDistMi > 0 ? `${d.totalDistMi.toFixed(1)}mi`
+                          : d.totalDurMin > 0 ? `${Math.round(d.totalDurMin)}m`
+                          : '—'
+                        : d.vol ? fmtNum(d.vol) : '—'
+                      }
                     </div>
                   </div>
                 </div>
               );
             })}
+          </div>
+          {/* Tooltip detail below bars */}
+          <div className="min-h-[48px]">
+            {hoveredBar && hoveredBar.dayWorkouts.length > 0 ? (
+              <div className="space-y-2">
+                {hoveredBar.dayWorkouts.map((w) => (
+                  <div key={w.id}>
+                    <div className="t-xs text-white font-medium mb-1">{w.routineName ?? w.name ?? 'Workout'}</div>
+                    <div className="space-y-0.5">
+                      {w.exercises.map((ex, ei) => {
+                        const rt = w.routineType;
+                        let detail = '';
+                        if (rt === 'steps') {
+                          detail = ex.totalSteps ? `${fmtNum(ex.totalSteps)} steps` : '';
+                          if (ex.totalDurationSeconds) detail += detail ? ` · ${Math.round(ex.totalDurationSeconds / 60)}m` : `${Math.round(ex.totalDurationSeconds / 60)}m`;
+                        } else if (rt === 'cardio_distance') {
+                          detail = ex.totalDistanceMeters ? `${(ex.totalDistanceMeters / 1609.34).toFixed(1)} mi` : '';
+                          if (ex.totalDurationSeconds) detail += detail ? ` · ${Math.round(ex.totalDurationSeconds / 60)}m` : `${Math.round(ex.totalDurationSeconds / 60)}m`;
+                        } else if (rt === 'cardio_duration' || rt === 'duration') {
+                          detail = ex.totalDurationSeconds ? `${Math.round(ex.totalDurationSeconds / 60)}m` : '';
+                        } else {
+                          const sets = ex.setCount;
+                          const reps = ex.avgReps != null ? `${Math.round(ex.avgReps)} reps` : '';
+                          const wt = ex.maxWeightKg != null ? `${fmtNum(ex.maxWeightKg * KG_TO_LBS)} lbs` : '';
+                          detail = [sets ? `${sets}×` : '', reps, wt].filter(Boolean).join(' ');
+                        }
+                        return (
+                          <div key={ei} className="font-mono text-muted" style={{ fontSize: 11 }}>
+                            {ex.name}{detail ? <span className="text-white"> — {detail}</span> : ''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="t-xs text-muted">Hover a bar to see details</span>
+            )}
           </div>
         </div>
       </div>
@@ -2223,9 +2311,13 @@ function TrendingSection({
 
 // ── VolumeHeatmapCard ──────────────────────────────────────────────────────────
 
+function w_routineType(workouts: WorkoutSummary[], rId: number): string {
+  return workouts.find((w) => w.routineId === rId)?.routineType ?? 'strength';
+}
+
 function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [tooltip, setTooltip] = useState<{ clientX: number; clientY: number; label: string; vol: number; week: string } | null>(null);
+  const [tooltip, setTooltip] = useState<{ clientX: number; clientY: number; label: string; val: number; unit: string; week: string } | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
@@ -2240,24 +2332,41 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
     weekStarts.push(getWeekStart(localDateStr(d)));
   }
 
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
   const routineIds = [...new Set(workouts.filter((w) => w.routineId).map((w) => w.routineId!))]
-    .filter((rId) => !/stair/i.test(routineNameById[rId] ?? ''))
-    .sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
+    .sort((a, b) => (routineById[a]?.name ?? '').localeCompare(routineById[b]?.name ?? ''));
+
+  function getCellValue(rId: number, ws: string): number {
+    const rt = routineById[rId]?.routineType ?? w_routineType(workouts, rId);
+    const ws_workouts = workouts.filter((w) => w.routineId === rId && getWeekStart(w.workoutDate) === ws);
+    switch (rt) {
+      case 'steps':           return Math.round(ws_workouts.reduce((s, w) => s + (w.totalSteps ?? 0), 0));
+      case 'cardio_distance': return Math.round(ws_workouts.reduce((s, w) => s + (w.totalDistanceMeters ?? 0), 0) / 1609.34 * 10) / 10;
+      case 'cardio_duration': return Math.round(ws_workouts.reduce((s, w) => s + (w.totalDurationSeconds ?? 0), 0) / 60);
+      default:                return Math.round(ws_workouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0));
+    }
+  }
+
+  function getCellUnit(rId: number): string {
+    const rt = routineById[rId]?.routineType ?? w_routineType(workouts, rId);
+    switch (rt) {
+      case 'steps':           return 'steps';
+      case 'cardio_distance': return 'mi';
+      case 'cardio_duration': return 'min';
+      default:                return 'lbs';
+    }
+  }
 
   const grid: Record<string, Record<string, number>> = {};
   for (const rId of routineIds) {
     grid[rId] = {};
     for (const ws of weekStarts) {
-      const vol = workouts
-        .filter((w) => w.routineId === rId && getWeekStart(w.workoutDate) === ws)
-        .reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
-      grid[rId][ws] = Math.round(vol);
+      grid[rId][ws] = getCellValue(rId, ws);
     }
   }
 
-  const allVols = Object.values(grid).flatMap((row) => Object.values(row)).filter((v) => v > 0);
-  const maxVol = allVols.length ? Math.max(...allVols) : 1;
+  const allVals = Object.values(grid).flatMap((row) => Object.values(row)).filter((v) => v > 0);
+  const maxVol = allVals.length ? Math.max(...allVals) : 1;
   const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
 
   if (routineIds.length === 0) {
@@ -2274,10 +2383,10 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
       <V3CardHeader label="Volume Heatmap" meta="by routine × week" />
       <div className="px-6 pb-4">
         <div ref={scrollRef} className="overflow-x-auto">
-          <table className="border-collapse">
+          <table className="border-collapse w-full">
             <thead>
               <tr>
-                <th className="text-left pb-2 pr-4 micro text-muted font-normal whitespace-nowrap" style={{ minWidth: 80 }}>Routine</th>
+                <th className="text-left pb-2 pr-4 micro text-muted font-normal whitespace-nowrap">Routine</th>
                 {weekStarts.map((ws) => {
                   const d = new Date(ws + 'T12:00:00');
                   return (
@@ -2291,12 +2400,13 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
             <tbody>
               {routineIds.map((rId) => (
                 <tr key={rId}>
-                  <td className="pr-4 py-1 t-xs text-muted whitespace-nowrap" style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {routineNameById[rId] ?? `Routine ${rId}`}
+                  <td className="pr-4 py-1 t-xs text-muted whitespace-nowrap">
+                    {routineById[rId]?.name ?? `Routine ${rId}`}
                   </td>
                   {weekStarts.map((ws) => {
-                    const vol = grid[rId][ws];
-                    const opacity = vol > 0 ? 0.12 + (vol / maxVol) * 0.88 : 0;
+                    const val = grid[rId][ws];
+                    const unit = getCellUnit(rId);
+                    const opacity = val > 0 ? 0.12 + (val / maxVol) * 0.88 : 0;
                     return (
                       <td key={ws} className="px-0.5 py-1 text-center">
                         <div
@@ -2305,17 +2415,18 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
                             setTooltip({
                               clientX: rect.left + rect.width / 2,
                               clientY: rect.top - 8,
-                              label: routineNameById[rId] ?? `Routine ${rId}`,
-                              vol,
+                              label: routineById[rId]?.name ?? `Routine ${rId}`,
+                              val,
+                              unit,
                               week: new Date(ws + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                             });
                           }}
                           onMouseLeave={() => setTooltip(null)}
                           style={{
                             width: 22, height: 22, borderRadius: 3,
-                            background: vol > 0 ? `rgba(212,168,67,${opacity})` : 'rgb(var(--color-bg))',
+                            background: val > 0 ? `rgba(212,168,67,${opacity})` : 'rgb(var(--color-bg))',
                             border: '1px solid rgb(var(--color-border))',
-                            cursor: vol > 0 ? 'default' : undefined,
+                            cursor: val > 0 ? 'default' : undefined,
                           }}
                         />
                       </td>
@@ -2347,8 +2458,8 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
           }}
         >
           <div className="t-xs text-muted font-mono">{tooltip.label} · wk of {tooltip.week}</div>
-          {tooltip.vol > 0 ? (
-            <div className="t-sm font-mono font-semibold gold tnum">{fmtNum(tooltip.vol)} lbs</div>
+          {tooltip.val > 0 ? (
+            <div className="t-sm font-mono font-semibold gold tnum">{fmtNum(tooltip.val)} {tooltip.unit}</div>
           ) : (
             <div className="t-xs text-muted">—</div>
           )}
@@ -2727,7 +2838,7 @@ function PersonalBestsCardV3({ personalBests, workouts, routinesList }: {
     rows.push({
       lift: bp.exerciseName,
       meta: `Best pace · ${new Date(bp.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${bp.reps} reps`,
+      value: `${bp.steps} steps`,
     });
   }
 
@@ -2793,7 +2904,7 @@ function RecentWorkoutsCardV3({
   routinesList: RoutineSummary[];
 }) {
   const navigate = useNavigate();
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
   const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
   const last10 = completed.slice(0, 10);
   const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
@@ -2823,24 +2934,68 @@ function RecentWorkoutsCardV3({
           <tbody>
             {last10.map((w) => {
               const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
-              const isCardio = volLbs === 0;
-              const routineName = w.routineId ? (routineNameById[w.routineId] ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
-              const totalDurSecs = isCardio ? w.exercises.reduce((sum, ex) => sum + (ex.totalDurationSeconds ?? 0), 0) : 0;
-              const volumeDisplay = !isCardio
-                ? <span>{fmtNum(volLbs)}<span className="text-muted"> lbs</span></span>
-                : totalDurSecs > 0
-                  ? <span>{Math.floor(totalDurSecs / 60)}<span className="text-muted"> min</span></span>
-                  : w.durationMinutes
-                    ? <span>{w.durationMinutes}<span className="text-muted"> min</span></span>
-                    : <span className="text-muted">—</span>;
+              const rt = w.routineType ?? (volLbs > 0 ? 'strength' : 'cardio_duration');
+              const routineName = w.routineId ? (routineById[w.routineId]?.name ?? w.routineName ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
+
+              // Primary metric display by routine type
+              const stepsVal = w.totalSteps ?? null;
+              const stepsDurMin = (() => {
+                const secs = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
+                return secs ? Math.round(secs / 60) : (w.durationMinutes ?? null);
+              })();
+              let primaryVal: number | null = null;
+              let primaryUnit = 'lbs';
+              if (rt === 'steps') {
+                primaryVal = stepsVal;
+                primaryUnit = 'steps';
+              } else if (rt === 'cardio_distance') {
+                primaryVal = w.totalDistanceMeters ? Math.round((w.totalDistanceMeters / 1609.34) * 100) / 100 : null;
+                primaryUnit = 'mi';
+              } else if (rt === 'cardio_duration') {
+                primaryVal = stepsDurMin;
+                primaryUnit = 'min';
+              } else {
+                primaryVal = volLbs > 0 ? volLbs : null;
+              }
+
+              const volumeDisplay = rt === 'steps' && stepsVal != null ? (
+                <span>
+                  {fmtNum(stepsVal)}<span className="text-muted"> steps</span>
+                  {stepsDurMin != null && <><span className="text-muted"> · </span>{stepsDurMin}<span className="text-muted">m</span></>}
+                </span>
+              ) : primaryVal != null ? (
+                <span>{primaryUnit === 'mi' ? primaryVal.toFixed(2) : fmtNum(primaryVal)}<span className="text-muted"> {primaryUnit}</span></span>
+              ) : (
+                <span className="text-muted">—</span>
+              );
 
               let prior: WorkoutSummary | undefined;
               if (w.routineId) {
                 prior = completed.find((x) => x.id !== w.id && x.routineId === w.routineId && x.workoutDate < w.workoutDate);
               }
-              const priorVolLbs = prior ? Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS) : null;
-              const delta = priorVolLbs != null && volLbs > 0 ? volLbs - priorVolLbs : null;
-              const deltaPct = delta != null && priorVolLbs && priorVolLbs > 0 ? (delta / priorVolLbs * 100) : null;
+
+              // Compare same metric vs prior — steps uses pace (steps/min) so duration differences don't skew it
+              let priorVal: number | null = null;
+              let currentCompare: number | null = primaryVal;
+              if (prior) {
+                if (rt === 'steps') {
+                  const priorSteps = prior.totalSteps ?? null;
+                  const priorSecs = prior.totalDurationSeconds ?? prior.exercises?.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0) ?? 0;
+                  const priorMin = priorSecs ? priorSecs / 60 : (prior.durationMinutes ?? null);
+                  priorVal = priorSteps != null && priorMin ? Math.round(priorSteps / priorMin) : null;
+                  currentCompare = stepsVal != null && stepsDurMin ? Math.round(stepsVal / stepsDurMin) : null;
+                } else if (rt === 'cardio_distance') {
+                  priorVal = prior.totalDistanceMeters ? Math.round((prior.totalDistanceMeters / 1609.34) * 100) / 100 : null;
+                } else if (rt === 'cardio_duration') {
+                  const ps = prior.totalDurationSeconds ?? prior.exercises?.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0) ?? 0;
+                  priorVal = ps ? Math.floor(ps / 60) : (prior.durationMinutes ?? null);
+                } else {
+                  priorVal = Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS);
+                }
+              }
+
+              const delta = priorVal != null && currentCompare != null ? currentCompare - priorVal : null;
+              const deltaPct = delta != null && priorVal && priorVal > 0 ? (delta / priorVal * 100) : null;
 
               return (
                 <tr
@@ -2892,7 +3047,7 @@ function RecentWorkoutsCardV3({
 
 function DashboardV3({
   workouts, measurements, measurementGoals,
-  waterHistory, foodLogHistory, routinesList,
+  waterHistory, foodLogHistory, routinesList, routineGoals,
   caloriesGoal, proteinGoal, carbsGoal, fatGoal,
   todayTDEE, exGoals, weeklyData, personalBests,
   loading, onWaterLogged, onMeasurementLogged,
@@ -2903,6 +3058,7 @@ function DashboardV3({
   waterHistory: WaterHistory | null;
   foodLogHistory: FoodLogHistoryDay[];
   routinesList: RoutineSummary[];
+  routineGoals: Record<number, number>;
   caloriesGoal: number | null;
   proteinGoal: number | null;
   carbsGoal: number | null;
@@ -2976,7 +3132,7 @@ function DashboardV3({
           onWaterLogged={onWaterLogged}
         />
 
-        <ThisWeekCardV3 workouts={workouts} exGoals={exGoals} weeklyData={weeklyData} />
+        <ThisWeekCardV3 workouts={workouts} exGoals={exGoals} weeklyData={weeklyData} routinesList={routinesList} routineGoals={routineGoals} />
 
         <BodyCompositionCardV3 measurements={measurements} onMeasurementLogged={onMeasurementLogged} />
 
@@ -3043,6 +3199,7 @@ export default function WorkoutsDashboardPage() {
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
+  const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
   const [starting, setStarting] = useState(false);
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
@@ -3074,15 +3231,17 @@ export default function WorkoutsDashboardPage() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 29);
       const start = localDateStr(startD);
-      const [wh, fl, rl, tdee] = await Promise.all([
+      const [wh, fl, rl, tdee, rg] = await Promise.all([
         waterApi.getHistory(start, end).catch(() => null),
         logApi.getHistory(30).catch(() => []),
         routinesApi.getAll().catch(() => []),
         goalsApi.getTDEE().catch(() => null),
+        routinesApi.getAllGoals().catch(() => []),
       ]);
       setWaterHistory(wh);
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
       setRoutinesList(rl as RoutineSummary[]);
+      setRoutineGoals(Object.fromEntries((rg as import('@pulse/api-client').RoutineGoal[]).map((g) => [g.routineId, g.targetPerWeek])));
       if (tdee && tdee.available) setTodayTDEE(tdee);
       setV2Loaded(true);
     } catch { /* ignore */ } finally { setV2Loading(false); }
@@ -3204,6 +3363,7 @@ export default function WorkoutsDashboardPage() {
           waterHistory={waterHistory}
           foodLogHistory={foodLogHistory}
           routinesList={routinesList}
+          routineGoals={routineGoals}
           loading={loading || (v2Loading && !v2Loaded)}
           caloriesGoal={nutritionSummary?.nutrition.goals?.calories ?? null}
           proteinGoal={nutritionSummary?.nutrition.goals?.proteinG ?? null}

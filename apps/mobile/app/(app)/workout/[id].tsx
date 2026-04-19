@@ -86,14 +86,14 @@ export default function WorkoutDetailScreen() {
   const [editingDate, setEditingDate] = useState(false);
   const [dateInput, setDateInput] = useState('');
 
-  // Set input state: { [weId]: { weight: string; reps: string; duration: string; distance: string } }
-  const [setInputs, setSetInputs] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string }>>({});
+  // Set input state: { [weId]: { weight: string; reps: string; duration: string; distance: string; steps: string } }
+  const [setInputs, setSetInputs] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string; steps: string }>>({});
 
   // Per-exercise notes
   const [exerciseNotes, setExerciseNotes] = useState<Record<number, string>>({});
 
-  // Inline set editing: { [setId]: { weight: string; reps: string; duration: string; distance: string } }
-  const [setEdits, setSetEdits] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string }>>({});
+  // Inline set editing: { [setId]: { weight: string; reps: string; duration: string; distance: string; steps: string } }
+  const [setEdits, setSetEdits] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string; steps: string }>>({});
 
   const load = useCallback(async () => {
     try {
@@ -106,15 +106,17 @@ export default function WorkoutDetailScreen() {
       }
       setExerciseNotes(notes);
 
-      // Start timer via API (idempotent)
+      // Start timer via API (idempotent) — only for active (incomplete) workouts
       let sa = data.startedAt;
-      if (!sa) {
-        try {
-          const r = await startWorkoutTimer(token, workoutId);
-          sa = r.startedAt;
-        } catch { /* ignore */ }
+      if (!data.completed) {
+        if (!sa) {
+          try {
+            const r = await startWorkoutTimer(token, workoutId);
+            sa = r.startedAt;
+          } catch { /* ignore */ }
+        }
+        startedAtRef.current = sa;
       }
-      startedAtRef.current = sa;
     } catch {
       Alert.alert('Error', 'Could not load workout.');
     } finally {
@@ -225,17 +227,19 @@ export default function WorkoutDetailScreen() {
   }
 
   async function handleAddSet(we: WorkoutExercise) {
-    const inp = setInputs[we.id] ?? { weight: '', reps: '', duration: '', distance: '' };
+    const inp = setInputs[we.id] ?? { weight: '', reps: '', duration: '', distance: '', steps: '' };
     const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
     const weightLbs = parseFloat(inp.weight);
     const reps = parseInt(inp.reps, 10);
     const durSeconds = mmssToSeconds(inp.duration ?? '');
     const distMeters = parseFloat(inp.distance ?? '');
-    const payload: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number } = {};
+    const stepsVal = parseInt(inp.steps ?? '', 10);
+    const payload: { reps?: number; weightKg?: number; durationSeconds?: number; distanceMeters?: number; steps?: number } = {};
     if (tf.includes('weight') && !isNaN(weightLbs) && weightLbs >= 0) payload.weightKg = parseFloat(lbsToKg(weightLbs).toFixed(4));
     if (tf.includes('reps') && !isNaN(reps) && reps > 0) payload.reps = reps;
     if (tf.includes('duration') && durSeconds != null) payload.durationSeconds = durSeconds;
     if (tf.includes('distance') && !isNaN(distMeters) && distMeters >= 0) payload.distanceMeters = distMeters;
+    if (tf.includes('steps') && !isNaN(stepsVal) && stepsVal > 0) payload.steps = stepsVal;
     try {
       const set = await addWorkoutSet(token, workoutId, we.id, payload);
       setWorkout((prev) => prev ? {
@@ -267,6 +271,7 @@ export default function WorkoutDetailScreen() {
         reps: set.reps != null ? String(set.reps) : '',
         duration: set.durationSeconds != null ? secondsToMMSS(set.durationSeconds) : '',
         distance: set.distanceMeters != null ? String(set.distanceMeters) : '',
+        steps: (set as any).steps != null ? String((set as any).steps) : '',
       },
     }));
   }
@@ -279,11 +284,13 @@ export default function WorkoutDetailScreen() {
     const reps = parseInt(edit.reps, 10);
     const durSeconds = mmssToSeconds(edit.duration);
     const distMeters = parseFloat(edit.distance);
-    const payload: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null } = {};
+    const stepsVal = parseInt(edit.steps ?? '', 10);
+    const payload: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; steps?: number | null } = {};
     if (tf.includes('weight')) payload.weightKg = !isNaN(weightLbs) && weightLbs >= 0 ? parseFloat(lbsToKg(weightLbs).toFixed(4)) : null;
     if (tf.includes('reps')) payload.reps = !isNaN(reps) && reps > 0 ? reps : null;
     if (tf.includes('duration')) payload.durationSeconds = durSeconds;
     if (tf.includes('distance')) payload.distanceMeters = !isNaN(distMeters) && distMeters >= 0 ? distMeters : null;
+    if (tf.includes('steps')) payload.steps = !isNaN(stepsVal) && stepsVal > 0 ? stepsVal : null;
     try {
       await updateWorkoutSet(token, workoutId, we.id, set.id, { ...payload, completed: set.completed });
       setWorkout((prev) => prev ? {
@@ -297,6 +304,7 @@ export default function WorkoutDetailScreen() {
               reps: payload.reps ?? null,
               durationSeconds: payload.durationSeconds ?? null,
               distanceMeters: payload.distanceMeters ?? null,
+              steps: payload.steps ?? null,
             } : s),
           } : e
         ),
@@ -432,6 +440,7 @@ export default function WorkoutDetailScreen() {
             const trackReps     = tf.includes('reps');
             const trackDuration = tf.includes('duration');
             const trackDistance = tf.includes('distance');
+            const trackSteps    = tf.includes('steps');
             return (
             <View key={we.id} style={s.exerciseBlock}>
               <View style={s.exerciseHeader}>
@@ -463,6 +472,7 @@ export default function WorkoutDetailScreen() {
                 {trackReps     && <Text style={[s.setCol, s.setColData]}>reps</Text>}
                 {trackDuration && <Text style={[s.setCol, s.setColData]}>time</Text>}
                 {trackDistance && <Text style={[s.setCol, s.setColData]}>dist</Text>}
+                {trackSteps    && <Text style={[s.setCol, s.setColData]}>steps</Text>}
                 <View style={s.setColCheck} />
                 <View style={s.setColDel} />
               </View>
@@ -545,6 +555,24 @@ export default function WorkoutDetailScreen() {
                       </TouchableOpacity>
                     )
                   )}
+                  {trackSteps && (
+                    editing ? (
+                      <TextInput
+                        style={[s.setInlineInput, s.setColData]}
+                        value={edit?.steps ?? ''}
+                        onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], steps: v } }))}
+                        onBlur={() => handleSaveSetEdit(we, set)}
+                        keyboardType="number-pad"
+                        selectTextOnFocus
+                      />
+                    ) : (
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                        <Text style={[s.setCol, set.completed && s.setTextDone]}>
+                          {(set as any).steps != null ? (set as any).steps : '—'}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  )}
                   <TouchableOpacity style={s.setColCheck} onPress={() => handleToggleSet(we, set)}>
                     <View style={[s.checkBox, set.completed && s.checkBoxDone]}>
                       {set.completed && <Text style={s.checkMark}>✓</Text>}
@@ -567,7 +595,7 @@ export default function WorkoutDetailScreen() {
                     placeholderTextColor={c.muted}
                     keyboardType="decimal-pad"
                     value={setInputs[we.id]?.weight ?? ''}
-                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], weight: v, reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], weight: v, reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '', steps: prev[we.id]?.steps ?? '' } }))}
                   />
                 )}
                 {trackReps && (
@@ -577,7 +605,7 @@ export default function WorkoutDetailScreen() {
                     placeholderTextColor={c.muted}
                     keyboardType="number-pad"
                     value={setInputs[we.id]?.reps ?? ''}
-                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], reps: v, weight: prev[we.id]?.weight ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], reps: v, weight: prev[we.id]?.weight ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '', steps: prev[we.id]?.steps ?? '' } }))}
                   />
                 )}
                 {trackDuration && (
@@ -587,7 +615,7 @@ export default function WorkoutDetailScreen() {
                     placeholderTextColor={c.muted}
                     keyboardType="numbers-and-punctuation"
                     value={setInputs[we.id]?.duration ?? ''}
-                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], duration: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', distance: prev[we.id]?.distance ?? '' } }))}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], duration: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', distance: prev[we.id]?.distance ?? '', steps: prev[we.id]?.steps ?? '' } }))}
                   />
                 )}
                 {trackDistance && (
@@ -597,7 +625,17 @@ export default function WorkoutDetailScreen() {
                     placeholderTextColor={c.muted}
                     keyboardType="decimal-pad"
                     value={setInputs[we.id]?.distance ?? ''}
-                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], distance: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '' } }))}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], distance: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '', steps: prev[we.id]?.steps ?? '' } }))}
+                  />
+                )}
+                {trackSteps && (
+                  <TextInput
+                    style={[s.setInput, s.setColData]}
+                    placeholder="steps"
+                    placeholderTextColor={c.muted}
+                    keyboardType="number-pad"
+                    value={setInputs[we.id]?.steps ?? ''}
+                    onChangeText={(v) => setSetInputs((prev) => ({ ...prev, [we.id]: { ...prev[we.id], steps: v, weight: prev[we.id]?.weight ?? '', reps: prev[we.id]?.reps ?? '', duration: prev[we.id]?.duration ?? '', distance: prev[we.id]?.distance ?? '' } }))}
                   />
                 )}
                 <TouchableOpacity style={[s.setColDel, s.addSetBtn]} onPress={() => handleAddSet(we)}>

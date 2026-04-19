@@ -194,9 +194,13 @@ function DayVolumeBars({ workouts, c }: { workouts: WorkoutSummary[]; c: Colors 
   const volByDate: Record<string, number> = {};
   for (const w of workouts) {
     if (!days.includes(w.workoutDate)) continue;
-    const volLbs = (w.totalVolumeKg ?? 0) * KG_TO_LBS;
-    const cardioEquiv = volLbs === 0 ? (w.caloriesBurned ?? 0) * 10 : 0;
-    volByDate[w.workoutDate] = (volByDate[w.workoutDate] ?? 0) + volLbs + cardioEquiv;
+    const rt = (w as any).routineType as string | null | undefined;
+    let val = 0;
+    if (rt === 'steps') val = (w as any).totalSteps ?? 0;
+    else if (rt === 'cardio_distance') val = ((w as any).totalDistanceMeters ?? 0) / 1609.34 * 1000;
+    else if (rt === 'cardio_duration') val = ((w as any).totalDurationSeconds ?? 0);
+    else val = (w.totalVolumeKg ?? 0) * KG_TO_LBS;
+    volByDate[w.workoutDate] = (volByDate[w.workoutDate] ?? 0) + val;
   }
 
   const values = days.map((d) => volByDate[d] ?? 0);
@@ -227,7 +231,7 @@ function DayVolumeBars({ workouts, c }: { workouts: WorkoutSummary[]; c: Colors 
   );
 }
 
-// ── Routine heatmap (gold scale, stair-filtered) ──────────────────────────────
+// ── Routine heatmap ───────────────────────────────────────────────────────────
 function RoutineHeatmap({ workouts, routinesList, c }: {
   workouts: WorkoutSummary[]; routinesList: RoutineSummary[]; c: Colors;
 }) {
@@ -239,27 +243,37 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
     return getWeekStart(localDateStr(d));
   });
 
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
-  const routineVolumes: Record<number, Record<string, number>> = {};
-  for (const w of workouts) {
-    if (!w.routineId || (w.totalVolumeKg ?? 0) <= 0) continue;
-    const rid = w.routineId;
-    if (/stair/i.test(routineNameById[rid] ?? '')) continue;
-    const ws = getWeekStart(w.workoutDate);
-    if (!routineVolumes[rid]) routineVolumes[rid] = {};
-    routineVolumes[rid][ws] = (routineVolumes[rid][ws] ?? 0) + (w.totalVolumeKg ?? 0) * KG_TO_LBS;
+  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
+
+  function getCellValue(w: WorkoutSummary, rid: number): number {
+    const rt = routineById[rid]?.routineType ?? 'strength';
+    if (rt === 'steps') return (w as any).totalSteps ?? 0;
+    if (rt === 'cardio_distance') return ((w as any).totalDistanceMeters ?? 0) / 1609.34;
+    if (rt === 'cardio_duration') return ((w as any).totalDurationSeconds ?? 0) / 60;
+    return (w.totalVolumeKg ?? 0) * KG_TO_LBS;
   }
 
-  const relevantIds = Object.keys(routineVolumes)
+  const routineValues: Record<number, Record<string, number>> = {};
+  for (const w of workouts) {
+    if (!w.routineId) continue;
+    const rid = w.routineId;
+    const val = getCellValue(w, rid);
+    if (val <= 0) continue;
+    const ws = getWeekStart(w.workoutDate);
+    if (!routineValues[rid]) routineValues[rid] = {};
+    routineValues[rid][ws] = (routineValues[rid][ws] ?? 0) + val;
+  }
+
+  const relevantIds = Object.keys(routineValues)
     .map(Number)
-    .filter((rid) => weeks.some((ws) => (routineVolumes[rid][ws] ?? 0) > 0));
+    .filter((rid) => weeks.some((ws) => (routineValues[rid][ws] ?? 0) > 0));
 
   if (relevantIds.length === 0) {
     return <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No routine data in last 13 weeks</Text>;
   }
 
-  const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineVolumes[rid])), 1);
-  relevantIds.sort((a, b) => (routineNameById[a] ?? '').localeCompare(routineNameById[b] ?? ''));
+  const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineValues[rid])), 1);
+  relevantIds.sort((a, b) => (routineById[a]?.name ?? '').localeCompare(routineById[b]?.name ?? ''));
 
   const nameColW = 90;
   const cellGap = 2;
@@ -295,13 +309,13 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
       {relevantIds.map((rid) => (
         <View key={rid} style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: nameColW }}>
-            <Text style={{ fontSize: fontSize.xs, color: c.text }} numberOfLines={1}>{routineNameById[rid] ?? `Routine ${rid}`}</Text>
+            <Text style={{ fontSize: fontSize.xs, color: c.text }} numberOfLines={1}>{routineById[rid]?.name ?? `Routine ${rid}`}</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', gap: cellGap }}>
               {weeks.map((ws) => {
-                const vol = routineVolumes[rid][ws] ?? 0;
-                return <View key={ws} style={{ width: cellW, height: cellH, borderRadius: 3, backgroundColor: goldCell(vol) }} />;
+                const val = routineValues[rid][ws] ?? 0;
+                return <View key={ws} style={{ width: cellW, height: cellH, borderRadius: 3, backgroundColor: goldCell(val) }} />;
               })}
             </View>
           </ScrollView>
@@ -317,7 +331,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
             return <View key={t} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `rgb(${r},${g},${b})` }} />;
           })}
         </View>
-        <Text style={{ fontSize: 9, color: c.muted }}>More volume</Text>
+        <Text style={{ fontSize: 9, color: c.muted }}>More activity</Text>
       </View>
     </View>
   );
@@ -604,6 +618,7 @@ export default function DashboardScreen() {
   const weeklyAverages = buildWeeklyAverages(foodLogHistory, workouts, todayTDEE);
 
   // Personal bests rows (web parity)
+  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
   const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
   const pbRows: { label: string; meta: string; value: string }[] = [];
   if (personalBests?.heaviestLift) {
@@ -649,7 +664,7 @@ export default function DashboardScreen() {
     pbRows.push({
       label: bp.exerciseName,
       meta: `Best pace · ${new Date(bp.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${bp.reps} reps`,
+      value: `${bp.steps} steps`,
     });
   }
 
@@ -962,15 +977,22 @@ export default function DashboardScreen() {
           <View style={s.card}>
             <CardHeader title="Recent Workouts" meta={`Last ${recentWorkouts.length} sessions`} c={c} />
             {recentWorkouts.map((w, i) => {
-              const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
-              const isCardio = volLbs === 0;
-              const rName = w.routineId ? (routineNameById[w.routineId] ?? w.name ?? 'Workout') : (w.name ?? 'Free workout');
-              const totalDurSecs = isCardio ? w.exercises.reduce((sum, ex) => sum + (ex.totalDurationSeconds ?? 0), 0) : 0;
-              const volDisplay = !isCardio
-                ? `${volLbs.toLocaleString()} lbs`
-                : totalDurSecs > 0
-                  ? `${Math.floor(totalDurSecs / 60)} min`
-                  : w.durationMinutes ? `${w.durationMinutes} min` : '—';
+              const rt = (w as any).routineType as string | null | undefined;
+              const rName = w.routineId ? (routineById[w.routineId]?.name ?? w.name ?? 'Workout') : (w.name ?? 'Free workout');
+              let volDisplay: string;
+              if (rt === 'steps') {
+                const s = (w as any).totalSteps;
+                volDisplay = s ? `${s.toLocaleString()} steps` : '—';
+              } else if (rt === 'cardio_distance') {
+                const dm = (w as any).totalDistanceMeters;
+                volDisplay = dm ? `${(dm / 1609.34).toFixed(2)} mi` : '—';
+              } else if (rt === 'cardio_duration') {
+                const ds = (w as any).totalDurationSeconds;
+                volDisplay = ds ? `${Math.floor(ds / 60)} min` : '—';
+              } else {
+                const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
+                volDisplay = volLbs > 0 ? `${volLbs.toLocaleString()} lbs` : '—';
+              }
               const highlight = computeHighlight(w, workouts);
               return (
                 <View key={w.id} style={[s.workoutRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }]}>

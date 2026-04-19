@@ -40,6 +40,18 @@ async function getLastPerformedSets(exerciseId: number, userId: number): Promise
   return rows;
 }
 
+function mapSet(s: RowDataPacket) {
+  return {
+    id: s.id,
+    setNumber: s.set_number,
+    reps: s.reps ?? null,
+    weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
+    durationSeconds: s.duration_seconds ?? null,
+    distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
+    steps: s.steps ?? null,
+  };
+}
+
 async function getRoutineDetail(routineId: number, userId: number) {
   const [rRows] = await pool.query<RowDataPacket[]>(
     'SELECT * FROM workout_routines WHERE id = ?', [routineId]
@@ -79,23 +91,8 @@ async function getRoutineDetail(routineId: number, userId: number) {
         isCustom: Boolean(ex.is_custom),
         trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
-      templateSets: templateSets.map((s) => ({
-        id: s.id,
-        setNumber: s.set_number,
-        reps: s.reps ?? null,
-        weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
-        durationSeconds: s.duration_seconds ?? null,
-        distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
-      })),
-      lastPerformedSets: lastPerformedSets.length > 0
-        ? lastPerformedSets.map((s) => ({
-            setNumber: s.set_number,
-            reps: s.reps ?? null,
-            weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
-            durationSeconds: s.duration_seconds ?? null,
-            distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
-          }))
-        : null,
+      templateSets: templateSets.map(mapSet),
+      lastPerformedSets: lastPerformedSets.length > 0 ? lastPerformedSets.map(mapSet) : null,
     };
   }));
 
@@ -103,6 +100,7 @@ async function getRoutineDetail(routineId: number, userId: number) {
     id: r.id,
     name: r.name,
     notes: r.notes ?? null,
+    routineType: r.routine_type ?? 'strength',
     coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -131,7 +129,10 @@ router.get('/', async (req, res) => {
          wl.routine_id,
          wl.workout_date AS last_used,
          wl.calories_burned,
-         SUM(es.reps * es.weight_kg) AS volume_kg
+         SUM(CASE WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL THEN es.reps * es.weight_kg ELSE 0 END) AS volume_kg,
+         SUM(COALESCE(es.steps, 0)) AS total_steps,
+         SUM(COALESCE(es.distance_meters, 0)) AS total_distance_meters,
+         SUM(COALESCE(es.duration_seconds, 0)) AS total_duration_seconds
        FROM workout_logs wl
        LEFT JOIN workout_exercises we ON we.workout_log_id = wl.id
        LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
@@ -151,6 +152,9 @@ router.get('/', async (req, res) => {
     const lastUsedMap: Record<number, string> = {};
     const lastVolumeMap: Record<number, number | null> = {};
     const lastCaloriesMap: Record<number, number | null> = {};
+    const lastStepsMap: Record<number, number | null> = {};
+    const lastDistanceMap: Record<number, number | null> = {};
+    const lastDurationMap: Record<number, number | null> = {};
     for (const lu of lastUsedRows) {
       lastUsedMap[lu.routine_id] = lu.last_used instanceof Date
         ? lu.last_used.toISOString().slice(0, 10)
@@ -159,15 +163,33 @@ router.get('/', async (req, res) => {
         ? Math.round(Number(lu.volume_kg) * 2.20462)
         : null;
       lastCaloriesMap[lu.routine_id] = lu.calories_burned != null ? Number(lu.calories_burned) : null;
+      lastStepsMap[lu.routine_id] = lu.total_steps != null ? Number(lu.total_steps) : null;
+      lastDistanceMap[lu.routine_id] = lu.total_distance_meters != null ? Number(lu.total_distance_meters) : null;
+      lastDurationMap[lu.routine_id] = lu.total_duration_seconds != null ? Number(lu.total_duration_seconds) : null;
+    }
+
+    // Compute lastPrimaryMetric per routine based on routine_type
+    function getPrimaryMetric(r: RowDataPacket): number | null {
+      const rt = r.routine_type ?? 'strength';
+      switch (rt) {
+        case 'steps':           return lastStepsMap[r.id] ?? null;
+        case 'cardio_distance': return lastDistanceMap[r.id] ? Number((lastDistanceMap[r.id]! / 1609.34).toFixed(2)) : null;
+        case 'cardio_duration': return lastDurationMap[r.id] ? Math.round(lastDurationMap[r.id]! / 60) : null;
+        case 'bodyweight':
+        case 'strength':
+        default:                return lastVolumeMap[r.id] ?? null;
+      }
     }
 
     const list = await Promise.all(rows.map(async (r) => ({
       id: r.id,
       name: r.name,
       notes: r.notes ?? null,
+      routineType: r.routine_type ?? 'strength',
       exerciseCount: Number(r.exercise_count),
       lastUsedDate: lastUsedMap[r.id] ?? null,
       lastVolumeLbs: lastVolumeMap[r.id] ?? null,
+      lastPrimaryMetric: getPrimaryMetric(r),
       lastCaloriesBurned: lastCaloriesMap[r.id] ?? null,
       coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
       createdAt: r.created_at,
@@ -179,15 +201,42 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/routines/goals — all routine goals for this user
+router.get('/goals', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT rg.*
+       FROM routine_goals rg
+       JOIN workout_routines wr ON wr.id = rg.routine_id
+       WHERE rg.user_id = ? AND rg.effective_from = (
+         SELECT MAX(rg2.effective_from) FROM routine_goals rg2
+         WHERE rg2.user_id = rg.user_id AND rg2.routine_id = rg.routine_id
+       )`,
+      [req.userId]
+    );
+    res.json(rows.map((r) => ({
+      id: r.id,
+      routineId: r.routine_id,
+      targetPerWeek: Number(r.target_per_week),
+      effectiveFrom: r.effective_from instanceof Date
+        ? r.effective_from.toISOString().slice(0, 10)
+        : String(r.effective_from),
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/routines
 router.post('/', async (req, res) => {
-  const { name, notes } = req.body as { name: string; notes?: string };
+  const { name, notes, routineType } = req.body as { name: string; notes?: string; routineType?: string };
   if (!name?.trim()) { res.status(400).json({ error: 'name required' }); return; }
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      'INSERT INTO workout_routines (user_id, name, notes) VALUES (?, ?, ?)',
-      [req.userId, name.trim(), notes ?? null]
+      'INSERT INTO workout_routines (user_id, name, notes, routine_type) VALUES (?, ?, ?, ?)',
+      [req.userId, name.trim(), notes ?? null, routineType ?? 'strength']
     );
     const detail = await getRoutineDetail(result.insertId, req.userId);
     res.status(201).json(detail);
@@ -219,12 +268,13 @@ router.put('/:id', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { name, notes, coverImageKey } = req.body;
+  const { name, notes, coverImageKey, routineType } = req.body;
   try {
     const updates: string[] = [];
     const values: unknown[] = [];
     if (name !== undefined) { updates.push('name=?'); values.push(name); }
     if (notes !== undefined) { updates.push('notes=?'); values.push(notes ?? null); }
+    if (routineType !== undefined) { updates.push('routine_type=?'); values.push(routineType); }
     if (coverImageKey !== undefined) {
       updates.push('cover_image_key=?');
       values.push(coverImageKey?.trim() || null);
@@ -252,6 +302,84 @@ router.delete('/:id', async (req, res) => {
 
   try {
     await pool.query('DELETE FROM workout_routines WHERE id = ? AND user_id = ?', [id, req.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/routines/:id/goal
+router.get('/:id/goal', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT * FROM routine_goals WHERE user_id = ? AND routine_id = ?
+       ORDER BY effective_from DESC, id DESC LIMIT 1`,
+      [req.userId, id]
+    );
+    if (!rows.length) { res.json(null); return; }
+    const r = rows[0];
+    res.json({
+      id: r.id,
+      routineId: r.routine_id,
+      targetPerWeek: Number(r.target_per_week),
+      effectiveFrom: r.effective_from instanceof Date
+        ? r.effective_from.toISOString().slice(0, 10)
+        : String(r.effective_from),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/routines/:id/goal
+router.put('/:id/goal', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const { targetPerWeek } = req.body as { targetPerWeek: number };
+  if (targetPerWeek == null || isNaN(Number(targetPerWeek))) {
+    res.status(400).json({ error: 'targetPerWeek required' }); return;
+  }
+
+  try {
+    const today = localDateStr();
+    const [result] = await pool.query<ResultSetHeader>(
+      `INSERT INTO routine_goals (user_id, routine_id, target_per_week, effective_from)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE target_per_week = VALUES(target_per_week)`,
+      [req.userId, id, Number(targetPerWeek), today]
+    );
+    const insertId = result.insertId || 0;
+    res.json({
+      id: insertId,
+      routineId: id,
+      targetPerWeek: Number(targetPerWeek),
+      effectiveFrom: today,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/routines/:id/goal
+router.delete('/:id/goal', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    await pool.query(
+      'DELETE FROM routine_goals WHERE user_id = ? AND routine_id = ?',
+      [req.userId, id]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -304,15 +432,7 @@ router.post('/:id/exercises', async (req, res) => {
         trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
       },
       templateSets: [],
-      lastPerformedSets: lastPerformedSets.length > 0
-        ? lastPerformedSets.map((s) => ({
-            setNumber: s.set_number,
-            reps: s.reps ?? null,
-            weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
-            durationSeconds: s.duration_seconds ?? null,
-            distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
-          }))
-        : null,
+      lastPerformedSets: lastPerformedSets.length > 0 ? lastPerformedSets.map(mapSet) : null,
     });
   } catch (err) {
     console.error(err);
@@ -367,7 +487,7 @@ router.post('/:id/exercises/:reId/sets', async (req, res) => {
   if (!id || !reId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters } = req.body;
+  const { reps, weightKg, durationSeconds, distanceMeters, steps } = req.body;
 
   try {
     const [countRows] = await pool.query<RowDataPacket[]>(
@@ -376,9 +496,9 @@ router.post('/:id/exercises/:reId/sets', async (req, res) => {
     const setNumber = Number((countRows[0] as any).cnt) + 1;
 
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO routine_exercise_sets (routine_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [reId, setNumber, reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null]
+      `INSERT INTO routine_exercise_sets (routine_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, steps)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [reId, setNumber, reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, steps ?? null]
     );
     res.status(201).json({
       id: result.insertId,
@@ -387,6 +507,7 @@ router.post('/:id/exercises/:reId/sets', async (req, res) => {
       weightKg: weightKg != null ? Number(weightKg) : null,
       durationSeconds: durationSeconds ?? null,
       distanceMeters: distanceMeters != null ? Number(distanceMeters) : null,
+      steps: steps ?? null,
     });
   } catch (err) {
     console.error(err);
@@ -402,13 +523,13 @@ router.put('/:id/exercises/:reId/sets/:sId', async (req, res) => {
   if (!id || !reId || !sId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters } = req.body;
+  const { reps, weightKg, durationSeconds, distanceMeters, steps } = req.body;
 
   try {
     await pool.query(
-      `UPDATE routine_exercise_sets SET reps=?, weight_kg=?, duration_seconds=?, distance_meters=?
+      `UPDATE routine_exercise_sets SET reps=?, weight_kg=?, duration_seconds=?, distance_meters=?, steps=?
        WHERE id = ? AND routine_exercise_id = ?`,
-      [reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, sId, reId]
+      [reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, steps ?? null, sId, reId]
     );
     res.json({ success: true });
   } catch (err) {
@@ -473,7 +594,6 @@ router.post('/:id/start', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Fetch routine + exercises
     const [rRows] = await conn.query<RowDataPacket[]>(
       'SELECT * FROM workout_routines WHERE id = ?', [id]
     );
@@ -492,7 +612,6 @@ router.post('/:id/start', async (req, res) => {
       [id]
     );
 
-    // Create workout log
     const today = localDateStr();
     const [wResult] = await conn.query<ResultSetHeader>(
       `INSERT INTO workout_logs (user_id, workout_date, name, started_at, routine_id)
@@ -501,7 +620,6 @@ router.post('/:id/start', async (req, res) => {
     );
     const workoutId = wResult.insertId;
 
-    // For each routine exercise, add to workout and pre-fill sets
     for (const re of reRows) {
       const [weResult] = await conn.query<ResultSetHeader>(
         'INSERT INTO workout_exercises (workout_log_id, exercise_id, sort_order, notes) VALUES (?, ?, ?, ?)',
@@ -509,28 +627,26 @@ router.post('/:id/start', async (req, res) => {
       );
       const weId = weResult.insertId;
 
-      // Try last performed sets first
       const lastSets = await getLastPerformedSets(re.exercise_id, req.userId);
 
       if (lastSets.length > 0) {
         for (const s of lastSets) {
           await conn.query(
-            `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, completed)
-             VALUES (?, ?, ?, ?, ?, ?, 0)`,
-            [weId, s.set_number, s.reps ?? null, s.weight_kg ?? null, s.duration_seconds ?? null, s.distance_meters ?? null]
+            `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, steps, completed)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+            [weId, s.set_number, s.reps ?? null, s.weight_kg ?? null, s.duration_seconds ?? null, s.distance_meters ?? null, s.steps ?? null]
           );
         }
       } else {
-        // Fall back to template sets
         const [templateSets] = await conn.query<RowDataPacket[]>(
           'SELECT * FROM routine_exercise_sets WHERE routine_exercise_id = ? ORDER BY set_number ASC',
           [re.re_id]
         );
         for (const s of templateSets) {
           await conn.query(
-            `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, completed)
-             VALUES (?, ?, ?, ?, ?, ?, 0)`,
-            [weId, s.set_number, s.reps ?? null, s.weight_kg ?? null, s.duration_seconds ?? null, s.distance_meters ?? null]
+            `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, steps, completed)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+            [weId, s.set_number, s.reps ?? null, s.weight_kg ?? null, s.duration_seconds ?? null, s.distance_meters ?? null, s.steps ?? null]
           );
         }
       }
