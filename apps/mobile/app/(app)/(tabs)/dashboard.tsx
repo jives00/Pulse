@@ -799,34 +799,32 @@ export default function DashboardScreen() {
           <View style={s.card}>
             <CardHeader title="Weekly Averages" meta="per-day avg · newest first" c={c} />
             {/* Header */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View>
-                <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: c.border }}>
-                  {['Week', 'Cal', 'Prot', 'Carb', 'Fat', ...(todayTDEE ? ['Net'] : [])].map((h, i) => (
-                    <Text key={h} style={[s.weeklyTh, i === 0 ? { width: 56, textAlign: 'left' } : {}]}>{h}</Text>
-                  ))}
-                </View>
-                {weeklyAverages.map((week) => {
-                  const netColor = week.net == null ? c.muted : week.net < -100 ? '#34d399' : week.net > 200 ? '#f87171' : c.muted;
-                  return (
-                    <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: c.border + '33' }}>
-                      <Text style={[s.weeklyTd, { width: 56, textAlign: 'left', color: week.isCurrentWeek ? COL_GOLD : c.muted }]}>
-                        {week.isCurrentWeek ? 'Now' : week.label}
-                      </Text>
-                      <Text style={[s.weeklyTd, { color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
-                      <Text style={[s.weeklyTd, { color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.protein + 'g' : '—'}</Text>
-                      <Text style={[s.weeklyTd, { color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.carbs + 'g' : '—'}</Text>
-                      <Text style={[s.weeklyTd, { color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.fat + 'g' : '—'}</Text>
-                      {todayTDEE && (
-                        <Text style={[s.weeklyTd, { color: netColor, fontWeight: week.net != null ? '600' : '400' }]}>
-                          {week.net == null ? '—' : (week.net > 0 ? '+' : '') + week.net.toLocaleString()}
-                        </Text>
-                      )}
-                    </View>
-                  );
-                })}
+            <View>
+              <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: c.border }}>
+                {['Week', 'Cal', 'Prot', 'Carb', 'Fat', ...(todayTDEE ? ['Net'] : [])].map((h, i) => (
+                  <Text key={h} style={[s.weeklyTh, i === 0 ? { width: 56, textAlign: 'left', flex: 0 } : { flex: 1 }]}>{h}</Text>
+                ))}
               </View>
-            </ScrollView>
+              {weeklyAverages.map((week) => {
+                const netColor = week.net == null ? c.muted : week.net < -100 ? '#34d399' : week.net > 200 ? '#f87171' : c.muted;
+                return (
+                  <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: c.border + '33' }}>
+                    <Text style={[s.weeklyTd, { width: 56, flex: 0, textAlign: 'left', color: week.isCurrentWeek ? COL_GOLD : c.muted }]}>
+                      {week.isCurrentWeek ? 'Now' : week.label}
+                    </Text>
+                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
+                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.protein + 'g' : '—'}</Text>
+                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.carbs + 'g' : '—'}</Text>
+                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.fat + 'g' : '—'}</Text>
+                    {todayTDEE && (
+                      <Text style={[s.weeklyTd, { flex: 1, color: netColor, fontWeight: week.net != null ? '600' : '400' }]}>
+                        {week.net == null ? '—' : (week.net > 0 ? '+' : '') + week.net.toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -1086,8 +1084,8 @@ function makeStyles(c: Colors) {
     workoutRow: { gap: 2 },
     empty:    { fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 12 },
 
-    weeklyTh: { fontSize: 10, color: c.muted, fontWeight: '600', width: 52, textAlign: 'right', paddingHorizontal: 2 },
-    weeklyTd: { fontSize: 11, color: c.text, width: 52, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
+    weeklyTh: { fontSize: 10, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
+    weeklyTd: { fontSize: 11, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
   });
 }
 
