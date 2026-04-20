@@ -4,6 +4,9 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "20.20.2"
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal"
