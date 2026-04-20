@@ -96,29 +96,40 @@ router.get('/personal-bests', async (req, res) => {
        JOIN workout_logs wl ON wl.id = we.workout_log_id
        JOIN exercises e ON e.id = we.exercise_id
        WHERE wl.user_id = ? AND es.weight_kg IS NOT NULL AND es.weight_kg > 0 AND es.completed = 1
+         AND e.exercise_type != 'bodyweight'
        ORDER BY es.weight_kg DESC
        LIMIT 1`,
       [req.userId]
     );
 
-    // Best single-session volume
-    const [volRows] = await pool.query<RowDataPacket[]>(
-      `SELECT wl.id, wl.name AS workout_name, wl.workout_date,
-              SUM(es.reps * es.weight_kg) AS volume_kg
-       FROM workout_logs wl
-       JOIN workout_exercises we ON we.workout_log_id = wl.id
-       JOIN exercise_sets es ON es.workout_exercise_id = we.id
-       WHERE wl.user_id = ? AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.completed = 1
-       GROUP BY wl.id
-       ORDER BY volume_kg DESC
-       LIMIT 1`,
-      [req.userId]
+    // Best session volume per strength routine (top 3 by all-time best session)
+    const [volByRoutineRows] = await pool.query<RowDataPacket[]>(
+      `SELECT wr.id AS routine_id, wr.name AS routine_name,
+              MAX(sess.volume_kg) AS best_volume_kg,
+              SUBSTRING_INDEX(GROUP_CONCAT(sess.workout_date ORDER BY sess.volume_kg DESC), ',', 1) AS workout_date
+       FROM workout_routines wr
+       JOIN (
+         SELECT wl.routine_id,
+                SUM(es.reps * es.weight_kg) AS volume_kg,
+                wl.workout_date
+         FROM workout_logs wl
+         JOIN workout_exercises we ON we.workout_log_id = wl.id
+         JOIN exercise_sets es ON es.workout_exercise_id = we.id
+         WHERE wl.user_id = ?
+           AND es.reps IS NOT NULL AND es.weight_kg IS NOT NULL AND es.completed = 1
+           AND wl.routine_id IS NOT NULL
+         GROUP BY wl.id, wl.routine_id, wl.workout_date
+       ) sess ON sess.routine_id = wr.id
+       WHERE wr.user_id = ? AND wr.routine_type = 'strength'
+       GROUP BY wr.id, wr.name
+       ORDER BY best_volume_kg DESC
+       LIMIT 3`,
+      [req.userId, req.userId]
     );
 
-    // Best stair pace: lowest duration_seconds per step — uses routine_type = 'steps' (falls back to name if no typed routine yet)
+    // Fastest stair time: lowest duration_seconds (fixed steps course)
     const [stairRows] = await pool.query<RowDataPacket[]>(
-      `SELECT e.name AS exercise_name, es.duration_seconds, es.steps, wl.workout_date,
-              (es.duration_seconds / es.steps) AS secs_per_step
+      `SELECT e.name AS exercise_name, es.duration_seconds, es.steps, wl.workout_date
        FROM exercise_sets es
        JOIN workout_exercises we ON we.id = es.workout_exercise_id
        JOIN workout_logs wl ON wl.id = we.workout_log_id
@@ -127,41 +138,36 @@ router.get('/personal-bests', async (req, res) => {
        WHERE wl.user_id = ?
          AND (wr.routine_type = 'steps' OR e.name LIKE '%stair%')
          AND es.duration_seconds IS NOT NULL AND es.duration_seconds > 0
-         AND es.steps IS NOT NULL AND es.steps > 0 AND es.completed = 1
-       ORDER BY secs_per_step ASC
+         AND es.completed = 1
+       ORDER BY es.duration_seconds ASC
        LIMIT 1`,
       [req.userId]
     );
 
     const lift = liftRows[0] ?? null;
-    const vol = volRows[0] ?? null;
     const stair = stairRows[0] ?? null;
+
+    const toDate = (d: unknown) =>
+      d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
 
     res.json({
       heaviestLift: lift ? {
         exerciseName: lift.exercise_name,
         weightKg: Number(lift.weight_kg),
         reps: lift.reps ?? null,
-        workoutDate: lift.workout_date instanceof Date
-          ? lift.workout_date.toISOString().slice(0, 10)
-          : String(lift.workout_date),
+        workoutDate: toDate(lift.workout_date),
       } : null,
-      bestSessionVolume: vol ? {
-        workoutId: vol.id,
-        workoutName: vol.workout_name ?? null,
-        volumeKg: Number(vol.volume_kg),
-        workoutDate: vol.workout_date instanceof Date
-          ? vol.workout_date.toISOString().slice(0, 10)
-          : String(vol.workout_date),
-      } : null,
-      bestStairPace: stair ? {
+      bestVolumeByRoutine: volByRoutineRows.map((r) => ({
+        routineId: r.routine_id,
+        routineName: r.routine_name,
+        volumeKg: Number(r.best_volume_kg),
+        workoutDate: r.workout_date ? toDate(r.workout_date) : null,
+      })),
+      bestStairTime: stair ? {
         exerciseName: stair.exercise_name,
         durationSeconds: Number(stair.duration_seconds),
-        steps: Number(stair.steps),
-        secsPerStep: Number(stair.secs_per_step),
-        workoutDate: stair.workout_date instanceof Date
-          ? stair.workout_date.toISOString().slice(0, 10)
-          : String(stair.workout_date),
+        steps: stair.steps ? Number(stair.steps) : null,
+        workoutDate: toDate(stair.workout_date),
       } : null,
     });
   } catch (err) {

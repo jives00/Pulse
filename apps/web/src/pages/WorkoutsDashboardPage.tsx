@@ -2775,89 +2775,79 @@ function CreatineCardV3({ foodLogHistory }: { foodLogHistory: FoodLogHistoryDay[
 
 // ── PersonalBestsCard ──────────────────────────────────────────────────────────
 
-function PersonalBestsCardV3({ personalBests, workouts, routinesList }: {
+function PersonalBestsCardV3({ personalBests }: {
   personalBests: PersonalBests | null;
-  workouts: WorkoutSummary[];
-  routinesList: RoutineSummary[];
 }) {
-  const rows: { lift: string; meta: string; value: string }[] = [];
   const fmtLbs = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
+  const fmtDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
 
-  // Row 1: heaviest single lift
-  if (personalBests?.heaviestLift) {
-    const lift = personalBests.heaviestLift;
-    rows.push({
-      lift: lift.exerciseName,
-      meta: `${lift.reps != null ? lift.reps + ' rep' + (lift.reps !== 1 ? 's' : '') + ' · ' : ''}${new Date(lift.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${fmtLbs(lift.weightKg * KG_TO_LBS)} lbs`,
-    });
-  }
-
-  // Row 2: best session volume — show routine name if available
-  if (personalBests?.bestSessionVolume) {
-    const bsv = personalBests.bestSessionVolume;
-    const bestWorkout = workouts.find((w) => w.workoutDate === bsv.workoutDate && Math.abs((w.totalVolumeKg ?? 0) - bsv.volumeKg) < 1);
-    const routineName = bestWorkout?.routineId ? routineNameById[bestWorkout.routineId] : null;
-    rows.push({
-      lift: routineName ?? bsv.workoutName ?? 'Best Session',
-      meta: `Best session · ${new Date(bsv.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${fmtLbs(bsv.volumeKg * KG_TO_LBS)} lbs`,
-    });
-  }
-
-  // Row 3: 2nd-highest individual lift (different exercise from Row 1)
-  if (workouts.length > 0) {
-    const topLiftExercise = personalBests?.heaviestLift?.exerciseName?.toLowerCase();
-    // Collect all exercise maxWeightKg from all workouts, excluding the Row 1 exercise
-    const liftMap = new Map<string, { weightKg: number; workoutDate: string }>();
-    for (const w of workouts) {
-      for (const ex of w.exercises) {
-        if (!ex.maxWeightKg) continue;
-        const nameLower = ex.name.toLowerCase();
-        if (topLiftExercise && nameLower === topLiftExercise) continue;
-        const existing = liftMap.get(ex.name);
-        if (!existing || ex.maxWeightKg > existing.weightKg) {
-          liftMap.set(ex.name, { weightKg: ex.maxWeightKg, workoutDate: w.workoutDate });
-        }
-      }
-    }
-    const [secondName, secondData] = [...liftMap.entries()].sort((a, b) => b[1].weightKg - a[1].weightKg)[0] ?? [];
-    if (secondName && secondData) {
-      rows.push({
-        lift: secondName,
-        meta: `Heaviest set · ${new Date(secondData.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-        value: `${fmtLbs(secondData.weightKg * KG_TO_LBS)} lbs`,
-      });
-    }
-  }
-
-  // Row 4: best stair pace if available
-  if (rows.length < 4 && personalBests?.bestStairPace) {
-    const bp = personalBests.bestStairPace;
-    rows.push({
-      lift: bp.exerciseName,
-      meta: `Best pace · ${new Date(bp.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${bp.steps} steps`,
-    });
-  }
+  const hasData = personalBests && (
+    personalBests.heaviestLift ||
+    personalBests.bestVolumeByRoutine.length > 0 ||
+    personalBests.bestStairTime
+  );
 
   return (
     <section className="card overflow-hidden h-full flex flex-col">
       <V3CardHeader label="Personal Bests" meta="All time" />
-      <div className="flex-1 divide-y divide-bd">
-        {rows.length === 0 ? (
-          <div className="p-6 t-xs text-muted text-center py-10">No workout data yet.</div>
-        ) : rows.map((pb, i) => (
-          <div key={i} className="flex items-baseline justify-between px-6 py-4">
-            <div>
-              <div className="t-base font-medium">{pb.lift}</div>
-              <div className="t-sm text-muted font-mono mt-0.5">{pb.meta}</div>
+      {!hasData ? (
+        <div className="p-6 t-xs text-muted text-center py-10">No workout data yet.</div>
+      ) : (
+        <div className="flex-1 divide-y divide-bd">
+
+          {/* Volume by routine — compact 3-col mini-grid */}
+          {personalBests!.bestVolumeByRoutine.length > 0 && (
+            <div className="px-6 py-3">
+              <div className="t-xs text-muted font-mono uppercase tracking-wide mb-2">Best Session Volume</div>
+              <div className="grid gap-x-4" style={{ gridTemplateColumns: `repeat(${personalBests!.bestVolumeByRoutine.length}, 1fr)` }}>
+                {personalBests!.bestVolumeByRoutine.map((r) => (
+                  <div key={r.routineId} className="min-w-0">
+                    <div className="font-display font-semibold text-[17px] tnum truncate">{fmtLbs(r.volumeKg * KG_TO_LBS)}<span className="text-[11px] font-sans font-normal text-muted ml-0.5">lbs</span></div>
+                    <div className="t-xs text-muted font-mono truncate">{r.routineName}</div>
+                    {r.workoutDate && <div className="t-xs text-muted font-mono opacity-60">{fmtDate(r.workoutDate)}</div>}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{pb.value}</div>
-          </div>
-        ))}
-      </div>
+          )}
+
+          {/* Heaviest single lift */}
+          {personalBests!.heaviestLift && (() => {
+            const lift = personalBests!.heaviestLift!;
+            return (
+              <div className="flex items-baseline justify-between px-6 py-4">
+                <div>
+                  <div className="t-base font-medium">{lift.exerciseName}</div>
+                  <div className="t-sm text-muted font-mono mt-0.5">
+                    {lift.reps != null ? `${lift.reps} rep${lift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtDate(lift.workoutDate)}
+                  </div>
+                </div>
+                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{fmtLbs(lift.weightKg * KG_TO_LBS)} lbs</div>
+              </div>
+            );
+          })()}
+
+          {/* Fastest stair time */}
+          {personalBests!.bestStairTime && (() => {
+            const st = personalBests!.bestStairTime!;
+            return (
+              <div className="flex items-baseline justify-between px-6 py-4">
+                <div>
+                  <div className="t-base font-medium">{st.exerciseName}</div>
+                  <div className="t-sm text-muted font-mono mt-0.5">Fastest time · {fmtDate(st.workoutDate)}</div>
+                </div>
+                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{fmtDuration(st.durationSeconds)}</div>
+              </div>
+            );
+          })()}
+
+        </div>
+      )}
     </section>
   );
 }
@@ -3164,7 +3154,7 @@ function DashboardV3({
 
         <div className="grid grid-cols-[1fr_1fr] gap-6">
           <CreatineCardV3 foodLogHistory={foodLogHistory} />
-          <PersonalBestsCardV3 personalBests={personalBests} workouts={workouts} routinesList={routinesList} />
+          <PersonalBestsCardV3 personalBests={personalBests} />
         </div>
 
         <RecentWorkoutsCardV3 workouts={workouts} routinesList={routinesList} />

@@ -534,6 +534,7 @@ export default function DashboardScreen() {
       setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
+      console.log('[PB]', JSON.stringify(pb));
       setPersonalBests(pb);
       setNutritionSummary(ns);
       setWaterHistory(wh);
@@ -646,56 +647,15 @@ export default function DashboardScreen() {
   // Weekly averages
   const weeklyAverages = buildWeeklyAverages(foodLogHistory, workouts, todayTDEE);
 
-  // Personal bests rows (web parity)
   const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
-  const routineNameById = Object.fromEntries(routinesList.map((r) => [r.id, r.name]));
-  const pbRows: { label: string; meta: string; value: string }[] = [];
-  if (personalBests?.heaviestLift) {
-    const l = personalBests.heaviestLift;
-    pbRows.push({
-      label: l.exerciseName,
-      meta: `${l.reps != null ? l.reps + ' rep' + (l.reps !== 1 ? 's' : '') + ' · ' : ''}${new Date(l.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${Math.round(l.weightKg * KG_TO_LBS).toLocaleString()} lbs`,
-    });
-  }
-  if (personalBests?.bestSessionVolume) {
-    const bsv = personalBests.bestSessionVolume;
-    const bestW = workouts.find((w) => w.workoutDate === bsv.workoutDate && Math.abs((w.totalVolumeKg ?? 0) - bsv.volumeKg) < 1);
-    const rName = bestW?.routineId ? routineNameById[bestW.routineId] : null;
-    pbRows.push({
-      label: rName ?? bsv.workoutName ?? 'Best Session',
-      meta: `Best session · ${new Date(bsv.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${Math.round(bsv.volumeKg * KG_TO_LBS).toLocaleString()} lbs`,
-    });
-  }
-  if (workouts.length > 0) {
-    const topEx = personalBests?.heaviestLift?.exerciseName?.toLowerCase();
-    const liftMap = new Map<string, { weightKg: number; workoutDate: string }>();
-    for (const w of workouts) {
-      for (const ex of w.exercises) {
-        if (!ex.maxWeightKg) continue;
-        if (topEx && ex.name.toLowerCase() === topEx) continue;
-        const existing = liftMap.get(ex.name);
-        if (!existing || ex.maxWeightKg > existing.weightKg) liftMap.set(ex.name, { weightKg: ex.maxWeightKg, workoutDate: w.workoutDate });
-      }
-    }
-    const second = [...liftMap.entries()].sort((a, b) => b[1].weightKg - a[1].weightKg)[0];
-    if (second) {
-      pbRows.push({
-        label: second[0],
-        meta: `Heaviest set · ${new Date(second[1].workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-        value: `${Math.round(second[1].weightKg * KG_TO_LBS).toLocaleString()} lbs`,
-      });
-    }
-  }
-  if (pbRows.length < 4 && personalBests?.bestStairPace) {
-    const bp = personalBests.bestStairPace;
-    pbRows.push({
-      label: bp.exerciseName,
-      meta: `Best pace · ${new Date(bp.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}`,
-      value: `${bp.steps} steps`,
-    });
-  }
+
+  // Personal bests helpers
+  const fmtPbDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
 
   // Recent workouts (last 8)
   const recentWorkouts = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate)).slice(0, 8);
@@ -988,17 +948,57 @@ export default function DashboardScreen() {
         {/* ── Personal Bests ── */}
         <View style={s.card}>
           <CardHeader title="Personal Bests" meta="All time" c={c} />
-          {pbRows.length === 0 ? (
+          {!personalBests || (!personalBests.heaviestLift && (personalBests.bestVolumeByRoutine?.length ?? 0) === 0 && !personalBests.bestStairTime) ? (
             <Text style={s.empty}>Complete workouts to see records.</Text>
-          ) : pbRows.map((pb, i) => (
-            <View key={i} style={[s.pbRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{pb.label}</Text>
-                <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>{pb.meta}</Text>
-              </View>
-              <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{pb.value}</Text>
-            </View>
-          ))}
+          ) : (
+            <>
+              {/* Volume by strength routine — compact 3-col grid */}
+              {(personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && (
+                <View style={{ paddingBottom: 10 }}>
+                  <Text style={{ fontSize: 10, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {(personalBests.bestVolumeByRoutine ?? []).map((r) => (
+                      <View key={r.routineId} style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
+                          {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 10, fontWeight: '400', color: c.muted }}> lbs</Text>
+                        </Text>
+                        <Text style={{ fontSize: 10, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
+                        {r.workoutDate && <Text style={{ fontSize: 10, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Heaviest single lift */}
+              {personalBests.heaviestLift && (
+                <View style={[s.pbRow, (personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.heaviestLift.exerciseName}</Text>
+                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                      {personalBests.heaviestLift.reps != null ? `${personalBests.heaviestLift.reps} rep${personalBests.heaviestLift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtPbDate(personalBests.heaviestLift.workoutDate)}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
+                    {Math.round(personalBests.heaviestLift.weightKg * KG_TO_LBS).toLocaleString()} lbs
+                  </Text>
+                </View>
+              )}
+
+              {/* Fastest stair time */}
+              {personalBests.bestStairTime && (
+                <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.bestStairTime.exerciseName}</Text>
+                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>Fastest time · {fmtPbDate(personalBests.bestStairTime.workoutDate)}</Text>
+                  </View>
+                  <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
+                    {fmtDuration(personalBests.bestStairTime.durationSeconds)}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         {/* ── Recent Workouts ── */}

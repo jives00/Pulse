@@ -24,17 +24,16 @@ export interface PersonalBests {
     reps: number | null;
     workoutDate: string;
   } | null;
-  bestSessionVolume: {
-    workoutId: number;
-    workoutName: string | null;
+  bestVolumeByRoutine: {
+    routineId: number;
+    routineName: string;
     volumeKg: number;
-    workoutDate: string;
-  } | null;
-  bestStairPace: {
+    workoutDate: string | null;
+  }[];
+  bestStairTime: {
     exerciseName: string;
     durationSeconds: number;
-    steps: number;
-    secsPerStep: number;
+    steps: number | null;
     workoutDate: string;
   } | null;
 }
