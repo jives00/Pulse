@@ -656,8 +656,9 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
     ? Math.round(bests.heaviestLift.weightKg * KG_TO_LBS * 10) / 10
     : null;
 
-  const volLbs = bests?.bestSessionVolume
-    ? Math.round(bests.bestSessionVolume.volumeKg * KG_TO_LBS).toLocaleString()
+  const topRoutineVol = bests?.bestVolumeByRoutine?.[0] ?? null;
+  const volLbs = topRoutineVol
+    ? Math.round(topRoutineVol.volumeKg * KG_TO_LBS).toLocaleString()
     : null;
 
   const items = [
@@ -675,9 +676,7 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
       label: 'Best session volume',
       value: volLbs ?? '—',
       unit: volLbs != null ? 'lbs' : '',
-      sub: bests?.bestSessionVolume
-        ? formatDate(bests.bestSessionVolume.workoutDate)
-        : null,
+      sub: topRoutineVol?.routineName ?? null,
     },
   ];
 
