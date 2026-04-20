@@ -1380,6 +1380,7 @@ function FuelTodayCard({
     setWaterBonus(b => b + oz);
     try {
       await waterApi.add(today, oz);
+      setWaterBonus(0);
       onWaterLogged?.();
     } catch {
       setWaterBonus(b => b - oz);
