@@ -703,7 +703,7 @@ export default function NutritionScreen() {
             </View>
             <TouchableOpacity
               style={s.actionSheetRow}
-              onPress={() => { const e = actionEntry!.entry; setActionEntry(null); openEditEntry(e); }}
+              onPress={() => { const e = actionEntry!.entry; setActionEntry(null); setTimeout(() => openEditEntry(e), 300); }}
             >
               <Text style={s.actionSheetText}>Edit</Text>
             </TouchableOpacity>

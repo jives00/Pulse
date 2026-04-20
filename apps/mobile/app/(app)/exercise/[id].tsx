@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 
 function fmtLbs(kg: number | null) {
   if (kg == null) return '—';
@@ -554,6 +555,7 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 type TabKey = 'summary' | 'history' | 'howto';
+const EXERCISE_TAB_ORDER = ['summary', 'history', 'howto'] as const;
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -568,6 +570,7 @@ export default function ExerciseDetailScreen() {
   const [categories, setCategories] = useState<string[]>([]);
   const [tab, setTab] = useState<TabKey>('summary');
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
+  const swipe = useSwipeNav(3, EXERCISE_TAB_ORDER, tab, setTab);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
 
@@ -615,7 +618,7 @@ export default function ExerciseDetailScreen() {
   if (!exercise) return null;
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} {...swipe.panHandlers}>
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>

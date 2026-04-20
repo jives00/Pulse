@@ -21,6 +21,11 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&apos;/g, "'");
 }
 
+function stripHtml(str: string): string {
+  if (!str) return str;
+  return decodeHtmlEntities(str.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
+}
+
 function toTitleCase(s: string): string {
   if (!s) return s;
   return s.replace(/\w\S*/g, (word, offset) => {
@@ -239,11 +244,11 @@ function parseJsonLd(ld: any, sourceUrl: string): any {
     const steps: string[] = [];
     for (const item of instructions) {
       if (typeof item === 'string') {
-        steps.push(decodeHtmlEntities(item));
+        steps.push(stripHtml(item));
       } else if (item['@type'] === 'HowToSection' && Array.isArray(item.itemListElement)) {
         steps.push(...extractSteps(item.itemListElement));
       } else if (item.text) {
-        steps.push(decodeHtmlEntities(item.text));
+        steps.push(stripHtml(item.text));
       }
     }
     return steps.filter(Boolean);
@@ -314,9 +319,9 @@ function parseJsonLd(ld: any, sourceUrl: string): any {
   }
 
   return {
-    name: cleanRecipeName(decodeHtmlEntities(ld.name || '<UNKNOWN>')),
+    name: cleanRecipeName(stripHtml(ld.name || '<UNKNOWN>')),
     type: inferType(ld),
-    description: ld.description ? decodeHtmlEntities(ld.description) : null,
+    description: ld.description ? stripHtml(ld.description) : null,
     prep_time: parseTime(ld.prepTime),
     cook_time: parseTime(ld.cookTime),
     servings: parseServings(ld.recipeYield),

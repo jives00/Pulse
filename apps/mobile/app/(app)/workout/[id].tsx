@@ -96,6 +96,8 @@ export default function WorkoutDetailScreen() {
   const [setEdits, setSetEdits] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string; steps: string }>>({});
   // Which field was tapped to start editing (for autoFocus)
   const [setEditFocus, setSetEditFocus] = useState<Record<number, 'weight' | 'reps' | 'duration' | 'distance' | 'steps'>>({});
+  // Tracks the set currently being edited so onBlur can tell if focus stayed in the same row
+  const activeEditSetIdRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -266,22 +268,34 @@ export default function WorkoutDetailScreen() {
   }
 
   function initSetEdit(set: ExerciseSet, focusField: 'weight' | 'reps' | 'duration' | 'distance' | 'steps') {
-    setSetEdits((prev) => ({
-      ...prev,
-      [set.id]: {
-        weight: set.weightKg != null ? String(Math.round(kgToLbs(set.weightKg) * 10) / 10) : '',
-        reps: set.reps != null ? String(set.reps) : '',
-        duration: set.durationSeconds != null ? secondsToMMSS(set.durationSeconds) : '',
-        distance: set.distanceMeters != null ? String(set.distanceMeters) : '',
-        steps: (set as any).steps != null ? String((set as any).steps) : '',
-      },
-    }));
+    activeEditSetIdRef.current = set.id;
+    setSetEdits((prev) => {
+      if (prev[set.id]) {
+        // Row already editing — just switch focus field, don't reset values
+        return prev;
+      }
+      // New row: replace all active edits with just this set
+      return {
+        [set.id]: {
+          weight: set.weightKg != null ? String(Math.round(kgToLbs(set.weightKg) * 10) / 10) : '',
+          reps: set.reps != null ? String(set.reps) : '',
+          duration: set.durationSeconds != null ? secondsToMMSS(set.durationSeconds) : '',
+          distance: set.distanceMeters != null ? String(set.distanceMeters) : '',
+          steps: (set as any).steps != null ? String((set as any).steps) : '',
+        },
+      };
+    });
     setSetEditFocus((prev) => ({ ...prev, [set.id]: focusField }));
   }
 
   async function handleSaveSetEdit(we: WorkoutExercise, set: ExerciseSet) {
+    // Delay so that if the user tapped another field in the same row,
+    // initSetEdit runs first and updates activeEditSetId before we decide to close.
+    await new Promise((r) => setTimeout(r, 50));
     const edit = setEdits[set.id];
     if (!edit) return;
+    // If focus moved to another field in the same row, don't close it
+    if (activeEditSetIdRef.current === set.id) return;
     const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
     const weightLbs = parseFloat(edit.weight);
     const reps = parseInt(edit.reps, 10);
@@ -313,6 +327,7 @@ export default function WorkoutDetailScreen() {
         ),
       } : prev);
     } catch { /* ignore — revert handled by re-init on focus */ }
+    activeEditSetIdRef.current = null;
     setSetEdits((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
     setSetEditFocus((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
   }
@@ -487,7 +502,7 @@ export default function WorkoutDetailScreen() {
                 const edit = setEdits[set.id];
                 const focusField = setEditFocus[set.id];
                 return (
-                <View key={set.id} style={[s.setRow, set.completed && s.setRowDone]}>
+                <View key={editing ? `${set.id}-${focusField}` : set.id} style={[s.setRow, set.completed && s.setRowDone]}>
                   <Text style={[s.setCol, s.setColNum, { color: c.muted }]}>{set.setNumber}</Text>
                   {trackWeight && (
                     editing ? (

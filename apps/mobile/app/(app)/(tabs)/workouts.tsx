@@ -311,6 +311,8 @@ interface ExerciseFormProps {
 
 // simple chip-tag input for muscles
 function MuscleTagInput({ label, tags, onChange }: { label: string; tags: string[]; onChange: (v: string[]) => void }) {
+  const c = useColors();
+  const m = makeMStyles(c);
   const [input, setInput] = useState('');
   function commit(val: string) {
     const v = val.trim();

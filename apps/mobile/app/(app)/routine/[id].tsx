@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, memo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal,
   Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity,
@@ -157,6 +157,16 @@ function TemplateSetRow({
     const newDuration  = showDuration ? mmssToSeconds(duration) : null;
     const newDistance  = showDistance && distance !== '' ? Number(distance) : null;
     const newSteps     = showSteps    && steps    !== '' ? Number(steps)    : null;
+
+    // Skip API call and re-render if nothing changed
+    const unchanged =
+      newReps === set.reps &&
+      (newWeightKg == null ? set.weightKg == null : set.weightKg != null && Math.abs(newWeightKg - set.weightKg) < 0.001) &&
+      newDuration === set.durationSeconds &&
+      newDistance === set.distanceMeters &&
+      newSteps === (set as any).steps;
+    if (unchanged) return;
+
     try {
       await updateRoutineTemplateSet(token, routineId, reId, set.id, {
         reps: newReps ?? undefined,
@@ -210,7 +220,6 @@ function TemplateSetRow({
           placeholderTextColor={c.muted}
           keyboardType="decimal-pad"
           returnKeyType="done"
-          onSubmitEditing={handleBlur}
           blurOnSubmit
         />
       )}
@@ -224,7 +233,6 @@ function TemplateSetRow({
           placeholderTextColor={c.muted}
           keyboardType="number-pad"
           returnKeyType="done"
-          onSubmitEditing={handleBlur}
           blurOnSubmit
         />
       )}
@@ -238,7 +246,6 @@ function TemplateSetRow({
           placeholderTextColor={c.muted}
           keyboardType="numbers-and-punctuation"
           returnKeyType="done"
-          onSubmitEditing={handleBlur}
           blurOnSubmit
         />
       )}
@@ -252,7 +259,6 @@ function TemplateSetRow({
           placeholderTextColor={c.muted}
           keyboardType="decimal-pad"
           returnKeyType="done"
-          onSubmitEditing={handleBlur}
           blurOnSubmit
         />
       )}
@@ -266,7 +272,6 @@ function TemplateSetRow({
           placeholderTextColor={c.muted}
           keyboardType="number-pad"
           returnKeyType="done"
-          onSubmitEditing={handleBlur}
           blurOnSubmit
         />
       )}
@@ -279,7 +284,7 @@ function TemplateSetRow({
 
 // ── Routine exercise block ────────────────────────────────────────────────────
 
-function RoutineExerciseBlock({
+const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
   re, routineId, onRemove, onSetsChanged, onMoveUp, onMoveDown, c,
 }: {
   re: RoutineExercise;
@@ -290,6 +295,7 @@ function RoutineExerciseBlock({
   onMoveDown?: () => void;
   c: Colors;
 }) {
+  const router = useRouter();
   const token = useAuthStore((s) => s.token)!;
   const [sets, setSets] = useState<RoutineExerciseSet[]>(re.templateSets);
   const [adding, setAdding] = useState(false);
@@ -328,9 +334,11 @@ function RoutineExerciseBlock({
     <View style={{ backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 12, gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }} numberOfLines={2}>
-            {re.exercise.name}
-          </Text>
+          <TouchableOpacity onPress={() => router.push(`/(app)/exercise/${re.exercise.id}`)}>
+            <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.accent }} numberOfLines={2}>
+              {re.exercise.name}
+            </Text>
+          </TouchableOpacity>
           <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>{re.exercise.category}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
@@ -398,7 +406,7 @@ function RoutineExerciseBlock({
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 // ── Exercise picker modal ─────────────────────────────────────────────────────
 
@@ -557,27 +565,30 @@ export default function RoutineDetailScreen() {
     finally { setAddingExercise(false); }
   }
 
-  async function handleRemoveExercise(reId: number) {
-    if (!routine) return;
-    Alert.alert('Remove Exercise', 'Remove this exercise from the routine?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: async () => {
-          try {
-            await removeRoutineExercise(token, routine.id, reId);
-            setRoutine((prev) => prev ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== reId) } : prev);
-          } catch { /* ignore */ }
+  const handleRemoveExercise = useCallback((reId: number) => {
+    setRoutine((prev) => {
+      if (!prev) return prev;
+      Alert.alert('Remove Exercise', 'Remove this exercise from the routine?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            try {
+              await removeRoutineExercise(token, prev.id, reId);
+              setRoutine((r) => r ? { ...r, exercises: r.exercises.filter((e) => e.id !== reId) } : r);
+            } catch { /* ignore */ }
+          },
         },
-      },
-    ]);
-  }
+      ]);
+      return prev;
+    });
+  }, [token]);
 
-  function handleSetsChanged(reId: number, sets: RoutineExerciseSet[]) {
+  const handleSetsChanged = useCallback((reId: number, sets: RoutineExerciseSet[]) => {
     setRoutine((prev) => prev ? {
       ...prev,
       exercises: prev.exercises.map((e) => e.id === reId ? { ...e, templateSets: sets } : e),
     } : prev);
-  }
+  }, []);
 
   async function handleMoveExercise(reId: number, direction: 'up' | 'down') {
     if (!routine) return;
