@@ -94,6 +94,8 @@ export default function WorkoutDetailScreen() {
 
   // Inline set editing: { [setId]: { weight: string; reps: string; duration: string; distance: string; steps: string } }
   const [setEdits, setSetEdits] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string; steps: string }>>({});
+  // Which field was tapped to start editing (for autoFocus)
+  const [setEditFocus, setSetEditFocus] = useState<Record<number, 'weight' | 'reps' | 'duration' | 'distance' | 'steps'>>({});
 
   const load = useCallback(async () => {
     try {
@@ -263,7 +265,7 @@ export default function WorkoutDetailScreen() {
     } catch { Alert.alert('Error', 'Could not delete set.'); }
   }
 
-  function initSetEdit(set: ExerciseSet) {
+  function initSetEdit(set: ExerciseSet, focusField: 'weight' | 'reps' | 'duration' | 'distance' | 'steps') {
     setSetEdits((prev) => ({
       ...prev,
       [set.id]: {
@@ -274,6 +276,7 @@ export default function WorkoutDetailScreen() {
         steps: (set as any).steps != null ? String((set as any).steps) : '',
       },
     }));
+    setSetEditFocus((prev) => ({ ...prev, [set.id]: focusField }));
   }
 
   async function handleSaveSetEdit(we: WorkoutExercise, set: ExerciseSet) {
@@ -311,6 +314,7 @@ export default function WorkoutDetailScreen() {
       } : prev);
     } catch { /* ignore — revert handled by re-init on focus */ }
     setSetEdits((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
+    setSetEditFocus((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
   }
 
   async function handleSaveNotes(we: WorkoutExercise) {
@@ -481,6 +485,7 @@ export default function WorkoutDetailScreen() {
               {we.sets.map((set) => {
                 const editing = !!setEdits[set.id];
                 const edit = setEdits[set.id];
+                const focusField = setEditFocus[set.id];
                 return (
                 <View key={set.id} style={[s.setRow, set.completed && s.setRowDone]}>
                   <Text style={[s.setCol, s.setColNum, { color: c.muted }]}>{set.setNumber}</Text>
@@ -492,11 +497,11 @@ export default function WorkoutDetailScreen() {
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], weight: v } }))}
                         onBlur={() => handleSaveSetEdit(we, set)}
                         keyboardType="decimal-pad"
-                        autoFocus
+                        autoFocus={focusField === 'weight'}
                         selectTextOnFocus
                       />
                     ) : (
-                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'weight')}>
                         <Text style={[s.setCol, set.completed && s.setTextDone]}>
                           {set.weightKg != null ? Math.round(kgToLbs(set.weightKg) * 10) / 10 : '—'}
                         </Text>
@@ -511,10 +516,11 @@ export default function WorkoutDetailScreen() {
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], reps: v } }))}
                         onBlur={() => handleSaveSetEdit(we, set)}
                         keyboardType="number-pad"
+                        autoFocus={focusField === 'reps'}
                         selectTextOnFocus
                       />
                     ) : (
-                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'reps')}>
                         <Text style={[s.setCol, set.completed && s.setTextDone]}>{set.reps ?? '—'}</Text>
                       </TouchableOpacity>
                     )
@@ -527,10 +533,11 @@ export default function WorkoutDetailScreen() {
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], duration: v } }))}
                         onBlur={() => handleSaveSetEdit(we, set)}
                         keyboardType="numbers-and-punctuation"
+                        autoFocus={focusField === 'duration'}
                         selectTextOnFocus
                       />
                     ) : (
-                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'duration')}>
                         <Text style={[s.setCol, set.completed && s.setTextDone]}>
                           {set.durationSeconds != null ? secondsToMMSS(set.durationSeconds) : '—'}
                         </Text>
@@ -545,10 +552,11 @@ export default function WorkoutDetailScreen() {
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], distance: v } }))}
                         onBlur={() => handleSaveSetEdit(we, set)}
                         keyboardType="decimal-pad"
+                        autoFocus={focusField === 'distance'}
                         selectTextOnFocus
                       />
                     ) : (
-                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'distance')}>
                         <Text style={[s.setCol, set.completed && s.setTextDone]}>
                           {set.distanceMeters != null ? set.distanceMeters : '—'}
                         </Text>
@@ -563,10 +571,11 @@ export default function WorkoutDetailScreen() {
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], steps: v } }))}
                         onBlur={() => handleSaveSetEdit(we, set)}
                         keyboardType="number-pad"
+                        autoFocus={focusField === 'steps'}
                         selectTextOnFocus
                       />
                     ) : (
-                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set)}>
+                      <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'steps')}>
                         <Text style={[s.setCol, set.completed && s.setTextDone]}>
                           {(set as any).steps != null ? (set as any).steps : '—'}
                         </Text>
