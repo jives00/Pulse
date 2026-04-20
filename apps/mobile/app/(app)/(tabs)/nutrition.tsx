@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, RefreshControl, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -807,6 +807,7 @@ export default function NutritionScreen() {
 
       {/* Edit Entry Modal */}
       <Modal visible={editEntry !== null} animationType="slide" transparent onRequestClose={() => setEditEntry(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setEditEntry(null)}>
           <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
             <View style={s.modalHeader}>
@@ -859,6 +860,7 @@ export default function NutritionScreen() {
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Food Modal */}
