@@ -404,7 +404,7 @@ router.post('/:id/ai-modify', async (req: Request, res: Response) => {
         [id]
       );
       const modified = await modifyRecipe(
-        { ...recipe, ingredients: ingredients as any[], steps: steps as any[] },
+        { ...recipe, ingredients: ingredients as any[], steps: steps as any[] } as import('../services/recipeModifier').RecipeInput,
         prompt.trim(),
         'update'
       );
@@ -419,7 +419,7 @@ router.post('/:id/ai-modify', async (req: Request, res: Response) => {
         [id]
       );
       const modified = await modifyRecipe(
-        { ...recipe, ingredients: ingredients as any[], steps: [] },
+        { ...recipe, ingredients: ingredients as any[], steps: [] } as unknown as import('../services/recipeModifier').RecipeInput,
         prompt.trim(),
         'log'
       );
