@@ -7,6 +7,7 @@ import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import Spinner from '../../../src/components/Spinner';
+import AiModifyModal from '../../../src/components/AiModifyModal';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ export default function RecipeDetailScreen() {
   const [baseServings, setBaseServings] = useState(1);
   const [logSaving, setLogSaving] = useState(false);
   const [makeLog, setMakeLog] = useState<MakeLogEntry[]>([]);
+  const [showModify, setShowModify] = useState(false);
 
   const loadRecipe = useCallback(() => {
     return Promise.all([
@@ -118,6 +120,9 @@ export default function RecipeDetailScreen() {
             <View style={styles.titleActions}>
               <TouchableOpacity onPress={handleToggleFavorite}>
                 <Text style={styles.star}>{recipe.is_favorite === 1 ? '★' : '☆'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowModify(true)}>
+                <Text style={styles.editBtn}>✦ Modify</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push(`/(app)/recipe/edit?id=${recipe.id}`)}>
                 <Text style={styles.editBtn}>Edit</Text>
@@ -242,6 +247,19 @@ export default function RecipeDetailScreen() {
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <Text style={styles.backBtnText}>‹</Text>
       </TouchableOpacity>
+
+      {showModify && (
+        <AiModifyModal
+          recipe={recipe}
+          token={token}
+          onClose={() => setShowModify(false)}
+          onSaved={(updated, logEntries) => {
+            setRecipe(updated);
+            setMakeLog(logEntries);
+            setShowModify(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

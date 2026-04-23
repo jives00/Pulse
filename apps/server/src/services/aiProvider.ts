@@ -76,6 +76,7 @@ export async function runText(params: {
 export async function runWithTools(params: {
   model: ModelTier;
   prompt: string;
+  maxTokens?: number;
   tool: {
     name: string;
     description: string;
@@ -86,7 +87,7 @@ export async function runWithTools(params: {
     };
   };
 }): Promise<Record<string, unknown>> {
-  const { model, prompt, tool } = params;
+  const { model, prompt, maxTokens = 512, tool } = params;
 
   const anthropic = getAnthropic();
   if (anthropic) {
@@ -98,13 +99,14 @@ export async function runWithTools(params: {
       };
       const msg = await anthropic.messages.create({
         model: ANTHROPIC_MODELS[model],
-        max_tokens: 512,
+        max_tokens: maxTokens,
         tools: [anthropicTool],
         tool_choice: { type: 'any' },
         messages: [{ role: 'user', content: prompt }],
       });
       const toolUse = msg.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
       if (!toolUse) throw new Error('No tool use block in Anthropic response');
+      console.log('[runWithTools] Anthropic tool input:', JSON.stringify(toolUse.input));
       return toolUse.input as Record<string, unknown>;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;

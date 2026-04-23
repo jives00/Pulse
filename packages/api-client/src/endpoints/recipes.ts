@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { Recipe, RecipeDetail, RecipeFormData, ScrapedRecipe, RecipeSuggestion, RecipeFilters, MakeLogEntry, RecipeSearchResult } from '../recipes';
+import type { Recipe, RecipeDetail, RecipeFormData, RecipeMacroResult, ScrapedRecipe, RecipeSuggestion, RecipeFilters, MakeLogEntry, RecipeSearchResult } from '../recipes';
 import { buildRecipeParams } from '../recipes';
 
 export interface HistoryEntry {
@@ -78,6 +78,9 @@ export const recipesApi = {
 
   getHistory: () =>
     apiClient.get<HistoryEntry[]>('/recipes/history').then((r) => r.data),
+
+  aiModify: (id: number, prompt: string, mode: 'update' | 'log') =>
+    apiClient.post<{ modified: RecipeFormData | RecipeMacroResult }>(`/recipes/${id}/ai-modify`, { prompt, mode }).then((r) => r.data),
 };
 
 // Direct S3 upload — uses fetch directly against the presigned URL (no API client)

@@ -50,6 +50,20 @@ export const logApi = {
   logRecipe: (payload: { recipeId: number; meal: string; servings: number; logDate?: string }) =>
     apiClient.post<{ success: boolean }>('/log/recipe', payload).then((r) => r.data),
 
+  logModifiedRecipe: (payload: {
+    recipeId: number;
+    meal: string;
+    logDate?: string;
+    name: string;
+    calories: number;
+    carbs_g: number;
+    protein_g: number;
+    fat_g: number;
+    fiber_g?: number | null;
+    sodium_mg?: number | null;
+  }) =>
+    apiClient.post<{ success: boolean }>('/log/recipe-modified', payload).then((r) => r.data),
+
   copyEntry: (entry: LogEntry, targetMeal: MealSlot, targetDate: string) =>
     apiClient.post<LogEntry>('/log', {
       logDate: targetDate,

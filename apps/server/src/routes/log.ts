@@ -148,6 +148,73 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── POST /log/recipe-modified — log a one-time modified recipe entry ──────
+// Creates a custom food with the AI-modified macros and logs it, without
+// touching the stored recipe. The name is suffixed "(modified)".
+
+router.post('/recipe-modified', async (req, res) => {
+  const { recipeId, meal, logDate, name, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg } = req.body;
+
+  if (!MEALS.includes(meal)) {
+    res.status(400).json({ error: 'Invalid meal slot' }); return;
+  }
+  if (typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name is required' }); return;
+  }
+  if (calories == null || isNaN(Number(calories))) {
+    res.status(400).json({ error: 'calories is required' }); return;
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    const [recipes] = await conn.query<RowDataPacket[]>(
+      'SELECT id FROM recipes WHERE id = ? AND user_id = ?', [recipeId, req.userId]
+    );
+    if (!recipes.length) { res.status(404).json({ error: 'Recipe not found' }); return; }
+
+    const date = logDate ?? new Date().toISOString().slice(0, 10);
+    const cal = Number(calories);
+    const carbs = Number(carbs_g) || 0;
+    const protein = Number(protein_g) || 0;
+    const fat = Number(fat_g) || 0;
+    const fiber = fiber_g != null ? Number(fiber_g) : null;
+    const sodium = sodium_mg != null ? Number(sodium_mg) : null;
+
+    await conn.beginTransaction();
+
+    // Custom food: store per-serving values as per-100 (1 serving = 100 virtual units)
+    const [foodResult] = await conn.execute<ResultSetHeader>(
+      `INSERT INTO foods (name, is_custom, user_id, calories_per100, carbs_per100, protein_per100,
+        fat_per100, fiber_per100, sodium_per100)
+       VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+      [name.trim(), req.userId, cal, carbs, protein, fat, fiber, sodium]
+    );
+    const foodId = foodResult.insertId;
+
+    const [ssResult] = await conn.execute<ResultSetHeader>(
+      'INSERT INTO serving_sizes (food_id, label, grams, is_default) VALUES (?, ?, 100, 1)',
+      [foodId, '1 serving']
+    );
+    const servingSizeId = ssResult.insertId;
+
+    await conn.execute(
+      `INSERT INTO food_log (user_id, log_date, meal, food_id, serving_size_id, quantity,
+        calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, notes, dram_recipe_id)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      [req.userId, date, meal, foodId, servingSizeId, cal, carbs, protein, fat, fiber, sodium, recipeId]
+    );
+
+    await conn.commit();
+    res.status(201).json({ success: true });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ error: 'Failed to log modified recipe' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /log/recipe — log a recipe as a nutrition entry ──────
 
 router.post('/recipe', async (req, res) => {

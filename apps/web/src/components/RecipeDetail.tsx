@@ -1,6 +1,226 @@
 import { useEffect, useState } from 'react';
-import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry, type MealSlot } from '@pulse/api-client';
+import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry, type MealSlot, type RecipeFormData } from '@pulse/api-client';
 import Spinner from './Spinner';
+
+// ── AI Modify Modal ───────────────────────────────────────────────────────────
+// Extracted as its own component so textarea keystrokes only re-render this
+// small subtree, not the full RecipeDetail.
+
+function normQty(v: number | string | null | undefined) {
+  return Math.round((Number(v) || 0) * 1000);
+}
+function normUnit(v: string | null | undefined) {
+  return (v || '').trim().toLowerCase();
+}
+
+interface AiModifyModalProps {
+  recipe: RecipeDetailType;
+  onClose: () => void;
+  onSaved: (updatedRecipe: RecipeDetailType, logEntries: MakeLogEntry[]) => void;
+}
+
+function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
+  const [step, setStep] = useState<'prompt' | 'preview'>('prompt');
+  const [prompt, setPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RecipeFormData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  async function handleSubmit() {
+    if (!prompt.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { modified } = await recipesApi.aiModify(recipe.id, prompt.trim(), 'update');
+      setResult(modified as RecipeFormData);
+      setStep('preview');
+    } catch {
+      setError('Failed to modify recipe. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave(andLog: boolean) {
+    if (!result) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await recipesApi.update(recipe.id, {
+        type: recipe.type,
+        name: result.name,
+        description: result.description,
+        ingredients: result.ingredients,
+        steps: result.steps,
+        calories: result.calories ?? recipe.calories ?? undefined,
+        carbs_g: result.carbs_g ?? recipe.carbs_g ?? undefined,
+        protein_g: result.protein_g ?? recipe.protein_g ?? undefined,
+        fat_g: result.fat_g ?? recipe.fat_g ?? undefined,
+        fiber_g: result.fiber_g ?? recipe.fiber_g ?? undefined,
+        sodium_mg: result.sodium_mg ?? recipe.sodium_mg ?? undefined,
+        notes: recipe.notes ?? undefined,
+        source: recipe.source ?? undefined,
+        prep_time: recipe.prep_time ?? undefined,
+        cook_time: recipe.cook_time ?? undefined,
+        servings: recipe.servings ?? undefined,
+        glass_type: recipe.glass_type ?? undefined,
+        abv_level: recipe.abv_level ?? undefined,
+        subcategory: recipe.subcategory ?? undefined,
+        tags: recipe.tags,
+      });
+      if (andLog) {
+        const d = new Date();
+        const logDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        await recipesApi.log(recipe.id, { meal: defaultMealByTime(), servings: 1, logDate });
+      }
+      const [updated, logData] = await Promise.all([
+        recipesApi.get(recipe.id),
+        recipesApi.getLog(recipe.id),
+      ]);
+      onSaved(updated, logData.entries);
+    } catch {
+      setError('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Compute ingredient diff
+  const origByName = new Map(recipe.ingredients.map((i) => [i.name.toLowerCase().trim(), i]));
+  const newByName = result ? new Map(result.ingredients.map((i) => [i.name.toLowerCase().trim(), i])) : new Map();
+  const removed = recipe.ingredients.filter((i) => !newByName.has(i.name.toLowerCase().trim()));
+  const added = result ? result.ingredients.filter((i) => !origByName.has(i.name.toLowerCase().trim())) : [];
+  const changed = result ? result.ingredients.filter((i) => {
+    const orig = origByName.get(i.name.toLowerCase().trim());
+    if (!orig) return false;
+    return normQty(orig.quantity) !== normQty(i.quantity) || normUnit(orig.unit) !== normUnit(i.unit);
+  }) : [];
+
+  // Compute macro diff — only show fields where AI returned a value AND it differs
+  const macroDiff = result ? [
+    { label: 'Calories', orig: recipe.calories, next: result.calories, unit: 'kcal' },
+    { label: 'Carbs',    orig: recipe.carbs_g,   next: result.carbs_g,   unit: 'g' },
+    { label: 'Protein',  orig: recipe.protein_g,  next: result.protein_g,  unit: 'g' },
+    { label: 'Fat',      orig: recipe.fat_g,      next: result.fat_g,      unit: 'g' },
+    { label: 'Fiber',    orig: recipe.fiber_g,    next: result.fiber_g,    unit: 'g' },
+    { label: 'Sodium',   orig: recipe.sodium_mg,  next: result.sodium_mg,  unit: 'mg' },
+  ].filter(({ next, orig }) => next != null && next !== orig) : [];
+
+  const hasChanges = removed.length > 0 || added.length > 0 || changed.length > 0 || macroDiff.length > 0 || (result && result.name !== recipe.name);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+          <h2 className="text-sm font-semibold text-slate-200">Modify this recipe</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+        </div>
+
+        {step === 'prompt' && (
+          <div className="p-4 space-y-4">
+            <p className="text-xs text-slate-400">Describe what you'd like to change. The AI will update the ingredients, steps, and macros.</p>
+            <textarea
+              autoFocus
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
+              placeholder='e.g. "replace butter with olive oil" or "make it dairy-free"'
+              rows={3}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-dram-accent resize-none"
+            />
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !prompt.trim()}
+              className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+            >
+              {loading ? 'Modifying…' : 'Preview changes'}
+            </button>
+          </div>
+        )}
+
+        {step === 'preview' && result && (
+          <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+            {result.name !== recipe.name && (
+              <div>
+                <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">Name</p>
+                <p className="text-sm text-slate-300 line-through opacity-50">{recipe.name}</p>
+                <p className="text-sm text-white">{result.name}</p>
+              </div>
+            )}
+            {(removed.length > 0 || added.length > 0 || changed.length > 0) && (
+              <div>
+                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Ingredients</p>
+                <ul className="space-y-1 text-sm">
+                  {removed.map((i) => (
+                    <li key={i.name} className="text-red-400 line-through opacity-70">{i.name}</li>
+                  ))}
+                  {added.map((i) => (
+                    <li key={i.name} className="text-green-400">+ {i.quantity} {i.unit} {i.name}</li>
+                  ))}
+                  {changed.map((i) => {
+                    const orig = origByName.get(i.name.toLowerCase().trim())!;
+                    return (
+                      <li key={i.name} className="text-yellow-400">
+                        {i.name}: <span className="line-through opacity-60">{orig.quantity}{orig.unit ? ` ${orig.unit}` : ''}</span> → {i.quantity}{i.unit ? ` ${i.unit}` : ''}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+            {macroDiff.length > 0 && (
+              <div>
+                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Macros</p>
+                <div className="space-y-1">
+                  {macroDiff.map(({ label, orig, next, unit }) => (
+                    <div key={label} className="flex items-center gap-2 text-sm">
+                      <span className="text-slate-400 w-16">{label}</span>
+                      <span className="text-slate-500 line-through">{orig ?? '—'}{unit}</span>
+                      <span className="text-slate-300">→ {next}{unit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!hasChanges && <p className="text-sm text-slate-400">No changes detected.</p>}
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => handleSave(false)}
+                disabled={saving}
+                className="flex-1 bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+              >
+                {saving ? '…' : 'Save'}
+              </button>
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="flex-1 bg-dram-accent/20 text-dram-accent font-semibold py-2.5 rounded-lg hover:bg-dram-accent/30 transition disabled:opacity-50 border border-dram-accent/40"
+              >
+                {saving ? '…' : 'Save & Log'}
+              </button>
+            </div>
+            <button
+              onClick={() => { setStep('prompt'); setError(null); }}
+              className="w-full text-xs text-slate-500 hover:text-slate-300 py-1"
+            >
+              ← Back to edit
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   recipeId: number;
@@ -51,6 +271,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
   const [deleting, setDeleting] = useState(false);
   const [togglingFav, setTogglingFav] = useState(false);
   const [log, setLog] = useState<MakeLogEntry[]>([]);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -157,6 +378,12 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               className={`text-xl transition ${isFav ? 'text-dram-accent' : 'text-gray-600 hover:text-dram-accent'}`}
             >
               ★
+            </button>
+            <button
+              onClick={() => setShowAiModal(true)}
+              className="text-xs text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
+            >
+              Modify
             </button>
             <button
               onClick={() => onEdit(recipe)}
@@ -441,6 +668,19 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
         </div>
       </div>
     )}
-    </>
+
+    {showAiModal && recipe && (
+      <AiModifyModal
+        recipe={recipe}
+        onClose={() => setShowAiModal(false)}
+        onSaved={(updatedRecipe, logEntries) => {
+          setRecipe(updatedRecipe);
+          setLog(logEntries);
+          setShowAiModal(false);
+          onUpdated();
+        }}
+      />
+    )}
+</>
   );
 }

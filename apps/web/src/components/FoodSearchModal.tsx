@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { foodsApi, recipesApi, logApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
-import type { Food, MealSlot, RecipeSearchResult } from '@pulse/api-client';
+import type { Food, MealSlot, RecipeSearchResult, RecipeMacroResult } from '@pulse/api-client';
 
-type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create';
+type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
 
 interface Props {
   meal?: MealSlot;
@@ -63,6 +63,17 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
   const [logDate, setLogDate] = useState(currentDate);
   const [adding, setAdding] = useState(false);
 
+  // Modify & log state
+  const [modifyRecipe, setModifyRecipe] = useState<RecipeSearchResult | null>(null);
+  const [modifyQuery, setModifyQuery] = useState('');
+  const [modifyResults, setModifyResults] = useState<RecipeSearchResult[]>([]);
+  const [modifySearching, setModifySearching] = useState(false);
+  const [modifyPrompt, setModifyPrompt] = useState('');
+  const [modifyLoading, setModifyLoading] = useState(false);
+  const [modifyResult, setModifyResult] = useState<RecipeMacroResult | null>(null);
+  const [modifyError, setModifyError] = useState<string | null>(null);
+  const [modifyLogging, setModifyLogging] = useState(false);
+
   // Custom food state
   const [cfName, setCfName] = useState('');
   const [cfBrand, setCfBrand] = useState('');
@@ -113,6 +124,61 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
+
+  // Debounced recipe search for modify-pick view
+  useEffect(() => {
+    if (view !== 'modify-pick') return;
+    if (!modifyQuery.trim()) { setModifyResults([]); return; }
+    setModifySearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await recipesApi.search(modifyQuery);
+        setModifyResults(data);
+      } catch { /* ignore */ } finally {
+        setModifySearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [modifyQuery, view]);
+
+  async function handleModifySubmit() {
+    if (!modifyRecipe || !modifyPrompt.trim()) return;
+    setModifyLoading(true);
+    setModifyError(null);
+    try {
+      const { modified } = await recipesApi.aiModify(modifyRecipe.id, modifyPrompt.trim(), 'log');
+      setModifyResult(modified as RecipeMacroResult);
+      setView('modify-preview');
+    } catch {
+      setModifyError('Failed to modify recipe. Please try again.');
+    } finally {
+      setModifyLoading(false);
+    }
+  }
+
+  async function handleModifyLog() {
+    if (!modifyRecipe || !modifyResult || !selectedMeal) return;
+    setModifyLogging(true);
+    try {
+      await logApi.logModifiedRecipe({
+        recipeId: modifyRecipe.id,
+        meal: selectedMeal,
+        logDate: currentDate,
+        name: modifyResult.name,
+        calories: modifyResult.calories,
+        carbs_g: modifyResult.carbs_g,
+        protein_g: modifyResult.protein_g,
+        fat_g: modifyResult.fat_g,
+        fiber_g: modifyResult.fiber_g,
+        sodium_mg: modifyResult.sodium_mg,
+      });
+      onClose();
+    } catch {
+      setModifyError('Failed to log. Please try again.');
+    } finally {
+      setModifyLogging(false);
+    }
+  }
 
   function selectFood(food: Food) {
     setSelectedFood(food);
@@ -244,12 +310,24 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             {(view === 'pick' || view === 'recipe-pick') && (
               <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
+            {view === 'modify-pick' && (
+              <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
+            )}
+            {view === 'modify-prompt' && (
+              <button onClick={() => setView('modify-pick')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
+            )}
+            {view === 'modify-preview' && (
+              <button onClick={() => setView('modify-prompt')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
+            )}
             <h2 className="text-sm font-semibold text-slate-200">
-              {view === 'meal'        && 'Add to log'}
-              {view === 'search'      && `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
-              {view === 'pick'        && (selectedFood?.name ?? '')}
-              {view === 'recipe-pick' && (selectedRecipe?.name ?? '')}
-              {view === 'create'      && 'Create custom food'}
+              {view === 'meal'            && 'Add to log'}
+              {view === 'search'          && `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+              {view === 'pick'            && (selectedFood?.name ?? '')}
+              {view === 'recipe-pick'     && (selectedRecipe?.name ?? '')}
+              {view === 'create'          && 'Create custom food'}
+              {view === 'modify-pick'     && 'Log modified recipe'}
+              {view === 'modify-prompt'   && (modifyRecipe?.name ?? '')}
+              {view === 'modify-preview'  && 'Preview changes'}
             </h2>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors">×</button>
@@ -376,12 +454,18 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               )}
             </div>
 
-            <div className="px-4 py-3 border-t border-slate-700/50 shrink-0">
+            <div className="px-4 py-3 border-t border-slate-700/50 shrink-0 space-y-1">
               <button
                 onClick={() => onCreateCustomFood ? onCreateCustomFood() : setView('create')}
                 className="w-full text-sm text-brand-400 hover:text-brand-300 transition-colors py-1"
               >
                 + Create custom food
+              </button>
+              <button
+                onClick={() => { setModifyQuery(''); setModifyResults([]); setModifyPrompt(''); setModifyResult(null); setModifyError(null); setView('modify-pick'); }}
+                className="w-full text-sm text-dram-accent hover:text-dram-accent/80 transition-colors py-1"
+              >
+                ✦ Log modified recipe
               </button>
             </div>
           </div>
@@ -510,6 +594,112 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors mt-auto"
             >
               {addingRecipe ? 'Adding…' : `Add to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+            </button>
+          </div>
+        )}
+
+        {/* ── Modify-pick: search for a recipe to modify ──────────── */}
+        {view === 'modify-pick' && (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-700/50 shrink-0">
+              <p className="text-xs text-slate-400 mb-2">Pick a recipe, then describe your change.</p>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search your recipes…"
+                value={modifyQuery}
+                onChange={(e) => setModifyQuery(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-dram-accent"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {modifySearching && (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">Searching…</div>
+              )}
+              {!modifySearching && modifyResults.length > 0 && (
+                <ul className="divide-y divide-slate-700/50">
+                  {modifyResults.map((r) => (
+                    <li key={r.id}>
+                      <button
+                        className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left transition-colors"
+                        onClick={() => { setModifyRecipe(r); setModifyPrompt(''); setModifyError(null); setView('modify-prompt'); }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-slate-200 truncate">{r.name}</div>
+                        </div>
+                        <div className="ml-3 text-xs text-slate-400 shrink-0">
+                          {r.calories != null ? `${r.calories} cal` : '—'}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!modifySearching && modifyQuery.trim() && modifyResults.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">No recipes found</div>
+              )}
+              {!modifyQuery.trim() && (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">Start typing to search</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Modify-prompt: enter AI instruction ──────────────────── */}
+        {view === 'modify-prompt' && modifyRecipe && (
+          <div className="p-4 space-y-4">
+            <p className="text-xs text-slate-400">Describe what you changed. The AI will estimate updated macros for this one-time log entry.</p>
+            <textarea
+              autoFocus
+              value={modifyPrompt}
+              onChange={(e) => setModifyPrompt(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleModifySubmit(); }}
+              placeholder='e.g. "skipped the cheese" or "used olive oil instead of butter"'
+              rows={3}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-dram-accent resize-none"
+            />
+            {modifyError && <p className="text-xs text-red-400">{modifyError}</p>}
+            <button
+              onClick={handleModifySubmit}
+              disabled={modifyLoading || !modifyPrompt.trim()}
+              className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+            >
+              {modifyLoading ? 'Calculating…' : 'Preview macros'}
+            </button>
+          </div>
+        )}
+
+        {/* ── Modify-preview: show macro diff, confirm log ─────────── */}
+        {view === 'modify-preview' && modifyRecipe && modifyResult && (
+          <div className="p-4 space-y-4 overflow-y-auto">
+            <div>
+              <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Updated macros</p>
+              <div className="space-y-1">
+                {([
+                  { label: 'Name', orig: modifyRecipe.name, next: modifyResult.name, unit: '' },
+                  { label: 'Calories', orig: modifyRecipe.calories, next: modifyResult.calories, unit: ' kcal' },
+                  { label: 'Carbs', orig: modifyRecipe.carbs_g, next: modifyResult.carbs_g, unit: 'g' },
+                  { label: 'Protein', orig: modifyRecipe.protein_g, next: modifyResult.protein_g, unit: 'g' },
+                  { label: 'Fat', orig: modifyRecipe.fat_g, next: modifyResult.fat_g, unit: 'g' },
+                ] as { label: string; orig: string | number | null | undefined; next: string | number; unit: string }[]).map(({ label, orig, next, unit }) => (
+                  <div key={label} className="flex items-center gap-2 text-sm">
+                    <span className="text-slate-400 w-16 shrink-0">{label}</span>
+                    {orig != null && orig !== next
+                      ? <><span className="text-slate-500 line-through">{orig}{unit}</span><span className="text-slate-300">→ {next}{unit}</span></>
+                      : <span className="text-slate-300">{next}{unit}</span>
+                    }
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-3">Will be logged as "{modifyResult.name}" (1 serving, recipe unchanged)</p>
+            </div>
+            {modifyError && <p className="text-xs text-red-400">{modifyError}</p>}
+            <button
+              onClick={handleModifyLog}
+              disabled={modifyLogging || !selectedMeal}
+              className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+            >
+              {modifyLogging ? 'Logging…' : `Log it`}
             </button>
           </div>
         )}

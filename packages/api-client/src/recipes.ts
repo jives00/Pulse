@@ -112,6 +112,16 @@ export interface RecipeFormData {
   tags: string[];
 }
 
+export interface RecipeMacroResult {
+  name: string;
+  calories: number;
+  carbs_g: number;
+  protein_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sodium_mg: number;
+}
+
 export interface RecipeFilters {
   type?: string;
   search?: string;

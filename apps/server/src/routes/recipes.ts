@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import type { Pool, RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { suggestTags } from '../services/claude';
 import { runText } from '../services/aiProvider';
+import { modifyRecipe } from '../services/recipeModifier';
 import { estimateMacros } from '../services/macroEstimation';
 import { lookupBarcode } from '../services/foodSearch';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
@@ -367,6 +368,66 @@ Only return valid JSON, no other text.`;
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/recipes/:id/ai-modify
+router.post('/:id/ai-modify', async (req: Request, res: Response) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const { prompt, mode } = req.body as { prompt?: unknown; mode?: unknown };
+  if (typeof prompt !== 'string' || !prompt.trim()) {
+    res.status(400).json({ error: 'prompt is required' }); return;
+  }
+  if (mode !== 'update' && mode !== 'log') {
+    res.status(400).json({ error: 'mode must be "update" or "log"' }); return;
+  }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM recipes WHERE id = ? AND user_id = ?', [id, req.userId]
+    );
+    const recipe = rows[0];
+    if (!recipe) { res.status(404).json({ error: 'Not found' }); return; }
+
+    if (mode === 'update') {
+      const [ingredients] = await pool.query<RowDataPacket[]>(
+        `SELECT i.name, ri.quantity, ri.unit
+         FROM recipe_ingredients ri
+         JOIN ingredients i ON ri.ingredient_id = i.id
+         WHERE ri.recipe_id = ? ORDER BY ri.sort_order`,
+        [id]
+      );
+      const [steps] = await pool.query<RowDataPacket[]>(
+        'SELECT step_number, instruction FROM recipe_steps WHERE recipe_id = ? ORDER BY step_number',
+        [id]
+      );
+      const modified = await modifyRecipe(
+        { ...recipe, ingredients: ingredients as any[], steps: steps as any[] },
+        prompt.trim(),
+        'update'
+      );
+      console.log('[ai-modify] full result:', JSON.stringify(modified));
+      res.json({ modified });
+    } else {
+      const [ingredients] = await pool.query<RowDataPacket[]>(
+        `SELECT i.name, ri.quantity, ri.unit
+         FROM recipe_ingredients ri
+         JOIN ingredients i ON ri.ingredient_id = i.id
+         WHERE ri.recipe_id = ? ORDER BY ri.sort_order`,
+        [id]
+      );
+      const modified = await modifyRecipe(
+        { ...recipe, ingredients: ingredients as any[], steps: [] },
+        prompt.trim(),
+        'log'
+      );
+      res.json({ modified });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to modify recipe' });
   }
 });
 

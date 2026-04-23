@@ -679,3 +679,50 @@ export async function logRecipeToNutrition(
   });
   await handle(res);
 }
+
+export interface RecipeMacroResult {
+  name: string;
+  calories: number;
+  carbs_g: number;
+  protein_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sodium_mg: number;
+}
+
+export async function aiModifyRecipe(
+  token: string,
+  id: number,
+  prompt: string,
+  mode: 'update' | 'log'
+): Promise<{ modified: any }> {
+  const res = await fetch(`${API_BASE}/api/recipes/${id}/ai-modify`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ prompt, mode }),
+  });
+  return handle<{ modified: any }>(res);
+}
+
+export async function logModifiedRecipe(
+  token: string,
+  payload: {
+    recipeId: number;
+    meal: string;
+    logDate?: string;
+    name: string;
+    calories: number;
+    carbs_g: number;
+    protein_g: number;
+    fat_g: number;
+    fiber_g?: number | null;
+    sodium_mg?: number | null;
+  }
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/recipe-modified`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  await handle(res);
+}

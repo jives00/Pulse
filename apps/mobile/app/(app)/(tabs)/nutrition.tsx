@@ -9,6 +9,7 @@ import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry,
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
+  aiModifyRecipe, logModifiedRecipe,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult,
 } from '../../../src/api/client';
@@ -46,7 +47,7 @@ const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'snack', label: 'Snack' },
 ];
 
-type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'barcode-review';
+type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'barcode-review' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
 
 type BarcodeQueueItem = {
   key: string;
@@ -125,6 +126,14 @@ export default function NutritionScreen() {
   const [recipeServings, setRecipeServings] = useState('1');
   const [addingRecipe, setAddingRecipe] = useState(false);
 
+  // Modify flow (log mode)
+  const [modifyRecipe, setModifyRecipe] = useState<RecipeSearchResult | null>(null);
+  const [modifyPrompt, setModifyPrompt] = useState('');
+  const [modifyLoading, setModifyLoading] = useState(false);
+  const [modifyResult, setModifyResult] = useState<any | null>(null);
+  const [modifyError, setModifyError] = useState<string | null>(null);
+  const [modifyLogging, setModifyLogging] = useState(false);
+
   // Barcode scanner
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
@@ -192,6 +201,10 @@ export default function NutritionScreen() {
     setQuantity('1');
     setSelectedRecipe(null);
     setRecipeServings('1');
+    setModifyRecipe(null);
+    setModifyPrompt('');
+    setModifyResult(null);
+    setModifyError(null);
     scannedRef.current = false;
   }
 
@@ -348,6 +361,47 @@ export default function NutritionScreen() {
       Alert.alert('Error', e.message || 'Could not log recipe.');
     } finally {
       setAddingRecipe(false);
+    }
+  }
+
+  async function handleModifySubmit() {
+    if (!modifyRecipe || !modifyPrompt.trim()) return;
+    setModifyLoading(true);
+    setModifyError(null);
+    try {
+      const { modified } = await aiModifyRecipe(token, modifyRecipe.id, modifyPrompt.trim(), 'log');
+      setModifyResult(modified);
+      setModalView('modify-preview');
+    } catch {
+      setModifyError('Failed to modify recipe. Please try again.');
+    } finally {
+      setModifyLoading(false);
+    }
+  }
+
+  async function handleModifyLog() {
+    if (!modifyRecipe || !modifyResult || !addMeal) return;
+    setModifyLogging(true);
+    setModifyError(null);
+    try {
+      await logModifiedRecipe(token, {
+        recipeId: modifyRecipe.id,
+        meal: addMeal,
+        logDate: date,
+        name: `${modifyRecipe.name} (modified)`,
+        calories: modifyResult.calories,
+        carbs_g: modifyResult.carbs_g,
+        protein_g: modifyResult.protein_g,
+        fat_g: modifyResult.fat_g,
+        fiber_g: modifyResult.fiber_g ?? null,
+        sodium_mg: modifyResult.sodium_mg ?? null,
+      });
+      setAddMeal(null);
+      load();
+    } catch {
+      setModifyError('Failed to log. Please try again.');
+    } finally {
+      setModifyLogging(false);
     }
   }
 
@@ -1103,6 +1157,137 @@ export default function NutritionScreen() {
                 </TouchableOpacity>
               </ScrollView>
             </>
+          ) : modalView === 'modify-pick' ? (
+            /* Pick a recipe to modify */
+            <>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('search')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle}>Pick a recipe</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.searchBox}>
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Search recipes…"
+                  placeholderTextColor={c.muted}
+                  value={query}
+                  onChangeText={handleSearch}
+                  autoFocus
+                  returnKeyType="search"
+                />
+                {searching ? <ActivityIndicator size="small" color={c.accent} style={{ marginRight: 4 }} /> : null}
+              </View>
+              <FlatList
+                data={recipeResults}
+                keyExtractor={(r) => String(r.id)}
+                ListHeaderComponent={recipeResults.length > 0 ? <Text style={s.sectionHeader}>My Recipes</Text> : null}
+                renderItem={({ item: r }) => (
+                  <TouchableOpacity
+                    style={s.resultRow}
+                    onPress={() => {
+                      setModifyRecipe(r);
+                      setModalView('modify-prompt');
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.resultName}>{r.name}</Text>
+                      {r.servings != null && <Text style={s.resultBrand}>per serving</Text>}
+                    </View>
+                    <Text style={s.resultCals}>{r.calories != null ? `${Math.round(r.calories)} kcal` : '—'}</Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  query.length > 0 && !searching ? (
+                    <Text style={[s.emptyText, { padding: 24 }]}>No recipes found</Text>
+                  ) : query.length === 0 ? (
+                    <Text style={[s.emptyText, { padding: 24 }]}>Search for a recipe to modify</Text>
+                  ) : null
+                }
+                keyboardShouldPersistTaps="handled"
+              />
+            </>
+          ) : modalView === 'modify-prompt' && modifyRecipe ? (
+            /* Enter the AI prompt */
+            <>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('modify-pick')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle} numberOfLines={1}>{modifyRecipe.name}</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
+                <Text style={[s.moveCopySection, { marginBottom: 12 }]}>Describe what to change</Text>
+                <TextInput
+                  style={s.modifyPromptInput}
+                  value={modifyPrompt}
+                  onChangeText={setModifyPrompt}
+                  placeholder='e.g. "replace butter with olive oil" or "make it dairy-free"'
+                  placeholderTextColor={c.muted}
+                  multiline
+                  numberOfLines={3}
+                  autoFocus
+                />
+                {modifyError ? <Text style={s.modifyError}>{modifyError}</Text> : null}
+                <TouchableOpacity
+                  style={[s.confirmBtn, { marginTop: 16 }, (modifyLoading || !modifyPrompt.trim()) && { opacity: 0.5 }]}
+                  onPress={handleModifySubmit}
+                  disabled={modifyLoading || !modifyPrompt.trim()}
+                >
+                  {modifyLoading
+                    ? <ActivityIndicator color={c.bg} />
+                    : <Text style={s.confirmBtnText}>Preview macros</Text>
+                  }
+                </TouchableOpacity>
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            </>
+          ) : modalView === 'modify-preview' && modifyRecipe && modifyResult ? (
+            /* Preview AI-returned macros and log */
+            <>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('modify-prompt')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle}>Modified macros</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody}>
+                <Text style={s.modifyRecipeName}>{modifyRecipe.name} (modified)</Text>
+                <View style={s.modifyMacroGrid}>
+                  {([
+                    { label: 'Calories', value: modifyResult.calories, unit: 'kcal' },
+                    { label: 'Carbs', value: modifyResult.carbs_g, unit: 'g' },
+                    { label: 'Protein', value: modifyResult.protein_g, unit: 'g' },
+                    { label: 'Fat', value: modifyResult.fat_g, unit: 'g' },
+                    ...(modifyResult.fiber_g != null ? [{ label: 'Fiber', value: modifyResult.fiber_g, unit: 'g' }] : []),
+                    ...(modifyResult.sodium_mg != null ? [{ label: 'Sodium', value: modifyResult.sodium_mg, unit: 'mg' }] : []),
+                  ] as { label: string; value: number; unit: string }[]).map(({ label, value, unit }) => (
+                    <View key={label} style={s.modifyMacroCell}>
+                      <Text style={s.modifyMacroValue}>{Math.round(value)}{unit}</Text>
+                      <Text style={s.modifyMacroLabel}>{label}</Text>
+                    </View>
+                  ))}
+                </View>
+                {modifyError ? <Text style={s.modifyError}>{modifyError}</Text> : null}
+                <TouchableOpacity
+                  style={[s.confirmBtn, { marginTop: 20 }, modifyLogging && { opacity: 0.6 }]}
+                  onPress={handleModifyLog}
+                  disabled={modifyLogging}
+                >
+                  <Text style={s.confirmBtnText}>{modifyLogging ? 'Logging…' : `Log to ${mealLabel}`}</Text>
+                </TouchableOpacity>
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            </>
           ) : modalView === 'food-pick' && selectedFood ? (
             /* Food serving picker */
             <>
@@ -1238,6 +1423,21 @@ export default function NutritionScreen() {
                   keyboardShouldPersistTaps="handled"
                 />
               )}
+              <TouchableOpacity
+                style={s.modifyFooterBtn}
+                onPress={() => {
+                  setModifyRecipe(null);
+                  setModifyPrompt('');
+                  setModifyResult(null);
+                  setModifyError(null);
+                  setQuery('');
+                  setRecipeResults([]);
+                  setFoodResults([]);
+                  setModalView('modify-pick');
+                }}
+              >
+                <Text style={s.modifyFooterText}>✦ Log modified recipe</Text>
+              </TouchableOpacity>
             </>
           )}
         </SafeAreaView>
@@ -1359,5 +1559,15 @@ function makeStyles(c: Colors) {
     reviewFieldInput: { flex: 1, color: c.text, fontSize: fontSize.base, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: c.bg },
     reviewMacroRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     reviewMacroField: { flex: 1, gap: 4 },
+    // Modify flow
+    modifyFooterBtn: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: c.border },
+    modifyFooterText: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
+    modifyPromptInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, color: c.text, fontSize: fontSize.sm, minHeight: 80, textAlignVertical: 'top' },
+    modifyError: { color: '#f87171', fontSize: fontSize.xs, marginTop: 8 },
+    modifyRecipeName: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 16 },
+    modifyMacroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+    modifyMacroCell: { backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 80, flexGrow: 1, borderWidth: 1, borderColor: c.border },
+    modifyMacroValue: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm },
+    modifyMacroLabel: { color: c.muted, fontSize: fontSize.xs, marginTop: 2 },
   });
 }
