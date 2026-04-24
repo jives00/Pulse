@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, DeviceEventEmitter, FlatList, KeyboardAvoidingView, Modal,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
@@ -119,6 +119,7 @@ export default function WorkoutDetailScreen() {
   const pausedAtRef = useRef<string | null>(null);
   const totalPausedSecondsRef = useRef<number>(0);
   const workoutRef = useRef<WorkoutDetail | null>(null);
+  const isPausedRef = useRef(false);
 
   // Exercise picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -190,6 +191,7 @@ export default function WorkoutDetailScreen() {
         if (sa) {
           const raw = Math.floor((Date.now() - new Date(sa).getTime()) / 1000);
           const el = Math.max(0, raw - totalPaused);
+          setElapsed(el);
           showWorkoutNotification(data, el, isCurrentlyPaused).catch(() => {});
         }
       }
@@ -205,6 +207,16 @@ export default function WorkoutDetailScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [load]);
 
+  // Handle pause/resume triggered from notification action button
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('workoutAction', (event: { type: string; workoutId: number }) => {
+      if (event.workoutId !== workoutId) return;
+      if (event.type === 'PAUSE') handlePause();
+      else if (event.type === 'RESUME') handleResume();
+    });
+    return () => sub.remove();
+  }, [workoutId]);
+
   // Start clock tick once startedAt is known; stop while paused
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -213,7 +225,7 @@ export default function WorkoutDetailScreen() {
       const raw = Math.floor((Date.now() - new Date(startedAtRef.current!).getTime()) / 1000);
       const newElapsed = Math.max(0, raw - totalPausedSecondsRef.current);
       setElapsed(newElapsed);
-      if (newElapsed > 0 && newElapsed % 30 === 0 && workoutRef.current) {
+      if (workoutRef.current && !isPausedRef.current && newElapsed % 10 === 0) {
         showWorkoutNotification(workoutRef.current, newElapsed, false).catch(() => {});
       }
     };
@@ -240,23 +252,31 @@ export default function WorkoutDetailScreen() {
   }
 
   async function handlePause() {
+    isPausedRef.current = true;
     pausedAtRef.current = new Date().toISOString();
     setIsPaused(true);
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     pauseWorkout(token, workoutId).catch(() => { /* best-effort; local pause still active */ });
-    if (workout) showWorkoutNotification(workout, computeElapsed(), true).catch(() => {});
+    if (workoutRef.current) {
+      const el = computeElapsed();
+      await new Promise(r => setTimeout(r, 300));
+      await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+      showWorkoutNotification(workoutRef.current, el, true).catch(() => {});
+    }
   }
 
   async function handleResume() {
+    isPausedRef.current = false;
     const pausedAt = pausedAtRef.current;
     const addedPause = pausedAt ? Math.floor((Date.now() - new Date(pausedAt).getTime()) / 1000) : 0;
     totalPausedSecondsRef.current += addedPause;
     pausedAtRef.current = null;
     setIsPaused(false);
-    resumeWorkout(token, workoutId)
-      .then((result) => { totalPausedSecondsRef.current = result.totalPausedSeconds; })
-      .catch(() => { /* best-effort; local resume still active */ });
-    if (workout) showWorkoutNotification(workout, computeElapsed(), false).catch(() => {});
+    resumeWorkout(token, workoutId).catch(() => { /* best-effort; local resume still active */ });
+    if (workoutRef.current) {
+      await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+      showWorkoutNotification(workoutRef.current, computeElapsed(), false).catch(() => {});
+    }
   }
 
   async function handleFinish() {

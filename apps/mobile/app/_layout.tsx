@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { Stack, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { setUnauthorizedHandler } from '../src/api/client';
@@ -33,7 +34,16 @@ export default function RootLayout() {
     ]);
 
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const actionId = response.actionIdentifier;
       const url = response.notification.request.content.data?.url as string | undefined;
+      if (actionId === 'PAUSE' || actionId === 'RESUME') {
+        const match = url?.match(/\/workout\/(\d+)/);
+        if (match) {
+          DeviceEventEmitter.emit('workoutAction', { type: actionId, workoutId: Number(match[1]) });
+        }
+        return;
+      }
+
       if (url) router.push(url as any);
     });
 
