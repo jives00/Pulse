@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail, type RoutineExercise, type RoutineExerciseSet,
-  type Exercise, type WorkoutSummary, type RoutineType,
+  type Exercise, type WorkoutSummary, type WorkoutDetail, type RoutineType,
   KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS,
 } from '@pulse/api-client';
 
@@ -330,6 +330,7 @@ export default function RoutineDetailPage() {
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
   const [routineWorkouts, setRoutineWorkouts] = useState<WorkoutSummary[]>([]);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
 
   // Editable name
   const [editingName, setEditingName] = useState(false);
@@ -351,6 +352,10 @@ export default function RoutineDetailPage() {
 
     workoutsApi.getAll({ limit: 50, routineId: numId })
       .then((workouts: WorkoutSummary[]) => setRoutineWorkouts(workouts))
+      .catch(() => {});
+
+    workoutsApi.getActive()
+      .then((w) => setActiveWorkout(w))
       .catch(() => {});
   }, [id]);
 
@@ -573,6 +578,27 @@ export default function RoutineDetailPage() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl px-6 py-5 space-y-4">
+
+          {/* Active workout banner */}
+          {activeWorkout && (
+            <div className="bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+              <span className="text-dram-accent text-lg">⏱</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-dram-accent truncate">
+                  {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
+                </p>
+                <p className="text-xs text-dram-muted mt-0.5">
+                  {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
+                </p>
+              </div>
+              <button
+                onClick={() => navigate(`/workouts/${activeWorkout.id}`)}
+                className="bg-dram-accent text-black text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition flex-shrink-0"
+              >
+                Resume →
+              </button>
+            </div>
+          )}
 
           {/* Start button */}
           <button

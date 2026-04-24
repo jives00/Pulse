@@ -882,7 +882,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
           </div>
           <button
             onClick={() => navigate(`/workouts/${activeWorkout.id}`)}
-            className="bg-dram-accent text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition flex-shrink-0"
+            className="bg-dram-accent text-black text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition flex-shrink-0"
           >
             Resume →
           </button>
