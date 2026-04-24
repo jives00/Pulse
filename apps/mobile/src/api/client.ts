@@ -369,9 +369,17 @@ export async function deleteWorkout(token: string, id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
 }
-export async function startWorkoutTimer(token: string, id: number): Promise<{ startedAt: string }> {
+export async function startWorkoutTimer(token: string, id: number): Promise<{ startedAt: string; pausedAt: string | null; totalPausedSeconds: number }> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}/start-timer`, { method: 'POST', headers: headers(token) });
-  return handle<{ startedAt: string }>(res);
+  return handle<{ startedAt: string; pausedAt: string | null; totalPausedSeconds: number }>(res);
+}
+export async function pauseWorkout(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}/pause`, { method: 'POST', headers: headers(token) });
+  await handle(res);
+}
+export async function resumeWorkout(token: string, id: number): Promise<{ totalPausedSeconds: number }> {
+  const res = await fetch(`${API_BASE}/api/workouts/${id}/resume`, { method: 'POST', headers: headers(token) });
+  return handle<{ totalPausedSeconds: number }>(res);
 }
 export async function estimateWorkoutCalories(token: string, id: number): Promise<{ caloriesBurned: number }> {
   const res = await fetch(`${API_BASE}/api/workouts/${id}/estimate-calories`, { method: 'POST', headers: headers(token) });

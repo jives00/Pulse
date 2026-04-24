@@ -141,6 +141,8 @@ export interface WorkoutSummary {
 export interface WorkoutDetail extends Omit<WorkoutSummary, 'exercises'> {
   notes: string | null;
   startedAt: string | null;
+  pausedAt: string | null;
+  totalPausedSeconds: number;
   completed: boolean;
   routineId: number | null;
   exercises: WorkoutExercise[];

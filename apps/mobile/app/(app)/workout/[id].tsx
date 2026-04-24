@@ -7,7 +7,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer, estimateWorkoutCalories,
+  getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer, pauseWorkout, resumeWorkout,
+  estimateWorkoutCalories,
   addWorkoutExercise, removeWorkoutExercise, updateWorkoutExercise,
   addWorkoutSet, updateWorkoutSet, deleteWorkoutSet,
   getExercises, getExerciseCategories, createCustomExercise,
@@ -67,8 +68,11 @@ export default function WorkoutDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<string | null>(null);
+  const pausedAtRef = useRef<string | null>(null);
+  const totalPausedSecondsRef = useRef<number>(0);
 
   // Exercise picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -117,9 +121,15 @@ export default function WorkoutDetailScreen() {
           try {
             const r = await startWorkoutTimer(token, workoutId);
             sa = r.startedAt;
+            pausedAtRef.current = r.pausedAt ?? null;
+            totalPausedSecondsRef.current = r.totalPausedSeconds ?? 0;
           } catch { /* ignore */ }
+        } else {
+          pausedAtRef.current = data.pausedAt ?? null;
+          totalPausedSecondsRef.current = data.totalPausedSeconds ?? 0;
         }
         startedAtRef.current = sa;
+        setIsPaused(!!(data.pausedAt ?? null));
       }
     } catch {
       Alert.alert('Error', 'Could not load workout.');
@@ -133,18 +143,18 @@ export default function WorkoutDetailScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [load]);
 
-  // Start clock tick once startedAt is known
+  // Start clock tick once startedAt is known; stop while paused
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (!startedAtRef.current) return;
+    if (!startedAtRef.current || isPaused) return;
     const tick = () => {
-      const diff = Math.floor((Date.now() - new Date(startedAtRef.current!).getTime()) / 1000);
-      setElapsed(Math.max(0, diff));
+      const raw = Math.floor((Date.now() - new Date(startedAtRef.current!).getTime()) / 1000);
+      setElapsed(Math.max(0, raw - totalPausedSecondsRef.current));
     };
     tick();
     timerRef.current = setInterval(tick, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [workout?.startedAt]);
+  }, [workout?.startedAt, isPaused]);
 
   function handleCancel() {
     Alert.alert('Cancel Workout', 'This will delete the session. Are you sure?', [
@@ -160,6 +170,24 @@ export default function WorkoutDetailScreen() {
         },
       },
     ]);
+  }
+
+  async function handlePause() {
+    pausedAtRef.current = new Date().toISOString();
+    setIsPaused(true);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    pauseWorkout(token, workoutId).catch(() => { /* best-effort; local pause still active */ });
+  }
+
+  async function handleResume() {
+    const pausedAt = pausedAtRef.current;
+    const addedPause = pausedAt ? Math.floor((Date.now() - new Date(pausedAt).getTime()) / 1000) : 0;
+    totalPausedSecondsRef.current += addedPause;
+    pausedAtRef.current = null;
+    setIsPaused(false);
+    resumeWorkout(token, workoutId)
+      .then((result) => { totalPausedSecondsRef.current = result.totalPausedSeconds; })
+      .catch(() => { /* best-effort; local resume still active */ });
   }
 
   async function handleFinish() {
@@ -398,20 +426,31 @@ export default function WorkoutDetailScreen() {
           <Text style={s.backBtnText}>‹ Back</Text>
         </TouchableOpacity>
         <View style={s.timerWrap}>
-          <Text style={s.timer}>{formatTimer(elapsed)}</Text>
-          {runningVolumeLbs > 0 && (
-            <Text style={s.volumeLabel}>
-              {Math.round(runningVolumeLbs).toLocaleString()} lbs
-            </Text>
-          )}
+          <Text style={[s.timer, isPaused && { color: c.muted }]}>{formatTimer(elapsed)}</Text>
+          {isPaused
+            ? <Text style={s.pausedLabel}>PAUSED</Text>
+            : runningVolumeLbs > 0 && (
+              <Text style={s.volumeLabel}>
+                {Math.round(runningVolumeLbs).toLocaleString()} lbs
+              </Text>
+            )
+          }
         </View>
-        <TouchableOpacity
-          style={[s.finishBtn, finishing && s.finishBtnDisabled]}
-          onPress={handleFinish}
-          disabled={finishing}
-        >
-          <Text style={s.finishBtnText}>{finishing ? '…' : 'Finish'}</Text>
-        </TouchableOpacity>
+        <View style={s.headerRight}>
+          <TouchableOpacity
+            style={s.pauseBtn}
+            onPress={isPaused ? handleResume : handlePause}
+          >
+            <Text style={s.pauseBtnText}>{isPaused ? '▶' : '⏸'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.finishBtn, finishing && s.finishBtnDisabled]}
+            onPress={handleFinish}
+            disabled={finishing}
+          >
+            <Text style={s.finishBtnText}>{finishing ? '…' : 'Finish'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
@@ -787,6 +826,10 @@ function makeStyles(c: Colors) {
   timerWrap: { flex: 1, alignItems: 'center' },
   timer: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] },
   volumeLabel: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+  pausedLabel: { fontSize: fontSize.xs, color: '#f59e0b', marginTop: 1, fontWeight: '700', letterSpacing: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pauseBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  pauseBtnText: { fontSize: 14, color: c.text },
   finishBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
   finishBtnBottom: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   cancelSessionBtn: { alignItems: 'center', paddingVertical: 14 },

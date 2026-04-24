@@ -534,7 +534,6 @@ export default function DashboardScreen() {
       setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
-      console.log('[PB]', JSON.stringify(pb));
       setPersonalBests(pb);
       setNutritionSummary(ns);
       setWaterHistory(wh);

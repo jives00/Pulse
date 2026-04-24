@@ -78,6 +78,8 @@ export async function getWorkoutDetail(workoutId: number) {
     durationMinutes: w.duration_minutes ?? null,
     caloriesBurned: w.calories_burned ?? null,
     startedAt: w.started_at ? (w.started_at instanceof Date ? w.started_at.toISOString() : String(w.started_at)) : null,
+    pausedAt: w.paused_at ? (w.paused_at instanceof Date ? w.paused_at.toISOString() : String(w.paused_at)) : null,
+    totalPausedSeconds: w.total_paused_seconds ?? 0,
     completed: Boolean(w.completed),
     routineId: w.routine_id ?? null,
     createdAt: w.created_at,
@@ -345,12 +347,56 @@ router.post('/:id/start-timer', async (req, res) => {
       [id, req.userId]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT started_at FROM workout_logs WHERE id = ?', [id]
+      'SELECT started_at, paused_at, total_paused_seconds FROM workout_logs WHERE id = ?', [id]
     );
-    const startedAt = rows[0]?.started_at;
+    const row = rows[0];
     res.json({
-      startedAt: startedAt instanceof Date ? startedAt.toISOString() : String(startedAt),
+      startedAt: row.started_at instanceof Date ? row.started_at.toISOString() : String(row.started_at),
+      pausedAt: row.paused_at ? (row.paused_at instanceof Date ? row.paused_at.toISOString() : String(row.paused_at)) : null,
+      totalPausedSeconds: row.total_paused_seconds ?? 0,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/workouts/:id/pause
+router.post('/:id/pause', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    await pool.query(
+      'UPDATE workout_logs SET paused_at = NOW() WHERE id = ? AND user_id = ? AND paused_at IS NULL',
+      [id, req.userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/workouts/:id/resume
+router.post('/:id/resume', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
+
+  try {
+    await pool.query(
+      `UPDATE workout_logs
+       SET total_paused_seconds = total_paused_seconds + TIMESTAMPDIFF(SECOND, paused_at, NOW()),
+           paused_at = NULL
+       WHERE id = ? AND user_id = ? AND paused_at IS NOT NULL`,
+      [id, req.userId]
+    );
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT total_paused_seconds FROM workout_logs WHERE id = ?', [id]
+    );
+    res.json({ totalPausedSeconds: rows[0]?.total_paused_seconds ?? 0 });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
