@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi,
-  type WorkoutSummary, type ExerciseGoals,
+  type WorkoutSummary, type WorkoutDetail, type ExerciseGoals,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
   KG_TO_LBS,
@@ -829,6 +829,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newNotes, setNewNotes] = useState('');
@@ -837,7 +838,13 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   useImperativeHandle(ref, () => ({ openCreate: () => setShowCreate(true) }));
 
   useEffect(() => {
-    routinesApi.getAll().then(setRoutines).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      routinesApi.getAll(),
+      workoutsApi.getActive().catch(() => null),
+    ]).then(([rs, active]) => {
+      setRoutines(rs);
+      setActiveWorkout(active);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -862,6 +869,25 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {activeWorkout && (
+        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="text-dram-accent text-lg">⏱</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-dram-accent truncate">
+              {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
+            </p>
+            <p className="text-xs text-dram-muted mt-0.5">
+              {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
+            </p>
+          </div>
+          <button
+            onClick={() => navigate(`/workouts/${activeWorkout.id}`)}
+            className="bg-dram-accent text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition flex-shrink-0"
+          >
+            Resume →
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>
