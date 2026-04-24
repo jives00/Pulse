@@ -21,7 +21,11 @@ async function ownsWorkout(workoutId: number, userId: number): Promise<boolean> 
 
 export async function getWorkoutDetail(workoutId: number) {
   const [wRows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM workout_logs WHERE id = ?', [workoutId]
+    `SELECT wl.*, wr.name AS routine_name
+     FROM workout_logs wl
+     LEFT JOIN workout_routines wr ON wr.id = wl.routine_id
+     WHERE wl.id = ?`,
+    [workoutId]
   );
   if (!wRows[0]) return null;
   const w = wRows[0];
@@ -82,6 +86,7 @@ export async function getWorkoutDetail(workoutId: number) {
     totalPausedSeconds: w.total_paused_seconds ?? 0,
     completed: Boolean(w.completed),
     routineId: w.routine_id ?? null,
+    routineName: w.routine_name ?? null,
     createdAt: w.created_at,
     exercises,
   };

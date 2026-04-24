@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import {
   getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer, pauseWorkout, resumeWorkout,
   estimateWorkoutCalories,
@@ -47,6 +48,50 @@ function mmssToSeconds(val: string): number | null {
   return isNaN(n) ? null : n;
 }
 
+const WORKOUT_NOTIF_ID = 'active-workout';
+
+async function showWorkoutNotification(
+  workout: WorkoutDetail,
+  elapsed: number,
+  isPaused: boolean,
+) {
+  const title = workout.routineName ?? 'Workout';
+  const vol = workout.exercises.reduce((total, we) => {
+    return total + we.sets.reduce((sum, set) => {
+      if (!set.completed || set.weightKg == null || set.reps == null) return sum;
+      return sum + set.weightKg * KG_TO_LBS * set.reps;
+    }, 0);
+  }, 0);
+
+  let body: string;
+  if (isPaused) {
+    body = `PAUSED · ${formatTimer(elapsed)}`;
+  } else if (vol > 0) {
+    body = `${Math.round(vol).toLocaleString()} lbs · ${formatTimer(elapsed)}`;
+  } else {
+    body = formatTimer(elapsed);
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: WORKOUT_NOTIF_ID,
+    content: {
+      title,
+      body,
+      data: { url: `/(app)/workout/${workout.id}` },
+      sticky: true,
+      autoDismiss: false,
+      categoryIdentifier: isPaused ? 'workout-paused' : 'workout-running',
+    },
+    trigger: null,
+  });
+}
+
+async function dismissWorkoutNotification() {
+  try {
+    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
+  } catch { /* notification may not exist */ }
+}
+
 function defaultTrackedFields(exerciseType: string): string[] {
   switch (exerciseType) {
     case 'cardio':     return ['duration', 'distance'];
@@ -73,6 +118,7 @@ export default function WorkoutDetailScreen() {
   const startedAtRef = useRef<string | null>(null);
   const pausedAtRef = useRef<string | null>(null);
   const totalPausedSecondsRef = useRef<number>(0);
+  const workoutRef = useRef<WorkoutDetail | null>(null);
 
   // Exercise picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -103,10 +149,17 @@ export default function WorkoutDetailScreen() {
   // Tracks the set currently being edited so onBlur can tell if focus stayed in the same row
   const activeEditSetIdRef = useRef<number | null>(null);
 
+  function computeElapsed() {
+    if (!startedAtRef.current) return 0;
+    const raw = Math.floor((Date.now() - new Date(startedAtRef.current).getTime()) / 1000);
+    return Math.max(0, raw - totalPausedSecondsRef.current);
+  }
+
   const load = useCallback(async () => {
     try {
       const data = await getWorkout(token, workoutId);
       setWorkout(data);
+      workoutRef.current = data;
       // Seed per-exercise notes from loaded data
       const notes: Record<number, string> = {};
       for (const we of data.exercises) {
@@ -117,19 +170,28 @@ export default function WorkoutDetailScreen() {
       // Start timer via API (idempotent) — only for active (incomplete) workouts
       let sa = data.startedAt;
       if (!data.completed) {
+        let paused = data.pausedAt ?? null;
+        let totalPaused = data.totalPausedSeconds ?? 0;
         if (!sa) {
           try {
             const r = await startWorkoutTimer(token, workoutId);
             sa = r.startedAt;
-            pausedAtRef.current = r.pausedAt ?? null;
-            totalPausedSecondsRef.current = r.totalPausedSeconds ?? 0;
+            paused = r.pausedAt ?? null;
+            totalPaused = r.totalPausedSeconds ?? 0;
           } catch { /* ignore */ }
-        } else {
-          pausedAtRef.current = data.pausedAt ?? null;
-          totalPausedSecondsRef.current = data.totalPausedSeconds ?? 0;
         }
+        pausedAtRef.current = paused;
+        totalPausedSecondsRef.current = totalPaused;
         startedAtRef.current = sa;
-        setIsPaused(!!(data.pausedAt ?? null));
+        const isCurrentlyPaused = !!paused;
+        setIsPaused(isCurrentlyPaused);
+
+        // Show persistent notification for active workout
+        if (sa) {
+          const raw = Math.floor((Date.now() - new Date(sa).getTime()) / 1000);
+          const el = Math.max(0, raw - totalPaused);
+          showWorkoutNotification(data, el, isCurrentlyPaused).catch(() => {});
+        }
       }
     } catch {
       Alert.alert('Error', 'Could not load workout.');
@@ -149,7 +211,11 @@ export default function WorkoutDetailScreen() {
     if (!startedAtRef.current || isPaused) return;
     const tick = () => {
       const raw = Math.floor((Date.now() - new Date(startedAtRef.current!).getTime()) / 1000);
-      setElapsed(Math.max(0, raw - totalPausedSecondsRef.current));
+      const newElapsed = Math.max(0, raw - totalPausedSecondsRef.current);
+      setElapsed(newElapsed);
+      if (newElapsed > 0 && newElapsed % 30 === 0 && workoutRef.current) {
+        showWorkoutNotification(workoutRef.current, newElapsed, false).catch(() => {});
+      }
     };
     tick();
     timerRef.current = setInterval(tick, 1000);
@@ -163,6 +229,7 @@ export default function WorkoutDetailScreen() {
         text: 'Cancel Session', style: 'destructive', onPress: async () => {
           try {
             await deleteWorkout(token, workoutId);
+            dismissWorkoutNotification();
             router.back();
           } catch {
             Alert.alert('Error', 'Could not cancel workout.');
@@ -177,6 +244,7 @@ export default function WorkoutDetailScreen() {
     setIsPaused(true);
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     pauseWorkout(token, workoutId).catch(() => { /* best-effort; local pause still active */ });
+    if (workout) showWorkoutNotification(workout, computeElapsed(), true).catch(() => {});
   }
 
   async function handleResume() {
@@ -188,6 +256,7 @@ export default function WorkoutDetailScreen() {
     resumeWorkout(token, workoutId)
       .then((result) => { totalPausedSecondsRef.current = result.totalPausedSeconds; })
       .catch(() => { /* best-effort; local resume still active */ });
+    if (workout) showWorkoutNotification(workout, computeElapsed(), false).catch(() => {});
   }
 
   async function handleFinish() {
@@ -195,6 +264,7 @@ export default function WorkoutDetailScreen() {
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
       await updateWorkout(token, workoutId, { durationMinutes, completed: true });
+      dismissWorkoutNotification();
       // Non-blocking: estimate calories burned in the background (mirrors web behavior)
       estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });
       router.back();
@@ -274,12 +344,16 @@ export default function WorkoutDetailScreen() {
     if (tf.includes('steps') && !isNaN(stepsVal) && stepsVal > 0) payload.steps = stepsVal;
     try {
       const set = await addWorkoutSet(token, workoutId, we.id, payload);
-      setWorkout((prev) => prev ? {
-        ...prev,
-        exercises: prev.exercises.map((e) =>
-          e.id === we.id ? { ...e, sets: [...e.sets, set] } : e
-        ),
-      } : prev);
+      setWorkout((prev) => {
+        const next = prev ? {
+          ...prev,
+          exercises: prev.exercises.map((e) =>
+            e.id === we.id ? { ...e, sets: [...e.sets, set] } : e
+          ),
+        } : prev;
+        if (next) showWorkoutNotification(next, computeElapsed(), isPaused).catch(() => {});
+        return next;
+      });
     } catch { Alert.alert('Error', 'Could not add set.'); }
   }
 
@@ -377,12 +451,16 @@ export default function WorkoutDetailScreen() {
   async function handleToggleSet(we: WorkoutExercise, set: ExerciseSet) {
     const newCompleted = !set.completed;
     // Optimistic update
-    setWorkout((prev) => prev ? {
-      ...prev,
-      exercises: prev.exercises.map((e) =>
-        e.id === we.id ? { ...e, sets: e.sets.map((s) => s.id === set.id ? { ...s, completed: newCompleted } : s) } : e
-      ),
-    } : prev);
+    setWorkout((prev) => {
+      const next = prev ? {
+        ...prev,
+        exercises: prev.exercises.map((e) =>
+          e.id === we.id ? { ...e, sets: e.sets.map((s) => s.id === set.id ? { ...s, completed: newCompleted } : s) } : e
+        ),
+      } : prev;
+      if (next) showWorkoutNotification(next, computeElapsed(), isPaused).catch(() => {});
+      return next;
+    });
     try {
       await updateWorkoutSet(token, workoutId, we.id, set.id, { completed: newCompleted });
     } catch {

@@ -31,6 +31,14 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1a3a4a",
+          "androidMode": "default"
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Allow Pulse to access your camera to scan barcodes."
