@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { routinesApi, type RoutineSummary } from '@pulse/api-client';
+import { routinesApi, workoutsApi, type RoutineSummary, type WorkoutDetail } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 
 function formatDate(dateStr: string) {
@@ -120,16 +120,20 @@ export default function RoutinesPage() {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    routinesApi.getAll()
-      .then(setRoutines)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      routinesApi.getAll(),
+      workoutsApi.getActive().catch(() => null),
+    ]).then(([rs, active]) => {
+      setRoutines(rs);
+      setActiveWorkout(active);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -168,6 +172,27 @@ export default function RoutinesPage() {
           + New Routine
         </button>
       </div>
+
+      {/* Active workout banner */}
+      {activeWorkout && (
+        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="text-dram-accent text-lg">⏱</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-dram-accent truncate">
+              {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
+            </p>
+            <p className="text-xs text-dram-muted mt-0.5">
+              {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
+            </p>
+          </div>
+          <button
+            onClick={() => navigate(`/workouts/${activeWorkout.id}`)}
+            className="bg-dram-accent text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition flex-shrink-0"
+          >
+            Resume →
+          </button>
+        </div>
+      )}
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-6">

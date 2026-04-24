@@ -255,6 +255,9 @@ export const workoutsApi = {
   deleteSet: (workoutId: number, weId: number, setId: number) =>
     apiClient.delete(`/workouts/${workoutId}/exercises/${weId}/sets/${setId}`).then(() => {}),
 
+  getActive: () =>
+    apiClient.get<WorkoutDetail | null>('/workouts/active').then((r) => r.data),
+
   getPersonalBests: () =>
     apiClient.get<PersonalBests>('/workouts/personal-bests').then((r) => r.data),
 
