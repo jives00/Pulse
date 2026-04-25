@@ -231,3 +231,87 @@ export function computeCreatineSaturation(foodLogHistory: FoodLogHistoryDay[]) {
       : 'Peak Performance';
   return { satPct, daysSinceStart, loggedDays, firstDate, daysToFull, phase, compliancePct };
 }
+
+/**
+ * Returns all achievement highlights that apply to a workout, in display order.
+ * Replaces the old single-return pattern so every matching badge is shown.
+ */
+export function computeHighlights(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string[] {
+  const results: string[] = [];
+  const prior = allWorkouts.filter((p) => p.workoutDate < w.workoutDate);
+  const rt = w.routineType ?? 'strength';
+  const volKg = w.totalVolumeKg ?? 0;
+
+  // 1. New all-time session volume record (cross-routine, strength/bodyweight only)
+  if (volKg > 0 && prior.length > 0) {
+    const prevBest = prior.reduce((best, p) => Math.max(best, p.totalVolumeKg ?? 0), 0);
+    if (prevBest > 0 && volKg > prevBest) results.push('New session volume record');
+  }
+
+  // 2. Best pace (steps → stairs/min higher is better; cardio_distance → speed higher is better)
+  if (rt === 'steps' && w.totalSteps && w.totalDurationSeconds && w.totalDurationSeconds > 0) {
+    const pace = w.totalSteps / (w.totalDurationSeconds / 60);
+    const priorTyped = prior.filter(
+      (p) => p.routineType === 'steps' && p.totalSteps && p.totalDurationSeconds && p.totalDurationSeconds > 0,
+    );
+    if (priorTyped.length > 0) {
+      const prevBest = priorTyped.reduce((b, p) => Math.max(b, p.totalSteps! / (p.totalDurationSeconds! / 60)), 0);
+      if (pace > prevBest) results.push(`Best pace: ${Math.round(pace)} stairs/min`);
+    }
+  } else if (rt === 'cardio_distance' && w.totalDistanceMeters && w.totalDurationSeconds && w.totalDurationSeconds > 0) {
+    const speed = w.totalDistanceMeters / w.totalDurationSeconds;
+    const priorTyped = prior.filter(
+      (p) => p.routineType === 'cardio_distance' && p.totalDistanceMeters && p.totalDurationSeconds && p.totalDurationSeconds > 0,
+    );
+    if (priorTyped.length > 0) {
+      const prevBest = priorTyped.reduce((b, p) => Math.max(b, p.totalDistanceMeters! / p.totalDurationSeconds!), 0);
+      if (speed > prevBest) results.push('Best pace');
+    }
+  }
+
+  // 3. PR on any exercise weight
+  for (const ex of w.exercises) {
+    if (!ex.maxWeightKg) continue;
+    const prevMax = prior
+      .flatMap((p) => p.exercises)
+      .filter((e) => e.name === ex.name && e.maxWeightKg != null)
+      .reduce((max, e) => Math.max(max, e.maxWeightKg!), 0);
+    if (prevMax > 0 && ex.maxWeightKg > prevMax) {
+      results.push(`PR: ${ex.name} ${Math.round(ex.maxWeightKg * KG_TO_LBS)} lbs`);
+    }
+  }
+
+  // 4. Best metric for this routine (branched by type — fixes non-strength bug)
+  if (w.routineId && prior.length > 0) {
+    const sameRoutine = prior.filter((p) => p.routineId === w.routineId);
+    if (sameRoutine.length > 0) {
+      if (rt === 'steps' && w.totalSteps) {
+        const prevBest = sameRoutine.reduce((b, p) => Math.max(b, p.totalSteps ?? 0), 0);
+        if (prevBest > 0 && w.totalSteps > prevBest) results.push('Best steps for this routine');
+      } else if (rt === 'cardio_distance' && w.totalDistanceMeters) {
+        const prevBest = sameRoutine.reduce((b, p) => Math.max(b, p.totalDistanceMeters ?? 0), 0);
+        if (prevBest > 0 && w.totalDistanceMeters > prevBest) results.push('Best distance for this routine');
+      } else if (rt === 'cardio_duration' && w.totalDurationSeconds) {
+        const prevBest = sameRoutine.reduce((b, p) => Math.max(b, p.totalDurationSeconds ?? 0), 0);
+        if (prevBest > 0 && w.totalDurationSeconds > prevBest) results.push('Longest session for this routine');
+      } else if ((rt === 'strength' || rt === 'bodyweight') && volKg > 0) {
+        const prevBest = sameRoutine.reduce((b, p) => Math.max(b, p.totalVolumeKg ?? 0), 0);
+        if (prevBest > 0 && volKg > prevBest) results.push('Best volume for this routine');
+      }
+    }
+  }
+
+  // 5. High calorie burn (≥400 kcal)
+  if (w.caloriesBurned && w.caloriesBurned >= 400) results.push(`${w.caloriesBurned} kcal burned`);
+
+  // 6. First time doing an exercise
+  const allPriorNames = new Set(prior.flatMap((p) => p.exercises.map((e) => e.name)));
+  for (const ex of w.exercises) {
+    if (!allPriorNames.has(ex.name)) {
+      results.push(`First time: ${ex.name}`);
+      break;
+    }
+  }
+
+  return results;
+}

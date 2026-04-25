@@ -12,7 +12,7 @@ import {
   type WeekBucket,
   localDateStr, getWeekStart, shortDate, formatDate,
   buildWeeklyData, computeGoalPace, computeCreatineSaturation,
-  computeWeekDelta, computeWeekStreak, WEEK_STREAK_MILESTONES,
+  computeWeekDelta, computeWeekStreak, computeHighlights, WEEK_STREAK_MILESTONES,
   type PaceStatus,
   KG_TO_LBS,
 } from '@pulse/api-client';
@@ -2773,104 +2773,82 @@ function PersonalBestsCardV3({ personalBests }: {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
-  const hasData = personalBests && (
-    personalBests.heaviestLift ||
-    personalBests.bestVolumeByRoutine.length > 0 ||
-    personalBests.bestStairPace
-  );
-
   return (
     <section className="card overflow-hidden h-full flex flex-col">
       <V3CardHeader label="Personal Bests" meta="All time" />
-      {!hasData ? (
-        <div className="p-6 t-xs text-muted text-center py-10">No workout data yet.</div>
-      ) : (
-        <div className="flex-1 divide-y divide-bd">
+      <div className="flex-1 divide-y divide-bd">
 
-          {/* Volume by routine — compact 3-col mini-grid */}
-          {personalBests!.bestVolumeByRoutine.length > 0 && (
-            <div className="px-6 py-3">
-              <div className="t-xs text-muted font-mono uppercase tracking-wide mb-2">Best Session Volume</div>
-              <div className="grid gap-x-4" style={{ gridTemplateColumns: `repeat(${personalBests!.bestVolumeByRoutine.length}, 1fr)` }}>
-                {personalBests!.bestVolumeByRoutine.map((r) => (
-                  <div key={r.routineId} className="min-w-0">
-                    <div className="font-display font-semibold text-[17px] tnum truncate">{fmtLbs(r.volumeKg * KG_TO_LBS)}<span className="text-[11px] font-sans font-normal text-muted ml-0.5">lbs</span></div>
-                    <div className="t-xs text-muted font-mono truncate">{r.routineName}</div>
-                    {r.workoutDate && <div className="t-xs text-muted font-mono opacity-60">{fmtDate(r.workoutDate)}</div>}
-                  </div>
-                ))}
-              </div>
+        {/* Volume by routine — compact 3-col mini-grid */}
+        {personalBests && personalBests.bestVolumeByRoutine.length > 0 ? (
+          <div className="px-6 py-3">
+            <div className="t-xs text-muted font-mono uppercase tracking-wide mb-2">Best Session Volume</div>
+            <div className="grid gap-x-4" style={{ gridTemplateColumns: `repeat(${personalBests.bestVolumeByRoutine.length}, 1fr)` }}>
+              {personalBests.bestVolumeByRoutine.map((r) => (
+                <div key={r.routineId} className="min-w-0">
+                  <div className="font-display font-semibold text-[17px] tnum truncate">{fmtLbs(r.volumeKg * KG_TO_LBS)}<span className="text-[11px] font-sans font-normal text-muted ml-0.5">lbs</span></div>
+                  <div className="t-xs text-muted font-mono truncate">{r.routineName}</div>
+                  {r.workoutDate && <div className="t-xs text-muted font-mono opacity-60">{fmtDate(r.workoutDate)}</div>}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        ) : null}
 
-          {/* Heaviest single lift */}
-          {personalBests!.heaviestLift && (() => {
-            const lift = personalBests!.heaviestLift!;
-            return (
-              <div className="flex items-baseline justify-between px-6 py-4">
-                <div>
-                  <div className="t-base font-medium">{lift.exerciseName}</div>
-                  <div className="t-sm text-muted font-mono mt-0.5">
-                    {lift.reps != null ? `${lift.reps} rep${lift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtDate(lift.workoutDate)}
-                  </div>
+        {/* Heaviest single lift */}
+        {personalBests?.heaviestLift ? (() => {
+          const lift = personalBests.heaviestLift!;
+          return (
+            <div className="flex items-baseline justify-between px-6 py-4">
+              <div>
+                <div className="t-base font-medium">{lift.exerciseName}</div>
+                <div className="t-sm text-muted font-mono mt-0.5">
+                  {lift.reps != null ? `${lift.reps} rep${lift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtDate(lift.workoutDate)}
                 </div>
-                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{fmtLbs(lift.weightKg * KG_TO_LBS)} lbs</div>
               </div>
-            );
-          })()}
+              <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{fmtLbs(lift.weightKg * KG_TO_LBS)} lbs</div>
+            </div>
+          );
+        })() : null}
 
-          {/* Best stair pace */}
-          {personalBests!.bestStairPace && (() => {
-            const sp = personalBests!.bestStairPace!;
-            return (
-              <div className="flex items-baseline justify-between px-6 py-4">
-                <div>
-                  <div className="t-base font-medium">{sp.exerciseName}</div>
-                  <div className="t-sm text-muted font-mono mt-0.5">Best pace · {fmtDate(sp.workoutDate)}</div>
-                </div>
-                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{Math.round(sp.pacePerMinute)}<span className="text-[12px] font-sans font-normal text-muted ml-1">stairs/min</span></div>
-              </div>
-            );
-          })()}
-
+        {/* Most calories burned */}
+        <div className="flex items-baseline justify-between px-6 py-4">
+          <div>
+            <div className="t-base font-medium">{personalBests?.mostCaloriesBurned?.workoutName ?? 'Most Calories'}</div>
+            <div className="t-sm text-muted font-mono mt-0.5">
+              {personalBests?.mostCaloriesBurned ? `Best session · ${fmtDate(personalBests.mostCaloriesBurned.workoutDate)}` : 'No data yet'}
+            </div>
+          </div>
+          <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">
+            {personalBests?.mostCaloriesBurned
+              ? <>{fmtLbs(personalBests.mostCaloriesBurned.calories)}<span className="text-[12px] font-sans font-normal text-muted ml-1">kcal</span></>
+              : <span className="text-muted text-base">—</span>}
+          </div>
         </div>
-      )}
+
+        {/* Best stair pace */}
+        <div className="flex items-baseline justify-between px-6 py-4">
+          <div>
+            <div className="t-base font-medium">{personalBests?.bestStairPace?.exerciseName ?? 'Best Stair Pace'}</div>
+            <div className="t-sm text-muted font-mono mt-0.5">
+              {personalBests?.bestStairPace ? `Best pace · ${fmtDate(personalBests.bestStairPace.workoutDate)}` : 'No data yet'}
+            </div>
+          </div>
+          <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">
+            {personalBests?.bestStairPace
+              ? <>{Math.round(personalBests.bestStairPace.pacePerMinute)}<span className="text-[12px] font-sans font-normal text-muted ml-1">stairs/min</span></>
+              : <span className="text-muted text-base">—</span>}
+          </div>
+        </div>
+
+      </div>
     </section>
   );
 }
 
 // ── RecentWorkoutsCard ─────────────────────────────────────────────────────────
 
-function computeWorkoutHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string | null {
-  const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
-  // PR on any exercise?
-  for (const ex of w.exercises) {
-    if (!ex.maxWeightKg) continue;
-    const prevMax = allWorkouts
-      .filter((prev) => prev.workoutDate < w.workoutDate)
-      .flatMap((prev) => prev.exercises)
-      .filter((e) => e.name === ex.name && e.maxWeightKg != null)
-      .reduce((max, e) => Math.max(max, e.maxWeightKg!), 0);
-    if (prevMax > 0 && ex.maxWeightKg > prevMax) {
-      return `PR: ${ex.name} ${Math.round(ex.maxWeightKg * KG_TO_LBS)} lbs`;
-    }
-  }
-  // Best volume for this routine?
-  if (w.routineId && volLbs > 0) {
-    const prevBest = allWorkouts
-      .filter((prev) => prev.routineId === w.routineId && prev.workoutDate < w.workoutDate)
-      .reduce((best, prev) => Math.max(best, Math.round((prev.totalVolumeKg ?? 0) * KG_TO_LBS)), 0);
-    if (prevBest > 0 && volLbs > prevBest) return `Best volume for this routine`;
-  }
-  // High calorie burn?
-  if (w.caloriesBurned && w.caloriesBurned >= 400) return `${w.caloriesBurned} kcal burned`;
-  // New exercise added?
-  const exerciseNames = new Set(w.exercises.map((e) => e.name));
-  const allPriorNames = new Set(allWorkouts.filter((prev) => prev.workoutDate < w.workoutDate).flatMap((p) => p.exercises.map((e) => e.name)));
-  for (const name of exerciseNames) {
-    if (!allPriorNames.has(name)) return `First time: ${name}`;
-  }
-  return null;
+function computeWorkoutHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string[] {
+  return computeHighlights(w, allWorkouts);
 }
 
 function RecentWorkoutsCardV3({
@@ -2983,9 +2961,13 @@ function RecentWorkoutsCardV3({
                   </td>
                   <td className="px-4 py-4 t-base">
                     {(() => {
-                      const highlight = computeWorkoutHighlight(w, completed);
-                      return highlight
-                        ? <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-gold shrink-0" /><span className="gold">{highlight}</span></span>
+                      const highlights = computeWorkoutHighlight(w, completed);
+                      return highlights.length > 0
+                        ? <div className="flex flex-col gap-0.5">
+                            {highlights.map((h, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-gold shrink-0" /><span className="gold">{h}</span></span>
+                            ))}
+                          </div>
                         : <span className="text-muted/40">—</span>;
                     })()}
                   </td>

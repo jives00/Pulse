@@ -18,7 +18,7 @@ import {
   KG_TO_LBS, SATURATION_DAYS,
   localDateStr, getWeekStart, shortDate,
   buildWeeklyData, computeGoalPace, computeCreatineSaturation,
-  computeWeekDelta, computeWeekStreak, WEEK_STREAK_MILESTONES,
+  computeWeekDelta, computeWeekStreak, computeHighlights, WEEK_STREAK_MILESTONES,
   type WeekBucket, type PaceStatus,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -399,25 +399,8 @@ function CardHeader({ title, meta, c }: { title: string; meta?: string; c: Color
 }
 
 // ── Workout highlight ─────────────────────────────────────────────────────────
-function computeHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string | null {
-  for (const ex of w.exercises) {
-    if (!ex.maxWeightKg) continue;
-    const prevMax = allWorkouts
-      .filter((p) => p.workoutDate < w.workoutDate)
-      .flatMap((p) => p.exercises)
-      .filter((e) => e.name === ex.name && e.maxWeightKg != null)
-      .reduce((m, e) => Math.max(m, e.maxWeightKg!), 0);
-    if (prevMax > 0 && ex.maxWeightKg > prevMax) return `PR: ${ex.name} ${Math.round(ex.maxWeightKg * KG_TO_LBS)} lbs`;
-  }
-  const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
-  if (w.routineId && volLbs > 0) {
-    const prevBest = allWorkouts
-      .filter((p) => p.routineId === w.routineId && p.workoutDate < w.workoutDate)
-      .reduce((b, p) => Math.max(b, Math.round((p.totalVolumeKg ?? 0) * KG_TO_LBS)), 0);
-    if (prevBest > 0 && volLbs > prevBest) return 'Best volume for this routine';
-  }
-  if (w.caloriesBurned && w.caloriesBurned >= 400) return `${w.caloriesBurned} kcal burned`;
-  return null;
+function computeHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string[] {
+  return computeHighlights(w, allWorkouts);
 }
 
 // ── Weekly averages computation ───────────────────────────────────────────────
@@ -974,57 +957,74 @@ export default function DashboardScreen() {
         {/* ── Personal Bests ── */}
         <View style={s.card}>
           <CardHeader title="Personal Bests" meta="All time" c={c} />
-          {!personalBests || (!personalBests.heaviestLift && (personalBests.bestVolumeByRoutine?.length ?? 0) === 0 && !personalBests.bestStairPace) ? (
-            <Text style={s.empty}>Complete workouts to see records.</Text>
-          ) : (
-            <>
-              {/* Volume by strength routine — compact 3-col grid */}
-              {(personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && (
-                <View style={{ paddingBottom: 10 }}>
-                  <Text style={{ fontSize: 10, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {(personalBests.bestVolumeByRoutine ?? []).map((r) => (
-                      <View key={r.routineId} style={{ flex: 1 }}>
-                        <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
-                          {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 10, fontWeight: '400', color: c.muted }}> lbs</Text>
-                        </Text>
-                        <Text style={{ fontSize: 10, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
-                        {r.workoutDate && <Text style={{ fontSize: 10, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
 
-              {/* Heaviest single lift */}
-              {personalBests.heaviestLift && (
-                <View style={[s.pbRow, (personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.heaviestLift.exerciseName}</Text>
-                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                      {personalBests.heaviestLift.reps != null ? `${personalBests.heaviestLift.reps} rep${personalBests.heaviestLift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtPbDate(personalBests.heaviestLift.workoutDate)}
+          {/* Volume by strength routine — compact 3-col grid */}
+          {(personalBests?.bestVolumeByRoutine?.length ?? 0) > 0 && (
+            <View style={{ paddingBottom: 10 }}>
+              <Text style={{ fontSize: 10, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {(personalBests!.bestVolumeByRoutine ?? []).map((r) => (
+                  <View key={r.routineId} style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
+                      {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 10, fontWeight: '400', color: c.muted }}> lbs</Text>
                     </Text>
+                    <Text style={{ fontSize: 10, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
+                    {r.workoutDate && <Text style={{ fontSize: 10, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
                   </View>
-                  <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
-                    {Math.round(personalBests.heaviestLift.weightKg * KG_TO_LBS).toLocaleString()} lbs
-                  </Text>
-                </View>
-              )}
-
-              {/* Best stair pace */}
-              {personalBests.bestStairPace && (
-                <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.bestStairPace.exerciseName}</Text>
-                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>Best pace · {fmtPbDate(personalBests.bestStairPace.workoutDate)}</Text>
-                  </View>
-                  <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
-                    {Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> stairs/min</Text>
-                  </Text>
-                </View>
-              )}
-            </>
+                ))}
+              </View>
+            </View>
           )}
+
+          {/* Heaviest single lift */}
+          {personalBests?.heaviestLift && (
+            <View style={[s.pbRow, (personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.heaviestLift.exerciseName}</Text>
+                <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                  {personalBests.heaviestLift.reps != null ? `${personalBests.heaviestLift.reps} rep${personalBests.heaviestLift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtPbDate(personalBests.heaviestLift.workoutDate)}
+                </Text>
+              </View>
+              <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
+                {Math.round(personalBests.heaviestLift.weightKg * KG_TO_LBS).toLocaleString()} lbs
+              </Text>
+            </View>
+          )}
+
+          {/* Most calories burned — always shown */}
+          <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
+                {personalBests?.mostCaloriesBurned?.workoutName ?? 'Most Calories'}
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2 }}>
+                {personalBests?.mostCaloriesBurned ? `Best session · ${fmtPbDate(personalBests.mostCaloriesBurned.workoutDate)}` : 'No data yet'}
+              </Text>
+            </View>
+            <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.mostCaloriesBurned ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
+              {personalBests?.mostCaloriesBurned
+                ? <>{personalBests.mostCaloriesBurned.calories.toLocaleString()}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> kcal</Text></>
+                : '—'}
+            </Text>
+          </View>
+
+          {/* Best stair pace — always shown */}
+          <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
+                {personalBests?.bestStairPace?.exerciseName ?? 'Best Stair Pace'}
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                {personalBests?.bestStairPace ? `Best pace · ${fmtPbDate(personalBests.bestStairPace.workoutDate)}` : 'No data yet'}
+              </Text>
+            </View>
+            <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.bestStairPace ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
+              {personalBests?.bestStairPace
+                ? <>{Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> stairs/min</Text></>
+                : '—'}
+            </Text>
+          </View>
+
         </View>
 
         {/* ── Recent Workouts ── */}
@@ -1052,7 +1052,7 @@ export default function DashboardScreen() {
                 const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
                 volDisplay = volLbs > 0 ? `${volLbs.toLocaleString()} lbs` : '—';
               }
-              const highlight = computeHighlight(w, workouts);
+              const highlights = computeHighlight(w, workouts);
               return (
                 <View key={w.id} style={[s.workoutRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1062,10 +1062,14 @@ export default function DashboardScreen() {
                         {w.durationMinutes ? `  ·  ${w.durationMinutes} min` : ''}
                       </Text>
                       <Text style={{ fontSize: fontSize.sm, color: c.text, fontWeight: '500', marginTop: 1 }}>{rName}</Text>
-                      {highlight && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: COL_GOLD }} />
-                          <Text style={{ fontSize: fontSize.xs, color: COL_GOLD }}>{highlight}</Text>
+                      {highlights.length > 0 && (
+                        <View style={{ marginTop: 2, gap: 2 }}>
+                          {highlights.map((h, idx) => (
+                            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: COL_GOLD }} />
+                              <Text style={{ fontSize: fontSize.xs, color: COL_GOLD }}>{h}</Text>
+                            </View>
+                          ))}
                         </View>
                       )}
                     </View>

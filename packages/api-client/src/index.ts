@@ -44,5 +44,5 @@ export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 export { KG_TO_LBS, kgToLbs, lbsToKg, fmtLbs } from './utils/conversions';
 export { localDateStr, getWeekStart, shortDate, formatDate } from './utils/dates';
 export { secondsToMMSS, mmssToSeconds, formatElapsed } from './utils/time';
-export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation, defaultTrackedFields, defaultTrackedFieldsForRoutineType, computeWeekDelta, computeWeekStreak, computePlateau, WEEK_STREAK_MILESTONES } from './utils/calculations';
+export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation, defaultTrackedFields, defaultTrackedFieldsForRoutineType, computeWeekDelta, computeWeekStreak, computePlateau, computeHighlights, WEEK_STREAK_MILESTONES } from './utils/calculations';
 export type { WeekBucket, PaceStatus, RoutineType } from './utils/calculations';

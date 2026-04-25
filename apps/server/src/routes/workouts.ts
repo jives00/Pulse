@@ -134,6 +134,16 @@ router.get('/personal-bests', async (req, res) => {
       [req.userId, req.userId]
     );
 
+    // Most calories burned in a single session
+    const [calRows] = await pool.query<RowDataPacket[]>(
+      `SELECT calories_burned, workout_date, name
+       FROM workout_logs
+       WHERE user_id = ? AND calories_burned IS NOT NULL AND calories_burned > 0
+       ORDER BY calories_burned DESC
+       LIMIT 1`,
+      [req.userId]
+    );
+
     // Best stair pace: highest stairs/min
     const [stairRows] = await pool.query<RowDataPacket[]>(
       `SELECT e.name AS exercise_name,
@@ -155,6 +165,7 @@ router.get('/personal-bests', async (req, res) => {
     );
 
     const lift = liftRows[0] ?? null;
+    const calRow = calRows[0] ?? null;
     const stair = stairRows[0] ?? null;
 
     const toDate = (d: unknown) =>
@@ -173,6 +184,11 @@ router.get('/personal-bests', async (req, res) => {
         volumeKg: Number(r.best_volume_kg),
         workoutDate: r.workout_date ? toDate(r.workout_date) : null,
       })),
+      mostCaloriesBurned: calRow ? {
+        calories: Number(calRow.calories_burned),
+        workoutDate: toDate(calRow.workout_date),
+        workoutName: calRow.name ?? null,
+      } : null,
       bestStairPace: stair ? {
         exerciseName: stair.exercise_name,
         pacePerMinute: Number(stair.pace_per_min),
