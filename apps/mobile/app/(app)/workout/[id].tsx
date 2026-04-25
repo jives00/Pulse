@@ -225,7 +225,7 @@ export default function WorkoutDetailScreen() {
       const raw = Math.floor((Date.now() - new Date(startedAtRef.current!).getTime()) / 1000);
       const newElapsed = Math.max(0, raw - totalPausedSecondsRef.current);
       setElapsed(newElapsed);
-      if (workoutRef.current && !isPausedRef.current && newElapsed % 10 === 0) {
+      if (workoutRef.current && !isPausedRef.current) {
         showWorkoutNotification(workoutRef.current, newElapsed, false).catch(() => {});
       }
     };
