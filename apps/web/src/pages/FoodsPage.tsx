@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { foodsApi } from '@pulse/api-client';
-import type { Food } from '@pulse/api-client';
+import { foodsApi, logApi } from '@pulse/api-client';
+import type { Food, MealSlot } from '@pulse/api-client';
 
 type Tab = 'search' | 'custom';
 
@@ -58,6 +58,13 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
   const [confidence, setConfidence] = useState<'high' | 'medium' | 'low' | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [logAfterSave, setLogAfterSave] = useState(false);
+  const [logMeal, setLogMeal] = useState<MealSlot>('lunch');
+
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
 
   function reset() {
     setName(''); setBrand(''); setDesc('');
@@ -65,6 +72,7 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
     setFiber(''); setSodium('');
     setServingLabel('1 serving'); setServingGrams('100');
     setConfidence(null); setError('');
+    setLogAfterSave(false); setLogMeal('lunch');
   }
 
   async function handleEstimate() {
@@ -90,7 +98,7 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(andLog = false) {
     if (!name.trim() || !calories) return;
     setSaving(true);
     setError('');
@@ -108,6 +116,10 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
         },
         servingSizes: [{ label: servingLabel || '1 serving', grams: Number(servingGrams) || 100, isDefault: true }],
       });
+      if (andLog && food.servingSizes.length > 0) {
+        const serving = food.servingSizes.find((s) => s.isDefault) ?? food.servingSizes[0];
+        await logApi.add({ logDate: todayStr(), meal: logMeal, foodId: food.id, servingSizeId: serving.id, quantity: 1 });
+      }
       onCreated(food);
       reset();
       setOpen(false);
@@ -203,13 +215,38 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      <button
-        onClick={handleSave}
-        disabled={saving || !name.trim() || !calories}
-        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors"
-      >
-        {saving ? 'Saving…' : 'Save food'}
-      </button>
+      <div className="border-t border-slate-700 pt-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={logAfterSave}
+              onChange={(e) => setLogAfterSave(e.target.checked)}
+              className="accent-blue-500"
+            />
+            <span className="text-xs text-slate-400">Log to today's food journal</span>
+          </label>
+          {logAfterSave && (
+            <select
+              value={logMeal}
+              onChange={(e) => setLogMeal(e.target.value as MealSlot)}
+              className="ml-auto bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+            >
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+              <option value="snack">Snack</option>
+            </select>
+          )}
+        </div>
+        <button
+          onClick={() => handleSave(logAfterSave)}
+          disabled={saving || !name.trim() || !calories}
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors"
+        >
+          {saving ? 'Saving…' : logAfterSave ? 'Save & log today' : 'Save food'}
+        </button>
+      </div>
     </div>
   );
 }

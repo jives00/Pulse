@@ -793,18 +793,18 @@ function RoutineCardInTab({
       {/* Info */}
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="mt-0.5 space-y-0.5">
           <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
           {routine.routineType === 'steps' && routine.lastPrimaryMetric != null && (
-            <p className="text-slate-400 text-sm">· {Math.round(routine.lastPrimaryMetric)} stairs/min</p>
+            <p className="text-slate-400 text-sm">{Math.round(routine.lastPrimaryMetric)} stairs/min</p>
           )}
           {routine.routineType === 'cardio_distance' && routine.lastPrimaryMetric != null && (
-            <p className="text-slate-400 text-sm">· {routine.lastPrimaryMetric.toFixed(2)} mi/min</p>
+            <p className="text-slate-400 text-sm">{routine.lastPrimaryMetric.toFixed(2)} mi/min</p>
           )}
           {(routine.routineType === 'strength' || routine.routineType === 'bodyweight' || !routine.routineType) && routine.lastVolumeLbs != null && (
-            <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>
+            <p className="text-slate-400 text-sm">{routine.lastVolumeLbs.toLocaleString()} lbs</p>
           )}
-          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">· {routine.lastCaloriesBurned.toLocaleString()} kcal</p>}
+          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">{routine.lastCaloriesBurned.toLocaleString()} kcal burned</p>}
         </div>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>

@@ -84,7 +84,7 @@ router.post('/estimate-macros', async (req, res) => {
 router.get('/custom', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM foods WHERE is_custom = 1 ORDER BY created_at DESC LIMIT 200'
+      "SELECT * FROM foods WHERE is_custom = 1 AND (source IS NULL OR source != 'quick_log') ORDER BY created_at DESC LIMIT 200"
     );
     const foods = await Promise.all(
       rows.map(async (row) => {

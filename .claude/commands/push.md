@@ -26,10 +26,12 @@ git push origin main
 ```
 
 ### 3. Monitor the deploy
-```bash
-gh run watch --exit-status
+
+`gh` is installed at `C:\Program Files\GitHub CLI\gh.exe` but may not be in PATH inside the Bash tool. Use the PowerShell tool for all `gh` commands:
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" run watch --exit-status
 ```
-This streams the GitHub Actions output live. Wait for it to complete.
 
 ### 4a. If the run succeeds
 Report: "Pushed to main. Deploy succeeded."
@@ -37,11 +39,11 @@ Report: "Pushed to main. Deploy succeeded."
 - If `--apk-cloud` was passed, run: `eas build --platform android` (from `apps/mobile/`) and report the build URL
 
 ### 4b. If the run fails
-- Fetch the full failure log: `gh run view --log-failed`
+- Fetch the full failure log via PowerShell: `& "C:\Program Files\GitHub CLI\gh.exe" run view --log-failed`
 - Show the relevant error output (not the full log — just what's needed to understand the failure)
 - Diagnose the root cause and fix the code
 - Run `/commit` to re-test and commit the fix, then push again with `git push origin main`
-- Monitor again with `gh run watch --exit-status`
+- Monitor again from step 3
 - If the same failure recurs after two fix attempts, stop and explain the situation to the user
 
 ---

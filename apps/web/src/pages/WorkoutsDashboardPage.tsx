@@ -752,10 +752,10 @@ function RoutineCardInTab({
       {/* Info */}
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="mt-0.5 space-y-0.5">
           <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
-          {routine.lastVolumeLbs != null && <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>}
-          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">· {routine.lastCaloriesBurned.toLocaleString()} kcal</p>}
+          {routine.lastVolumeLbs != null && <p className="text-slate-400 text-sm">{routine.lastVolumeLbs.toLocaleString()} lbs</p>}
+          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">{routine.lastCaloriesBurned.toLocaleString()} kcal burned</p>}
         </div>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
@@ -2345,10 +2345,15 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
   }
 
   const grid: Record<string, Record<string, number>> = {};
+  const workoutCountGrid: Record<string, Record<string, number>> = {};
   for (const rId of routineIds) {
     grid[rId] = {};
+    workoutCountGrid[rId] = {};
     for (const ws of weekStarts) {
       grid[rId][ws] = getCellValue(rId, ws);
+      workoutCountGrid[rId][ws] = workouts.filter(
+        (w) => w.routineId === rId && getWeekStart(w.workoutDate) === ws
+      ).length;
     }
   }
 
@@ -2392,8 +2397,10 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
                   </td>
                   {weekStarts.map((ws) => {
                     const val = grid[rId][ws];
+                    const wCount = workoutCountGrid[rId][ws];
                     const unit = getCellUnit(rId);
-                    const opacity = val > 0 ? 0.12 + (val / maxVol) * 0.88 : 0;
+                    const opacity = val > 0 ? 0.12 + (val / maxVol) * 0.88 : (wCount > 0 ? 0.1 : 0);
+                    const hasActivity = val > 0 || wCount > 0;
                     return (
                       <td key={ws} className="px-0.5 py-1 text-center">
                         <div
@@ -2403,7 +2410,7 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
                               clientX: rect.left + rect.width / 2,
                               clientY: rect.top - 8,
                               label: routineById[rId]?.name ?? `Routine ${rId}`,
-                              val,
+                              val: wCount > 0 && val === 0 ? -1 : val,
                               unit,
                               week: new Date(ws + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                             });
@@ -2411,9 +2418,9 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
                           onMouseLeave={() => setTooltip(null)}
                           style={{
                             width: 22, height: 22, borderRadius: 3,
-                            background: val > 0 ? `rgba(212,168,67,${opacity})` : 'rgb(var(--color-bg))',
+                            background: hasActivity ? `rgba(212,168,67,${opacity})` : 'rgb(var(--color-bg))',
                             border: '1px solid rgb(var(--color-border))',
-                            cursor: val > 0 ? 'default' : undefined,
+                            cursor: hasActivity ? 'default' : undefined,
                           }}
                         />
                       </td>
@@ -2447,6 +2454,8 @@ function VolumeHeatmapCard({ workouts, routinesList }: { workouts: WorkoutSummar
           <div className="t-xs text-muted font-mono">{tooltip.label} · wk of {tooltip.week}</div>
           {tooltip.val > 0 ? (
             <div className="t-sm font-mono font-semibold gold tnum">{fmtNum(tooltip.val)} {tooltip.unit}</div>
+          ) : tooltip.val === -1 ? (
+            <div className="t-xs text-muted">Workout logged · no {tooltip.unit} data</div>
           ) : (
             <div className="t-xs text-muted">—</div>
           )}
@@ -2574,8 +2583,11 @@ function WeeklyAveragesCard({
 
 // ── NorthStarCard ──────────────────────────────────────────────────────────────
 
-function V3Sparkline({ values }: { values: number[] }) {
+function V3Sparkline({ values, dates, unit }: { values: number[]; dates?: string[]; unit?: string }) {
   const w = 240, h = 30;
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   if (values.length < 2) return null;
   const min = Math.min(...values), max = Math.max(...values);
   const range = max - min || 1;
@@ -2583,18 +2595,58 @@ function V3Sparkline({ values }: { values: number[] }) {
   const d = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(' ');
   const fillD = d + ` L${w},${h} L0,${h} Z`;
   const gradId = `nsgrad${Math.round(min)}x${Math.round(max)}`;
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const idx = Math.round(xRatio * (values.length - 1));
+    setHoverIdx(Math.max(0, Math.min(values.length - 1, idx)));
+  }
+
+  const hp = hoverIdx != null ? pts[hoverIdx] : null;
+  const hDate = hoverIdx != null && dates ? new Date(dates[hoverIdx] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+  const hVal = hoverIdx != null ? values[hoverIdx].toFixed(1) : null;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-7" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={fillD} fill={`url(#${gradId})`} />
-      <path d={d} fill="none" stroke="rgb(var(--color-accent))" strokeWidth="1.4" />
-      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill="rgb(var(--color-accent))" />
-    </svg>
+    <div className="relative">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${w} ${h}`}
+        className="w-full h-7"
+        preserveAspectRatio="none"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
+        style={{ cursor: 'crosshair' }}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={fillD} fill={`url(#${gradId})`} />
+        <path d={d} fill="none" stroke="rgb(var(--color-accent))" strokeWidth="1.4" />
+        {hp && hoverIdx !== values.length - 1 ? (
+          <circle cx={hp[0]} cy={hp[1]} r="2.5" fill="rgb(var(--color-accent))" />
+        ) : (
+          <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill="rgb(var(--color-accent))" />
+        )}
+      </svg>
+      {hp && (hDate || hVal) && (
+        <div
+          className="pointer-events-none absolute bottom-full mb-1 px-2 py-1 rounded border border-bd t-xs font-mono text-muted whitespace-nowrap"
+          style={{
+            background: 'rgb(var(--color-card))',
+            left: `${(pts[hoverIdx!][0] / w) * 100}%`,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {hDate && <span>{hDate}</span>}
+          {hVal && <span className="gold ml-1.5">{hVal}{unit ? ` ${unit}` : ''}</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2642,6 +2694,7 @@ function NorthStarCardV3({
           const sparkValues = last10.map((m) =>
             key === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value
           );
+          const sparkDates = last10.map((m) => m.measuredAt);
 
           const size = 82, sw = 7;
           const r2 = (size - sw) / 2;
@@ -2673,7 +2726,7 @@ function NorthStarCardV3({
                   </div>
                 </div>
               </div>
-              {sparkValues.length >= 2 && <V3Sparkline values={sparkValues} />}
+              {sparkValues.length >= 2 && <V3Sparkline values={sparkValues} dates={sparkDates} unit={cfg.unit} />}
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-bd">
                 <div>
                   <div className="t-xs text-muted">Pace</div>
@@ -2813,9 +2866,11 @@ function PersonalBestsCardV3({ personalBests }: {
         {/* Most calories burned */}
         <div className="flex items-baseline justify-between px-6 py-4">
           <div>
-            <div className="t-base font-medium">{personalBests?.mostCaloriesBurned?.workoutName ?? 'Most Calories'}</div>
+            <div className="t-base font-medium">Most Calories Burned</div>
             <div className="t-sm text-muted font-mono mt-0.5">
-              {personalBests?.mostCaloriesBurned ? `Best session · ${fmtDate(personalBests.mostCaloriesBurned.workoutDate)}` : 'No data yet'}
+              {personalBests?.mostCaloriesBurned
+                ? `${personalBests.mostCaloriesBurned.workoutName} · ${fmtDate(personalBests.mostCaloriesBurned.workoutDate)}`
+                : 'No data yet'}
             </div>
           </div>
           <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">

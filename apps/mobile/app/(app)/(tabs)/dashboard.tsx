@@ -995,10 +995,12 @@ export default function DashboardScreen() {
           <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
-                {personalBests?.mostCaloriesBurned?.workoutName ?? 'Most Calories'}
+                Most Calories Burned
               </Text>
               <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2 }}>
-                {personalBests?.mostCaloriesBurned ? `Best session · ${fmtPbDate(personalBests.mostCaloriesBurned.workoutDate)}` : 'No data yet'}
+                {personalBests?.mostCaloriesBurned
+                  ? `${personalBests.mostCaloriesBurned.workoutName} · ${fmtPbDate(personalBests.mostCaloriesBurned.workoutDate)}`
+                  : 'No data yet'}
               </Text>
             </View>
             <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.mostCaloriesBurned ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>

@@ -2,15 +2,18 @@ import { useState, useEffect, FormEvent, useRef } from 'react';
 import {
   recipesApi,
   tagsApi,
+  logApi,
   uploadPhotoToS3,
   type TagDefinitions,
   type RecipeDetail,
   type Ingredient,
+  type MealSlot,
 } from '@pulse/api-client';
 
 interface Props {
   initialData?: RecipeDetail;
   initialType?: 'cocktail' | 'food' | 'prepackaged';
+  enableLogOption?: boolean;
   onSaved: (id: number) => void;
   onCancel: () => void;
 }
@@ -50,8 +53,15 @@ function toRows(ingredients: Ingredient[]): IngredientRow[] {
   }));
 }
 
-export default function RecipeForm({ initialData, initialType, onSaved, onCancel }: Props) {
+export default function RecipeForm({ initialData, initialType, enableLogOption, onSaved, onCancel }: Props) {
   const isEdit = Boolean(initialData);
+  const [logMode, setLogMode] = useState<'none' | 'save_and_log' | 'log_only'>('none');
+  const [logMeal, setLogMeal] = useState<MealSlot>('lunch');
+
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
 
   const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>(initialData?.type || initialType || 'cocktail');
   const [name, setName] = useState(initialData?.name || '');
@@ -231,6 +241,28 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
     setError('');
     setSaving(true);
 
+    if (enableLogOption && logMode === 'log_only' && !isEdit) {
+      try {
+        await logApi.logInline({
+          name: name.trim(),
+          meal: logMeal,
+          logDate: todayStr(),
+          calories: Number(calories) || 0,
+          carbs_g: Number(carbsG) || 0,
+          protein_g: Number(proteinG) || 0,
+          fat_g: Number(fatG) || 0,
+          fiber_g: fiberG ? Number(fiberG) : null,
+          sodium_mg: sodiumMg ? Number(sodiumMg) : null,
+        });
+        onSaved(0);
+      } catch (err: any) {
+        setError(err.message || 'Failed to log entry');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       const payload = {
         type,
@@ -283,6 +315,10 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
         await recipesApi.update(recipeId, { type, name: name.trim(), photo_key: key });
       } else if (photoUrlInput.trim()) {
         await recipesApi.uploadPhotoFromUrl(recipeId, photoUrlInput.trim());
+      }
+
+      if (enableLogOption && logMode === 'save_and_log' && !isEdit) {
+        await logApi.logRecipe({ recipeId, meal: logMeal, servings: 1, logDate: todayStr() });
       }
 
       onSaved(recipeId);
@@ -768,13 +804,50 @@ export default function RecipeForm({ initialData, initialType, onSaved, onCancel
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
+        {enableLogOption && !isEdit && (
+          <div className="py-2 border-t border-dram-border space-y-2">
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Log to today</p>
+            <div className="flex flex-col gap-1.5">
+              {([
+                ['none', 'Don\'t log'],
+                ['save_and_log', 'Save recipe + log today'],
+                ['log_only', 'Log only (one-time, don\'t save recipe)'],
+              ] as ['none' | 'save_and_log' | 'log_only', string][]).map(([val, label]) => (
+                <label key={val} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="logMode"
+                    value={val}
+                    checked={logMode === val}
+                    onChange={() => setLogMode(val)}
+                    className="accent-dram-accent"
+                  />
+                  <span className="text-xs text-slate-400">{label}</span>
+                </label>
+              ))}
+            </div>
+            {logMode !== 'none' && (
+              <select
+                value={logMeal}
+                onChange={(e) => setLogMeal(e.target.value as MealSlot)}
+                className="bg-dram-bg border border-dram-border rounded px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-dram-accent"
+              >
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="snack">Snack</option>
+              </select>
+            )}
+          </div>
+        )}
+
         {/* Bottom save button */}
         <button
           type="submit"
           disabled={saving}
           className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50 mb-4"
         >
-          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Recipe'}
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : logMode === 'save_and_log' ? 'Save & log today' : logMode === 'log_only' ? 'Log only (one-time)' : 'Add Recipe'}
         </button>
       </form>
     </div>

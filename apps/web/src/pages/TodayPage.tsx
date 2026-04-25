@@ -259,7 +259,8 @@ export default function TodayPage() {
           <div className="relative w-full max-w-lg h-[90vh] rounded-2xl overflow-hidden shadow-2xl">
             <RecipeForm
               initialType="food"
-              onSaved={() => setShowRecipeFormModal(false)}
+              enableLogOption
+              onSaved={() => { setShowRecipeFormModal(false); fetchDay(); }}
               onCancel={() => setShowRecipeFormModal(false)}
             />
           </div>

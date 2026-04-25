@@ -102,6 +102,7 @@ export default function History() {
   const [measurementsLoading, setMeasurementsLoading] = useState(true);
   const [editModal, setEditModal] = useState<MeasurementEditModal>(EMPTY_MODAL);
   const [savingMeasurement, setSavingMeasurement] = useState(false);
+  const [metricFilter, setMetricFilter] = useState<string>('all');
 
   useEffect(() => {
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
@@ -319,20 +320,39 @@ export default function History() {
         ) : (
           /* ── Body Measurements ───────────────────────────────────── */
           <div className="flex flex-col gap-4 max-w-2xl">
-            <div className="flex justify-end gap-2">
-              {METRICS.map(({ key, label }) => (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex gap-1 bg-dram-card rounded-lg p-1">
                 <button
-                  key={key}
-                  onClick={() => openNewMeasurement(key)}
-                  className="text-sm text-dram-accent hover:brightness-110 transition"
+                  onClick={() => setMetricFilter('all')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metricFilter === 'all' ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
                 >
-                  + {label}
+                  All
                 </button>
-              ))}
+                {METRICS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setMetricFilter(metricFilter === key ? 'all' : key)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metricFilter === key ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {METRICS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => openNewMeasurement(key)}
+                    className="text-sm text-dram-accent hover:brightness-110 transition"
+                  >
+                    + {label}
+                  </button>
+                ))}
+              </div>
             </div>
-            {measurements.length === 0 ? (
+            {measurements.filter((m) => metricFilter === 'all' || m.metric === metricFilter).length === 0 ? (
               <div className="bg-dram-card border border-dram-border rounded-xl px-4 py-8 text-sm text-gray-500 text-center">
-                No measurements logged yet
+                {metricFilter === 'all' ? 'No measurements logged yet' : `No ${METRICS.find((m) => m.key === metricFilter)?.label ?? metricFilter} measurements logged yet`}
               </div>
             ) : (
               <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
@@ -344,6 +364,7 @@ export default function History() {
                   <p />
                 </div>
                 {[...measurements]
+                  .filter((m) => metricFilter === 'all' || m.metric === metricFilter)
                   .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt) || a.metric.localeCompare(b.metric))
                   .map((entry, idx, arr) => {
                     const meta = METRICS.find((m) => m.key === entry.metric);
