@@ -795,7 +795,15 @@ function RoutineCardInTab({
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
-          {routine.lastVolumeLbs != null && <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>}
+          {routine.routineType === 'steps' && routine.lastPrimaryMetric != null && (
+            <p className="text-slate-400 text-sm">· {Math.round(routine.lastPrimaryMetric)} stairs/min</p>
+          )}
+          {routine.routineType === 'cardio_distance' && routine.lastPrimaryMetric != null && (
+            <p className="text-slate-400 text-sm">· {routine.lastPrimaryMetric.toFixed(2)} mi/min</p>
+          )}
+          {(routine.routineType === 'strength' || routine.routineType === 'bodyweight' || !routine.routineType) && routine.lastVolumeLbs != null && (
+            <p className="text-slate-400 text-sm">· {routine.lastVolumeLbs.toLocaleString()} lbs</p>
+          )}
           {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">· {routine.lastCaloriesBurned.toLocaleString()} kcal</p>}
         </div>
         <div className="flex items-center gap-2 mt-1.5">

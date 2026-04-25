@@ -30,10 +30,11 @@ export interface PersonalBests {
     volumeKg: number;
     workoutDate: string | null;
   }[];
-  bestStairTime: {
+  bestStairPace: {
     exerciseName: string;
+    pacePerMinute: number;
+    steps: number;
     durationSeconds: number;
-    steps: number | null;
     workoutDate: string;
   } | null;
 }

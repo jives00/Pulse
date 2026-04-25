@@ -947,7 +947,7 @@ export default function DashboardScreen() {
         {/* ── Personal Bests ── */}
         <View style={s.card}>
           <CardHeader title="Personal Bests" meta="All time" c={c} />
-          {!personalBests || (!personalBests.heaviestLift && (personalBests.bestVolumeByRoutine?.length ?? 0) === 0 && !personalBests.bestStairTime) ? (
+          {!personalBests || (!personalBests.heaviestLift && (personalBests.bestVolumeByRoutine?.length ?? 0) === 0 && !personalBests.bestStairPace) ? (
             <Text style={s.empty}>Complete workouts to see records.</Text>
           ) : (
             <>
@@ -984,15 +984,15 @@ export default function DashboardScreen() {
                 </View>
               )}
 
-              {/* Fastest stair time */}
-              {personalBests.bestStairTime && (
+              {/* Best stair pace */}
+              {personalBests.bestStairPace && (
                 <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.bestStairTime.exerciseName}</Text>
-                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>Fastest time · {fmtPbDate(personalBests.bestStairTime.workoutDate)}</Text>
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.bestStairPace.exerciseName}</Text>
+                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>Best pace · {fmtPbDate(personalBests.bestStairPace.workoutDate)}</Text>
                   </View>
                   <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
-                    {fmtDuration(personalBests.bestStairTime.durationSeconds)}
+                    {Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> stairs/min</Text>
                   </Text>
                 </View>
               )}
@@ -1009,11 +1009,15 @@ export default function DashboardScreen() {
               const rName = w.routineId ? (routineById[w.routineId]?.name ?? w.name ?? 'Workout') : (w.name ?? 'Free workout');
               let volDisplay: string;
               if (rt === 'steps') {
-                const s = (w as any).totalSteps;
-                volDisplay = s ? `${s.toLocaleString()} steps` : '—';
+                const steps = (w as any).totalSteps as number | null;
+                const dur = w.totalDurationSeconds;
+                const pace = steps && dur ? Math.round(steps / (dur / 60)) : 0;
+                volDisplay = pace > 0 ? `${pace} stairs/min` : '—';
               } else if (rt === 'cardio_distance') {
-                const dm = (w as any).totalDistanceMeters;
-                volDisplay = dm ? `${(dm / 1609.34).toFixed(2)} mi` : '—';
+                const dm = (w as any).totalDistanceMeters as number | null;
+                const dur = w.totalDurationSeconds;
+                const pace = dm && dur ? (dm / 1609.34) / (dur / 60) : 0;
+                volDisplay = pace > 0 ? `${pace.toFixed(2)} mi/min` : '—';
               } else if (rt === 'cardio_duration') {
                 const ds = (w as any).totalDurationSeconds;
                 volDisplay = ds ? `${Math.floor(ds / 60)} min` : '—';

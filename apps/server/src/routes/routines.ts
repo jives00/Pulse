@@ -172,8 +172,18 @@ router.get('/', async (req, res) => {
     function getPrimaryMetric(r: RowDataPacket): number | null {
       const rt = r.routine_type ?? 'strength';
       switch (rt) {
-        case 'steps':           return lastStepsMap[r.id] ?? null;
-        case 'cardio_distance': return lastDistanceMap[r.id] ? Number((lastDistanceMap[r.id]! / 1609.34).toFixed(2)) : null;
+        case 'steps': {
+          const steps = lastStepsMap[r.id];
+          const dur = lastDurationMap[r.id];
+          if (!steps || !dur) return null;
+          return Math.round(steps / (dur / 60));  // stairs/min
+        }
+        case 'cardio_distance': {
+          const dist = lastDistanceMap[r.id];
+          const dur = lastDurationMap[r.id];
+          if (!dist || !dur) return null;
+          return Number(((dist / 1609.34) / (dur / 60)).toFixed(2));  // mi/min
+        }
         case 'cardio_duration': return lastDurationMap[r.id] ? Math.round(lastDurationMap[r.id]! / 60) : null;
         case 'bodyweight':
         case 'strength':

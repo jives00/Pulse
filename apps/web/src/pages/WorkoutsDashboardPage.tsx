@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { buildWorkoutLine } from '../utils/workoutLine';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer, LineChart, Line, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
 import {
@@ -1075,13 +1076,6 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
 
 // ─── Today's Blurb ───────────────────────────────────────────────────────────
 
-function formatDuration(minutes: number | null): string {
-  if (!minutes) return '';
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
 
 function TodaysBlurb({
   workouts,
@@ -1104,35 +1098,7 @@ function TodaysBlurb({
   const totalCarbs = Math.round(todayFood?.entries.reduce((s, e) => s + e.carbsG, 0) ?? 0);
   const totalFat = Math.round(todayFood?.entries.reduce((s, e) => s + e.fatG, 0) ?? 0);
 
-  const workoutLines = todayWorkouts.map((w) => {
-    const name = w.routineName ?? w.name ?? 'Workout';
-    const rt = w.routineType ?? 'strength';
-
-    if (rt === 'steps') {
-      const totalSteps = w.totalSteps ?? w.exercises.reduce((s, e) => s + ((e as any).totalSteps ?? 0), 0);
-      const totalSec = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
-      const dur = totalSec > 0
-        ? `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`
-        : w.durationMinutes ? formatDuration(w.durationMinutes) : null;
-      const detail = [totalSteps ? `${totalSteps.toLocaleString()} steps` : null, dur].filter(Boolean).join(' in ');
-      return `${name} completed${detail ? ` — ${detail}` : ''}`;
-    }
-
-    if (rt === 'cardio_distance') {
-      const miles = ((w.totalDistanceMeters ?? 0) / 1609.34).toFixed(2);
-      const dur = w.durationMinutes ? formatDuration(w.durationMinutes) : null;
-      const detail = [miles !== '0.00' ? `${miles} mi` : null, dur].filter(Boolean).join(' in ');
-      return `${name} completed${detail ? ` — ${detail}` : ''}`;
-    }
-
-    if (rt === 'cardio_duration') {
-      const mins = w.durationMinutes ?? Math.round((w.totalDurationSeconds ?? 0) / 60);
-      return `${name} completed${mins ? ` — ${mins} min` : ''}`;
-    }
-
-    const volumeLbs = Math.round(w.totalVolumeKg * KG_TO_LBS);
-    return `${name} completed — total volume of ${volumeLbs.toLocaleString()} lbs`;
-  });
+  const workoutLines = todayWorkouts.map(buildWorkoutLine);
 
   const hasData = todayWorkouts.length > 0 || todayFood != null || todayWaterOz > 0;
 
@@ -2790,7 +2756,7 @@ function PersonalBestsCardV3({ personalBests }: {
   const hasData = personalBests && (
     personalBests.heaviestLift ||
     personalBests.bestVolumeByRoutine.length > 0 ||
-    personalBests.bestStairTime
+    personalBests.bestStairPace
   );
 
   return (
@@ -2833,16 +2799,16 @@ function PersonalBestsCardV3({ personalBests }: {
             );
           })()}
 
-          {/* Fastest stair time */}
-          {personalBests!.bestStairTime && (() => {
-            const st = personalBests!.bestStairTime!;
+          {/* Best stair pace */}
+          {personalBests!.bestStairPace && (() => {
+            const sp = personalBests!.bestStairPace!;
             return (
               <div className="flex items-baseline justify-between px-6 py-4">
                 <div>
-                  <div className="t-base font-medium">{st.exerciseName}</div>
-                  <div className="t-sm text-muted font-mono mt-0.5">Fastest time · {fmtDate(st.workoutDate)}</div>
+                  <div className="t-base font-medium">{sp.exerciseName}</div>
+                  <div className="t-sm text-muted font-mono mt-0.5">Best pace · {fmtDate(sp.workoutDate)}</div>
                 </div>
-                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{fmtDuration(st.durationSeconds)}</div>
+                <div className="font-display font-semibold text-[20px] tnum shrink-0 ml-4">{Math.round(sp.pacePerMinute)}<span className="text-[12px] font-sans font-normal text-muted ml-1">stairs/min</span></div>
               </div>
             );
           })()}
@@ -2929,19 +2895,18 @@ function RecentWorkoutsCardV3({
               const routineName = w.routineId ? (routineById[w.routineId]?.name ?? w.routineName ?? `Routine ${w.routineId}`) : (w.name ?? 'Free workout');
 
               // Primary metric display by routine type
+              const totalSecs = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
+              const stepsDurMin = totalSecs ? Math.round(totalSecs / 60) : (w.durationMinutes ?? null);
               const stepsVal = w.totalSteps ?? null;
-              const stepsDurMin = (() => {
-                const secs = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
-                return secs ? Math.round(secs / 60) : (w.durationMinutes ?? null);
-              })();
               let primaryVal: number | null = null;
               let primaryUnit = 'lbs';
               if (rt === 'steps') {
-                primaryVal = stepsVal;
-                primaryUnit = 'steps';
+                primaryVal = stepsVal != null && totalSecs > 0 ? Math.round(stepsVal / (totalSecs / 60)) : null;
+                primaryUnit = 'stairs/min';
               } else if (rt === 'cardio_distance') {
-                primaryVal = w.totalDistanceMeters ? Math.round((w.totalDistanceMeters / 1609.34) * 100) / 100 : null;
-                primaryUnit = 'mi';
+                const distMiles = w.totalDistanceMeters ? w.totalDistanceMeters / 1609.34 : null;
+                primaryVal = distMiles && w.durationMinutes ? Number((distMiles / w.durationMinutes).toFixed(2)) : null;
+                primaryUnit = 'mi/min';
               } else if (rt === 'cardio_duration') {
                 primaryVal = stepsDurMin;
                 primaryUnit = 'min';
@@ -2949,13 +2914,8 @@ function RecentWorkoutsCardV3({
                 primaryVal = volLbs > 0 ? volLbs : null;
               }
 
-              const volumeDisplay = rt === 'steps' && stepsVal != null ? (
-                <span>
-                  {fmtNum(stepsVal)}<span className="text-muted"> steps</span>
-                  {stepsDurMin != null && <><span className="text-muted"> · </span>{stepsDurMin}<span className="text-muted">m</span></>}
-                </span>
-              ) : primaryVal != null ? (
-                <span>{primaryUnit === 'mi' ? primaryVal.toFixed(2) : fmtNum(primaryVal)}<span className="text-muted"> {primaryUnit}</span></span>
+              const volumeDisplay = primaryVal != null ? (
+                <span>{primaryUnit === 'lbs' ? fmtNum(primaryVal) : primaryVal}<span className="text-muted"> {primaryUnit}</span></span>
               ) : (
                 <span className="text-muted">—</span>
               );
@@ -2970,13 +2930,12 @@ function RecentWorkoutsCardV3({
               let currentCompare: number | null = primaryVal;
               if (prior) {
                 if (rt === 'steps') {
-                  const priorSteps = prior.totalSteps ?? null;
                   const priorSecs = prior.totalDurationSeconds ?? prior.exercises?.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0) ?? 0;
                   const priorMin = priorSecs ? priorSecs / 60 : (prior.durationMinutes ?? null);
-                  priorVal = priorSteps != null && priorMin ? Math.round(priorSteps / priorMin) : null;
-                  currentCompare = stepsVal != null && stepsDurMin ? Math.round(stepsVal / stepsDurMin) : null;
+                  priorVal = prior.totalSteps != null && priorMin ? Math.round(prior.totalSteps / priorMin) : null;
                 } else if (rt === 'cardio_distance') {
-                  priorVal = prior.totalDistanceMeters ? Math.round((prior.totalDistanceMeters / 1609.34) * 100) / 100 : null;
+                  const priorMiles = prior.totalDistanceMeters ? prior.totalDistanceMeters / 1609.34 : null;
+                  priorVal = priorMiles && prior.durationMinutes ? Number((priorMiles / prior.durationMinutes).toFixed(2)) : null;
                 } else if (rt === 'cardio_duration') {
                   const ps = prior.totalDurationSeconds ?? prior.exercises?.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0) ?? 0;
                   priorVal = ps ? Math.floor(ps / 60) : (prior.durationMinutes ?? null);

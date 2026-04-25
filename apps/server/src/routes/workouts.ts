@@ -134,9 +134,11 @@ router.get('/personal-bests', async (req, res) => {
       [req.userId, req.userId]
     );
 
-    // Fastest stair time: lowest duration_seconds (fixed steps course)
+    // Best stair pace: highest stairs/min
     const [stairRows] = await pool.query<RowDataPacket[]>(
-      `SELECT e.name AS exercise_name, es.duration_seconds, es.steps, wl.workout_date
+      `SELECT e.name AS exercise_name,
+              es.steps / (es.duration_seconds / 60.0) AS pace_per_min,
+              es.steps, es.duration_seconds, wl.workout_date
        FROM exercise_sets es
        JOIN workout_exercises we ON we.id = es.workout_exercise_id
        JOIN workout_logs wl ON wl.id = we.workout_log_id
@@ -145,8 +147,9 @@ router.get('/personal-bests', async (req, res) => {
        WHERE wl.user_id = ?
          AND (wr.routine_type = 'steps' OR e.name LIKE '%stair%')
          AND es.duration_seconds IS NOT NULL AND es.duration_seconds > 0
+         AND es.steps IS NOT NULL AND es.steps > 0
          AND es.completed = 1
-       ORDER BY es.duration_seconds ASC
+       ORDER BY pace_per_min DESC
        LIMIT 1`,
       [req.userId]
     );
@@ -170,10 +173,11 @@ router.get('/personal-bests', async (req, res) => {
         volumeKg: Number(r.best_volume_kg),
         workoutDate: r.workout_date ? toDate(r.workout_date) : null,
       })),
-      bestStairTime: stair ? {
+      bestStairPace: stair ? {
         exerciseName: stair.exercise_name,
+        pacePerMinute: Number(stair.pace_per_min),
+        steps: Number(stair.steps),
         durationSeconds: Number(stair.duration_seconds),
-        steps: stair.steps ? Number(stair.steps) : null,
         workoutDate: toDate(stair.workout_date),
       } : null,
     });

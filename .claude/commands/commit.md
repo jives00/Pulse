@@ -33,10 +33,10 @@ cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing && npx playwri
 ```
 
 ### 3a. If ALL tests pass
+- Update `docs/changelog.md` (see step 4 below) — do this before committing so the changelog is included in the commit
 - Generate a commit message from the diff (one concise sentence describing what changed and why)
-- Stage changed files, commit, and push to `main`
+- Stage all changed files (including the updated changelog), commit, and push to `main`
 - Report: "Pushed to main. GitHub Actions will run CI and deploy to EC2 automatically."
-- Update `docs/changelog.md` (see step 4 below)
 - If `--apk-local` was passed, run: `eas build --platform android --local` and report the output path when complete
 - If `--apk-cloud` was passed, run: `eas build --platform android` and report the build URL
 
@@ -48,7 +48,7 @@ cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing && npx playwri
 - Return to step 3a
 
 ### 4. Update docs/changelog.md
-After a successful push:
+After tests pass, before committing:
 - Look at which apps were changed (`apps/mobile`, `apps/web`, `apps/server`, `packages/`) to determine the relevant platform sections
 - Use today's date to find or create a matching `## Month DD, YYYY` header at the top of the changelog (below the file header). If today's date section already exists, append to it; otherwise insert a new one.
 - Under the date, add a `### Mobile`, `### Web`, or `### API` subsection as appropriate (reuse an existing one if already present under today's date)
@@ -63,5 +63,5 @@ After a successful push:
 - Always show `git diff --stat` before committing so the user knows what's going out
 - Never amend a commit that has already been pushed
 - APK builds always happen after push, never before — the build uses the committed code
-- Changelog update always happens after push, never before
+- Changelog update always happens after tests pass but before committing — it gets staged and included in the same commit as the code changes
 - If the same test keeps failing after two fix attempts, stop and explain the situation to the user rather than continuing to loop

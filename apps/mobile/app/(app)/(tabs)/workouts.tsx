@@ -255,7 +255,13 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
               <Text style={grid.meta}>
                 {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
               </Text>
-              {item.lastVolumeLbs != null && (
+              {item.routineType === 'steps' && item.lastPrimaryMetric != null && (
+                <Text style={grid.sub} numberOfLines={1}>{Math.round(item.lastPrimaryMetric)} stairs/min last</Text>
+              )}
+              {item.routineType === 'cardio_distance' && item.lastPrimaryMetric != null && (
+                <Text style={grid.sub} numberOfLines={1}>{item.lastPrimaryMetric.toFixed(2)} mi/min last</Text>
+              )}
+              {(item.routineType === 'strength' || item.routineType === 'bodyweight' || !item.routineType) && item.lastVolumeLbs != null && (
                 <Text style={grid.sub} numberOfLines={1}>{Math.round(item.lastVolumeLbs)} lbs last</Text>
               )}
               {starting === item.id && (
