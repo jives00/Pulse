@@ -1,16 +1,12 @@
-# /commit — Test, commit, push to main, and update changelog
+# /commit — Test, commit, and update changelog
 
-Runs the test suite, commits if everything passes, pushes to main (triggering EC2 auto-deploy via GitHub Actions), and appends an entry to `docs/changelog.md`.
+Runs the test suite, commits if everything passes, and appends an entry to `docs/changelog.md`. Does **not** push — run `/push` afterward to push to main and monitor the deploy.
 
 ## Flags
 
 | Flag | What it does |
 |---|---|
 | `--e2e` | Also run Playwright end-to-end tests before committing (slower; use for significant UI changes) |
-| `--apk-local` | After a successful commit and push, build an Android APK on this machine via `eas build --platform android --local` |
-| `--apk-cloud` | After a successful commit and push, trigger an EAS cloud APK build via `eas build --platform android` (uses an EAS build slot) |
-
-Flags can be combined: `/commit --e2e --apk-local`
 
 ---
 
@@ -27,18 +23,20 @@ cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/web && npm tes
 cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/mobile && npm test
 ```
 
+> **Note:** The `testing/` directory is listed in `.gitignore` and is never committed. New test files written there will not appear in `git status` and must not be staged. Do not attempt to add or commit anything under `testing/`.
+
 If `--e2e` was passed, also run:
 ```bash
 cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing && npx playwright test
 ```
 
 ### 3a. If ALL tests pass
-- Update `docs/changelog.md` (see step 4 below) — do this before committing so the changelog is included in the commit
-- Generate a commit message from the diff (one concise sentence describing what changed and why)
-- Stage all changed files (including the updated changelog), commit, and push to `main`
-- Report: "Pushed to main. GitHub Actions will run CI and deploy to EC2 automatically."
-- If `--apk-local` was passed, run: `eas build --platform android --local` and report the output path when complete
-- If `--apk-cloud` was passed, run: `eas build --platform android` and report the build URL
+1. Stage all changed files **except** `docs/changelog.md`, then commit (do not push yet)
+2. Capture the short commit hash: `git rev-parse --short HEAD`
+3. Update `docs/changelog.md` with that hash (see step 4 below)
+4. Stage the changelog: `git add docs/changelog.md`
+5. Amend the commit to fold in the changelog (amending before push is safe): `git commit --amend --no-edit`
+6. Report: "Committed. Run `/push` to deploy."
 
 ### 3b. If ANY tests fail
 - Show which tests failed and the relevant error output (not the full log — just what's needed to understand the failure)
@@ -62,6 +60,6 @@ After tests pass, before committing:
 - Never skip tests (`--no-verify` is not allowed)
 - Always show `git diff --stat` before committing so the user knows what's going out
 - Never amend a commit that has already been pushed
-- APK builds always happen after push, never before — the build uses the committed code
-- Changelog update always happens after tests pass but before committing — it gets staged and included in the same commit as the code changes
+- Changelog update happens after the initial commit (so the hash is known), then the commit is amended before pushing — one push total
 - If the same test keeps failing after two fix attempts, stop and explain the situation to the user rather than continuing to loop
+- Never stage or commit anything under `testing/` — that directory is gitignored
