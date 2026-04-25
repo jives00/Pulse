@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, routinesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -179,11 +179,12 @@ function SetRow({
 // ─── Exercise block ──────────────────────────────────────────────────────────
 
 function ExerciseBlock({
-  we, workoutId, isActive, onRemove, onSetsChanged,
+  we, workoutId, isActive, lastSets, onRemove, onSetsChanged,
 }: {
   we: WorkoutExercise;
   workoutId: number;
   isActive: boolean;
+  lastSets: Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }> | null;
   onRemove: (weId: number) => void;
   onSetsChanged: (weId: number, sets: ExerciseSet[]) => void;
 }) {
@@ -235,6 +236,27 @@ function ExerciseBlock({
     ? `2rem ${dataCols} 2rem 2rem`
     : `2rem ${dataCols} 2rem`;
 
+  const lastLabel = (() => {
+    if (!lastSets || lastSets.length === 0) return null;
+    const s0 = lastSets[0];
+    if (trackWeight && s0.weightKg != null) {
+      const lbs = Math.round(s0.weightKg * KG_TO_LBS * 10) / 10;
+      const repsStr = s0.reps != null ? ` × ${s0.reps} reps` : '';
+      return `Last: ${lbs % 1 === 0 ? lbs : lbs.toFixed(1)} lbs${repsStr}`;
+    }
+    if (trackSteps && s0.steps != null) {
+      const dur = s0.durationSeconds;
+      const paceStr = dur ? ` (${Math.round(s0.steps / (dur / 60))} stairs/min)` : '';
+      return `Last: ${s0.steps.toLocaleString()} steps${paceStr}`;
+    }
+    if (trackDuration && s0.durationSeconds != null) {
+      const m = Math.floor(s0.durationSeconds / 60);
+      const sec = s0.durationSeconds % 60;
+      return `Last: ${m}:${String(sec).padStart(2, '0')}`;
+    }
+    return null;
+  })();
+
   return (
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
@@ -246,6 +268,7 @@ function ExerciseBlock({
             {we.exercise.name}
           </Link>
           <div className="text-sm text-slate-500">{we.exercise.category}</div>
+          {lastLabel && <div className="text-xs text-slate-500 mt-0.5">{lastLabel}</div>}
         </div>
         <button
           onClick={() => onRemove(we.id)}
@@ -467,6 +490,7 @@ export default function WorkoutDetailPage() {
   const navigate = useNavigate();
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
+  const [lastSetsByExercise, setLastSetsByExercise] = useState<Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>>>({});
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -504,6 +528,17 @@ export default function WorkoutDetailPage() {
           const initialElapsed = Math.max(0, Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
           setElapsedSeconds(initialElapsed);
           startInterval(initialElapsed);
+        }
+        if (w.routineId && !w.completed) {
+          routinesApi.get(w.routineId).then((routine) => {
+            const map: Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>> = {};
+            for (const re of routine.exercises) {
+              if (re.lastPerformedSets && re.lastPerformedSets.length > 0) {
+                map[re.exercise.id] = re.lastPerformedSets;
+              }
+            }
+            setLastSetsByExercise(map);
+          }).catch(() => {});
         }
       })
       .catch(() => navigate('/workouts'))
@@ -762,6 +797,7 @@ export default function WorkoutDetailPage() {
           we={we}
           workoutId={workout.id}
           isActive={isActive}
+          lastSets={lastSetsByExercise[we.exercise.id] ?? null}
           onRemove={handleRemoveExercise}
           onSetsChanged={handleSetsChanged}
         />

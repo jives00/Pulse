@@ -1,7 +1,7 @@
 import { useState, useEffect, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, KG_TO_LBS, shortDate, formatDate } from '@pulse/api-client';
+import { exercisesApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, KG_TO_LBS, shortDate, formatDate, computePlateau } from '@pulse/api-client';
 
 function kgToLbs(kg: number) {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
@@ -37,10 +37,11 @@ function PBTile({ label, value, sub }: { label: string; value: string; sub?: str
 
 // ─── Summary tab ─────────────────────────────────────────────────────────────
 
-function SummaryTab({ stats, metric, onMetricChange }: {
+function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
   stats: ExerciseStats;
   metric: MetricKey;
   onMetricChange: (m: MetricKey) => void;
+  plateauDetected: boolean;
 }) {
   const pb = stats.personalBests;
 
@@ -142,6 +143,12 @@ function SummaryTab({ stats, metric, onMetricChange }: {
         </div>
       ) : (
         <div className="text-center text-sm text-slate-500 py-6">No data yet</div>
+      )}
+      {plateauDetected && (
+        <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(250,204,21,0.3)', backgroundColor: 'rgba(250,204,21,0.06)' }}>
+          <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#facc15' }}>Plateau detected</div>
+          <div className="text-xs" style={{ color: 'rgba(250,204,21,0.75)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</div>
+        </div>
       )}
     </div>
   );
@@ -732,6 +739,7 @@ export default function ExerciseDetailPage() {
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
+  const [hwProgressSeries, setHwProgressSeries] = useState<Array<{ date: string; value: number }>>([]);
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -747,7 +755,7 @@ export default function ExerciseDetailPage() {
       exercisesApi.getStats(numId, 'heaviest_weight'),
       exercisesApi.getCategories(),
     ])
-      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setCategories(cats); })
+      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setHwProgressSeries(st.progressSeries); setCategories(cats); })
       .catch(() => navigate('/workouts'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -836,7 +844,7 @@ export default function ExerciseDetailPage() {
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
               {stats
-                ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} />
+                ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} />
                 : <div className="text-center text-sm text-slate-500 py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
               }
             </div>

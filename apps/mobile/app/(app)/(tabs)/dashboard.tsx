@@ -18,6 +18,7 @@ import {
   KG_TO_LBS, SATURATION_DAYS,
   localDateStr, getWeekStart, shortDate,
   buildWeeklyData, computeGoalPace, computeCreatineSaturation,
+  computeWeekDelta, computeWeekStreak, WEEK_STREAK_MILESTONES,
   type WeekBucket, type PaceStatus,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -588,6 +589,9 @@ export default function DashboardScreen() {
   const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
   const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).length;
   const weekWorkoutGoal = exGoals?.workoutsPerWeek ?? null;
+  const weekDelta = computeWeekDelta(weeklyData);
+  const weekStreak = computeWeekStreak(workouts);
+  const streakIsMilestone = WEEK_STREAK_MILESTONES.includes(weekStreak);
 
   // ── Derived: 30-day charts ────────────────────────────────────────────────
   const days30 = Array.from({ length: 30 }, (_, i) => {
@@ -890,9 +894,32 @@ export default function DashboardScreen() {
 
         {/* ── This Week ── */}
         <View style={s.card}>
-          <CardHeader title="This Week" c={c} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <CardHeader title="This Week" c={c} />
+            {weekStreak > 0 && (
+              <View style={{ backgroundColor: streakIsMilestone ? COL_GOLD + '33' : 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: streakIsMilestone ? COL_GOLD : c.muted }}>
+                  {weekStreak}-week streak
+                </Text>
+              </View>
+            )}
+          </View>
           <ProgressBar label="Workouts" actual={weekWorkouts} goal={weekWorkoutGoal} unit="" color={COL_GOLD} c={c} />
           <ProgressBar label="Volume"   actual={weekVolumeLbs} goal={volumeGoal}    unit=" lbs" color={COL_VOL} c={c} />
+          {(weekDelta.volumePct != null || weekDelta.stepsPct != null) && (
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
+              {weekDelta.volumePct != null && (
+                <Text style={{ fontSize: fontSize.xs, color: weekDelta.volumePct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
+                  {weekDelta.volumePct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.volumePct)}% vol vs last wk
+                </Text>
+              )}
+              {weekDelta.stepsPct != null && (
+                <Text style={{ fontSize: fontSize.xs, color: weekDelta.stepsPct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
+                  {weekDelta.stepsPct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.stepsPct)}% steps vs last wk
+                </Text>
+              )}
+            </View>
+          )}
           <DayVolumeBars workouts={workouts} volumeGoal={volumeGoal} routineGoals={routineGoals} c={c} />
         </View>
 

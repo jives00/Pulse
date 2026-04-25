@@ -13,7 +13,7 @@ import {
   uploadExerciseMuscleImageFromUrl, getExerciseMuscleImageUploadUrl,
   type Exercise, type ExerciseStats, type ExerciseHistoryEntry,
 } from '../../../src/api/client';
-import { KG_TO_LBS, shortDate, formatDate as fmtDate } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, shortDate, formatDate as fmtDate, computePlateau } from '../../../../../packages/api-client/src/index';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize, type Colors } from '../../../src/theme';
@@ -37,10 +37,11 @@ type MetricKey = typeof METRICS[number]['key'];
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
 
-function SummaryTab({ stats, metric, onMetricChange }: {
+function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
   stats: ExerciseStats;
   metric: MetricKey;
   onMetricChange: (m: MetricKey) => void;
+  plateauDetected: boolean;
 }) {
   const c = useColors();
   const ts = makeTabStyles(c);
@@ -105,6 +106,12 @@ function SummaryTab({ stats, metric, onMetricChange }: {
               </Text>
             </View>
           ))}
+        </View>
+      )}
+      {plateauDetected && (
+        <View style={{ marginHorizontal: 0, marginTop: 4, backgroundColor: 'rgba(250,204,21,0.08)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.25)', borderRadius: 10, padding: 12 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#facc15', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Plateau detected</Text>
+          <Text style={{ fontSize: 11, color: 'rgba(250,204,21,0.8)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</Text>
         </View>
       )}
     </ScrollView>
@@ -567,6 +574,7 @@ export default function ExerciseDetailScreen() {
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
+  const [hwProgressSeries, setHwProgressSeries] = useState<Array<{ date: string; value: number }>>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [tab, setTab] = useState<TabKey>('summary');
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
@@ -582,7 +590,7 @@ export default function ExerciseDetailScreen() {
       getExerciseStats(token, numId, 'heaviest_weight'),
       getExerciseCategories(token),
     ])
-      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setCategories(cats); })
+      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setHwProgressSeries(st.progressSeries); setCategories(cats); })
       .catch(() => router.back())
       .finally(() => setLoading(false));
   }, [id]);
@@ -651,7 +659,7 @@ export default function ExerciseDetailScreen() {
 
       {tab === 'summary' && (
         stats
-          ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} />
+          ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} />
           : <Text style={ts.empty}>No data yet</Text>
       )}
       {tab === 'history' && <HistoryTab exerciseId={Number(id)} />}

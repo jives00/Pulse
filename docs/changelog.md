@@ -4,6 +4,18 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## April 25, 2026
+
+### Mobile
+
+- **Insights & coaching cues (Phase 4)** — week-over-week volume/steps delta badge on dashboard; plateau detection callout on exercise detail; "beat your last" label in active workout exercise headers; week streak counter on dashboard. `TBD`
+
+### Web
+
+- **Insights & coaching cues (Phase 4)** — same week delta, plateau detection, beat-your-last, and streak features added to web dashboard, exercise detail, and workout detail pages. `TBD`
+
+---
+
 ## April 24, 2026
 
 ### Mobile

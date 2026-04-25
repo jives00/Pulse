@@ -12,6 +12,7 @@ import {
   type WeekBucket,
   localDateStr, getWeekStart, shortDate, formatDate,
   buildWeeklyData, computeGoalPace, computeCreatineSaturation,
+  computeWeekDelta, computeWeekStreak, WEEK_STREAK_MILESTONES,
   type PaceStatus,
   KG_TO_LBS,
 } from '@pulse/api-client';
@@ -1500,6 +1501,8 @@ function ThisWeekCardV3({
   const today = localDateStr();
   const weekStart = getWeekStart(today);
   const streak = computeDayStreak(workouts);
+  const weekStreak = computeWeekStreak(workouts);
+  const streakIsMilestone = WEEK_STREAK_MILESTONES.includes(weekStreak);
 
   const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === weekStart);
   const weekVolumeLbs = Math.round(weekWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0));
@@ -1507,6 +1510,9 @@ function ThisWeekCardV3({
 
   const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
   const workoutGoal = exGoals?.workoutsPerWeek ?? null;
+
+  const weeklyData = _weeklyData;
+  const weekDelta = computeWeekDelta(weeklyData);
 
   const weekDayLabels = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
   const weekDayBars = weekDayLabels.map((label, i) => {
@@ -1556,7 +1562,7 @@ function ThisWeekCardV3({
 
   return (
     <section className="card overflow-hidden">
-      <V3CardHeader label="This Week" meta={`Week of ${weekLabel} · ${streak}-day streak`} />
+      <V3CardHeader label="This Week" meta={`Week of ${weekLabel} · ${streak}-day streak`} action={weekStreak > 0 ? <span className={`t-xs font-mono font-semibold px-2 py-0.5 rounded-full ${streakIsMilestone ? 'gold bg-gold/10' : 'text-muted bg-bd/40'}`}>{weekStreak}-week streak</span> : undefined} />
       <div className="grid" style={{ gridTemplateColumns: '1fr 2.2fr', alignItems: 'stretch' }}>
         <div className="border-r border-bd divide-y divide-bd">
           {/* Workouts stat */}
@@ -1590,6 +1596,20 @@ function ThisWeekCardV3({
             <div className="h-[5px] bg-bg rounded-full overflow-hidden">
               <div className="h-full bg-gold rounded-full" style={{ width: `${volumeGoal ? Math.min(weekVolumeLbs / volumeGoal, 1) * 100 : 0}%`, transition: 'width 0.6s ease' }} />
             </div>
+            {(weekDelta.volumePct != null || weekDelta.stepsPct != null) && (
+              <div className="flex gap-3 mt-2.5 flex-wrap">
+                {weekDelta.volumePct != null && (
+                  <span className="t-xs font-mono font-semibold tnum" style={{ color: weekDelta.volumePct >= 0 ? '#34d399' : '#f87171' }}>
+                    {weekDelta.volumePct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.volumePct)}% vol vs last wk
+                  </span>
+                )}
+                {weekDelta.stepsPct != null && (
+                  <span className="t-xs font-mono font-semibold tnum" style={{ color: weekDelta.stepsPct >= 0 ? '#34d399' : '#f87171' }}>
+                    {weekDelta.stepsPct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.stepsPct)}% steps vs last wk
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
