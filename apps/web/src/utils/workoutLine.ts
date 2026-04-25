@@ -1,4 +1,4 @@
-import type { WorkoutSummary } from '../../../packages/api-client/src/endpoints/workouts';
+import type { WorkoutSummary, WorkoutExerciseSummary } from '@pulse/api-client';
 
 export function formatDuration(minutes: number | null): string {
   if (!minutes) return '';
@@ -13,8 +13,8 @@ export function buildWorkoutLine(w: WorkoutSummary): string {
   const rt = w.routineType ?? 'strength';
 
   if (rt === 'steps') {
-    const totalSteps = w.totalSteps ?? w.exercises.reduce((s, e) => s + ((e as any).totalSteps ?? 0), 0);
-    const totalSec = w.totalDurationSeconds ?? w.exercises.reduce((s, e) => s + (e.totalDurationSeconds ?? 0), 0);
+    const totalSteps = w.totalSteps ?? w.exercises.reduce((s, e: WorkoutExerciseSummary) => s + ((e as any).totalSteps ?? 0), 0);
+    const totalSec = w.totalDurationSeconds ?? w.exercises.reduce((s, e: WorkoutExerciseSummary) => s + (e.totalDurationSeconds ?? 0), 0);
     const dur = totalSec > 0
       ? `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`
       : w.durationMinutes ? formatDuration(w.durationMinutes) : null;
