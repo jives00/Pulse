@@ -30,6 +30,9 @@ jobs:
             cd ~/pulse-app
             git pull origin main
 
+            # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors
+            rm -rf node_modules apps/*/node_modules packages/*/node_modules
+
             # Install all deps
             npm ci
 
