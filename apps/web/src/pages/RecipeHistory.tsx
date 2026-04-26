@@ -71,13 +71,89 @@ function mealFat(entries: FoodLogHistoryEntry[]): number {
 interface MeasurementEditModal {
   entry: BodyMeasurement | null;
   metric: string;
-  value: string;
-  date: string;
-  notes: string;
+  initialValue: string;
+  initialDate: string;
+  initialNotes: string;
   isNew: boolean;
 }
 
-const EMPTY_MODAL: MeasurementEditModal = { entry: null, metric: '', value: '', date: '', notes: '', isNew: false };
+function MeasurementModal({
+  modal,
+  onSave,
+  onClose,
+}: {
+  modal: MeasurementEditModal;
+  onSave: (value: string, date: string, notes: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(modal.initialValue);
+  const [date, setDate] = useState(modal.initialDate);
+  const [notes, setNotes] = useState(modal.initialNotes);
+  const [saving, setSaving] = useState(false);
+  const metaUnit = METRICS.find((m) => m.key === modal.metric)?.unit ?? '';
+
+  async function handleSave() {
+    setSaving(true);
+    try { await onSave(value, date, notes); } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-dram-card border border-dram-border rounded-xl p-5 w-full max-w-sm mx-4 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-semibold text-white text-base">
+          {modal.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === modal.metric)?.label}
+        </h2>
+        <div className="flex gap-3">
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-xs text-gray-400">Value ({metaUnit})</label>
+            <input
+              type="number"
+              step="0.1"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+              autoFocus
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-xs text-gray-400">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent [color-scheme:dark]"
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-400">Notes (optional)</label>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. morning, post-workout"
+            className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent placeholder:text-gray-600"
+          />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !value || !date}
+            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -100,8 +176,7 @@ export default function History() {
   // Measurements state
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
   const [measurementsLoading, setMeasurementsLoading] = useState(true);
-  const [editModal, setEditModal] = useState<MeasurementEditModal>(EMPTY_MODAL);
-  const [savingMeasurement, setSavingMeasurement] = useState(false);
+  const [editModal, setEditModal] = useState<MeasurementEditModal | null>(null);
   const [metricFilter, setMetricFilter] = useState<string>('all');
 
   useEffect(() => {
@@ -121,28 +196,26 @@ export default function History() {
   }
 
   function openNewMeasurement(metric: string) {
-    setEditModal({ entry: null, metric, value: '', date: todayStr(), notes: '', isNew: true });
+    setEditModal({ entry: null, metric, initialValue: '', initialDate: todayStr(), initialNotes: '', isNew: true });
   }
 
   function openEditMeasurement(entry: BodyMeasurement) {
-    setEditModal({ entry, metric: entry.metric, value: String(entry.value), date: entry.measuredAt, notes: entry.notes ?? '', isNew: false });
+    setEditModal({ entry, metric: entry.metric, initialValue: String(entry.value), initialDate: entry.measuredAt, initialNotes: entry.notes ?? '', isNew: false });
   }
 
-  async function saveMeasurement() {
-    const val = parseFloat(editModal.value);
-    if (isNaN(val) || !editModal.date) return;
+  async function saveMeasurement(value: string, date: string, notes: string) {
+    if (!editModal) return;
+    const val = parseFloat(value);
+    if (isNaN(val) || !date) return;
     const metaUnit = METRICS.find((m) => m.key === editModal.metric)?.unit ?? 'lbs';
-    setSavingMeasurement(true);
-    try {
-      if (editModal.isNew) {
-        const created = await measurementsApi.add({ metric: editModal.metric, value: val, unit: metaUnit, measuredAt: editModal.date, notes: editModal.notes || undefined });
-        setMeasurements((prev) => [created, ...prev].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)));
-      } else if (editModal.entry) {
-        const updated = await measurementsApi.update(editModal.entry.id, { value: val, measuredAt: editModal.date, notes: editModal.notes || undefined });
-        setMeasurements((prev) => prev.map((m) => m.id === updated.id ? updated : m));
-      }
-      setEditModal(EMPTY_MODAL);
-    } catch { /* keep open */ } finally { setSavingMeasurement(false); }
+    if (editModal.isNew) {
+      const created = await measurementsApi.add({ metric: editModal.metric, value: val, unit: metaUnit, measuredAt: date, notes: notes || undefined });
+      setMeasurements((prev) => [created, ...prev].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)));
+    } else if (editModal.entry) {
+      const updated = await measurementsApi.update(editModal.entry.id, { value: val, measuredAt: date, notes: notes || undefined });
+      setMeasurements((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+    }
+    setEditModal(null);
   }
 
   async function deleteMeasurement(id: number) {
@@ -442,70 +515,12 @@ export default function History() {
       )}
 
       {/* Measurement edit/add modal */}
-      {editModal.metric && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-          onClick={() => setEditModal(EMPTY_MODAL)}
-        >
-          <div
-            className="bg-dram-card border border-dram-border rounded-xl p-5 w-full max-w-sm mx-4 flex flex-col gap-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-semibold text-white text-base">
-              {editModal.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === editModal.metric)?.label}
-            </h2>
-
-            <div className="flex gap-3">
-              <div className="flex flex-col gap-1 flex-1">
-                <label className="text-xs text-gray-400">Value ({METRICS.find((m) => m.key === editModal.metric)?.unit})</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={editModal.value}
-                  onChange={(e) => setEditModal((prev) => ({ ...prev, value: e.target.value }))}
-                  className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
-                  autoFocus
-                />
-              </div>
-              <div className="flex flex-col gap-1 flex-1">
-                <label className="text-xs text-gray-400">Date</label>
-                <input
-                  type="date"
-                  value={editModal.date}
-                  onChange={(e) => setEditModal((prev) => ({ ...prev, date: e.target.value }))}
-                  className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent [color-scheme:dark]"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Notes (optional)</label>
-              <input
-                type="text"
-                value={editModal.notes}
-                onChange={(e) => setEditModal((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="e.g. morning, post-workout"
-                className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent placeholder:text-gray-600"
-              />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setEditModal(EMPTY_MODAL)}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveMeasurement}
-                disabled={savingMeasurement || !editModal.value || !editModal.date}
-                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition disabled:opacity-40"
-              >
-                {savingMeasurement ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {editModal && (
+        <MeasurementModal
+          modal={editModal}
+          onSave={saveMeasurement}
+          onClose={() => setEditModal(null)}
+        />
       )}
     </div>
   );

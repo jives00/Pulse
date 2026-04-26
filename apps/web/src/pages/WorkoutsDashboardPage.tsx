@@ -2688,8 +2688,8 @@ function NorthStarCardV3({
             ? computeGoalPace(measurements, key, goal, cfg.defaultGoalDir)
             : { status: 'red' as PaceStatus, projectedDate: null, pct: 0 };
 
-          const paceColor = status === 'green' ? '#86AA80' : status === 'yellow' ? GOLD : '#C5896E';
-          const paceLabel = status === 'green' ? '↑ Ahead' : status === 'yellow' ? '→ On track' : '↓ Behind';
+          const paceColor = status === 'done' ? '#86AA80' : status === 'green' ? '#86AA80' : status === 'yellow' ? GOLD : '#C5896E';
+          const paceLabel = status === 'done' ? '✓ Achieved' : status === 'green' ? '↑ Ahead' : status === 'yellow' ? '→ On track' : '↓ Behind';
 
           const sparkValues = last10.map((m) =>
             key === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value
@@ -2733,7 +2733,7 @@ function NorthStarCardV3({
                   <div className="t-sm font-medium mt-0.5" style={{ color: paceColor }}>{paceLabel}</div>
                 </div>
                 <div className="text-right">
-                  <div className="t-xs text-muted">ETA</div>
+                  <div className="t-xs text-muted">{status === 'done' ? 'Achieved' : 'ETA'}</div>
                   <div className="t-sm font-mono tnum mt-0.5">{projectedDate ?? '—'}</div>
                 </div>
               </div>

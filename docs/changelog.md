@@ -4,6 +4,13 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## April 26, 2026
+
+### Web
+
+- **Goal pace "Achieved" fix** — North Star goal cards now show "✓ Achieved" (green) with the date the goal was first met instead of "↓ Behind"; ETA label changes to "Achieved" on completion. `76bfa0f`
+- **Measurement modal lag fix** — extracted modal inputs into a standalone component so typing only re-renders the modal, not the entire History page. `76bfa0f`
+
 ## April 25, 2026
 
 ### Mobile

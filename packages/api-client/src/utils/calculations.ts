@@ -172,9 +172,14 @@ export function computeGoalPace(
   const target = goal.targetValue;
   const totalChange = dir === 'down' ? oldestVal - target : target - oldestVal;
   const actualChange = dir === 'down' ? oldestVal - latestVal : latestVal - oldestVal;
-  if (totalChange <= 0) return { status: 'done', pct: 1, projectedDate: null };
+  const fmtDate = (iso: string) =>
+    new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (totalChange <= 0) return { status: 'done', pct: 1, projectedDate: fmtDate(oldest.measuredAt) };
   const pct = Math.min(Math.max(actualChange / totalChange, 0), 1);
-  if (pct >= 1) return { status: 'done', pct: 1, projectedDate: null };
+  if (pct >= 1) {
+    const achieved = sorted.find((m) => (dir === 'down' ? toDisplay(m) <= target : toDisplay(m) >= target));
+    return { status: 'done', pct: 1, projectedDate: achieved ? fmtDate(achieved.measuredAt) : null };
+  }
   if (!goal.targetDate || sorted.length < 2) return { status: 'yellow', pct, projectedDate: null };
 
   const firstMs = new Date(oldest.measuredAt + 'T12:00:00').getTime();
