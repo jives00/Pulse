@@ -712,6 +712,41 @@ export async function aiModifyRecipe(
   return handle<{ modified: any }>(res);
 }
 
+export async function estimateMacros(
+  token: string,
+  payload: { name: string; brand?: string; description?: string }
+): Promise<{ calories: number; carbs: number; protein: number; fat: number; fiber?: number | null; sodium?: number | null }> {
+  const res = await fetch(`${API_BASE}/api/foods/estimate-macros`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  const data = await handle<{ nutrition: { calories: number; carbs: number; protein: number; fat: number; fiber?: number | null; sodium?: number | null } }>(res);
+  return data.nutrition;
+}
+
+export async function logInline(
+  token: string,
+  payload: {
+    name: string;
+    meal: string;
+    logDate?: string;
+    calories: number;
+    carbs_g: number;
+    protein_g: number;
+    fat_g: number;
+    fiber_g?: number | null;
+    sodium_mg?: number | null;
+  }
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/log/inline`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  await handle(res);
+}
+
 export async function logModifiedRecipe(
   token: string,
   payload: {

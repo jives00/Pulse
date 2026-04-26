@@ -30,7 +30,7 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
     });
   }
 
-  function go(path: '/(app)/(tabs)/links' | '/(app)/(tabs)/settings') {
+  function go(path: '/(app)/(tabs)/links' | '/(app)/(tabs)/history' | '/(app)/(tabs)/settings') {
     setVisible(false);
     router.push(path);
   }
@@ -79,6 +79,11 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/links')}>
               <Text style={{ fontSize: 18 }}>🔗</Text>
               <Text style={[styles.menuLabel, { color: c.text }]}>Links</Text>
+            </TouchableOpacity>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/history')}>
+              <Text style={{ fontSize: 18 }}>📋</Text>
+              <Text style={[styles.menuLabel, { color: c.text }]}>History</Text>
             </TouchableOpacity>
             <View style={[styles.divider, { backgroundColor: c.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/settings')}>

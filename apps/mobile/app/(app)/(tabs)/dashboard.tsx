@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, RefreshControl,
-  useWindowDimensions,
+  ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View, RefreshControl, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -9,7 +9,7 @@ import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getExerciseGoals, getMeasurements, getMeasurementGoals, getPersonalBests,
   getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, addWater,
+  getRoutineGoals, addWater, addMeasurement,
   type WorkoutSummary, type ExerciseGoals, type BodyMeasurement, type MeasurementGoal,
   type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
   type DailyHistoryEntry, type RoutineSummary, type TDEEBreakdown,
@@ -492,6 +492,40 @@ export default function DashboardScreen() {
   const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [waterBonusOz, setWaterBonusOz] = useState(0);
+
+  // Add measurement modal
+  const [measModalVisible, setMeasModalVisible] = useState(false);
+  const [measModalMetric, setMeasModalMetric] = useState<string>('weight');
+  const [measModalValue, setMeasModalValue] = useState('');
+  const [measModalDate, setMeasModalDate] = useState('');
+  const [measModalSaving, setMeasModalSaving] = useState(false);
+
+  function openMeasModal(metric: string) {
+    setMeasModalMetric(metric);
+    setMeasModalValue('');
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setMeasModalDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
+    setMeasModalSaving(false);
+    setMeasModalVisible(true);
+  }
+
+  async function submitMeasurement() {
+    const val = parseFloat(measModalValue);
+    if (isNaN(val) || val <= 0) { Alert.alert('Invalid value', 'Please enter a valid number.'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(measModalDate)) { Alert.alert('Invalid date', 'Please enter a date in YYYY-MM-DD format.'); return; }
+    setMeasModalSaving(true);
+    try {
+      const unit = measModalMetric === 'weight' ? 'lbs' : 'in';
+      const newMeas = await addMeasurement(token, { metric: measModalMetric, value: val, unit, measuredAt: measModalDate });
+      setMeasurements((prev) => [...prev, newMeas]);
+      setMeasModalVisible(false);
+    } catch {
+      Alert.alert('Error', 'Failed to save measurement.');
+    } finally {
+      setMeasModalSaving(false);
+    }
+  }
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1090,7 +1124,17 @@ export default function DashboardScreen() {
 
         {/* ── North Star Goals ── */}
         <View style={s.card}>
-          <CardHeader title="North Star Goals" c={c} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <CardHeader title="North Star Goals" c={c} />
+            </View>
+            <TouchableOpacity
+              onPress={() => openMeasModal('weight')}
+              style={{ backgroundColor: c.accent + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+            >
+              <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: c.accent }}>+ Log</Text>
+            </TouchableOpacity>
+          </View>
           {NORTH_STAR_METRICS.map((key) => {
             const cfg = METRIC_CONFIG[key];
             const sorted = measurements
@@ -1134,7 +1178,7 @@ export default function DashboardScreen() {
                   <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
                 </View>
                 {projectedDate && (
-                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>Proj: {projectedDate}</Text>
+                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>{status === 'done' ? `Achieved: ${projectedDate}` : `Proj: ${projectedDate}`}</Text>
                 )}
               </View>
             );
@@ -1145,6 +1189,62 @@ export default function DashboardScreen() {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Add measurement modal */}
+      <Modal visible={measModalVisible} transparent animationType="fade" onRequestClose={() => setMeasModalVisible(false)}>
+        <View style={s.measOverlay}>
+          <View style={s.measModal}>
+            <Text style={s.measTitle}>Log Measurement</Text>
+
+            <Text style={s.measLabel}>Metric</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              {NORTH_STAR_METRICS.map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setMeasModalMetric(m)}
+                  style={[s.measChip, measModalMetric === m && { backgroundColor: c.accent, borderColor: c.accent }]}
+                >
+                  <Text style={[s.measChipText, { color: measModalMetric === m ? c.bg : c.muted }]}>
+                    {METRIC_CONFIG[m].label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={s.measLabel}>Value ({METRIC_CONFIG[measModalMetric].unit})</Text>
+            <TextInput
+              style={s.measInput}
+              value={measModalValue}
+              onChangeText={setMeasModalValue}
+              placeholder="0.0"
+              placeholderTextColor={c.muted}
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+
+            <Text style={s.measLabel}>Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={s.measInput}
+              value={measModalDate}
+              onChangeText={setMeasModalDate}
+              placeholder="2026-01-01"
+              placeholderTextColor={c.muted}
+              keyboardType="numbers-and-punctuation"
+              returnKeyType="done"
+              onSubmitEditing={submitMeasurement}
+            />
+
+            <View style={s.measButtons}>
+              <TouchableOpacity onPress={() => setMeasModalVisible(false)} style={s.measCancelBtn}>
+                <Text style={s.measCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={submitMeasurement} disabled={measModalSaving} style={[s.measSaveBtn, measModalSaving && { opacity: 0.5 }]}>
+                <Text style={s.measSaveText}>{measModalSaving ? 'Saving…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1173,6 +1273,19 @@ function makeStyles(c: Colors) {
 
     weeklyTh: { fontSize: 10, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
     weeklyTd: { fontSize: 11, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
+
+    measOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    measModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border },
+    measTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 14 },
+    measLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 6 },
+    measInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 14 },
+    measChip: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: c.border },
+    measChipText: { fontSize: fontSize.xs, fontWeight: '600' },
+    measButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
+    measCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
+    measCancelText: { color: c.muted, fontSize: fontSize.sm },
+    measSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
+    measSaveText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
   });
 }
 

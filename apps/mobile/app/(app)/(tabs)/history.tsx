@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
-  Image,
   Modal,
   RefreshControl,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -14,235 +13,496 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getHistory, updateLogEntry, deleteLogEntry, type HistoryEntry } from '../../../src/api/client';
+import {
+  getWorkouts, deleteWorkout, getFoodLogHistory, getMeasurements, addMeasurement, updateMeasurement, deleteMeasurement,
+  type WorkoutSummary, type FoodLogHistoryDay, type FoodLogHistoryEntry, type BodyMeasurement,
+} from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
+import { KG_TO_LBS } from '../../../../../packages/api-client/src/index';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
-type Section = { title: string; data: HistoryEntry[] };
+type Tab = 'workouts' | 'nutrition' | 'measurements';
 
-function toDateKey(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+const HIST_TABS = ['workouts', 'nutrition', 'measurements'] as const;
+
+const METRICS = [
+  { key: 'weight', label: 'Weight', unit: 'lbs' },
+  { key: 'waist', label: 'Waist', unit: 'in' },
+  { key: 'bicep', label: 'Bicep', unit: 'in' },
+];
+
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function toDateLabel(iso: string): string {
-  const d = new Date(iso);
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtMeasDate(dateStr: string): string {
+  const parts = (dateStr ?? '').split('-');
+  if (parts.length < 3) return dateStr ?? '';
+  const m = parseInt(parts[1], 10) - 1;
+  return `${MONTHS[m] ?? parts[1]} ${parseInt(parts[2], 10)}, ${parts[0]}`;
+}
+
+function fmtWorkoutDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function groupWorkoutsByDate(workouts: WorkoutSummary[]): { title: string; data: WorkoutSummary[] }[] {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const key = toDateKey(iso);
-  const todayKey = toDateKey(today.toISOString());
-  const yKey = toDateKey(yesterday.toISOString());
-  return key === todayKey ? 'Today' : key === yKey ? 'Yesterday' : key;
-}
-
-function toTimeStr(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
-
-function toEditDate(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function toEditTime(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function groupEntries(entries: HistoryEntry[]): Section[] {
-  const map = new Map<string, HistoryEntry[]>();
-  for (const e of entries) {
-    const label = toDateLabel(e.made_at);
-    if (!map.has(label)) map.set(label, []);
-    map.get(label)!.push(e);
+  const fmtKey = (d: Date) => d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  const todayKey = fmtKey(today);
+  const yKey = fmtKey(yesterday);
+  const groups = new Map<string, WorkoutSummary[]>();
+  for (const w of workouts) {
+    const d = new Date(w.workoutDate + 'T12:00:00');
+    const key = fmtKey(d);
+    const label = key === todayKey ? 'Today' : key === yKey ? 'Yesterday' : key;
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label)!.push(w);
   }
-  return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
+  return Array.from(groups.entries()).map(([title, data]) => ({ title, data }));
+}
+
+function dayLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const fmt = (dt: Date) => dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  const k = fmt(d);
+  if (k === fmt(today)) return 'Today';
+  if (k === fmt(yesterday)) return 'Yesterday';
+  return k;
+}
+
+function mealTotals(entries: FoodLogHistoryEntry[]) {
+  return {
+    cal: Math.round(entries.reduce((s, e) => s + e.calories, 0)),
+    protein: Math.round(entries.reduce((s, e) => s + e.proteinG, 0) * 10) / 10,
+    carbs: Math.round(entries.reduce((s, e) => s + e.carbsG, 0) * 10) / 10,
+    fat: Math.round(entries.reduce((s, e) => s + e.fatG, 0) * 10) / 10,
+  };
+}
+
+interface MeasModalState {
+  entry: BodyMeasurement | null;
+  metric: string;
+  value: string;
+  date: string;
+  isNew: boolean;
 }
 
 export default function HistoryScreen() {
   const token = useAuthStore((s) => s.token)!;
   const router = useRouter();
   const c = useColors();
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('workouts');
 
-  // Edit modal
-  const [editTarget, setEditTarget] = useState<HistoryEntry | null>(null);
-  const [editDate, setEditDate] = useState('');
-  const [editTime, setEditTime] = useState('');
-  const [saving, setSaving] = useState(false);
+  // Workouts
+  const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
+  const [workoutsLoading, setWorkoutsLoading] = useState(true);
+  const [workoutsRefreshing, setWorkoutsRefreshing] = useState(false);
+  const [deletingWorkoutId, setDeletingWorkoutId] = useState<number | null>(null);
 
-  const load = useCallback(() => {
-    getHistory(token).then(setEntries).catch(() => {}).finally(() => setLoading(false));
+  // Nutrition
+  const [foodDays, setFoodDays] = useState<FoodLogHistoryDay[]>([]);
+  const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [nutritionRefreshing, setNutritionRefreshing] = useState(false);
+  const [foodDetail, setFoodDetail] = useState<FoodLogHistoryEntry | null>(null);
+
+  // Measurements
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
+  const [measLoading, setMeasLoading] = useState(true);
+  const [measRefreshing, setMeasRefreshing] = useState(false);
+  const [metricFilter, setMetricFilter] = useState<string>('all');
+  const [measModal, setMeasModal] = useState<MeasModalState | null>(null);
+  const [measSaving, setMeasSaving] = useState(false);
+
+  useEffect(() => {
+    getWorkouts(token, { limit: 200 }).then(setWorkouts).catch(() => {}).finally(() => setWorkoutsLoading(false));
+    getFoodLogHistory(token, 90).then(setFoodDays).catch(() => {}).finally(() => setNutritionLoading(false));
+    getMeasurements(token).then(setMeasurements).catch(() => {}).finally(() => setMeasLoading(false));
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await getHistory(token).then(setEntries).catch(() => {});
-    setRefreshing(false);
+  const refreshWorkouts = useCallback(async () => {
+    setWorkoutsRefreshing(true);
+    await getWorkouts(token, { limit: 200 }).then(setWorkouts).catch(() => {});
+    setWorkoutsRefreshing(false);
   }, [token]);
 
-  function openEdit(entry: HistoryEntry) {
-    setEditTarget(entry);
-    setEditDate(toEditDate(entry.made_at));
-    setEditTime(toEditTime(entry.made_at));
-  }
+  const refreshNutrition = useCallback(async () => {
+    setNutritionRefreshing(true);
+    await getFoodLogHistory(token, 90).then(setFoodDays).catch(() => {});
+    setNutritionRefreshing(false);
+  }, [token]);
 
-  async function commitEdit() {
-    if (!editTarget) return;
-    const combined = `${editDate}T${editTime}:00`;
-    const iso = new Date(combined).toISOString();
-    if (isNaN(new Date(combined).getTime())) {
-      Alert.alert('Invalid date', 'Please enter a valid date (YYYY-MM-DD) and time (HH:MM).');
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateLogEntry(token, editTarget.recipe_id, editTarget.log_id, iso);
-      setEntries((prev) =>
-        prev
-          .map((e) => e.log_id === editTarget.log_id ? { ...e, made_at: iso } : e)
-          .sort((a, b) => new Date(b.made_at).getTime() - new Date(a.made_at).getTime())
-      );
-      setEditTarget(null);
-    } catch {
-      Alert.alert('Error', 'Failed to update entry.');
-    } finally {
-      setSaving(false);
-    }
-  }
+  const refreshMeasurements = useCallback(async () => {
+    setMeasRefreshing(true);
+    await getMeasurements(token).then(setMeasurements).catch(() => {});
+    setMeasRefreshing(false);
+  }, [token]);
 
-  function handleDelete(entry: HistoryEntry) {
-    Alert.alert('Delete Entry', `Remove this log entry for "${entry.name}"?`, [
+  function handleDeleteWorkout(id: number) {
+    Alert.alert('Delete Workout', 'Delete this workout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteLogEntry(token, entry.recipe_id, entry.log_id).catch(() => {});
-          setEntries((prev) => prev.filter((e) => e.log_id !== entry.log_id));
+          setDeletingWorkoutId(id);
+          await deleteWorkout(token, id).catch(() => {});
+          setWorkouts((prev) => prev.filter((w) => w.id !== id));
+          setDeletingWorkoutId(null);
         },
       },
     ]);
   }
 
-  const sections = groupEntries(entries);
-  const styles = makeStyles(c);
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
-      </SafeAreaView>
-    );
+  function openNewMeasurement(metric: string) {
+    setMeasModal({ entry: null, metric, value: '', date: todayStr(), isNew: true });
   }
+
+  function openEditMeasurement(entry: BodyMeasurement) {
+    setMeasModal({ entry, metric: entry.metric, value: String(entry.value), date: entry.measuredAt, isNew: false });
+  }
+
+  async function saveMeasurement() {
+    if (!measModal) return;
+    const val = parseFloat(measModal.value);
+    if (isNaN(val) || !measModal.date) { Alert.alert('Invalid input', 'Enter a valid value and date.'); return; }
+    const unit = METRICS.find((m) => m.key === measModal.metric)?.unit ?? 'lbs';
+    setMeasSaving(true);
+    try {
+      if (measModal.isNew) {
+        const created = await addMeasurement(token, { metric: measModal.metric, value: val, unit, measuredAt: measModal.date });
+        setMeasurements((prev) => [created, ...prev].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)));
+      } else if (measModal.entry) {
+        const updated = await updateMeasurement(token, measModal.entry.id, { value: val, measuredAt: measModal.date });
+        setMeasurements((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+      }
+      setMeasModal(null);
+    } catch {
+      Alert.alert('Error', 'Failed to save measurement.');
+    } finally {
+      setMeasSaving(false);
+    }
+  }
+
+  function handleDeleteMeasurement(id: number) {
+    Alert.alert('Delete Measurement', 'Delete this entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteMeasurement(token, id).catch(() => {});
+          setMeasurements((prev) => prev.filter((m) => m.id !== id));
+        },
+      },
+    ]);
+  }
+
+  const swipe = useSwipeNav(-1, HIST_TABS, activeTab, setActiveTab);
+
+  const styles = makeStyles(c);
+  const workoutGroups = groupWorkoutsByDate(workouts);
+  const filteredMeasurements = measurements
+    .filter((m) => metricFilter === 'all' || m.metric === metricFilter)
+    .slice()
+    .sort((a, b) => {
+      const d = (b.measuredAt ?? '').localeCompare(a.measuredAt ?? '');
+      return d !== 0 ? d : (a.metric ?? '').localeCompare(b.metric ?? '');
+    });
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header + tabs */}
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
+        <View style={styles.tabRow}>
+          {HIST_TABS.map((tab) => (
+            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+              <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+                {tab === 'measurements' ? 'Measurements' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+              <View style={[styles.tabUnderline, activeTab === tab && styles.tabUnderlineActive]} />
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-      {entries.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyText}>No history yet</Text>
-          <Text style={styles.emptySubtext}>Log a recipe as made to see it here</Text>
+      {/* Swipe wrapper — panHandlers live here so swipe works regardless of which tab is active */}
+      <View style={styles.tabPane} {...swipe.panHandlers}>
+
+        {/* ── Workouts ───────────────────────────────────────────────── */}
+        {activeTab === 'workouts' && (
+          workoutsLoading ? (
+            <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
+          ) : workouts.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🏋️</Text>
+              <Text style={styles.emptyText}>No workouts yet</Text>
+            </View>
+          ) : (
+            <SectionList
+              sections={workoutGroups}
+              keyExtractor={(item) => String(item.id)}
+              contentContainerStyle={styles.list}
+              refreshControl={<RefreshControl refreshing={workoutsRefreshing} onRefresh={refreshWorkouts} tintColor={c.accent} />}
+              renderSectionHeader={({ section }) => (
+                <Text style={styles.sectionHeader}>{section.title}</Text>
+              )}
+              renderItem={({ item: w }) => (
+                <TouchableOpacity
+                  style={[styles.card, { flexDirection: 'row', alignItems: 'flex-start', padding: 14, marginBottom: 8 }]}
+                  onPress={() => router.push(`/(app)/workout/${w.id}` as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{w.name ?? w.routineName ?? fmtWorkoutDate(w.workoutDate)}</Text>
+                    {(w.name ?? w.routineName) && (
+                      <Text style={styles.cardSubtitle}>{fmtWorkoutDate(w.workoutDate)}</Text>
+                    )}
+                    <Text style={styles.cardMeta}>
+                      {w.durationMinutes != null ? `${w.durationMinutes} min · ` : ''}
+                      {Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS).toLocaleString()} lbs
+                    </Text>
+                    {w.exercises.length > 0 && (
+                      <View style={{ marginTop: 6, gap: 2 }}>
+                        {w.exercises.map((ex) => (
+                          <View key={ex.name} style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                            <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                            <Text style={styles.exMeta}>
+                              {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
+                              {ex.avgReps != null ? ` × ${ex.avgReps} reps` : ''}
+                              {ex.maxWeightKg != null ? ` · ${Math.round(ex.maxWeightKg * KG_TO_LBS * 10) / 10} lbs` : ''}
+                              {ex.totalDurationSeconds != null ? ` · ${Math.floor(ex.totalDurationSeconds / 60)}:${String(ex.totalDurationSeconds % 60).padStart(2, '0')}` : ''}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteWorkout(w.id)}
+                    disabled={deletingWorkoutId === w.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ paddingLeft: 8, opacity: deletingWorkoutId === w.id ? 0.4 : 1 }}
+                  >
+                    <Text style={{ fontSize: 22, color: c.muted, lineHeight: 24 }}>×</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+            />
+          )
+        )}
+
+        {/* ── Nutrition ──────────────────────────────────────────────── */}
+        {activeTab === 'nutrition' && (
+          nutritionLoading ? (
+            <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
+          ) : foodDays.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🥗</Text>
+              <Text style={styles.emptyText}>No nutrition logs yet</Text>
+            </View>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.list}
+              refreshControl={<RefreshControl refreshing={nutritionRefreshing} onRefresh={refreshNutrition} tintColor={c.accent} />}
+            >
+              {foodDays.map((day) => {
+                const byMeal = day.entries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
+                  if (!acc[e.meal]) acc[e.meal] = [];
+                  acc[e.meal].push(e);
+                  return acc;
+                }, {});
+                const dayTotal = mealTotals(day.entries);
+                return (
+                  <View key={day.date} style={{ marginBottom: 20 }}>
+                    <Text style={styles.sectionHeader}>{dayLabel(day.date)}</Text>
+                    <View style={styles.card}>
+                      <View style={styles.dayTotals}>
+                        {[['Cal', String(dayTotal.cal)], ['Protein', `${dayTotal.protein}g`], ['Carbs', `${dayTotal.carbs}g`], ['Fat', `${dayTotal.fat}g`]].map(([label, val]) => (
+                          <View key={label} style={{ flex: 1 }}>
+                            <Text style={styles.dayTotalLabel}>{label}</Text>
+                            <Text style={styles.dayTotalValue}>{val}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      {MEAL_ORDER.filter((m) => byMeal[m]?.length).map((meal, mIdx, arr) => {
+                        const totals = mealTotals(byMeal[meal]);
+                        return (
+                          <View key={meal} style={[styles.mealSection, mIdx < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border }]}>
+                            <View style={styles.mealHeader}>
+                              <Text style={styles.mealName}>{meal.charAt(0).toUpperCase() + meal.slice(1)}</Text>
+                              <Text style={styles.mealMeta}>{totals.cal} cal · {totals.protein}g P · {totals.carbs}g C · {totals.fat}g F</Text>
+                            </View>
+                            {byMeal[meal].map((e) => (
+                              <TouchableOpacity key={e.id} style={styles.foodRow} onPress={() => setFoodDetail(e)}>
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                  <Text style={styles.foodName} numberOfLines={1}>{e.foodName}</Text>
+                                  {e.brand && <Text style={styles.foodBrand} numberOfLines={1}>{e.brand}</Text>}
+                                </View>
+                                <Text style={styles.foodCal}>{e.calories} cal</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )
+        )}
+
+        {/* ── Measurements ───────────────────────────────────────────── */}
+        {activeTab === 'measurements' && (
+          measLoading ? (
+            <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.list}
+              refreshControl={<RefreshControl refreshing={measRefreshing} onRefresh={refreshMeasurements} tintColor={c.accent} />}
+            >
+              <View style={styles.measControls}>
+                <View style={styles.metricFilterRow}>
+                  <TouchableOpacity onPress={() => setMetricFilter('all')} style={[styles.metricChip, metricFilter === 'all' && styles.metricChipActive]}>
+                    <Text style={[styles.metricChipText, metricFilter === 'all' && styles.metricChipTextActive]}>All</Text>
+                  </TouchableOpacity>
+                  {METRICS.map(({ key, label }) => (
+                    <TouchableOpacity key={key} onPress={() => setMetricFilter(metricFilter === key ? 'all' : key)} style={[styles.metricChip, metricFilter === key && styles.metricChipActive]}>
+                      <Text style={[styles.metricChipText, metricFilter === key && styles.metricChipTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.addMeasRow}>
+                  {METRICS.map(({ key, label }) => (
+                    <TouchableOpacity key={key} onPress={() => openNewMeasurement(key)}>
+                      <Text style={styles.addMeasBtn}>+ {label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {filteredMeasurements.length === 0 ? (
+                <View style={[styles.card, { padding: 24, alignItems: 'center' }]}>
+                  <Text style={{ color: c.muted, fontSize: fontSize.sm }}>
+                    {metricFilter === 'all' ? 'No measurements logged yet' : `No ${METRICS.find((m) => m.key === metricFilter)?.label ?? metricFilter} measurements`}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.card}>
+                  <View style={[styles.measRow, styles.measHeaderRow]}>
+                    <Text style={[styles.measCell, styles.measHeader]}>Measurement</Text>
+                    <Text style={[styles.measCell, styles.measHeader]}>Value</Text>
+                    <Text style={[styles.measCell, styles.measHeader, { flex: 1.4 }]}>Date</Text>
+                    <View style={{ width: 60 }} />
+                  </View>
+                  {filteredMeasurements.map((entry, idx) => {
+                    const meta = METRICS.find((m) => m.key === entry.metric);
+                    return (
+                      <View key={entry.id} style={[styles.measRow, idx < filteredMeasurements.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border }]}>
+                        <Text style={[styles.measCell, { color: c.text }]}>{meta?.label ?? entry.metric}</Text>
+                        <Text style={[styles.measCell, { color: c.text, fontWeight: '600' }]}>{entry.value} {meta?.unit ?? entry.unit}</Text>
+                        <Text style={[styles.measCell, { flex: 1.4, color: c.muted, fontSize: fontSize.xs }]}>
+                          {fmtMeasDate(entry.measuredAt)}
+                        </Text>
+                        <View style={{ width: 60, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <TouchableOpacity onPress={() => openEditMeasurement(entry)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                            <Text style={{ fontSize: 16, color: c.muted }}>✎</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDeleteMeasurement(entry.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                            <Text style={{ fontSize: 20, color: c.muted, lineHeight: 22 }}>×</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          )
+        )}
+
+      </View>
+
+      {/* Food detail modal */}
+      <Modal visible={foodDetail !== null} transparent animationType="fade" onRequestClose={() => setFoodDetail(null)}>
+        <View style={styles.overlay}>
+          <View style={styles.detailModal}>
+            <Text style={styles.detailName}>{foodDetail?.foodName}</Text>
+            {foodDetail?.brand && <Text style={styles.detailBrand}>{foodDetail.brand}</Text>}
+            <Text style={styles.detailServing}>{foodDetail?.quantity} × {foodDetail?.servingLabel}</Text>
+            <View style={styles.detailMacros}>
+              {[
+                { label: 'Calories', val: String(foodDetail?.calories ?? 0) },
+                { label: 'Protein', val: `${foodDetail?.proteinG ?? 0}g` },
+                { label: 'Carbs', val: `${foodDetail?.carbsG ?? 0}g` },
+                { label: 'Fat', val: `${foodDetail?.fatG ?? 0}g` },
+              ].map(({ label, val }) => (
+                <View key={label} style={styles.detailMacroCell}>
+                  <Text style={styles.detailMacroLabel}>{label}</Text>
+                  <Text style={styles.detailMacroValue}>{val}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity onPress={() => setFoodDetail(null)} style={{ alignSelf: 'flex-end' }}>
+              <Text style={{ color: c.muted, fontSize: fontSize.sm, paddingVertical: 4, paddingHorizontal: 8 }}>Close</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => String(item.log_id)}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
-          renderSectionHeader={({ section }) => (
-            <Text style={styles.sectionHeader}>{section.title}</Text>
-          )}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.cardMain}
-                onPress={() => router.push(`/(app)/recipe/${item.recipe_id}`)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.thumb}>
-                  {item.photo_url ? (
-                    <Image source={{ uri: item.photo_url }} style={styles.thumbImg} />
-                  ) : (
-                    <Text style={styles.thumbIcon}>{item.type === 'cocktail' ? '🍸' : '🍴'}</Text>
-                  )}
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.cardTime}>{toTimeStr(item.made_at)}</Text>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  onPress={() => openEdit(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.editIcon}>✎</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleDelete(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.deleteIcon}>×</Text>
-                </TouchableOpacity>
+      </Modal>
+
+      {/* Measurement add/edit modal */}
+      <Modal visible={measModal !== null} transparent animationType="fade" onRequestClose={() => setMeasModal(null)}>
+        <View style={styles.overlay}>
+          <View style={styles.measModal}>
+            <Text style={styles.measModalTitle}>
+              {measModal?.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === measModal?.metric)?.label}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.measModalLabel}>Value ({METRICS.find((m) => m.key === measModal?.metric)?.unit})</Text>
+                <TextInput
+                  style={styles.measModalInput}
+                  value={measModal?.value ?? ''}
+                  onChangeText={(v) => setMeasModal((prev) => prev ? { ...prev, value: v } : prev)}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                  placeholder="0.0"
+                  placeholderTextColor={c.muted}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.measModalLabel}>Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.measModalInput}
+                  value={measModal?.date ?? ''}
+                  onChangeText={(v) => setMeasModal((prev) => prev ? { ...prev, date: v } : prev)}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="2026-01-01"
+                  placeholderTextColor={c.muted}
+                  returnKeyType="done"
+                  onSubmitEditing={saveMeasurement}
+                />
               </View>
             </View>
-          )}
-        />
-      )}
-
-      {/* Edit modal */}
-      <Modal visible={editTarget !== null} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
-        <View style={styles.overlay}>
-          <View style={styles.editModal}>
-            <Text style={styles.editModalTitle}>Edit Entry</Text>
-            {editTarget && <Text style={styles.editModalSubtitle} numberOfLines={1}>{editTarget.name}</Text>}
-
-            <Text style={styles.editLabel}>Date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={styles.editInput}
-              value={editDate}
-              onChangeText={setEditDate}
-              placeholder="2026-03-26"
-              placeholderTextColor={c.muted}
-              autoFocus
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="next"
-            />
-
-            <Text style={styles.editLabel}>Time (HH:MM)</Text>
-            <TextInput
-              style={styles.editInput}
-              value={editTime}
-              onChangeText={setEditTime}
-              placeholder="14:30"
-              placeholderTextColor={c.muted}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="done"
-              onSubmitEditing={commitEdit}
-            />
-
-            <View style={styles.editButtons}>
-              <TouchableOpacity onPress={() => setEditTarget(null)} style={styles.editCancelBtn}>
-                <Text style={styles.editCancelText}>Cancel</Text>
+            <View style={styles.measModalButtons}>
+              <TouchableOpacity onPress={() => setMeasModal(null)} style={styles.measCancelBtn}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={commitEdit} disabled={saving} style={[styles.editSaveBtn, saving && styles.editSaveBtnDisabled]}>
-                <Text style={styles.editSaveText}>{saving ? 'Saving…' : 'Save'}</Text>
+              <TouchableOpacity onPress={saveMeasurement} disabled={measSaving} style={[styles.measSaveBtn, measSaving && { opacity: 0.5 }]}>
+                <Text style={{ color: c.bg, fontWeight: '700', fontSize: fontSize.sm }}>{measSaving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -255,37 +515,77 @@ export default function HistoryScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
-    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    tabPane: { flex: 1 },
+    header: { paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: c.border },
+    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, paddingBottom: 8 },
+    tabRow: { flexDirection: 'row', gap: 0 },
+    tabBtn: { paddingRight: 20, paddingBottom: 0 },
+    tabLabel: { fontSize: fontSize.sm, fontWeight: '500', color: c.muted, paddingBottom: 10 },
+    tabLabelActive: { color: c.accent },
+    tabUnderline: { height: 2, borderRadius: 1, backgroundColor: 'transparent', marginTop: -2 },
+    tabUnderlineActive: { backgroundColor: c.accent },
+
     list: { padding: 16, paddingBottom: 32 },
     sectionHeader: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
-    card: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingRight: 10, marginBottom: 8, overflow: 'hidden' },
-    cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingLeft: 10, minWidth: 0 },
-    thumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: c.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, flexShrink: 0 },
-    thumbImg: { width: 40, height: 40 },
-    thumbIcon: { fontSize: 18, opacity: 0.4 },
-    cardText: { flex: 1, minWidth: 0 },
-    cardName: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
-    cardTime: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
-    actions: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4 },
-    actionBtn: { padding: 6 },
-    editIcon: { fontSize: 18, color: c.muted },
-    deleteIcon: { fontSize: 22, color: c.muted, lineHeight: 24 },
+    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 4 },
+
+    // Workout
+    cardTitle: { fontSize: fontSize.base, fontWeight: '600', color: c.text },
+    cardSubtitle: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    cardMeta: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    exName: { fontSize: fontSize.sm, color: c.text, flex: 1 },
+    exMeta: { fontSize: fontSize.xs, color: c.muted },
+
+    // Nutrition
+    dayTotals: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    dayTotalLabel: { fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    dayTotalValue: { fontSize: fontSize.base, fontWeight: '600', color: c.text, marginTop: 1 },
+    mealSection: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
+    mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
+    mealName: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
+    mealMeta: { fontSize: fontSize.xs, color: c.muted },
+    foodRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 4 },
+    foodName: { fontSize: fontSize.sm, color: c.text, flex: 1, minWidth: 0 },
+    foodBrand: { fontSize: fontSize.xs, color: c.muted },
+    foodCal: { fontSize: fontSize.xs, color: c.muted, paddingLeft: 8, flexShrink: 0 },
+
+    // Measurements
+    measControls: { marginBottom: 12 },
+    metricFilterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
+    metricChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: c.border },
+    metricChipActive: { backgroundColor: c.accent, borderColor: c.accent },
+    metricChipText: { fontSize: fontSize.xs, fontWeight: '600', color: c.muted },
+    metricChipTextActive: { color: c.bg },
+    addMeasRow: { flexDirection: 'row', gap: 16 },
+    addMeasBtn: { fontSize: fontSize.sm, color: c.accent },
+    measRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
+    measHeaderRow: { borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 8 },
+    measCell: { flex: 1, fontSize: fontSize.sm, color: c.muted },
+    measHeader: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },
+
+    // Shared modals
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     emptyIcon: { fontSize: 48, marginBottom: 12 },
     emptyText: { fontSize: fontSize.lg, color: c.muted },
-    emptySubtext: { fontSize: fontSize.sm, color: c.muted, marginTop: 4 },
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-    editModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '85%', borderWidth: 1, borderColor: c.border },
-    editModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 2 },
-    editModalSubtitle: { fontSize: fontSize.sm, color: c.muted, marginBottom: 16 },
-    editLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 4 },
-    editInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 12 },
-    editButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
-    editCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
-    editCancelText: { color: c.muted, fontSize: fontSize.sm },
-    editSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
-    editSaveBtnDisabled: { opacity: 0.5 },
-    editSaveText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
+
+    // Food detail modal
+    detailModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border, gap: 4 },
+    detailName: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
+    detailBrand: { fontSize: fontSize.sm, color: c.muted },
+    detailServing: { fontSize: fontSize.sm, color: c.muted, marginBottom: 8 },
+    detailMacros: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    detailMacroCell: { flex: 1, backgroundColor: c.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: c.border },
+    detailMacroLabel: { fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    detailMacroValue: { fontSize: fontSize.base, fontWeight: '600', color: c.text, marginTop: 2 },
+
+    // Measurement modal
+    measModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border },
+    measModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 14 },
+    measModalLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 6 },
+    measModalInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text },
+    measModalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
+    measCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
+    measSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
   });
 }

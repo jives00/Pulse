@@ -6,6 +6,15 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## April 26, 2026
 
+### Mobile
+
+- **History page** — new full History screen (Workouts / Nutrition / Measurements tabs) accessible from the More menu; swipe between tabs; workouts grouped by date with volume/exercise summary; nutrition grouped by meal with daily totals; measurements table with add/edit/delete and metric filter chips. `5724898`
+- **Goal "Achieved" status** — dashboard goal cards show "Achieved: [date]" in green when a goal is met instead of a projected date. `5724898`
+- **Log measurement from dashboard** — "+ Log" button in the North Star Goals card opens an inline modal to record a body measurement. `5724898`
+- **Custom food AI log** — food log search modal gains a "Log custom food" option; describe the food, AI estimates macros, user edits then logs without saving a recipe. `5724898`
+- **Links filter chip wrap** — category filter chips wrap to multiple lines instead of horizontal scroll, matching the Recipes page. `5724898`
+- **Keyboard fix in food log** — custom food modal now uses `behavior="padding"` on both platforms so the form stays above the keyboard. `5724898`
+
 ### Web
 
 - **Goal pace "Achieved" fix** — North Star goal cards now show "✓ Achieved" (green) with the date the goal was first met instead of "↓ Behind"; ETA label changes to "Achieved" on completion. `76bfa0f`

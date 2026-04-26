@@ -9,7 +9,7 @@ import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry,
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
-  aiModifyRecipe, logModifiedRecipe,
+  aiModifyRecipe, logModifiedRecipe, logInline, estimateMacros,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult,
 } from '../../../src/api/client';
@@ -47,7 +47,7 @@ const MEALS: { slot: MealSlot; label: string }[] = [
   { slot: 'snack', label: 'Snack' },
 ];
 
-type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'barcode-review' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
+type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'barcode-review' | 'modify-pick' | 'modify-prompt' | 'modify-preview' | 'custom';
 
 type BarcodeQueueItem = {
   key: string;
@@ -133,6 +133,16 @@ export default function NutritionScreen() {
   const [modifyResult, setModifyResult] = useState<any | null>(null);
   const [modifyError, setModifyError] = useState<string | null>(null);
   const [modifyLogging, setModifyLogging] = useState(false);
+
+  // Custom food (log only, no recipe saved)
+  const [customDescription, setCustomDescription] = useState('');
+  const [customCalories, setCustomCalories] = useState('');
+  const [customProtein, setCustomProtein] = useState('');
+  const [customCarbs, setCustomCarbs] = useState('');
+  const [customFat, setCustomFat] = useState('');
+  const [customEstimating, setCustomEstimating] = useState(false);
+  const [customEstimated, setCustomEstimated] = useState(false);
+  const [customLogging, setCustomLogging] = useState(false);
 
   // Barcode scanner
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -402,6 +412,45 @@ export default function NutritionScreen() {
       setModifyError('Failed to log. Please try again.');
     } finally {
       setModifyLogging(false);
+    }
+  }
+
+  async function handleCustomEstimate() {
+    const desc = customDescription.trim();
+    if (!desc) return;
+    setCustomEstimating(true);
+    try {
+      const macros = await estimateMacros(token, { name: desc });
+      setCustomCalories(String(Math.round(macros.calories)));
+      setCustomProtein(String(Math.round(macros.protein * 10) / 10));
+      setCustomCarbs(String(Math.round(macros.carbs * 10) / 10));
+      setCustomFat(String(Math.round(macros.fat * 10) / 10));
+      setCustomEstimated(true);
+    } catch {
+      Alert.alert('Estimation failed', 'Could not estimate macros. Enter them manually.');
+    } finally {
+      setCustomEstimating(false);
+    }
+  }
+
+  async function handleCustomLog() {
+    if (!addMeal) return;
+    const name = customDescription.trim();
+    if (!name) { Alert.alert('Description required', 'Please describe what you ate.'); return; }
+    const calories = parseFloat(customCalories);
+    const protein = parseFloat(customProtein) || 0;
+    const carbs = parseFloat(customCarbs) || 0;
+    const fat = parseFloat(customFat) || 0;
+    if (isNaN(calories) || calories < 0) { Alert.alert('Invalid calories', 'Please enter a valid calorie amount.'); return; }
+    setCustomLogging(true);
+    try {
+      await logInline(token, { name, meal: addMeal, logDate: date, calories, protein_g: protein, carbs_g: carbs, fat_g: fat });
+      setAddMeal(null);
+      load();
+    } catch {
+      Alert.alert('Error', 'Failed to log custom food.');
+    } finally {
+      setCustomLogging(false);
     }
   }
 
@@ -1438,7 +1487,92 @@ export default function NutritionScreen() {
               >
                 <Text style={s.modifyFooterText}>✦ Log modified recipe</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modifyFooterBtn, { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }]}
+                onPress={() => {
+                  setCustomDescription('');
+                  setCustomCalories('');
+                  setCustomProtein('');
+                  setCustomCarbs('');
+                  setCustomFat('');
+                  setCustomEstimated(false);
+                  setModalView('custom');
+                }}
+              >
+                <Text style={s.modifyFooterText}>✦ Log custom food</Text>
+              </TouchableOpacity>
             </>
+          )}
+
+          {modalView === 'custom' && (
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('search')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle}>Log Custom Food</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
+                <Text style={s.moveCopySection}>What did you eat?</Text>
+                <TextInput
+                  style={s.modifyPromptInput}
+                  value={customDescription}
+                  onChangeText={(t) => { setCustomDescription(t); setCustomEstimated(false); }}
+                  placeholder='e.g. "6oz grilled chicken breast" or "bowl of oatmeal with berries"'
+                  placeholderTextColor={c.muted}
+                  multiline
+                  numberOfLines={2}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[s.confirmBtn, { marginTop: 12 }, (!customDescription.trim() || customEstimating) && { opacity: 0.5 }]}
+                  onPress={handleCustomEstimate}
+                  disabled={!customDescription.trim() || customEstimating}
+                >
+                  {customEstimating
+                    ? <ActivityIndicator color={c.bg} />
+                    : <Text style={s.confirmBtnText}>✦ Estimate macros with AI</Text>
+                  }
+                </TouchableOpacity>
+
+                {(customEstimated || customCalories !== '') && (
+                  <>
+                    <Text style={[s.moveCopySection, { marginTop: 20 }]}>Macros {customEstimated ? '(AI estimate — edit if needed)' : ''}</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      {([
+                        { label: 'Cal', value: customCalories, set: setCustomCalories },
+                        { label: 'Protein g', value: customProtein, set: setCustomProtein },
+                        { label: 'Carbs g', value: customCarbs, set: setCustomCarbs },
+                        { label: 'Fat g', value: customFat, set: setCustomFat },
+                      ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
+                        <View key={label} style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, color: c.muted, marginBottom: 4, textAlign: 'center' }}>{label}</Text>
+                          <TextInput
+                            style={[s.reviewFieldInput, { textAlign: 'center' }]}
+                            value={value}
+                            onChangeText={set}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.muted}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={[s.confirmBtn, { marginTop: 8 }, (!customDescription.trim() || customLogging) && { opacity: 0.5 }]}
+                      onPress={handleCustomLog}
+                      disabled={!customDescription.trim() || customLogging}
+                    >
+                      <Text style={s.confirmBtnText}>{customLogging ? 'Logging…' : `Log to ${mealLabel}`}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            </KeyboardAvoidingView>
           )}
         </SafeAreaView>
       </Modal>

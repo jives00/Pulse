@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Linking,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -135,12 +134,12 @@ export default function LinksScreen() {
       </View>
 
       {/* Category filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
+      <View style={styles.filterRow}>
         <FilterChip label="All" active={!filterCat} onPress={() => setFilterCat('')} />
         {(['food', 'drinks', 'nutrition', 'exercise', 'other'] as const).map((cat) => (
           <FilterChip key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)} active={filterCat === cat} onPress={() => setFilterCat(filterCat === cat ? '' : cat)} />
         ))}
-      </ScrollView>
+      </View>
 
       {(() => {
         const filtered = filterCat ? links.filter((l) => l.category === filterCat) : links;
@@ -227,8 +226,7 @@ function makeStyles(c: Colors) {
     addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', minWidth: 60 },
     addBtnDisabled: { opacity: 0.4 },
     addBtnText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
-    filterScroll: { borderBottomWidth: 1, borderBottomColor: c.border },
-    filterRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+    filterRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border },
     list: { padding: 16 },
     card: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
     cardText: { flex: 1, minWidth: 0 },
