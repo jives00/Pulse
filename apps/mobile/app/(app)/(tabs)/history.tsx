@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   RefreshControl,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -25,8 +25,16 @@ import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
 type Tab = 'workouts' | 'nutrition' | 'measurements';
+type RangeKey = '30d' | '90d' | '1y' | 'all';
 
 const HIST_TABS = ['workouts', 'nutrition', 'measurements'] as const;
+
+const RANGES: { key: RangeKey; label: string; days: number | null }[] = [
+  { key: '30d', label: '30d', days: 30 },
+  { key: '90d', label: '90d', days: 90 },
+  { key: '1y', label: '1y', days: 365 },
+  { key: 'all', label: 'All', days: null },
+];
 
 const METRICS = [
   { key: 'weight', label: 'Weight', unit: 'lbs' },
@@ -38,6 +46,15 @@ const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function rangeDates(days: number | null): { start?: string; end?: string } {
+  if (days == null) return {};
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
 }
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -104,6 +121,8 @@ export default function HistoryScreen() {
   const router = useRouter();
   const c = useColors();
   const [activeTab, setActiveTab] = useState<Tab>('workouts');
+  const [range, setRange] = useState<RangeKey>('30d');
+  const dateParams = useMemo(() => rangeDates(RANGES.find((r) => r.key === range)?.days ?? null), [range]);
 
   // Workouts
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -126,28 +145,31 @@ export default function HistoryScreen() {
   const [measSaving, setMeasSaving] = useState(false);
 
   useEffect(() => {
-    getWorkouts(token, { limit: 200 }).then(setWorkouts).catch(() => {}).finally(() => setWorkoutsLoading(false));
-    getFoodLogHistory(token, 90).then(setFoodDays).catch(() => {}).finally(() => setNutritionLoading(false));
-    getMeasurements(token).then(setMeasurements).catch(() => {}).finally(() => setMeasLoading(false));
-  }, [token]);
+    setWorkoutsLoading(true);
+    setNutritionLoading(true);
+    setMeasLoading(true);
+    getWorkouts(token, { limit: 1000, ...dateParams }).then(setWorkouts).catch(() => {}).finally(() => setWorkoutsLoading(false));
+    getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {}).finally(() => setNutritionLoading(false));
+    getMeasurements(token, dateParams).then(setMeasurements).catch(() => {}).finally(() => setMeasLoading(false));
+  }, [token, dateParams]);
 
   const refreshWorkouts = useCallback(async () => {
     setWorkoutsRefreshing(true);
-    await getWorkouts(token, { limit: 200 }).then(setWorkouts).catch(() => {});
+    await getWorkouts(token, { limit: 1000, ...dateParams }).then(setWorkouts).catch(() => {});
     setWorkoutsRefreshing(false);
-  }, [token]);
+  }, [token, dateParams]);
 
   const refreshNutrition = useCallback(async () => {
     setNutritionRefreshing(true);
-    await getFoodLogHistory(token, 90).then(setFoodDays).catch(() => {});
+    await getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {});
     setNutritionRefreshing(false);
-  }, [token]);
+  }, [token, dateParams]);
 
   const refreshMeasurements = useCallback(async () => {
     setMeasRefreshing(true);
-    await getMeasurements(token).then(setMeasurements).catch(() => {});
+    await getMeasurements(token, dateParams).then(setMeasurements).catch(() => {});
     setMeasRefreshing(false);
-  }, [token]);
+  }, [token, dateParams]);
 
   function handleDeleteWorkout(id: number) {
     Alert.alert('Delete Workout', 'Delete this workout?', [
@@ -225,7 +247,21 @@ export default function HistoryScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header + tabs */}
       <View style={styles.header}>
-        <Text style={styles.title}>History</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>History</Text>
+          <View style={styles.rangeRow}>
+            {RANGES.map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => setRange(key)}
+                style={[styles.rangeChip, range === key && styles.rangeChipActive]}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              >
+                <Text style={[styles.rangeChipText, range === key && styles.rangeChipTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
         <View style={styles.tabRow}>
           {HIST_TABS.map((tab) => (
             <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
@@ -311,14 +347,18 @@ export default function HistoryScreen() {
           ) : foodDays.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>🥗</Text>
-              <Text style={styles.emptyText}>No nutrition logs yet</Text>
+              <Text style={styles.emptyText}>No nutrition logs in range</Text>
             </View>
           ) : (
-            <ScrollView
+            <FlatList
+              data={foodDays}
+              keyExtractor={(day) => day.date}
               contentContainerStyle={styles.list}
               refreshControl={<RefreshControl refreshing={nutritionRefreshing} onRefresh={refreshNutrition} tintColor={c.accent} />}
-            >
-              {foodDays.map((day) => {
+              initialNumToRender={6}
+              windowSize={5}
+              removeClippedSubviews
+              renderItem={({ item: day }) => {
                 const byMeal = day.entries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
                   if (!acc[e.meal]) acc[e.meal] = [];
                   acc[e.meal].push(e);
@@ -326,7 +366,7 @@ export default function HistoryScreen() {
                 }, {});
                 const dayTotal = mealTotals(day.entries);
                 return (
-                  <View key={day.date} style={{ marginBottom: 20 }}>
+                  <View style={{ marginBottom: 20 }}>
                     <Text style={styles.sectionHeader}>{dayLabel(day.date)}</Text>
                     <View style={styles.card}>
                       <View style={styles.dayTotals}>
@@ -360,8 +400,8 @@ export default function HistoryScreen() {
                     </View>
                   </View>
                 );
-              })}
-            </ScrollView>
+              }}
+            />
           )
         )}
 
@@ -370,67 +410,81 @@ export default function HistoryScreen() {
           measLoading ? (
             <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
           ) : (
-            <ScrollView
+            <FlatList
+              data={filteredMeasurements}
+              keyExtractor={(entry) => String(entry.id)}
               contentContainerStyle={styles.list}
               refreshControl={<RefreshControl refreshing={measRefreshing} onRefresh={refreshMeasurements} tintColor={c.accent} />}
-            >
-              <View style={styles.measControls}>
-                <View style={styles.metricFilterRow}>
-                  <TouchableOpacity onPress={() => setMetricFilter('all')} style={[styles.metricChip, metricFilter === 'all' && styles.metricChipActive]}>
-                    <Text style={[styles.metricChipText, metricFilter === 'all' && styles.metricChipTextActive]}>All</Text>
-                  </TouchableOpacity>
-                  {METRICS.map(({ key, label }) => (
-                    <TouchableOpacity key={key} onPress={() => setMetricFilter(metricFilter === key ? 'all' : key)} style={[styles.metricChip, metricFilter === key && styles.metricChipActive]}>
-                      <Text style={[styles.metricChipText, metricFilter === key && styles.metricChipTextActive]}>{label}</Text>
-                    </TouchableOpacity>
-                  ))}
+              initialNumToRender={20}
+              windowSize={10}
+              removeClippedSubviews
+              ListHeaderComponent={
+                <View>
+                  <View style={styles.measControls}>
+                    <View style={styles.metricFilterRow}>
+                      <TouchableOpacity onPress={() => setMetricFilter('all')} style={[styles.metricChip, metricFilter === 'all' && styles.metricChipActive]}>
+                        <Text style={[styles.metricChipText, metricFilter === 'all' && styles.metricChipTextActive]}>All</Text>
+                      </TouchableOpacity>
+                      {METRICS.map(({ key, label }) => (
+                        <TouchableOpacity key={key} onPress={() => setMetricFilter(metricFilter === key ? 'all' : key)} style={[styles.metricChip, metricFilter === key && styles.metricChipActive]}>
+                          <Text style={[styles.metricChipText, metricFilter === key && styles.metricChipTextActive]}>{label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={styles.addMeasRow}>
+                      {METRICS.map(({ key, label }) => (
+                        <TouchableOpacity key={key} onPress={() => openNewMeasurement(key)}>
+                          <Text style={styles.addMeasBtn}>+ {label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  {filteredMeasurements.length > 0 && (
+                    <View style={[styles.card, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 }]}>
+                      <View style={[styles.measRow, styles.measHeaderRow]}>
+                        <Text style={[styles.measCell, styles.measHeader]}>Measurement</Text>
+                        <Text style={[styles.measCell, styles.measHeader]}>Value</Text>
+                        <Text style={[styles.measCell, styles.measHeader, { flex: 1.4 }]}>Date</Text>
+                        <View style={{ width: 60 }} />
+                      </View>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.addMeasRow}>
-                  {METRICS.map(({ key, label }) => (
-                    <TouchableOpacity key={key} onPress={() => openNewMeasurement(key)}>
-                      <Text style={styles.addMeasBtn}>+ {label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {filteredMeasurements.length === 0 ? (
+              }
+              ListEmptyComponent={
                 <View style={[styles.card, { padding: 24, alignItems: 'center' }]}>
                   <Text style={{ color: c.muted, fontSize: fontSize.sm }}>
-                    {metricFilter === 'all' ? 'No measurements logged yet' : `No ${METRICS.find((m) => m.key === metricFilter)?.label ?? metricFilter} measurements`}
+                    {metricFilter === 'all' ? 'No measurements in range' : `No ${METRICS.find((m) => m.key === metricFilter)?.label ?? metricFilter} measurements in range`}
                   </Text>
                 </View>
-              ) : (
-                <View style={styles.card}>
-                  <View style={[styles.measRow, styles.measHeaderRow]}>
-                    <Text style={[styles.measCell, styles.measHeader]}>Measurement</Text>
-                    <Text style={[styles.measCell, styles.measHeader]}>Value</Text>
-                    <Text style={[styles.measCell, styles.measHeader, { flex: 1.4 }]}>Date</Text>
-                    <View style={{ width: 60 }} />
+              }
+              renderItem={({ item: entry, index }) => {
+                const meta = METRICS.find((m) => m.key === entry.metric);
+                const isLast = index === filteredMeasurements.length - 1;
+                return (
+                  <View style={[
+                    styles.measRow,
+                    { backgroundColor: c.card, borderLeftWidth: 1, borderRightWidth: 1, borderColor: c.border },
+                    !isLast && { borderBottomWidth: 1, borderBottomColor: c.border },
+                    isLast && { borderBottomWidth: 1, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 },
+                  ]}>
+                    <Text style={[styles.measCell, { color: c.text }]}>{meta?.label ?? entry.metric}</Text>
+                    <Text style={[styles.measCell, { color: c.text, fontWeight: '600' }]}>{entry.value} {meta?.unit ?? entry.unit}</Text>
+                    <Text style={[styles.measCell, { flex: 1.4, color: c.muted, fontSize: fontSize.xs }]}>
+                      {fmtMeasDate(entry.measuredAt)}
+                    </Text>
+                    <View style={{ width: 60, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      <TouchableOpacity onPress={() => openEditMeasurement(entry)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                        <Text style={{ fontSize: 16, color: c.muted }}>✎</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteMeasurement(entry.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                        <Text style={{ fontSize: 20, color: c.muted, lineHeight: 22 }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  {filteredMeasurements.map((entry, idx) => {
-                    const meta = METRICS.find((m) => m.key === entry.metric);
-                    return (
-                      <View key={entry.id} style={[styles.measRow, idx < filteredMeasurements.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border }]}>
-                        <Text style={[styles.measCell, { color: c.text }]}>{meta?.label ?? entry.metric}</Text>
-                        <Text style={[styles.measCell, { color: c.text, fontWeight: '600' }]}>{entry.value} {meta?.unit ?? entry.unit}</Text>
-                        <Text style={[styles.measCell, { flex: 1.4, color: c.muted, fontSize: fontSize.xs }]}>
-                          {fmtMeasDate(entry.measuredAt)}
-                        </Text>
-                        <View style={{ width: 60, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                          <TouchableOpacity onPress={() => openEditMeasurement(entry)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                            <Text style={{ fontSize: 16, color: c.muted }}>✎</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleDeleteMeasurement(entry.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                            <Text style={{ fontSize: 20, color: c.muted, lineHeight: 22 }}>×</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </ScrollView>
+                );
+              }}
+            />
           )
         )}
 
@@ -517,7 +571,13 @@ function makeStyles(c: Colors) {
     container: { flex: 1, backgroundColor: c.bg },
     tabPane: { flex: 1 },
     header: { paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: c.border },
-    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, paddingBottom: 8 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8 },
+    title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    rangeRow: { flexDirection: 'row' },
+    rangeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 4 },
+    rangeChipActive: { backgroundColor: c.accent },
+    rangeChipText: { fontSize: fontSize.xs, fontWeight: '600', color: c.muted },
+    rangeChipTextActive: { color: c.bg },
     tabRow: { flexDirection: 'row', gap: 0 },
     tabBtn: { paddingRight: 20, paddingBottom: 0 },
     tabLabel: { fontSize: fontSize.sm, fontWeight: '500', color: c.muted, paddingBottom: 10 },

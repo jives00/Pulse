@@ -340,11 +340,13 @@ export async function getGoalsSummary(token: string, date?: string): Promise<Goa
 }
 
 // Workouts
-export async function getWorkouts(token: string, params?: { limit?: number; offset?: number; routineId?: number }): Promise<WorkoutSummary[]> {
+export async function getWorkouts(token: string, params?: { limit?: number; offset?: number; routineId?: number; start?: string; end?: string }): Promise<WorkoutSummary[]> {
   const p = new URLSearchParams();
   if (params?.limit != null) p.set('limit', String(params.limit));
   if (params?.offset != null) p.set('offset', String(params.offset));
   if (params?.routineId != null) p.set('routineId', String(params.routineId));
+  if (params?.start) p.set('start', params.start);
+  if (params?.end) p.set('end', params.end);
   const qs = p.toString() ? `?${p.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/workouts${qs}`, { headers: headers(token) });
   return handle<WorkoutSummary[]>(res);
@@ -649,8 +651,12 @@ export async function getPersonalBests(token: string): Promise<PersonalBests> {
 }
 
 // Body measurements
-export async function getMeasurements(token: string): Promise<BodyMeasurement[]> {
-  const res = await fetch(`${API_BASE}/api/measurements`, { headers: headers(token) });
+export async function getMeasurements(token: string, params?: { start?: string; end?: string }): Promise<BodyMeasurement[]> {
+  const p = new URLSearchParams();
+  if (params?.start) p.set('start', params.start);
+  if (params?.end) p.set('end', params.end);
+  const qs = p.toString() ? `?${p.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/measurements${qs}`, { headers: headers(token) });
   return handle<BodyMeasurement[]>(res);
 }
 export async function addMeasurement(token: string, data: { metric: string; value: number; unit: string; measuredAt: string }): Promise<BodyMeasurement> {
@@ -671,8 +677,13 @@ export async function getWaterHistory(token: string, start: string, end: string)
   return handle<WaterHistory>(res);
 }
 
-export async function getFoodLogHistory(token: string, limit = 30): Promise<FoodLogHistoryDay[]> {
-  const res = await fetch(`${API_BASE}/api/log/history?limit=${limit}`, { headers: headers(token) });
+export async function getFoodLogHistory(token: string, params?: { limit?: number; start?: string; end?: string }): Promise<FoodLogHistoryDay[]> {
+  const p = new URLSearchParams();
+  if (params?.limit != null) p.set('limit', String(params.limit));
+  if (params?.start) p.set('start', params.start);
+  if (params?.end) p.set('end', params.end);
+  const qs = p.toString() ? `?${p.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/log/history${qs}`, { headers: headers(token) });
   return handle<FoodLogHistoryDay[]>(res);
 }
 

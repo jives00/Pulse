@@ -542,7 +542,7 @@ export default function DashboardScreen() {
         getPersonalBests(token).catch(() => null),
         getGoalsSummary(token).catch(() => null),
         getWaterHistory(token, start, end).catch(() => null),
-        getFoodLogHistory(token, 90).catch(() => []),
+        getFoodLogHistory(token, { limit: 90 }).catch(() => []),
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
         getTDEE(token).catch(() => null),

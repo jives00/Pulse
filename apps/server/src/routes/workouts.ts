@@ -221,17 +221,22 @@ router.get('/active', async (req, res) => {
 
 // GET /api/workouts
 router.get('/', async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 20, 500);
+  const hasDateRange = typeof req.query.start === 'string' || typeof req.query.end === 'string';
+  const limit = Math.min(Number(req.query.limit) || (hasDateRange ? 1000 : 20), 5000);
   const offset = Number(req.query.offset) || 0;
   const routineId = req.query.routineId ? Number(req.query.routineId) : null;
+  const start = typeof req.query.start === 'string' ? req.query.start : null;
+  const end = typeof req.query.end === 'string' ? req.query.end : null;
 
   try {
-    const whereClause = routineId
-      ? 'WHERE wl.user_id = ? AND wl.routine_id = ? AND wl.completed = 1'
-      : 'WHERE wl.user_id = ? AND wl.completed = 1';
-    const queryParams = routineId
-      ? [req.userId, routineId, limit, offset]
-      : [req.userId, limit, offset];
+    const whereParts = ['wl.user_id = ?', 'wl.completed = 1'];
+    const queryParams: unknown[] = [req.userId];
+    if (routineId) { whereParts.push('wl.routine_id = ?'); queryParams.push(routineId); }
+    if (start && end) { whereParts.push('wl.workout_date BETWEEN ? AND ?'); queryParams.push(start, end); }
+    else if (start) { whereParts.push('wl.workout_date >= ?'); queryParams.push(start); }
+    else if (end) { whereParts.push('wl.workout_date <= ?'); queryParams.push(end); }
+    queryParams.push(limit, offset);
+    const whereClause = `WHERE ${whereParts.join(' AND ')}`;
 
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT wl.*,

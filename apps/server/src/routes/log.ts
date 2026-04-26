@@ -426,23 +426,44 @@ router.put('/:id', async (req, res) => {
 // ── GET /log/history ─────────────────────────────────────────
 
 router.get('/history', async (req, res) => {
-  const { limit = '90' } = req.query as { limit?: string };
+  const { limit = '90', start, end } = req.query as { limit?: string; start?: string; end?: string };
   try {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT fl.id, fl.log_date, fl.meal, fl.calories, fl.carbs_g, fl.protein_g, fl.fat_g,
-              fl.quantity, f.name AS food_name, f.brand,
-              ss.label AS serving_label, fl.serving_size_id
-       FROM food_log fl
-       JOIN foods f ON f.id = fl.food_id
-       JOIN serving_sizes ss ON ss.id = fl.serving_size_id
-       JOIN (
-         SELECT DISTINCT log_date FROM food_log
-         WHERE user_id = ? ORDER BY log_date DESC LIMIT ?
-       ) recent ON recent.log_date = fl.log_date
-       WHERE fl.user_id = ?
-       ORDER BY fl.log_date DESC, fl.logged_at DESC`,
-      [req.userId, Number(limit), req.userId]
-    );
+    let rows: RowDataPacket[];
+    if (start || end) {
+      const dateParams: unknown[] = [req.userId];
+      let dateClause = '';
+      if (start && end) { dateClause = 'AND fl.log_date BETWEEN ? AND ?'; dateParams.push(start, end); }
+      else if (start) { dateClause = 'AND fl.log_date >= ?'; dateParams.push(start); }
+      else if (end) { dateClause = 'AND fl.log_date <= ?'; dateParams.push(end); }
+
+      [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT fl.id, fl.log_date, fl.meal, fl.calories, fl.carbs_g, fl.protein_g, fl.fat_g,
+                fl.quantity, f.name AS food_name, f.brand,
+                ss.label AS serving_label, fl.serving_size_id
+         FROM food_log fl
+         JOIN foods f ON f.id = fl.food_id
+         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+         WHERE fl.user_id = ? ${dateClause}
+         ORDER BY fl.log_date DESC, fl.logged_at DESC`,
+        dateParams
+      );
+    } else {
+      [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT fl.id, fl.log_date, fl.meal, fl.calories, fl.carbs_g, fl.protein_g, fl.fat_g,
+                fl.quantity, f.name AS food_name, f.brand,
+                ss.label AS serving_label, fl.serving_size_id
+         FROM food_log fl
+         JOIN foods f ON f.id = fl.food_id
+         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+         JOIN (
+           SELECT DISTINCT log_date FROM food_log
+           WHERE user_id = ? ORDER BY log_date DESC LIMIT ?
+         ) recent ON recent.log_date = fl.log_date
+         WHERE fl.user_id = ?
+         ORDER BY fl.log_date DESC, fl.logged_at DESC`,
+        [req.userId, Number(limit), req.userId]
+      );
+    }
 
     const byDate: Map<string, { date: string; calories: number; protein: number; entries: object[] }> = new Map();
     for (const row of rows) {

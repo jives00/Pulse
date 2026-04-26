@@ -11,16 +11,24 @@ function parseId(param: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-// GET /api/measurements
-// Returns all entries for each metric, newest first
+// GET /api/measurements?start=YYYY-MM-DD&end=YYYY-MM-DD
+// Returns entries newest first. When start/end omitted, returns all (backward compat).
 router.get('/', async (req, res) => {
+  const start = typeof req.query.start === 'string' ? req.query.start : null;
+  const end = typeof req.query.end === 'string' ? req.query.end : null;
   try {
+    const params: unknown[] = [req.userId];
+    let dateClause = '';
+    if (start && end) { dateClause = ' AND measured_at BETWEEN ? AND ?'; params.push(start, end); }
+    else if (start) { dateClause = ' AND measured_at >= ?'; params.push(start); }
+    else if (end) { dateClause = ' AND measured_at <= ?'; params.push(end); }
+
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT id, metric, value, unit, measured_at, notes, created_at
        FROM body_measurements
-       WHERE user_id = ?
+       WHERE user_id = ?${dateClause}
        ORDER BY measured_at DESC, created_at DESC`,
-      [req.userId]
+      params
     );
     res.json(rows.map((r) => ({
       id: r.id,
