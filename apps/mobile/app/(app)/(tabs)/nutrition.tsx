@@ -1337,6 +1337,76 @@ export default function NutritionScreen() {
                 <View style={{ height: 24 }} />
               </ScrollView>
             </>
+          ) : modalView === 'custom' ? (
+            /* Custom food entry */
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+              <View style={s.modalHeader}>
+                <TouchableOpacity onPress={() => setModalView('search')} style={{ padding: 4 }}>
+                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={s.modalTitle}>Log Custom Food</Text>
+                <TouchableOpacity onPress={() => setAddMeal(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
+                <Text style={s.moveCopySection}>What did you eat?</Text>
+                <TextInput
+                  style={s.modifyPromptInput}
+                  value={customDescription}
+                  onChangeText={(t) => { setCustomDescription(t); setCustomEstimated(false); }}
+                  placeholder='e.g. "6oz grilled chicken breast" or "bowl of oatmeal with berries"'
+                  placeholderTextColor={c.muted}
+                  multiline
+                  numberOfLines={2}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[s.confirmBtn, { marginTop: 12 }, (!customDescription.trim() || customEstimating) && { opacity: 0.5 }]}
+                  onPress={handleCustomEstimate}
+                  disabled={!customDescription.trim() || customEstimating}
+                >
+                  {customEstimating
+                    ? <ActivityIndicator color={c.bg} />
+                    : <Text style={s.confirmBtnText}>✦ Estimate macros with AI</Text>
+                  }
+                </TouchableOpacity>
+
+                {(customEstimated || customCalories !== '') && (
+                  <>
+                    <Text style={[s.moveCopySection, { marginTop: 20 }]}>Macros {customEstimated ? '(AI estimate — edit if needed)' : ''}</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      {([
+                        { label: 'Cal', value: customCalories, set: setCustomCalories },
+                        { label: 'Protein g', value: customProtein, set: setCustomProtein },
+                        { label: 'Carbs g', value: customCarbs, set: setCustomCarbs },
+                        { label: 'Fat g', value: customFat, set: setCustomFat },
+                      ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
+                        <View key={label} style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, color: c.muted, marginBottom: 4, textAlign: 'center' }}>{label}</Text>
+                          <TextInput
+                            style={[s.reviewFieldInput, { textAlign: 'center' }]}
+                            value={value}
+                            onChangeText={set}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.muted}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={[s.confirmBtn, { marginTop: 8 }, (!customDescription.trim() || customLogging) && { opacity: 0.5 }]}
+                      onPress={handleCustomLog}
+                      disabled={!customDescription.trim() || customLogging}
+                    >
+                      <Text style={s.confirmBtnText}>{customLogging ? 'Logging…' : `Log to ${mealLabel}`}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            </KeyboardAvoidingView>
           ) : modalView === 'food-pick' && selectedFood ? (
             /* Food serving picker */
             <>
@@ -1504,76 +1574,6 @@ export default function NutritionScreen() {
             </>
           )}
 
-          {modalView === 'custom' && (
-            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-              <View style={s.modalHeader}>
-                <TouchableOpacity onPress={() => setModalView('search')} style={{ padding: 4 }}>
-                  <Text style={[s.backBtnText, { fontSize: fontSize.base }]}>← Back</Text>
-                </TouchableOpacity>
-                <Text style={s.modalTitle}>Log Custom Food</Text>
-                <TouchableOpacity onPress={() => setAddMeal(null)}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
-                <Text style={s.moveCopySection}>What did you eat?</Text>
-                <TextInput
-                  style={s.modifyPromptInput}
-                  value={customDescription}
-                  onChangeText={(t) => { setCustomDescription(t); setCustomEstimated(false); }}
-                  placeholder='e.g. "6oz grilled chicken breast" or "bowl of oatmeal with berries"'
-                  placeholderTextColor={c.muted}
-                  multiline
-                  numberOfLines={2}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={[s.confirmBtn, { marginTop: 12 }, (!customDescription.trim() || customEstimating) && { opacity: 0.5 }]}
-                  onPress={handleCustomEstimate}
-                  disabled={!customDescription.trim() || customEstimating}
-                >
-                  {customEstimating
-                    ? <ActivityIndicator color={c.bg} />
-                    : <Text style={s.confirmBtnText}>✦ Estimate macros with AI</Text>
-                  }
-                </TouchableOpacity>
-
-                {(customEstimated || customCalories !== '') && (
-                  <>
-                    <Text style={[s.moveCopySection, { marginTop: 20 }]}>Macros {customEstimated ? '(AI estimate — edit if needed)' : ''}</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                      {([
-                        { label: 'Cal', value: customCalories, set: setCustomCalories },
-                        { label: 'Protein g', value: customProtein, set: setCustomProtein },
-                        { label: 'Carbs g', value: customCarbs, set: setCustomCarbs },
-                        { label: 'Fat g', value: customFat, set: setCustomFat },
-                      ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
-                        <View key={label} style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 10, color: c.muted, marginBottom: 4, textAlign: 'center' }}>{label}</Text>
-                          <TextInput
-                            style={[s.reviewFieldInput, { textAlign: 'center' }]}
-                            value={value}
-                            onChangeText={set}
-                            keyboardType="decimal-pad"
-                            placeholder="0"
-                            placeholderTextColor={c.muted}
-                          />
-                        </View>
-                      ))}
-                    </View>
-                    <TouchableOpacity
-                      style={[s.confirmBtn, { marginTop: 8 }, (!customDescription.trim() || customLogging) && { opacity: 0.5 }]}
-                      onPress={handleCustomLog}
-                      disabled={!customDescription.trim() || customLogging}
-                    >
-                      <Text style={s.confirmBtnText}>{customLogging ? 'Logging…' : `Log to ${mealLabel}`}</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-                <View style={{ height: 24 }} />
-              </ScrollView>
-            </KeyboardAvoidingView>
-          )}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

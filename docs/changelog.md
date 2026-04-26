@@ -17,6 +17,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Custom food AI log** — food log search modal gains a "Log custom food" option; describe the food, AI estimates macros, user edits then logs without saving a recipe. `5724898`
 - **Links filter chip wrap** — category filter chips wrap to multiple lines instead of horizontal scroll, matching the Recipes page. `5724898`
 - **Keyboard fix in food log** — custom food modal now uses `behavior="padding"` on both platforms so the form stays above the keyboard. `5724898`
+- **Custom food keyboard fix** — custom food form moved into the modalView ternary chain so it replaces the search view entirely; keyboard no longer buries the form. `5414467`
 
 ### API
 
