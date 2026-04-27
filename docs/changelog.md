@@ -8,6 +8,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Local release APK build** — fixed Windows build pipeline: CMake 3.30.3 via `CMAKE_VERSION` env var resolves reanimated CONFIGURE_DEPENDS loop; metro.config.js updated so bundler resolves `@pulse/theme` symlinks on subst/junction paths. `ccc8d87`
+
 - **History range filter** — date range chips (30d / 90d / 1y / All) filter all three History tabs; data reloads automatically when the range changes. `8ccb833`
 - **History refresh controls** — pull-to-refresh enabled on Workouts, Nutrition, and Measurements tabs. `8ccb833`
 - **Nutrition food detail modal** — tap any food entry in History → Nutrition to see full macro breakdown (calories, protein, carbs, fat, serving size). `8ccb833`
