@@ -425,8 +425,10 @@ export default function WorkoutDetailScreen() {
   }
 
   async function handleSaveSetEdit(we: WorkoutExercise, set: ExerciseSet) {
-    // Delay so that if the user tapped another field in the same row,
-    // initSetEdit runs first and updates activeEditSetId before we decide to close.
+    // Clear before the delay. If the user tapped another field in the same row,
+    // initSetEdit will restore it to set.id within 50ms. If they tapped outside,
+    // it stays null and we proceed to save.
+    activeEditSetIdRef.current = null;
     await new Promise((r) => setTimeout(r, 50));
     const edit = setEdits[set.id];
     if (!edit) return;
