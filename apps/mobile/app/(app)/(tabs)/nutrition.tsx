@@ -532,7 +532,7 @@ export default function NutritionScreen() {
   }
 
   async function openEditEntry(entry: NutritionLogEntry) {
-    console.log('[openEditEntry] Opening edit for entry:', entry.id, entry.food.name);
+
     clearSelection();
     setEditEntry(entry);
     setEditQuantity(String(entry.quantity));
