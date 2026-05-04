@@ -10,6 +10,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **Expo Go notification guard** â€” workout notifications now load lazily and skip unavailable notification APIs in Android Expo Go, preventing startup crashes while preserving pause/resume actions in notification-capable builds. `2c39d0c`
 - **Active workout set edits** â€” lbs/reps inline edits now commit reliably when tapping away quickly, preventing active routine sets from reverting to their original values. `92aeb43`
+- **Workout set edit row switching** — switching between set rows during an in-flight save no longer clears previous edits, preventing values from disappearing when moving to a new row before the API call completes. `3aed0a8`
 
 ## April 26, 2026
 

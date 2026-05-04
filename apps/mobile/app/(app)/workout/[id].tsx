@@ -50,6 +50,71 @@ function mmssToSeconds(val: string): number | null {
 }
 
 const WORKOUT_NOTIF_ID = 'active-workout';
+const SUCCESS = '#34d399';
+const PAUSED = '#f59e0b';
+const REST_SECONDS = 90;
+
+function ProgressBar({
+  progress,
+  c,
+  color,
+  height = 4,
+}: {
+  progress: number;
+  c: Colors;
+  color?: string;
+  height?: number;
+}) {
+  const pct = Math.max(0, Math.min(1, progress));
+  return (
+    <View style={{ height, backgroundColor: c.border, borderRadius: height, overflow: 'hidden' }}>
+      <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: color ?? c.accent, borderRadius: height }} />
+    </View>
+  );
+}
+
+function StatChip({ value, label, c }: { value: string; label: string; c: Colors }) {
+  return (
+    <View style={{ backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, minWidth: 54, alignItems: 'center' }}>
+      <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: c.text }}>{value}</Text>
+      <Text style={{ fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+}
+
+function RestTimer({
+  seconds,
+  duration,
+  c,
+  onAdd,
+  onSkip,
+}: {
+  seconds: number;
+  duration: number;
+  c: Colors;
+  onAdd: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+      <View style={{ backgroundColor: `${c.accent}14`, borderColor: `${c.accent}55`, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, color: c.accent, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Rest</Text>
+            <Text style={{ fontSize: fontSize.xl, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 28 }}>{seconds}s</Text>
+          </View>
+          <TouchableOpacity onPress={onAdd} style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 }}>
+            <Text style={{ color: c.muted, fontSize: fontSize.xs }}>+30s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onSkip} style={{ backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 }}>
+            <Text style={{ color: c.bg, fontSize: fontSize.xs, fontWeight: '700' }}>Skip</Text>
+          </TouchableOpacity>
+        </View>
+        <ProgressBar progress={seconds / duration} c={c} color={c.accent} height={3} />
+      </View>
+    </View>
+  );
+}
 
 async function showWorkoutNotification(
   workout: WorkoutDetail,
@@ -124,6 +189,8 @@ export default function WorkoutDetailScreen() {
   const [finishing, setFinishing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [restSeconds, setRestSeconds] = useState(0);
+  const [restDuration, setRestDuration] = useState(REST_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<string | null>(null);
   const pausedAtRef = useRef<string | null>(null);
@@ -238,6 +305,14 @@ export default function WorkoutDetailScreen() {
     load();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [load]);
+
+  useEffect(() => {
+    if (restSeconds <= 0) return;
+    const id = setInterval(() => {
+      setRestSeconds((sec) => Math.max(0, sec - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [restSeconds]);
 
   // Handle pause/resume triggered from notification action button
   useEffect(() => {
@@ -431,8 +506,9 @@ export default function WorkoutDetailScreen() {
         // Row already editing — just switch focus field, don't reset values
         return prev;
       }
-      // New row: replace all active edits with just this set
+      // New row: add this set's edits while preserving other pending saves
       return {
+        ...prev,
         [set.id]: {
           weight: set.weightKg != null ? String(Math.round(kgToLbs(set.weightKg) * 10) / 10) : '',
           reps: set.reps != null ? String(set.reps) : '',
@@ -460,13 +536,12 @@ export default function WorkoutDetailScreen() {
     if (finalField && focusedField === finalField) {
       setSetEdits((prev) => ({ ...prev, [set.id]: edit }));
     }
-    // Clear before the delay. If the user tapped another field in the same row,
-    // that field's focus will restore this to set.id. If they tapped outside,
-    // it stays null and we proceed to save.
-    activeEditSetIdRef.current = null;
+    // Mark that this field is no longer focused. If the user tapped another field
+    // in the same set, that field's onFocus will immediately restore focusedEditFieldRef[set.id].
+    delete focusedEditFieldRef.current[set.id];
     await new Promise((r) => setTimeout(r, 50));
-    // If focus moved to another field in the same row, don't close it
-    if (activeEditSetIdRef.current === set.id) return;
+    // If another field in this same set is now focused, don't save yet
+    if (focusedEditFieldRef.current[set.id] !== undefined) return;
     const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
     const weightLbs = parseFloat(edit.weight);
     const reps = parseInt(edit.reps, 10);
@@ -504,9 +579,6 @@ export default function WorkoutDetailScreen() {
       return nextWorkout;
     });
     activeEditSetIdRef.current = null;
-    delete focusedEditFieldRef.current[set.id];
-    setSetEdits((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
-    setSetEditFocus((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
     try {
       await updateWorkoutSet(token, workoutId, we.id, set.id, { ...payload, completed: set.completed });
       if (setSaveSeqRef.current[set.id] !== saveSeq) return;
@@ -527,7 +599,7 @@ export default function WorkoutDetailScreen() {
         ),
       } : prev);
     } catch { /* ignore — revert handled by re-init on focus */ }
-    activeEditSetIdRef.current = null;
+    delete focusedEditFieldRef.current[set.id];
     setSetEdits((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
     setSetEditFocus((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
   }
@@ -548,6 +620,10 @@ export default function WorkoutDetailScreen() {
 
   async function handleToggleSet(we: WorkoutExercise, set: ExerciseSet) {
     const newCompleted = !set.completed;
+    if (newCompleted) {
+      setRestDuration(REST_SECONDS);
+      setRestSeconds(REST_SECONDS);
+    }
     // Optimistic update
     setWorkout((prev) => {
       const next = prev ? {
@@ -579,6 +655,21 @@ export default function WorkoutDetailScreen() {
       return sum + kgToLbs(set.weightKg) * set.reps;
     }, 0);
   }, 0) ?? 0;
+  const allSets = workout?.exercises.flatMap((we) => we.sets) ?? [];
+  const completedSets = allSets.filter((set) => set.completed).length;
+  const totalSets = allSets.length;
+  const overallPct = totalSets > 0 ? completedSets / totalSets : 0;
+  const routineTitle = workout?.routineName ?? 'Workout';
+  const subtitle = workout?.exercises
+    .map((we) => we.exercise.category)
+    .filter((category, index, arr): category is string => !!category && arr.indexOf(category) === index)
+    .slice(0, 3)
+    .join(' · ');
+  const volumeShort = runningVolumeLbs > 0
+    ? runningVolumeLbs >= 1000
+      ? `${Math.round(runningVolumeLbs / 100) / 10}k`
+      : `${Math.round(runningVolumeLbs)}`
+    : '—';
 
   const filteredEx = allExercises.filter((e) => {
     const matchSearch = !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase());
@@ -596,29 +687,15 @@ export default function WorkoutDetailScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backBtnText}>‹ Back</Text>
-        </TouchableOpacity>
-        <View style={s.timerWrap}>
-          <Text style={[s.timer, isPaused && { color: c.muted }]}>{formatTimer(elapsed)}</Text>
-          {isPaused
-            ? <Text style={s.pausedLabel}>PAUSED</Text>
-            : runningVolumeLbs > 0 && (
-              <Text style={s.volumeLabel}>
-                {Math.round(runningVolumeLbs).toLocaleString()} lbs
-              </Text>
-            )
-          }
-        </View>
-        <View style={s.headerRight}>
-          <TouchableOpacity
-            style={s.pauseBtn}
-            onPress={isPaused ? handleResume : handlePause}
-          >
-            <Text style={s.pauseBtnText}>{isPaused ? '▶' : '⏸'}</Text>
+        <View style={s.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+            <Text style={s.backBtnText}>‹ Back</Text>
           </TouchableOpacity>
+          <View style={s.headerTitleWrap}>
+            <Text style={s.headerTitle} numberOfLines={1}>{routineTitle}</Text>
+            <Text style={s.headerSubtitle} numberOfLines={1}>{subtitle || 'Active workout'}</Text>
+          </View>
           <TouchableOpacity
             style={[s.finishBtn, finishing && s.finishBtnDisabled]}
             onPress={handleFinish}
@@ -627,7 +704,39 @@ export default function WorkoutDetailScreen() {
             <Text style={s.finishBtnText}>{finishing ? '…' : 'Finish'}</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={s.headerMetrics}>
+          <TouchableOpacity
+            style={[s.timerControl, isPaused && s.timerControlPaused]}
+            onPress={isPaused ? handleResume : handlePause}
+          >
+            <Text style={[s.pauseBtnText, isPaused && { color: PAUSED }]}>{isPaused ? '▶' : '⏸'}</Text>
+          </TouchableOpacity>
+          <View style={s.timerWrap}>
+            <Text style={[s.timer, isPaused && { color: PAUSED }]}>{formatTimer(elapsed)}</Text>
+            {isPaused && <Text style={s.pausedLabel}>PAUSED</Text>}
+          </View>
+          <View style={s.headerStats}>
+            <StatChip value={`${completedSets}/${totalSets}`} label="sets" c={c} />
+            <StatChip value={volumeShort} label="lbs" c={c} />
+          </View>
+        </View>
+
+        <ProgressBar progress={overallPct} c={c} color={c.accent} height={3} />
       </View>
+
+      {restSeconds > 0 && (
+        <RestTimer
+          seconds={restSeconds}
+          duration={restDuration}
+          c={c}
+          onAdd={() => {
+            setRestDuration((d) => d + 30);
+            setRestSeconds((sec) => sec + 30);
+          }}
+          onSkip={() => setRestSeconds(0)}
+        />
+      )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
@@ -675,6 +784,10 @@ export default function WorkoutDetailScreen() {
             const trackDuration = tf.includes('duration');
             const trackDistance = tf.includes('distance');
             const trackSteps    = tf.includes('steps');
+            const exerciseDone = we.sets.filter((set) => set.completed).length;
+            const exerciseTotal = we.sets.length;
+            const exercisePct = exerciseTotal > 0 ? exerciseDone / exerciseTotal : 0;
+            const exerciseComplete = exerciseTotal > 0 && exerciseDone === exerciseTotal;
             const lastSets = lastSetsByExercise[we.exercise.id] ?? null;
             const lastLabel = (() => {
               if (!lastSets || lastSets.length === 0) return null;
@@ -697,17 +810,25 @@ export default function WorkoutDetailScreen() {
               return null;
             })();
             return (
-            <View key={we.id} style={s.exerciseBlock}>
+            <View key={we.id} style={[s.exerciseBlock, exerciseComplete && s.exerciseBlockDone]}>
               <View style={s.exerciseHeader}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity onPress={() => router.push(`/(app)/exercise/${we.exercise.id}`)}>
-                    <Text style={s.exerciseName}>{we.exercise.name}</Text>
+                    <Text style={[s.exerciseName, exerciseComplete && s.exerciseNameDone]}>{we.exercise.name}</Text>
                   </TouchableOpacity>
                   {lastLabel && (
-                    <Text style={{ fontSize: 10, color: c.muted, marginTop: 1 }}>{lastLabel}</Text>
+                    <View style={s.lastSetPill}>
+                      <Text style={s.lastSetLead}>Beat last</Text>
+                      <Text style={s.lastSetText}>{lastLabel.replace(/^Last:\s*/, '')}</Text>
+                    </View>
                   )}
+                  <Text style={s.exerciseCategory}>{we.exercise.category}</Text>
                 </View>
-                <Text style={s.exerciseCategory}>{we.exercise.category}</Text>
+                <View style={s.exerciseProgress}>
+                  {exerciseComplete && <Text style={s.donePill}>Done</Text>}
+                  <Text style={[s.exerciseProgressText, exerciseComplete && { color: SUCCESS }]}>{exerciseDone}/{exerciseTotal}</Text>
+                  <ProgressBar progress={exercisePct} c={c} color={exerciseComplete ? SUCCESS : c.accent} height={3} />
+                </View>
                 <TouchableOpacity onLongPress={() => handleRemoveExercise(we.id)} onPress={() => handleRemoveExercise(we.id)} style={s.exerciseRemoveBtn}>
                   <Text style={s.exerciseRemoveText}>✕</Text>
                 </TouchableOpacity>
@@ -1027,37 +1148,50 @@ export default function WorkoutDetailScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.bg },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: c.border, gap: 10 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitleWrap: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.text, lineHeight: 18 },
+  headerSubtitle: { fontSize: 11, color: c.muted, marginTop: 2 },
+  headerMetrics: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBtn: { paddingHorizontal: 8, paddingVertical: 4 },
   backBtnText: { color: c.accent, fontSize: fontSize.sm },
-  timerWrap: { flex: 1, alignItems: 'center' },
-  timer: { fontSize: fontSize.xl, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] },
-  volumeLabel: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
-  pausedLabel: { fontSize: fontSize.xs, color: '#f59e0b', marginTop: 1, fontWeight: '700', letterSpacing: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pauseBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  timerWrap: { flex: 1, alignItems: 'flex-start' },
+  timer: { fontSize: fontSize['2xl'], fontWeight: '800', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 31 },
+  pausedLabel: { fontSize: 11, color: PAUSED, marginTop: 1, fontWeight: '700', letterSpacing: 1 },
+  timerControl: { width: 52, height: 52, borderRadius: 26, borderWidth: 3, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', backgroundColor: `${c.accent}12` },
+  timerControlPaused: { borderColor: PAUSED, backgroundColor: `${PAUSED}12` },
   pauseBtnText: { fontSize: 14, color: c.text },
-  finishBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  finishBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   finishBtnBottom: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   cancelSessionBtn: { alignItems: 'center', paddingVertical: 14 },
   cancelSessionText: { fontSize: fontSize.sm, color: c.muted },
   finishBtnDisabled: { opacity: 0.5 },
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 14, gap: 12 },
+  scrollContent: { padding: 12, gap: 10 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 4 },
   dateText: { fontSize: fontSize.sm, color: c.muted },
   dateEdit: { fontSize: fontSize.xs, color: c.accent },
   dateInput: { flex: 1, fontSize: fontSize.sm, color: c.text, backgroundColor: c.card, borderRadius: 8, borderWidth: 1, borderColor: c.accent, paddingHorizontal: 10, paddingVertical: 6 },
-  exerciseBlock: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
-  exerciseHeader: { padding: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, gap: 8 },
-  exerciseName: { fontSize: fontSize.base, fontWeight: '600', color: c.accent },
-  exerciseCategory: { fontSize: fontSize.xs, color: c.muted },
+  exerciseBlock: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+  exerciseBlockDone: { borderColor: `${SUCCESS}66` },
+  exerciseHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  exerciseName: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
+  exerciseNameDone: { color: SUCCESS },
+  exerciseCategory: { fontSize: 11, color: c.muted, marginTop: 2 },
+  exerciseProgress: { width: 52, gap: 3, alignItems: 'stretch' },
+  exerciseProgressText: { fontSize: 10, color: c.text, fontWeight: '700', textAlign: 'center' },
+  donePill: { fontSize: 11, color: SUCCESS, backgroundColor: `${SUCCESS}20`, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, fontWeight: '600', overflow: 'hidden', textAlign: 'center' },
+  lastSetPill: { marginTop: 6, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${c.accent}14`, borderColor: `${c.accent}40`, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  lastSetLead: { fontSize: 10, color: c.accent, fontWeight: '600' },
+  lastSetText: { fontSize: 10, color: c.muted },
   exerciseRemoveBtn: { paddingLeft: 4, paddingVertical: 4 },
   exerciseRemoveText: { color: c.border, fontSize: 13 },
   exerciseNotes: { paddingHorizontal: 14, paddingVertical: 8, fontSize: fontSize.xs, color: c.muted, borderBottomWidth: 1, borderBottomColor: c.border, minHeight: 32 },
-  setHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.02)' },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+  setHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.025)', borderTopWidth: 1, borderTopColor: c.border },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, minHeight: 48, borderTopWidth: 1, borderTopColor: c.border },
   addSetRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.border, gap: 0 },
   setCol: { fontSize: fontSize.sm, color: c.text, textAlign: 'center' },
   setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.xs },
@@ -1067,10 +1201,10 @@ function makeStyles(c: Colors) {
   setColCheck: { width: 32, alignItems: 'center' },
   setColDel: { width: 32, alignItems: 'center' },
   setDelText: { color: c.border, fontSize: 13 },
-  setRowDone: { backgroundColor: 'rgba(52,211,153,0.06)' },
-  setTextDone: { color: c.muted },
+  setRowDone: { backgroundColor: `${SUCCESS}10` },
+  setTextDone: { color: c.muted, textDecorationLine: 'line-through', textDecorationColor: `${c.muted}66` },
   checkBox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
-  checkBoxDone: { backgroundColor: '#34d399', borderColor: '#34d399' },
+  checkBoxDone: { backgroundColor: SUCCESS, borderColor: SUCCESS },
   checkMark: { fontSize: 12, color: c.bg, fontWeight: '700', lineHeight: 14 },
   setInput: { borderWidth: 1, borderColor: c.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 6, fontSize: fontSize.sm, color: c.text, backgroundColor: c.bg, textAlign: 'center', marginHorizontal: 2 },
   setInlineInput: { borderWidth: 1, borderColor: c.accent, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 4, fontSize: fontSize.sm, color: c.text, backgroundColor: c.bg, textAlign: 'center' },
