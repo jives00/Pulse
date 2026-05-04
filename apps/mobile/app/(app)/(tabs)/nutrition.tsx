@@ -347,7 +347,7 @@ export default function NutritionScreen() {
         quantity: qty,
       });
       setAddMeal(null);
-      load();
+      setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
     }
@@ -366,7 +366,7 @@ export default function NutritionScreen() {
         logDate: date,
       });
       setAddMeal(null);
-      load();
+      setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not log recipe.');
     } finally {
@@ -407,7 +407,7 @@ export default function NutritionScreen() {
         sodium_mg: modifyResult.sodium_mg ?? null,
       });
       setAddMeal(null);
-      load();
+      setTimeout(() => load(true), 500);
     } catch {
       setModifyError('Failed to log. Please try again.');
     } finally {
@@ -446,7 +446,7 @@ export default function NutritionScreen() {
     try {
       await logInline(token, { name, meal: addMeal, logDate: date, calories, protein_g: protein, carbs_g: carbs, fat_g: fat });
       setAddMeal(null);
-      load();
+      setTimeout(() => load(true), 500);
     } catch {
       Alert.alert('Error', 'Failed to log custom food.');
     } finally {
@@ -485,7 +485,7 @@ export default function NutritionScreen() {
       }));
       setAddMeal(null);
       setBarcodeQueue([]);
-      load();
+      setTimeout(() => load(), 350);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add items.');
     } finally {
@@ -527,11 +527,12 @@ export default function NutritionScreen() {
     clearSelection();
     try {
       await Promise.all(ids.map((id) => deleteNutritionLogEntry(token, id)));
-      load();
+      setTimeout(() => load(true), 500);
     } catch { Alert.alert('Error', 'Could not remove entries.'); }
   }
 
   async function openEditEntry(entry: NutritionLogEntry) {
+    console.log('[openEditEntry] Opening edit for entry:', entry.id, entry.food.name);
     clearSelection();
     setEditEntry(entry);
     setEditQuantity(String(entry.quantity));
@@ -562,8 +563,12 @@ export default function NutritionScreen() {
     setSavingEdit(true);
     try {
       await editNutritionLogEntry(token, editEntry.id, { servingSizeId: editServing.id, quantity: qty });
+      // Clear all edit state at once to prevent re-render duplication
       setEditEntry(null);
-      load();
+      setEditQuantity('1');
+      setEditServing(null);
+      setEditServingSizes([]);
+      setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not save.');
     } finally {
@@ -582,7 +587,7 @@ export default function NutritionScreen() {
       }
       setMoveCopyEntries([]);
       clearSelection();
-      load();
+      setTimeout(() => load(), 350);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not save.');
     } finally {
@@ -841,7 +846,7 @@ export default function NutritionScreen() {
               onPress={async () => {
                 const { entry } = actionEntry!;
                 setActionEntry(null);
-                try { await deleteNutritionLogEntry(token, entry.id); load(); }
+                try { await deleteNutritionLogEntry(token, entry.id); setTimeout(() => load(true), 500); }
                 catch { Alert.alert('Error', 'Could not remove entry.'); }
               }}
             >
@@ -910,7 +915,6 @@ export default function NutritionScreen() {
 
       {/* Edit Entry Modal */}
       <Modal visible={editEntry !== null} animationType="slide" transparent onRequestClose={() => setEditEntry(null)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setEditEntry(null)}>
           <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
             <View style={s.modalHeader}>
@@ -963,7 +967,6 @@ export default function NutritionScreen() {
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
-        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Food Modal */}
