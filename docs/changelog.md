@@ -4,6 +4,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 04, 2026
+
+### Mobile
+
+- **Expo Go notification guard** â€” workout notifications now load lazily and skip unavailable notification APIs in Android Expo Go, preventing startup crashes while preserving pause/resume actions in notification-capable builds. `2c39d0c`
+
 ## April 26, 2026
 
 ### Mobile

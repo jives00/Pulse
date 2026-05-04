@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import {
   getWorkout, updateWorkout, deleteWorkout, startWorkoutTimer, pauseWorkout, resumeWorkout,
   estimateWorkoutCalories,
@@ -20,6 +19,7 @@ import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../packa
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
+import { getNotifications } from '../../../src/notifications';
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -73,6 +73,9 @@ async function showWorkoutNotification(
     body = formatTimer(elapsed);
   }
 
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
+
   await Notifications.scheduleNotificationAsync({
     identifier: WORKOUT_NOTIF_ID,
     content: {
@@ -89,7 +92,8 @@ async function showWorkoutNotification(
 
 async function dismissWorkoutNotification() {
   try {
-    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
+    const Notifications = await getNotifications();
+    await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID);
   } catch { /* notification may not exist */ }
 }
 
@@ -274,7 +278,8 @@ export default function WorkoutDetailScreen() {
     if (workoutRef.current) {
       const el = computeElapsed();
       await new Promise(r => setTimeout(r, 300));
-      await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+      const Notifications = await getNotifications();
+      await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
       showWorkoutNotification(workoutRef.current, el, true).catch(() => {});
     }
   }
@@ -288,7 +293,8 @@ export default function WorkoutDetailScreen() {
     setIsPaused(false);
     resumeWorkout(token, workoutId).catch(() => { /* best-effort; local resume still active */ });
     if (workoutRef.current) {
-      await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+      const Notifications = await getNotifications();
+      await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
       showWorkoutNotification(workoutRef.current, computeElapsed(), false).catch(() => {});
     }
   }

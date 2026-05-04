@@ -358,8 +358,8 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
       {showLastPerformed && (
         <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8 }}>
           <Text style={{ fontSize: fontSize.xs, color: c.muted, marginBottom: 4 }}>Last session (reference)</Text>
-          {re.lastPerformedSets!.map((ls) => (
-            <Text key={ls.setNumber} style={{ fontSize: fontSize.xs, color: c.text, paddingVertical: 1 }}>
+          {re.lastPerformedSets!.map((ls, i) => (
+            <Text key={i} style={{ fontSize: fontSize.xs, color: c.text, paddingVertical: 1 }}>
               Set {ls.setNumber}:
               {ls.weightKg != null && ` ${fmtWeight(ls.weightKg)} lbs`}
               {ls.reps != null && ` × ${ls.reps} reps`}
