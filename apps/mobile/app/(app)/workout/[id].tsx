@@ -106,6 +106,10 @@ function defaultTrackedFields(exerciseType: string): string[] {
   }
 }
 
+type SetEditField = 'weight' | 'reps' | 'duration' | 'distance' | 'steps';
+type SetEditValues = { weight: string; reps: string; duration: string; distance: string; steps: string };
+type SetEditState = Record<number, SetEditValues>;
+
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const workoutId = Number(id);
@@ -150,11 +154,21 @@ export default function WorkoutDetailScreen() {
   const [exerciseNotes, setExerciseNotes] = useState<Record<number, string>>({});
 
   // Inline set editing: { [setId]: { weight: string; reps: string; duration: string; distance: string; steps: string } }
-  const [setEdits, setSetEdits] = useState<Record<number, { weight: string; reps: string; duration: string; distance: string; steps: string }>>({});
+  const [setEdits, setSetEditsState] = useState<SetEditState>({});
+  const setEditsRef = useRef<SetEditState>({});
+  function setSetEdits(nextOrUpdater: SetEditState | ((prev: SetEditState) => SetEditState)) {
+    const next = typeof nextOrUpdater === 'function'
+      ? (nextOrUpdater as (prev: SetEditState) => SetEditState)(setEditsRef.current)
+      : nextOrUpdater;
+    setEditsRef.current = next;
+    setSetEditsState(next);
+  }
   // Which field was tapped to start editing (for autoFocus)
-  const [setEditFocus, setSetEditFocus] = useState<Record<number, 'weight' | 'reps' | 'duration' | 'distance' | 'steps'>>({});
+  const [setEditFocus, setSetEditFocus] = useState<Record<number, SetEditField>>({});
   // Tracks the set currently being edited so onBlur can tell if focus stayed in the same row
   const activeEditSetIdRef = useRef<number | null>(null);
+  const focusedEditFieldRef = useRef<Record<number, SetEditField | undefined>>({});
+  const setSaveSeqRef = useRef<Record<number, number>>({});
 
   function computeElapsed() {
     if (!startedAtRef.current) return 0;
@@ -409,8 +423,9 @@ export default function WorkoutDetailScreen() {
     } catch { Alert.alert('Error', 'Could not delete set.'); }
   }
 
-  function initSetEdit(set: ExerciseSet, focusField: 'weight' | 'reps' | 'duration' | 'distance' | 'steps') {
+  function initSetEdit(set: ExerciseSet, focusField: SetEditField) {
     activeEditSetIdRef.current = set.id;
+    focusedEditFieldRef.current[set.id] = focusField;
     setSetEdits((prev) => {
       if (prev[set.id]) {
         // Row already editing — just switch focus field, don't reset values
@@ -430,14 +445,26 @@ export default function WorkoutDetailScreen() {
     setSetEditFocus((prev) => ({ ...prev, [set.id]: focusField }));
   }
 
-  async function handleSaveSetEdit(we: WorkoutExercise, set: ExerciseSet) {
+  async function handleSaveSetEdit(
+    we: WorkoutExercise,
+    set: ExerciseSet,
+    finalField?: SetEditField,
+    finalValue?: string,
+  ) {
+    const currentEdit = setEditsRef.current[set.id];
+    const focusedField = focusedEditFieldRef.current[set.id];
+    const edit = currentEdit && finalField && focusedField === finalField
+      ? { ...currentEdit, [finalField]: finalValue ?? '' }
+      : currentEdit;
+    if (!edit) return;
+    if (finalField && focusedField === finalField) {
+      setSetEdits((prev) => ({ ...prev, [set.id]: edit }));
+    }
     // Clear before the delay. If the user tapped another field in the same row,
-    // initSetEdit will restore it to set.id within 50ms. If they tapped outside,
+    // that field's focus will restore this to set.id. If they tapped outside,
     // it stays null and we proceed to save.
     activeEditSetIdRef.current = null;
     await new Promise((r) => setTimeout(r, 50));
-    const edit = setEdits[set.id];
-    if (!edit) return;
     // If focus moved to another field in the same row, don't close it
     if (activeEditSetIdRef.current === set.id) return;
     const tf = we.exercise.trackedFields ?? defaultTrackedFields(we.exercise.exerciseType);
@@ -452,8 +479,37 @@ export default function WorkoutDetailScreen() {
     if (tf.includes('duration')) payload.durationSeconds = durSeconds;
     if (tf.includes('distance')) payload.distanceMeters = !isNaN(distMeters) && distMeters >= 0 ? distMeters : null;
     if (tf.includes('steps')) payload.steps = !isNaN(stepsVal) && stepsVal > 0 ? stepsVal : null;
+    const saveSeq = (setSaveSeqRef.current[set.id] ?? 0) + 1;
+    setSaveSeqRef.current[set.id] = saveSeq;
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      const nextSet = {
+        ...set,
+        weightKg: payload.weightKg ?? null,
+        reps: payload.reps ?? null,
+        durationSeconds: payload.durationSeconds ?? null,
+        distanceMeters: payload.distanceMeters ?? null,
+        steps: payload.steps ?? null,
+      };
+      const nextWorkout = {
+        ...prev,
+        exercises: prev.exercises.map((e) =>
+          e.id === we.id ? {
+            ...e,
+            sets: e.sets.map((s) => s.id === set.id ? nextSet : s),
+          } : e
+        ),
+      };
+      workoutRef.current = nextWorkout;
+      return nextWorkout;
+    });
+    activeEditSetIdRef.current = null;
+    delete focusedEditFieldRef.current[set.id];
+    setSetEdits((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
+    setSetEditFocus((prev) => { const n = { ...prev }; delete n[set.id]; return n; });
     try {
       await updateWorkoutSet(token, workoutId, we.id, set.id, { ...payload, completed: set.completed });
+      if (setSaveSeqRef.current[set.id] !== saveSeq) return;
       setWorkout((prev) => prev ? {
         ...prev,
         exercises: prev.exercises.map((e) =>
@@ -695,7 +751,8 @@ export default function WorkoutDetailScreen() {
                         style={[s.setInlineInput, s.setColData]}
                         value={edit.weight}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], weight: v } }))}
-                        onBlur={() => handleSaveSetEdit(we, set)}
+                        onFocus={() => { activeEditSetIdRef.current = set.id; focusedEditFieldRef.current[set.id] = 'weight'; }}
+                        onEndEditing={(e) => handleSaveSetEdit(we, set, 'weight', e.nativeEvent.text)}
                         keyboardType="decimal-pad"
                         autoFocus={focusField === 'weight'}
                         selectTextOnFocus
@@ -714,7 +771,8 @@ export default function WorkoutDetailScreen() {
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.reps ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], reps: v } }))}
-                        onBlur={() => handleSaveSetEdit(we, set)}
+                        onFocus={() => { activeEditSetIdRef.current = set.id; focusedEditFieldRef.current[set.id] = 'reps'; }}
+                        onEndEditing={(e) => handleSaveSetEdit(we, set, 'reps', e.nativeEvent.text)}
                         keyboardType="number-pad"
                         autoFocus={focusField === 'reps'}
                         selectTextOnFocus
@@ -731,7 +789,8 @@ export default function WorkoutDetailScreen() {
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.duration ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], duration: v } }))}
-                        onBlur={() => handleSaveSetEdit(we, set)}
+                        onFocus={() => { activeEditSetIdRef.current = set.id; focusedEditFieldRef.current[set.id] = 'duration'; }}
+                        onEndEditing={(e) => handleSaveSetEdit(we, set, 'duration', e.nativeEvent.text)}
                         keyboardType="numbers-and-punctuation"
                         autoFocus={focusField === 'duration'}
                         selectTextOnFocus
@@ -750,7 +809,8 @@ export default function WorkoutDetailScreen() {
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.distance ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], distance: v } }))}
-                        onBlur={() => handleSaveSetEdit(we, set)}
+                        onFocus={() => { activeEditSetIdRef.current = set.id; focusedEditFieldRef.current[set.id] = 'distance'; }}
+                        onEndEditing={(e) => handleSaveSetEdit(we, set, 'distance', e.nativeEvent.text)}
                         keyboardType="decimal-pad"
                         autoFocus={focusField === 'distance'}
                         selectTextOnFocus
@@ -769,7 +829,8 @@ export default function WorkoutDetailScreen() {
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.steps ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], steps: v } }))}
-                        onBlur={() => handleSaveSetEdit(we, set)}
+                        onFocus={() => { activeEditSetIdRef.current = set.id; focusedEditFieldRef.current[set.id] = 'steps'; }}
+                        onEndEditing={(e) => handleSaveSetEdit(we, set, 'steps', e.nativeEvent.text)}
                         keyboardType="number-pad"
                         autoFocus={focusField === 'steps'}
                         selectTextOnFocus
