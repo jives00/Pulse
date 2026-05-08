@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Pulse is a personal health tracker: food/drink recipes, nutrition logging, workout tracking, and goal dashboards. It is a full-stack TypeScript monorepo deployed on AWS EC2 + S3.
+Pulse is a personal health tracker: food/drink recipes, nutrition logging, workout tracking, and goal dashboards. It is a full-stack TypeScript monorepo deployed on AWS EC2 + S3. 
 
 ## Monorepo structure
 
