@@ -33,8 +33,10 @@ jobs:
             # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors
             rm -rf node_modules apps/*/node_modules packages/*/node_modules
 
-            # Install all deps
-            npm ci
+            # Exclude mobile workspace so Expo/React Native aren't installed on EC2
+            # (mobile is built via EAS — package.json is restored after prune)
+            node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.workspaces=p.workspaces.filter(w=>w.indexOf('mobile')===-1); fs.writeFileSync('package.json',JSON.stringify(p,null,2));"
+            npm install
 
             # Run DB migrations (idempotent — safe to run on every deploy)
             npm run migrate --workspace=apps/server
@@ -42,6 +44,12 @@ jobs:
             # Build server and web
             npm run build --workspace=apps/server
             npm run build --workspace=apps/web
+
+            # Prune devDeps while package.json still excludes mobile (prevents mobile deps being re-added)
+            npm prune --omit=dev
+
+            # Restore package.json so git stays clean
+            git checkout package.json
 
             # Restart server
             pm2 restart pulse-server --update-env

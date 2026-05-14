@@ -1,1 +1,1 @@
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://18.223.201.191/pulse';
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'https://berek.xyz/pulse';

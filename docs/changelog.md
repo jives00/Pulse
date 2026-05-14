@@ -4,6 +4,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 14, 2026
+
+### API
+
+- **EC2 disk reduction** — deploy script now excludes mobile workspace from npm install and prunes devDeps after build, cutting node_modules from 606MB to ~130MB. `b1486ba`
+
+### Mobile
+
+- **API base URL** — updated from bare IP to `https://berek.xyz/pulse` in both EAS build config and fallback default. `b1486ba`
+
 ## May 04, 2026
 
 ### Mobile

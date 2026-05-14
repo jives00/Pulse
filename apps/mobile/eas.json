@@ -21,13 +21,13 @@
         "disabled": true
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "http://18.223.201.191/pulse"
+        "EXPO_PUBLIC_API_BASE": "https://berek.xyz/pulse"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE": "http://18.223.201.191/pulse"
+        "EXPO_PUBLIC_API_BASE": "https://berek.xyz/pulse"
       }
     }
   },
