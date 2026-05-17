@@ -13,6 +13,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Mobile
 
 - **New color schemes** — Midnight, Tide, and Graphite added to settings color picker. `f708cab`
+- **Nav bar redesign** — replaced emoji icons with Ionicons, added Planning tab, renamed labels (Home/Plan/Log/Train/Recipes), fixed More button alignment and styling. `d1598f5`
+- **Metro config** — added explicit `extraNodeModules` mapping for `@pulse/theme` to fix workspace resolution. `d1598f5`
 
 ## May 14, 2026
 

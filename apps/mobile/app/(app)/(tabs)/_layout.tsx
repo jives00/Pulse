@@ -10,6 +10,7 @@ import {
   View,
   type LayoutRectangle,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../../src/hooks/useColors';
 
 const MENU_WIDTH = 150;
@@ -54,7 +55,7 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
         style={[style, styles.btn]}
         activeOpacity={0.7}
       >
-        <Text style={{ color, fontSize: 20 }}>•••</Text>
+        <Ionicons name="ellipsis-horizontal" size={22} color={color} />
         <Text style={{ color, fontSize: 12, marginTop: 2 }}>More</Text>
       </TouchableOpacity>
 
@@ -77,17 +78,17 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
             ]}
           >
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/links')}>
-              <Text style={{ fontSize: 18 }}>🔗</Text>
+              <Ionicons name="link-outline" size={20} color={c.muted} />
               <Text style={[styles.menuLabel, { color: c.text }]}>Links</Text>
             </TouchableOpacity>
             <View style={[styles.divider, { backgroundColor: c.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/history')}>
-              <Text style={{ fontSize: 18 }}>📋</Text>
+              <Ionicons name="time-outline" size={20} color={c.muted} />
               <Text style={[styles.menuLabel, { color: c.text }]}>History</Text>
             </TouchableOpacity>
             <View style={[styles.divider, { backgroundColor: c.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/settings')}>
-              <Text style={{ fontSize: 18 }}>⚙️</Text>
+              <Ionicons name="settings-outline" size={20} color={c.muted} />
               <Text style={[styles.menuLabel, { color: c.text }]}>Settings</Text>
             </TouchableOpacity>
           </View>
@@ -101,6 +102,7 @@ const styles = StyleSheet.create({
   btn: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: 10,
   },
   menu: {
     position: 'absolute',
@@ -136,7 +138,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 18, height: 68, paddingBottom: 10 },
+        tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 4, height: 72, paddingBottom: 10 },
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.muted,
         tabBarLabelStyle: { fontSize: 12 },
@@ -145,19 +147,23 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="dashboard"
-        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🧭</Text> }}
+        options={{ title: 'Home', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="index"
-        options={{ title: 'Recipes', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🍽️</Text> }}
+        name="planning"
+        options={{ title: 'Plan', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="nutrition"
-        options={{ title: 'Food Log', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🥗</Text> }}
+        options={{ title: 'Log', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="workouts"
-        options={{ title: 'Workouts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💪</Text> }}
+        options={{ title: 'Train', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{ title: 'Recipes', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'book' : 'book-outline'} size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"

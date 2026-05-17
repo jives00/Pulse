@@ -9,7 +9,7 @@ Thumbs.db
 .expo/
 apps/mobile/.expo/
 apps/server/scripts/*.sql
-.claude/settings.local.json
+.claude/
 .plans/
 docs/plans/
 testing/

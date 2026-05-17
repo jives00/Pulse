@@ -25,7 +25,6 @@ const app = express();
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    console.log(`CORS check: origin="${origin}", allowed=[${allowed}]`);
     if (!origin || allowed.includes(origin)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
