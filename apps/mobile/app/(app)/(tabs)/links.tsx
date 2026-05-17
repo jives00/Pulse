@@ -231,7 +231,7 @@ function makeStyles(c: Colors) {
     card: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
     cardText: { flex: 1, minWidth: 0 },
     cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
-    cardUrl: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    cardUrl: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 },
     actionBtn: { padding: 4 },
     editIcon: { fontSize: 18, color: c.muted },

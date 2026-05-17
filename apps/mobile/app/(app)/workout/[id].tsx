@@ -76,8 +76,8 @@ function ProgressBar({
 function StatChip({ value, label, c }: { value: string; label: string; c: Colors }) {
   return (
     <View style={{ backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, minWidth: 54, alignItems: 'center' }}>
-      <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: c.text }}>{value}</Text>
-      <Text style={{ fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+      <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: c.text }}>{value}</Text>
+      <Text style={{ fontSize: 13, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
     </View>
   );
 }
@@ -100,14 +100,14 @@ function RestTimer({
       <View style={{ backgroundColor: `${c.accent}14`, borderColor: `${c.accent}55`, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 11, color: c.accent, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Rest</Text>
+            <Text style={{ fontSize: 13, color: c.accent, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Rest</Text>
             <Text style={{ fontSize: fontSize.xl, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 28 }}>{seconds}s</Text>
           </View>
           <TouchableOpacity onPress={onAdd} style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 }}>
-            <Text style={{ color: c.muted, fontSize: fontSize.xs }}>+30s</Text>
+            <Text style={{ color: c.muted, fontSize: fontSize.sm }}>+30s</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onSkip} style={{ backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 }}>
-            <Text style={{ color: c.bg, fontSize: fontSize.xs, fontWeight: '700' }}>Skip</Text>
+            <Text style={{ color: c.bg, fontSize: fontSize.sm, fontWeight: '700' }}>Skip</Text>
           </TouchableOpacity>
         </View>
         <ProgressBar progress={seconds / duration} c={c} color={c.accent} height={3} />
@@ -1152,14 +1152,14 @@ function makeStyles(c: Colors) {
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitleWrap: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.text, lineHeight: 18 },
-  headerSubtitle: { fontSize: 11, color: c.muted, marginTop: 2 },
+  headerSubtitle: { fontSize: 13, color: c.muted, marginTop: 2 },
   headerMetrics: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerStats: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBtn: { paddingHorizontal: 8, paddingVertical: 4 },
   backBtnText: { color: c.accent, fontSize: fontSize.sm },
   timerWrap: { flex: 1, alignItems: 'flex-start' },
   timer: { fontSize: fontSize['2xl'], fontWeight: '800', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 31 },
-  pausedLabel: { fontSize: 11, color: PAUSED, marginTop: 1, fontWeight: '700', letterSpacing: 1 },
+  pausedLabel: { fontSize: 13, color: PAUSED, marginTop: 1, fontWeight: '700', letterSpacing: 1 },
   timerControl: { width: 52, height: 52, borderRadius: 26, borderWidth: 3, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', backgroundColor: `${c.accent}12` },
   timerControlPaused: { borderColor: PAUSED, backgroundColor: `${PAUSED}12` },
   pauseBtnText: { fontSize: 14, color: c.text },
@@ -1173,28 +1173,28 @@ function makeStyles(c: Colors) {
   scrollContent: { padding: 12, gap: 10 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 4 },
   dateText: { fontSize: fontSize.sm, color: c.muted },
-  dateEdit: { fontSize: fontSize.xs, color: c.accent },
+  dateEdit: { fontSize: fontSize.sm, color: c.accent },
   dateInput: { flex: 1, fontSize: fontSize.sm, color: c.text, backgroundColor: c.card, borderRadius: 8, borderWidth: 1, borderColor: c.accent, paddingHorizontal: 10, paddingVertical: 6 },
   exerciseBlock: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   exerciseBlockDone: { borderColor: `${SUCCESS}66` },
   exerciseHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   exerciseName: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
   exerciseNameDone: { color: SUCCESS },
-  exerciseCategory: { fontSize: 11, color: c.muted, marginTop: 2 },
+  exerciseCategory: { fontSize: 13, color: c.muted, marginTop: 2 },
   exerciseProgress: { width: 52, gap: 3, alignItems: 'stretch' },
-  exerciseProgressText: { fontSize: 10, color: c.text, fontWeight: '700', textAlign: 'center' },
-  donePill: { fontSize: 11, color: SUCCESS, backgroundColor: `${SUCCESS}20`, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, fontWeight: '600', overflow: 'hidden', textAlign: 'center' },
+  exerciseProgressText: { fontSize: 13, color: c.text, fontWeight: '700', textAlign: 'center' },
+  donePill: { fontSize: 13, color: SUCCESS, backgroundColor: `${SUCCESS}20`, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, fontWeight: '600', overflow: 'hidden', textAlign: 'center' },
   lastSetPill: { marginTop: 6, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${c.accent}14`, borderColor: `${c.accent}40`, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  lastSetLead: { fontSize: 10, color: c.accent, fontWeight: '600' },
-  lastSetText: { fontSize: 10, color: c.muted },
+  lastSetLead: { fontSize: 13, color: c.accent, fontWeight: '600' },
+  lastSetText: { fontSize: 13, color: c.muted },
   exerciseRemoveBtn: { paddingLeft: 4, paddingVertical: 4 },
   exerciseRemoveText: { color: c.border, fontSize: 13 },
-  exerciseNotes: { paddingHorizontal: 14, paddingVertical: 8, fontSize: fontSize.xs, color: c.muted, borderBottomWidth: 1, borderBottomColor: c.border, minHeight: 32 },
+  exerciseNotes: { paddingHorizontal: 14, paddingVertical: 8, fontSize: fontSize.sm, color: c.muted, borderBottomWidth: 1, borderBottomColor: c.border, minHeight: 32 },
   setHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.025)', borderTopWidth: 1, borderTopColor: c.border },
   setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, minHeight: 48, borderTopWidth: 1, borderTopColor: c.border },
   addSetRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.border, gap: 0 },
   setCol: { fontSize: fontSize.sm, color: c.text, textAlign: 'center' },
-  setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.xs },
+  setColNum: { width: 28, textAlign: 'center', fontSize: fontSize.sm },
   setColData: { flex: 1, textAlign: 'center' },
   setColWeight: { flex: 1, textAlign: 'center' },
   setColReps: { flex: 1, textAlign: 'center' },
@@ -1225,13 +1225,13 @@ function makeStyles(c: Colors) {
   catScrollContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row' },
   catChip: { borderWidth: 1, borderColor: c.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   catChipActive: { backgroundColor: c.accent, borderColor: c.accent },
-  catChipText: { fontSize: fontSize.xs, color: c.muted },
+  catChipText: { fontSize: fontSize.sm, color: c.muted },
   exRow: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
   exName: { fontSize: fontSize.sm, color: c.text, fontWeight: '500' },
-  exMeta: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+  exMeta: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
   createExLink: { paddingHorizontal: 16, paddingVertical: 16 },
   createExLinkText: { fontSize: fontSize.sm, color: c.accent },
-  createLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
+  createLabel: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
   createInput: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text, backgroundColor: c.card },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   typeBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },

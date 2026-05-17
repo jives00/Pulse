@@ -13,7 +13,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 :root {
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --t-xs: 11px; --t-sm: 13px; --t-base: 15px; --t-display: 48px; --t-kpi: 34px;
+  --t-xs: 13px; --t-sm: 13px; --t-base: 15px; --t-display: 48px; --t-kpi: 34px;
 }
 .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
 .font-mono    { font-family: var(--font-mono); font-feature-settings: 'tnum'; }

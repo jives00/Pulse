@@ -9,12 +9,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Web
 
 - **New color schemes** — added Midnight, Tide, and Graphite themes alongside existing Blue, Slate, Sand. `f708cab`
+- **Font size minimum** — replaced all `text-xs` (11px) with `text-sm` (14px) across 23 files; bumped `--t-xs` CSS variable from 11px to 13px. `af2f36d`
 
 ### Mobile
 
 - **New color schemes** — Midnight, Tide, and Graphite added to settings color picker. `f708cab`
 - **Nav bar redesign** — replaced emoji icons with Ionicons, added Planning tab, renamed labels (Home/Plan/Log/Train/Recipes), fixed More button alignment and styling. `d1598f5`
 - **Metro config** — added explicit `extraNodeModules` mapping for `@pulse/theme` to fix workspace resolution. `d1598f5`
+- **Font size minimum** — replaced all `fontSize.xs` and hardcoded sub-13 sizes across all screens; chart/heatmap labels floored at 11. `af2f36d`
 
 ## May 14, 2026
 

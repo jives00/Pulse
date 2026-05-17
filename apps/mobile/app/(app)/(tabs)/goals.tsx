@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -116,11 +116,11 @@ function makeStyles(c: Colors) {
     header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     title: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
     content: { padding: 14, gap: 10 },
-    sectionLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6 },
+    sectionLabel: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6 },
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 16, gap: 12 },
     row: { flexDirection: 'row', alignItems: 'center' },
     rowLabel: { flex: 1, fontSize: fontSize.sm, color: c.text },
     rowValue: { fontSize: fontSize.sm, color: c.muted },
-    noGoals: { fontSize: fontSize.xs, color: c.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 4 },
+    noGoals: { fontSize: fontSize.sm, color: c.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 4 },
   });
 }

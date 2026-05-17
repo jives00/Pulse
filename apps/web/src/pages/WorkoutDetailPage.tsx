@@ -268,7 +268,7 @@ function ExerciseBlock({
             {we.exercise.name}
           </Link>
           <div className="text-sm text-slate-500">{we.exercise.category}</div>
-          {lastLabel && <div className="text-xs text-slate-500 mt-0.5">{lastLabel}</div>}
+          {lastLabel && <div className="text-sm text-slate-500 mt-0.5">{lastLabel}</div>}
         </div>
         <button
           onClick={() => onRemove(we.id)}

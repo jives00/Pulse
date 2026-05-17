@@ -366,7 +366,7 @@ const FilterBar = memo(function FilterBar({
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition capitalize ${
+                  className={`text-sm px-2.5 py-1 rounded-full border transition capitalize ${
                     selectedTags.includes(tag)
                       ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                       : 'border-dram-border text-gray-400 hover:border-gray-500'
@@ -379,7 +379,7 @@ const FilterBar = memo(function FilterBar({
             {selectedTags.length > 0 && (
               <button
                 onClick={clearTags}
-                className="text-xs text-gray-500 hover:text-gray-300 mt-2"
+                className="text-sm text-gray-500 hover:text-gray-300 mt-2"
               >
                 Clear all
               </button>

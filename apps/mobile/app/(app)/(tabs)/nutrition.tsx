@@ -751,7 +751,7 @@ export default function NutritionScreen() {
                         >
                           {inSelectMode && (
                             <View style={[s.checkbox, isSelected && { backgroundColor: c.accent, borderColor: c.accent }]}>
-                              {isSelected && <Text style={{ color: c.bg, fontSize: 10, fontWeight: '700' }}>✓</Text>}
+                              {isSelected && <Text style={{ color: c.bg, fontSize: 13, fontWeight: '700' }}>✓</Text>}
                             </View>
                           )}
                           <View style={s.foodInfo}>
@@ -1386,7 +1386,7 @@ export default function NutritionScreen() {
                         { label: 'Fat g', value: customFat, set: setCustomFat },
                       ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
                         <View key={label} style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 10, color: c.muted, marginBottom: 4, textAlign: 'center' }}>{label}</Text>
+                          <Text style={{ fontSize: 13, color: c.muted, marginBottom: 4, textAlign: 'center' }}>{label}</Text>
                           <TextInput
                             style={[s.reviewFieldInput, { textAlign: 'center' }]}
                             value={value}
@@ -1605,12 +1605,12 @@ function makeStyles(c: Colors) {
     macroRow: { flexDirection: 'row', justifyContent: 'space-around' },
     macroItem: { alignItems: 'center', gap: 1 },
     macroVal: { fontSize: fontSize.base, fontWeight: '600' },
-    macroLabel: { fontSize: fontSize.xs, color: c.text },
-    macroGoal: { fontSize: fontSize.xs, color: c.muted },
+    macroLabel: { fontSize: fontSize.sm, color: c.text },
+    macroGoal: { fontSize: fontSize.sm, color: c.muted },
     mealSection: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
     mealHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
     mealLabel: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: c.text },
-    mealCals: { fontSize: fontSize.xs, color: c.muted, marginRight: 8 },
+    mealCals: { fontSize: fontSize.sm, color: c.muted, marginRight: 8 },
     mealChevron: { color: c.muted, fontSize: 14 },
     foodRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
     checkbox: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: c.border, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
@@ -1619,7 +1619,7 @@ function makeStyles(c: Colors) {
     selectActionText: { fontSize: fontSize.sm, color: c.accent, fontWeight: '600' },
     foodInfo: { flex: 1, marginRight: 8 },
     foodName: { fontSize: fontSize.sm, color: c.text },
-    foodServing: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    foodServing: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
     foodCals: { fontSize: fontSize.sm, color: c.muted },
     addFoodBtn: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
     addFoodBtnText: { fontSize: fontSize.sm, color: c.accent },
@@ -1640,21 +1640,21 @@ function makeStyles(c: Colors) {
     searchInput: { flex: 1, paddingVertical: 14, fontSize: fontSize.base, color: c.text },
     scanBtn: { padding: 8 },
     scanBtnText: { fontSize: 22 },
-    sectionHeader: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+    sectionHeader: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
     resultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     resultName: { fontSize: fontSize.sm, color: c.text },
-    resultBrand: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    resultBrand: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
     resultCals: { marginLeft: 'auto', fontSize: fontSize.sm, color: c.muted },
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
     emptyText: { textAlign: 'center', color: c.muted, fontSize: fontSize.sm },
     backBtn: { paddingVertical: 12 },
     backBtnText: { color: c.accent, fontSize: fontSize.sm },
-    servingTitle: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
+    servingTitle: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 16, marginBottom: 6 },
     servingRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     servingRowActive: { backgroundColor: 'rgba(212,168,67,0.08)' },
     servingLabel: { fontSize: fontSize.sm, color: c.text },
     quantityInput: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text, backgroundColor: c.card },
-    nutritionPreview: { fontSize: fontSize.xs, color: c.muted, marginTop: 12, textAlign: 'center' },
+    nutritionPreview: { fontSize: fontSize.sm, color: c.muted, marginTop: 12, textAlign: 'center' },
     confirmBtn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
     confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
     // Action sheet
@@ -1663,7 +1663,7 @@ function makeStyles(c: Colors) {
     // Move/Copy modal
     moveCopyOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
     moveCopySheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
-    moveCopySection: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+    moveCopySection: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
     mealGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
     mealChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: c.border },
     mealChipActive: { backgroundColor: c.accent, borderColor: c.accent },
@@ -1700,11 +1700,11 @@ function makeStyles(c: Colors) {
     modifyFooterBtn: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: c.border },
     modifyFooterText: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
     modifyPromptInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, color: c.text, fontSize: fontSize.sm, minHeight: 80, textAlignVertical: 'top' },
-    modifyError: { color: '#f87171', fontSize: fontSize.xs, marginTop: 8 },
+    modifyError: { color: '#f87171', fontSize: fontSize.sm, marginTop: 8 },
     modifyRecipeName: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 16 },
     modifyMacroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
     modifyMacroCell: { backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 80, flexGrow: 1, borderWidth: 1, borderColor: c.border },
     modifyMacroValue: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm },
-    modifyMacroLabel: { color: c.muted, fontSize: fontSize.xs, marginTop: 2 },
+    modifyMacroLabel: { color: c.muted, fontSize: fontSize.sm, marginTop: 2 },
   });
 }

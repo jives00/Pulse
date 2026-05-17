@@ -209,7 +209,7 @@ export default function RecipeDetailScreen() {
 
           {recipe.source ? (
             <TouchableOpacity onPress={() => Linking.openURL(recipe.source!)} style={{ marginTop: 12 }}>
-              <Text style={[styles.muted, { fontSize: 12 }]}>From: <Text style={{ color: c.accent, textDecorationLine: 'underline' }}>{recipe.source}</Text></Text>
+              <Text style={styles.muted}>From: <Text style={{ color: c.accent, textDecorationLine: 'underline' }}>{recipe.source}</Text></Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity onPress={handleLogMade} disabled={logSaving} style={styles.logBtn}>
@@ -274,10 +274,10 @@ function makeStyles(c: Colors) {
   titleActions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },
   star: { color: c.accent, fontSize: fontSize['2xl'] },
   editBtn: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
-  type: { color: c.muted, fontSize: fontSize.xs, textTransform: 'capitalize', marginBottom: 10 },
+  type: { color: c.muted, fontSize: fontSize.sm, textTransform: 'capitalize', marginBottom: 10 },
   tagsRow: { marginBottom: 12 },
   tag: { borderWidth: 1, borderColor: c.accent, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 },
-  tagText: { color: c.accent, fontSize: fontSize.xs },
+  tagText: { color: c.accent, fontSize: fontSize.sm },
   description: { color: c.muted, fontSize: fontSize.sm, marginBottom: 12 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
   meta: { color: c.muted, fontSize: fontSize.sm },
@@ -295,16 +295,16 @@ function makeStyles(c: Colors) {
   nutritionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   nutritionCell: { backgroundColor: c.card, borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 80, flexGrow: 1 },
   nutritionValue: { color: c.accent, fontWeight: 'bold', fontSize: fontSize.sm },
-  nutritionLabel: { color: c.muted, fontSize: 12, marginTop: 2 },
+  nutritionLabel: { color: c.muted, fontSize: fontSize.sm, marginTop: 2 },
   muted: { color: c.muted, fontSize: fontSize.sm },
   logBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   logBtnText: { color: c.bg, fontWeight: 'bold', fontSize: fontSize.sm },
   logSection: { marginTop: 20, marginBottom: 32 },
   logHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  clearAll: { color: c.error, fontSize: fontSize.xs },
+  clearAll: { color: c.error, fontSize: fontSize.sm },
   logEntry: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border },
   logDate: { color: c.text, fontSize: fontSize.sm },
-  logDelete: { color: c.muted, fontSize: fontSize.xs, paddingHorizontal: 8 },
+  logDelete: { color: c.muted, fontSize: fontSize.sm, paddingHorizontal: 8 },
   backBtn: { position: 'absolute', top: 48, left: 16, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backBtnText: { color: c.text, fontSize: fontSize.xl },
   });

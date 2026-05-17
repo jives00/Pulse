@@ -376,7 +376,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   {/* Recipes section — shown first */}
                   {recipeResults.length > 0 && (
                     <>
-                      <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
+                      <div className="px-4 py-1.5 text-sm font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
                         My Recipes
                       </div>
                       <ul className="divide-y divide-slate-700/50">
@@ -389,10 +389,10 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-slate-200 truncate">{recipe.name}</div>
                                 {recipe.servings && (
-                                  <div className="text-xs text-slate-500">{recipe.servings} serving{recipe.servings !== 1 ? 's' : ''}</div>
+                                  <div className="text-sm text-slate-500">{recipe.servings} serving{recipe.servings !== 1 ? 's' : ''}</div>
                                 )}
                               </div>
-                              <div className="ml-3 text-xs text-slate-400 shrink-0">
+                              <div className="ml-3 text-sm text-slate-400 shrink-0">
                                 {recipe.calories != null ? `${recipe.calories} cal / serving` : '—'}
                               </div>
                             </button>
@@ -406,7 +406,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   {results.length > 0 && (
                     <>
                       {recipeResults.length > 0 && (
-                        <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
+                        <div className="px-4 py-1.5 text-sm font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
                           Foods
                         </div>
                       )}
@@ -425,10 +425,10 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm text-slate-200 truncate">{food.name}</div>
                                   {food.brand && (
-                                    <div className="text-xs text-slate-500 truncate">{food.brand}</div>
+                                    <div className="text-sm text-slate-500 truncate">{food.brand}</div>
                                   )}
                                 </div>
-                                <div className="ml-3 text-xs text-slate-400 shrink-0">
+                                <div className="ml-3 text-sm text-slate-400 shrink-0">
                                   {cal} cal{def ? ` / ${def.label}` : ' / 100g'}
                                 </div>
                               </button>
@@ -479,7 +479,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             )}
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Serving size</label>
+              <label className="block text-sm text-slate-400 mb-1">Serving size</label>
               <select
                 value={servingSizeId}
                 onChange={(e) => setServingSizeId(Number(e.target.value))}
@@ -494,7 +494,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             </div>
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Quantity</label>
+              <label className="block text-sm text-slate-400 mb-1">Quantity</label>
               <input
                 autoFocus
                 type="number"
@@ -512,7 +512,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                 <span>{previewCal}</span>
               </div>
               {selectedServing && (
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400">
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-slate-400">
                   <div>
                     Carbs: {Math.round(selectedFood.nutrition.carbs * selectedServing.grams * qty / 100)}g
                   </div>
@@ -527,7 +527,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             </div>
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <label className="block text-sm text-slate-400 mb-1">Date</label>
               <input
                 type="date"
                 value={logDate}
@@ -551,7 +551,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         {view === 'recipe-pick' && selectedRecipe && (
           <div className="flex flex-col flex-1 p-4 gap-4 overflow-y-auto">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Servings</label>
+              <label className="block text-sm text-slate-400 mb-1">Servings</label>
               <input
                 autoFocus
                 type="number"
@@ -569,7 +569,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   <span>Calories</span>
                   <span>{Math.round(selectedRecipe.calories * (Number(recipeServings) || 1))}</span>
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400">
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-slate-400">
                   {selectedRecipe.carbs_g != null && <div>Carbs: {Math.round(selectedRecipe.carbs_g * (Number(recipeServings) || 1))}g</div>}
                   {selectedRecipe.protein_g != null && <div>Protein: {Math.round(selectedRecipe.protein_g * (Number(recipeServings) || 1))}g</div>}
                   {selectedRecipe.fat_g != null && <div>Fat: {Math.round(selectedRecipe.fat_g * (Number(recipeServings) || 1))}g</div>}
@@ -578,7 +578,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             )}
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <label className="block text-sm text-slate-400 mb-1">Date</label>
               <input
                 type="date"
                 value={recipeLogDate}
@@ -602,7 +602,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         {view === 'modify-pick' && (
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700/50 shrink-0">
-              <p className="text-xs text-slate-400 mb-2">Pick a recipe, then describe your change.</p>
+              <p className="text-sm text-slate-400 mb-2">Pick a recipe, then describe your change.</p>
               <input
                 autoFocus
                 type="text"
@@ -627,7 +627,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-slate-200 truncate">{r.name}</div>
                         </div>
-                        <div className="ml-3 text-xs text-slate-400 shrink-0">
+                        <div className="ml-3 text-sm text-slate-400 shrink-0">
                           {r.calories != null ? `${r.calories} cal` : '—'}
                         </div>
                       </button>
@@ -648,7 +648,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         {/* ── Modify-prompt: enter AI instruction ──────────────────── */}
         {view === 'modify-prompt' && modifyRecipe && (
           <div className="p-4 space-y-4">
-            <p className="text-xs text-slate-400">Describe what you changed. The AI will estimate updated macros for this one-time log entry.</p>
+            <p className="text-sm text-slate-400">Describe what you changed. The AI will estimate updated macros for this one-time log entry.</p>
             <textarea
               autoFocus
               value={modifyPrompt}
@@ -658,7 +658,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               rows={3}
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-dram-accent resize-none"
             />
-            {modifyError && <p className="text-xs text-red-400">{modifyError}</p>}
+            {modifyError && <p className="text-sm text-red-400">{modifyError}</p>}
             <button
               onClick={handleModifySubmit}
               disabled={modifyLoading || !modifyPrompt.trim()}
@@ -673,7 +673,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         {view === 'modify-preview' && modifyRecipe && modifyResult && (
           <div className="p-4 space-y-4 overflow-y-auto">
             <div>
-              <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Updated macros</p>
+              <p className="text-sm text-slate-400 mb-2 uppercase tracking-wide">Updated macros</p>
               <div className="space-y-1">
                 {([
                   { label: 'Name', orig: modifyRecipe.name, next: modifyResult.name, unit: '' },
@@ -691,9 +691,9 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-500 mt-3">Will be logged as "{modifyResult.name}" (1 serving, recipe unchanged)</p>
+              <p className="text-sm text-slate-500 mt-3">Will be logged as "{modifyResult.name}" (1 serving, recipe unchanged)</p>
             </div>
-            {modifyError && <p className="text-xs text-red-400">{modifyError}</p>}
+            {modifyError && <p className="text-sm text-red-400">{modifyError}</p>}
             <button
               onClick={handleModifyLog}
               disabled={modifyLogging || !selectedMeal}
@@ -709,7 +709,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             <div className="space-y-2">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Name *</label>
+                <label className="block text-sm text-slate-400 mb-1">Name *</label>
                 <input
                   autoFocus
                   type="text"
@@ -719,7 +719,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Brand</label>
+                <label className="block text-sm text-slate-400 mb-1">Brand</label>
                 <input
                   type="text"
                   value={cfBrand}
@@ -728,7 +728,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">
+                <label className="block text-sm text-slate-400 mb-1">
                   Description <span className="text-slate-500">(helps AI estimate)</span>
                 </label>
                 <input
@@ -743,20 +743,20 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
 
             <div className="border-t border-slate-700 pt-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                <span className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Nutrition per 100g
                 </span>
                 <button
                   onClick={handleEstimate}
                   disabled={estimating || !cfName.trim()}
-                  className="text-xs text-brand-400 hover:text-brand-300 disabled:opacity-50 transition-colors"
+                  className="text-sm text-brand-400 hover:text-brand-300 disabled:opacity-50 transition-colors"
                 >
                   {estimating ? 'Estimating…' : '✨ Estimate with AI'}
                 </button>
               </div>
 
               {confidence && (
-                <div className={`text-xs mb-2 ${CONFIDENCE_COLORS[confidence]}`}>
+                <div className={`text-sm mb-2 ${CONFIDENCE_COLORS[confidence]}`}>
                   AI confidence: {confidence}
                 </div>
               )}
@@ -771,7 +771,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   ['Sodium (mg)', cfSodium, setCfSodium],
                 ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
                   <div key={label}>
-                    <label className="block text-xs text-slate-500 mb-1">{label}</label>
+                    <label className="block text-sm text-slate-500 mb-1">{label}</label>
                     <input
                       type="number"
                       min="0"
@@ -786,12 +786,12 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             </div>
 
             <div className="border-t border-slate-700 pt-3">
-              <span className="text-xs font-medium text-slate-400 uppercase tracking-wide block mb-2">
+              <span className="text-sm font-medium text-slate-400 uppercase tracking-wide block mb-2">
                 Serving size
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Label</label>
+                  <label className="block text-sm text-slate-500 mb-1">Label</label>
                   <input
                     type="text"
                     value={cfServingLabel}
@@ -800,7 +800,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Grams</label>
+                  <label className="block text-sm text-slate-500 mb-1">Grams</label>
                   <input
                     type="number"
                     min="1"

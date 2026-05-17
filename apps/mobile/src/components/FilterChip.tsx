@@ -28,7 +28,7 @@ function makeStyles(c: Colors) {
     chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
     active: { backgroundColor: c.accent, borderColor: c.accent },
     inactive: { backgroundColor: 'transparent', borderColor: c.border },
-    label: { fontSize: fontSize.xs, fontWeight: '600' },
+    label: { fontSize: fontSize.sm, fontWeight: '600' },
     activeLabel: { color: c.bg },
     inactiveLabel: { color: c.muted },
   });

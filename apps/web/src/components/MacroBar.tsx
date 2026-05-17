@@ -1,4 +1,4 @@
-interface MacroBarProps {
+﻿interface MacroBarProps {
   label: string;
   value: number;
   goal: number;
@@ -12,7 +12,7 @@ export default function MacroBar({ label, value, goal, unit = 'g', color = 'bg-b
 
   return (
     <div className="space-y-1">
-      <div className="flex justify-between text-xs text-slate-400">
+      <div className="flex justify-between text-sm text-slate-400">
         <span>{label}</span>
         <span className={over ? 'text-red-400' : ''}>
           {Math.round(value)}{unit} / {goal}{unit}

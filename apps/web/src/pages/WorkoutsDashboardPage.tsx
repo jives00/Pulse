@@ -85,11 +85,11 @@ function StatTile({ icon, label, value, unit, color }: {
     <div className="flex flex-col gap-1.5 px-4 py-4">
       <div className="flex items-center gap-1.5">
         <span className="text-xl leading-none">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
+        <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{value}</span>
-        {unit && <span className="text-xs text-slate-400">{unit}</span>}
+        {unit && <span className="text-sm text-slate-400">{unit}</span>}
       </div>
     </div>
   );
@@ -166,7 +166,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           {/* Workout goals */}
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">This Week</div>
+            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">This Week</div>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Volume goal (lbs / week)</label>
@@ -181,7 +181,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
 
           {/* Body measurement goals */}
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Body Measurements</div>
+            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Body Measurements</div>
             <div className="space-y-4">
               {DISPLAYED_METRICS.map((key) => {
                 const cfg = METRIC_CONFIG[key];
@@ -191,11 +191,11 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="text-sm leading-none">{cfg.icon}</span>
                       <span className="text-sm font-medium text-slate-300">{cfg.label}</span>
-                      <span className="text-xs text-slate-500">({cfg.unit})</span>
+                      <span className="text-sm text-slate-500">({cfg.unit})</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">Target</label>
+                        <label className="block text-sm text-slate-500 mb-1">Target</label>
                         <input
                           type="number" min="0" step="0.1"
                           value={g.value}
@@ -205,7 +205,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">By date</label>
+                        <label className="block text-sm text-slate-500 mb-1">By date</label>
                         <input
                           type="date"
                           value={g.date}
@@ -245,7 +245,7 @@ const CHART_HEIGHT = 80;
 function ChartTooltip({ active, payload, label, unit }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-xs text-slate-200 shadow-lg">
+    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-slate-200 shadow-lg">
       <p className="font-medium mb-0.5 text-slate-400">{label}</p>
       <p style={{ color: payload[0]?.fill }}>{Math.round(payload[0]?.value)}{unit}</p>
     </div>
@@ -273,9 +273,9 @@ function WeeklyChart({ data, dataKey, label, icon, color, goal, unit }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
+          <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
         </div>
-        {goal != null && <span className="text-xs text-slate-400">Goal: {goal}{unit}/wk</span>}
+        {goal != null && <span className="text-sm text-slate-400">Goal: {goal}{unit}/wk</span>}
       </div>
       <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         <div style={{ width: chartWidth, height: CHART_HEIGHT }}>
@@ -499,17 +499,17 @@ function BodyMeasurementsCard({
               <div key={key} className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-base leading-none">{cfg.icon}</span>
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
+                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
                 </div>
 
                 {/* Current */}
                 <div>
-                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
+                  <div className="text-sm text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
                   <div className="flex items-baseline gap-1">
                     {latest ? (
                       <>
                         <span className="text-xl font-bold text-white">{latest.value}</span>
-                        <span className="text-xs text-slate-400">{cfg.unit}</span>
+                        <span className="text-sm text-slate-400">{cfg.unit}</span>
                       </>
                     ) : (
                       <span className="text-xl font-bold text-slate-500">—</span>
@@ -525,21 +525,21 @@ function BodyMeasurementsCard({
 
                 {/* Goal */}
                 <div>
-                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
+                  <div className="text-sm text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
                   {goal ? (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-medium text-slate-300">{goal.targetValue}{cfg.unit}</span>
                       {goal.targetDate && (
-                        <span className="text-xs text-slate-500">by {formatDate(goal.targetDate)}</span>
+                        <span className="text-sm text-slate-500">by {formatDate(goal.targetDate)}</span>
                       )}
                       {onTrack !== null && (
-                        <span className={`text-xs font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`text-sm font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
                           {onTrack ? '✓ on track' : '⚠ behind'}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-600">No goal set</span>
+                    <span className="text-sm text-slate-600">No goal set</span>
                   )}
                 </div>
 
@@ -584,11 +584,11 @@ function BodyMeasurementsCard({
                             />
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => setEditingId(null)} className="flex-1 text-xs text-slate-400 hover:text-slate-200 py-1 transition-colors">Cancel</button>
+                            <button onClick={() => setEditingId(null)} className="flex-1 text-sm text-slate-400 hover:text-slate-200 py-1 transition-colors">Cancel</button>
                             <button
                               onClick={() => handleEditSave(m.id)}
                               disabled={saving || !editForm.value}
-                              className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded py-1 transition-colors"
+                              className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded py-1 transition-colors"
                             >
                               {saving ? '…' : 'Save'}
                             </button>
@@ -743,7 +743,7 @@ function RoutineCardInTab({
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1 group-hover:bg-dram-border/20 transition">
             <span className="text-4xl font-bold text-dram-accent leading-none">{routine.exerciseCount}</span>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
           </div>
         )}
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
@@ -765,14 +765,14 @@ function RoutineCardInTab({
           <button
             onClick={handleStart}
             disabled={starting}
-            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded-lg py-1.5 transition-colors"
+            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded-lg py-1.5 transition-colors"
           >
             {starting ? 'Starting…' : 'Start'}
           </button>
           <button
             onClick={handleImageClick}
             disabled={uploading}
-            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-xs font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
+            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-sm font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
           >
             {uploading ? <Spinner size={3} /> : 'Edit'}
           </button>
@@ -899,10 +899,10 @@ function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
         <Link to={`/workouts/exercises/${exercise.id}`} className="font-semibold text-white text-sm leading-snug line-clamp-2 hover:text-dram-accent transition-colors block">
           {exercise.name}
         </Link>
-        <p className="text-dram-muted text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <p className="text-dram-muted text-sm mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
         <div className="flex flex-wrap gap-1 mt-2">
           {exercise.musclesPrimary?.slice(0, 2).map((m) => (
-            <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>
+            <span key={m} className="text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>
           ))}
         </div>
       </div>
@@ -1013,17 +1013,17 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
           <div className="bg-dram-card border border-dram-border rounded-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-dram-accent">New Exercise</h2>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
               <input autoFocus type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Exercise name"
                 className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
               {!useCustomCat && (
                 <div className="flex flex-wrap gap-1.5">
                   {categories.map((cat) => (
                     <button key={cat} onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                     >{cat}</button>
                   ))}
                 </div>
@@ -1032,34 +1032,34 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
                 <input type="text" value={form.customCategory} onChange={(e) => setForm((f) => ({ ...f, customCategory: e.target.value }))} placeholder="New category name"
                   className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
               )}
-              <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent/50 hover:text-dram-accent transition-colors">
+              <button onClick={() => setUseCustomCat((v) => !v)} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">
                 {useCustomCat ? '← Pick existing' : '+ New category'}
               </button>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
               <div className="flex flex-wrap gap-1.5">
                 {EXERCISE_TYPES_TAB.map((t) => (
                   <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFieldsTab(t) }))}
-                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                    className={`text-sm px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                   >{t}</button>
                 ))}
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
               <div className="flex flex-wrap gap-2">
                 {TRACKED_FIELD_OPTIONS_TAB.map(({ key, label }) => {
                   const checked = form.trackedFields.includes(key);
                   return (
                     <button key={key} type="button"
                       onClick={() => setForm((f) => ({ ...f, trackedFields: checked ? f.trackedFields.filter((x) => x !== key) : [...f.trackedFields, key] }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                     >{label}</button>
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+              <p className="text-sm text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
             </div>
             <div className="flex justify-end gap-3 pt-1">
               <button onClick={closeForm} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">Cancel</button>
@@ -1156,11 +1156,11 @@ function TodaysBlurb({
       {todayTDEE && tdeeRows.length > 0 && (
         <div>
           <p className="font-semibold text-slate-200 mb-2">Last 30 Days — Calories In vs. TDEE</p>
-          <p className="text-xs text-dram-muted mb-3">
+          <p className="text-sm text-dram-muted mb-3">
             BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF (10% of intake) + exercise per day
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="text-dram-muted border-b border-dram-border">
                   <th className="text-left py-1.5 pr-3 font-medium">Date</th>
@@ -1643,7 +1643,7 @@ function ThisWeekCardV3({
                   </div>
                   <div className="text-center">
                     <div className={`t-xs font-mono ${d.isToday ? 'gold font-semibold' : isHovered ? 'text-white' : 'text-muted'}`}>{d.label}</div>
-                    <div className={`font-mono tnum ${d.vol || d.nonStrength ? '' : 'text-muted'}`} style={{ fontSize: 10 }}>
+                    <div className={`font-mono tnum ${d.vol || d.nonStrength ? '' : 'text-muted'}`} style={{ fontSize: 13 }}>
                       {d.nonStrength
                         ? d.totalSteps > 0 ? fmtNum(d.totalSteps)
                           : d.totalDistMi > 0 ? `${d.totalDistMi.toFixed(1)}mi`
@@ -1683,7 +1683,7 @@ function ThisWeekCardV3({
                           detail = [sets ? `${sets}×` : '', reps, wt].filter(Boolean).join(' ');
                         }
                         return (
-                          <div key={ei} className="font-mono text-muted" style={{ fontSize: 11 }}>
+                          <div key={ei} className="font-mono text-muted" style={{ fontSize: 13 }}>
                             {ex.name}{detail ? <span className="text-white"> — {detail}</span> : ''}
                           </div>
                         );
@@ -1957,7 +1957,7 @@ function CaloriesVsTDEECard({
             </>
           )}
           {xLabelIdxs.map((i) => i < points.length && (
-            <text key={i} x={toX(i)} y={H - 4} textAnchor={i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+            <text key={i} x={toX(i)} y={H - 4} textAnchor={i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="12" fill="rgb(var(--color-muted))">
               {new Date(points[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
             </text>
           ))}
@@ -2099,7 +2099,7 @@ function WeightTrendCard({
                 <circle cx={toX(data.length-1)} cy={toY(data[data.length-1].weight)} r="3" fill="rgb(var(--color-accent))" />
               )}
               {xLabelIdxs.map((i) => i < data.length && (
-                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="12" fill="rgb(var(--color-muted))">
                   {new Date(data[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                 </text>
               ))}
@@ -2226,7 +2226,7 @@ function ProteinTrendCard({
                 <circle cx={toX(data.length - 1)} cy={toY(last)} r="3" fill="#7C9ECB" />
               )}
               {pxLabelIdxs.map((i) => i < data.length && (
-                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="10" fill="rgb(var(--color-muted))">
+                <text key={i} x={toX(i)} y={H - 4} textAnchor={i === data.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} fontSize="12" fill="rgb(var(--color-muted))">
                   {new Date(data[i].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                 </text>
               ))}
@@ -3326,13 +3326,13 @@ export default function WorkoutsDashboardPage() {
                 <span className="text-xl leading-none">➕</span>
                 <div>
                   <div className="text-sm font-semibold text-slate-200">Blank Workout</div>
-                  <div className="text-xs text-dram-muted">Start from scratch</div>
+                  <div className="text-sm text-dram-muted">Start from scratch</div>
                 </div>
               </button>
               {/* Routines */}
               {routinesList.length > 0 && (
                 <div className="px-5 pt-3 pb-1">
-                  <div className="text-xs font-semibold text-dram-muted uppercase tracking-wider mb-2">Routines</div>
+                  <div className="text-sm font-semibold text-dram-muted uppercase tracking-wider mb-2">Routines</div>
                 </div>
               )}
               {routinesList.map((r) => (
@@ -3345,13 +3345,13 @@ export default function WorkoutsDashboardPage() {
                   <span className="text-xl leading-none">📋</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-slate-200 truncate">{r.name}</div>
-                    <div className="text-xs text-dram-muted">{r.exerciseCount} exercise{r.exerciseCount !== 1 ? 's' : ''}{r.lastUsedDate ? ` · last used ${new Date(r.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</div>
+                    <div className="text-sm text-dram-muted">{r.exerciseCount} exercise{r.exerciseCount !== 1 ? 's' : ''}{r.lastUsedDate ? ` · last used ${new Date(r.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</div>
                   </div>
-                  {startingRoutineId === r.id && <span className="text-xs text-dram-muted">Starting…</span>}
+                  {startingRoutineId === r.id && <span className="text-sm text-dram-muted">Starting…</span>}
                 </button>
               ))}
               {routinesList.length === 0 && (
-                <div className="px-5 py-3 text-xs text-dram-muted">No routines yet. Create one from the Workouts page.</div>
+                <div className="px-5 py-3 text-sm text-dram-muted">No routines yet. Create one from the Workouts page.</div>
               )}
             </div>
             <div className="px-5 py-3 border-t border-dram-border">

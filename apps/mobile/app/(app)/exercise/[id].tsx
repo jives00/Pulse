@@ -110,8 +110,8 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
       )}
       {plateauDetected && (
         <View style={{ marginHorizontal: 0, marginTop: 4, backgroundColor: 'rgba(250,204,21,0.08)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.25)', borderRadius: 10, padding: 12 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#facc15', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Plateau detected</Text>
-          <Text style={{ fontSize: 11, color: 'rgba(250,204,21,0.8)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#facc15', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Plateau detected</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(250,204,21,0.8)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</Text>
         </View>
       )}
     </ScrollView>
@@ -447,7 +447,7 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
                 );
               })}
             </View>
-            <Text style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
+            <Text style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>
               Defaults set by type — toggle to mix (e.g. stairs = Duration + Reps)
             </Text>
           </View>
@@ -687,7 +687,7 @@ function makeStyles(c: Colors) {
   backText: { fontSize: fontSize.xl, color: c.muted },
   headerTitle: { flex: 1 },
   title: { fontSize: fontSize.base, fontWeight: '700', color: c.text },
-  subtitle: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+  subtitle: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
   editBtn: { paddingHorizontal: 4 },
   editText: { fontSize: fontSize.sm, color: c.accent, fontWeight: '600' },
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.border },
@@ -704,31 +704,31 @@ function makeTabStyles(c: Colors) {
   empty: { textAlign: 'center', color: c.muted, fontSize: fontSize.sm, marginTop: 40 },
   pbGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pbTile: { width: '47%', backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 12 },
-  pbLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 4 },
+  pbLabel: { fontSize: fontSize.sm, color: c.muted, marginBottom: 4 },
   pbValue: { fontSize: fontSize.base, fontWeight: '600', color: c.text },
-  pbSub: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+  pbSub: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
   section: { backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 12, gap: 4 },
   sectionTitle: { fontSize: fontSize.sm, fontWeight: '600', color: c.text, marginBottom: 4 },
-  sectionSub: { fontSize: fontSize.xs, color: c.muted, marginBottom: 4 },
+  sectionSub: { fontSize: fontSize.sm, color: c.muted, marginBottom: 4 },
   tableHeader: { flexDirection: 'row', marginBottom: 4 },
-  tableHeaderCell: { flex: 1, fontSize: fontSize.xs, color: c.muted },
+  tableHeaderCell: { flex: 1, fontSize: fontSize.sm, color: c.muted },
   tableRow: { flexDirection: 'row', paddingVertical: 2 },
   tableCell: { flex: 1, fontSize: fontSize.sm, color: c.muted },
   metricPill: { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 12, paddingVertical: 6 },
   metricPillActive: { backgroundColor: c.accent, borderColor: c.accent },
-  metricText: { fontSize: fontSize.xs, color: c.muted },
+  metricText: { fontSize: fontSize.sm, color: c.muted },
   metricTextActive: { color: c.bg, fontWeight: '700' },
   chartRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  chartDate: { fontSize: fontSize.xs, color: c.muted },
-  chartValue: { fontSize: fontSize.xs, color: c.text, fontWeight: '500' },
+  chartDate: { fontSize: fontSize.sm, color: c.muted },
+  chartValue: { fontSize: fontSize.sm, color: c.text, fontWeight: '500' },
   loadMore: { textAlign: 'center', color: c.accent, fontSize: fontSize.sm, paddingVertical: 12 },
   mediaImage: { width: '100%', height: 200, borderRadius: 8 },
-  muscleLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 4 },
+  muscleLabel: { fontSize: fontSize.sm, color: c.muted, marginBottom: 4 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tagPrimary: { backgroundColor: c.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  tagPrimaryText: { fontSize: fontSize.xs, color: c.accent },
+  tagPrimaryText: { fontSize: fontSize.sm, color: c.accent },
   tagSecondary: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, paddingHorizontal: 10, paddingVertical: 4 },
-  tagSecondaryText: { fontSize: fontSize.xs, color: c.muted },
+  tagSecondaryText: { fontSize: fontSize.sm, color: c.muted },
   instructions: { fontSize: fontSize.sm, color: c.text, lineHeight: 20 },
   });
 }
@@ -751,14 +751,14 @@ function makeEdStyles(c: Colors) {
   toggleNew: { fontSize: fontSize.sm, color: c.accent, marginTop: 4 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   tag: { backgroundColor: c.accent + '28', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  tagText: { fontSize: fontSize.xs, color: c.accent },
+  tagText: { fontSize: fontSize.sm, color: c.accent },
   uploadRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   uploadBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   uploadBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
   filePickerBtn: { marginTop: 6 },
   filePickerText: { fontSize: fontSize.sm, color: c.accent },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  keyText: { flex: 1, fontSize: fontSize.xs, color: c.muted },
-  removeBtn: { fontSize: fontSize.xs, color: '#ef4444', fontWeight: '600' },
+  keyText: { flex: 1, fontSize: fontSize.sm, color: c.muted },
+  removeBtn: { fontSize: fontSize.sm, color: '#ef4444', fontWeight: '600' },
   });
 }

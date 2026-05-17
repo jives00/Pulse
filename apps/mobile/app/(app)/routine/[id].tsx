@@ -209,7 +209,7 @@ function TemplateSetRow({
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
-      <Text style={{ fontSize: fontSize.xs, color: c.muted, width: 20, textAlign: 'center' }}>{set.setNumber}</Text>
+      <Text style={{ fontSize: fontSize.sm, color: c.muted, width: 20, textAlign: 'center' }}>{set.setNumber}</Text>
       {showWeight && (
         <TextInput
           style={inputStyle}
@@ -339,7 +339,7 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
               {re.exercise.name}
             </Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>{re.exercise.category}</Text>
+          <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 1 }}>{re.exercise.category}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
           <TouchableOpacity onPress={onMoveUp} disabled={!onMoveUp} style={{ paddingHorizontal: 4, opacity: onMoveUp ? 1 : 0.2 }}>
@@ -349,7 +349,7 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
             <Text style={{ fontSize: fontSize.base, color: c.muted }}>↓</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onRemove(re.id)} style={{ paddingLeft: 4 }}>
-            <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Remove</Text>
+            <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Remove</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -357,9 +357,9 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
       {/* Last performed reference */}
       {showLastPerformed && (
         <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8 }}>
-          <Text style={{ fontSize: fontSize.xs, color: c.muted, marginBottom: 4 }}>Last session (reference)</Text>
+          <Text style={{ fontSize: fontSize.sm, color: c.muted, marginBottom: 4 }}>Last session (reference)</Text>
           {re.lastPerformedSets!.map((ls, i) => (
-            <Text key={i} style={{ fontSize: fontSize.xs, color: c.text, paddingVertical: 1 }}>
+            <Text key={i} style={{ fontSize: fontSize.sm, color: c.text, paddingVertical: 1 }}>
               Set {ls.setNumber}:
               {ls.weightKg != null && ` ${fmtWeight(ls.weightKg)} lbs`}
               {ls.reps != null && ` × ${ls.reps} reps`}
@@ -375,11 +375,11 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
       {sets.length > 0 && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 2 }}>
           <View style={{ width: 20 }} />
-          {showWeightHeader   && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>lbs</Text>}
-          {showRepsHeader     && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>reps</Text>}
-          {showDurationHeader && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>time</Text>}
-          {showDistanceHeader && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>dist</Text>}
-          {showStepsHeader    && <Text style={{ flex: 1, fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>steps</Text>}
+          {showWeightHeader   && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>lbs</Text>}
+          {showRepsHeader     && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>reps</Text>}
+          {showDurationHeader && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>time</Text>}
+          {showDistanceHeader && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>dist</Text>}
+          {showStepsHeader    && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>steps</Text>}
           <View style={{ width: 28 }} />
         </View>
       )}
@@ -472,7 +472,7 @@ function ExercisePicker({ token, onSelect, onClose, c }: {
                 onPress={() => onSelect(item)}
               >
                 <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{item.name}</Text>
-                <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2 }}>{item.category} · {item.exerciseType}</Text>
+                <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2 }}>{item.category} · {item.exerciseType}</Text>
               </TouchableOpacity>
             )}
             ListEmptyComponent={<Text style={{ textAlign: 'center', color: c.muted, marginTop: 40, fontSize: fontSize.sm }}>No exercises found.</Text>}
@@ -650,9 +650,9 @@ export default function RoutineDetailScreen() {
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
               <Text style={s.subtitle}>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</Text>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>·</Text>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>·</Text>
               <TouchableOpacity onPress={() => setShowTypePicker(true)}>
-                <Text style={{ fontSize: fontSize.xs, color: c.accent }}>
+                <Text style={{ fontSize: fontSize.sm, color: c.accent }}>
                   {ROUTINE_TYPE_OPTIONS.find((o) => o.value === routine.routineType)?.label ?? 'Strength (lbs)'}
                 </Text>
               </TouchableOpacity>
@@ -692,7 +692,7 @@ export default function RoutineDetailScreen() {
                 <Text style={s.cardTitle}>Per session ({unitLabel})</Text>
                 <VolumeLineChart data={chartData} c={c} />
                 {latest && (
-                  <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'right', marginTop: 2 }}>
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'right', marginTop: 2 }}>
                     Latest: {latest.volumeLbs.toLocaleString()} {unitLabel}
                   </Text>
                 )}
@@ -772,15 +772,15 @@ function makeStyles(c: Colors) {
     backBtnText: { fontSize: 28, color: c.text, lineHeight: 32 },
     title: { fontSize: fontSize.lg, fontWeight: '700', color: c.text },
     nameInput: { fontSize: fontSize.lg, fontWeight: '700', color: c.text, borderBottomWidth: 1, borderBottomColor: c.accent, paddingVertical: 2 },
-    subtitle: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
+    subtitle: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
     deleteBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-    deleteBtnText: { fontSize: fontSize.xs, color: c.muted },
+    deleteBtnText: { fontSize: fontSize.sm, color: c.muted },
     scroll: { padding: 14, gap: 12 },
     startBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     startBtnDisabled: { opacity: 0.5 },
     startBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, gap: 8 },
-    cardTitle: { fontSize: fontSize.xs, fontWeight: '600', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
     addExBtn: { borderWidth: 1, borderStyle: 'dashed', borderColor: c.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     addExBtnText: { fontSize: fontSize.sm, color: c.accent },
   });

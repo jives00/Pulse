@@ -95,7 +95,7 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
           <button
             key={m.key}
             onClick={() => onMetricChange(m.key)}
-            className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
+            className={`shrink-0 text-sm px-3 py-1.5 rounded-full transition-colors ${
               metric === m.key ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -146,8 +146,8 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
       )}
       {plateauDetected && (
         <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(250,204,21,0.3)', backgroundColor: 'rgba(250,204,21,0.06)' }}>
-          <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#facc15' }}>Plateau detected</div>
-          <div className="text-xs" style={{ color: 'rgba(250,204,21,0.75)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</div>
+          <div className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#facc15' }}>Plateau detected</div>
+          <div className="text-sm" style={{ color: 'rgba(250,204,21,0.75)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</div>
         </div>
       )}
     </div>
@@ -212,7 +212,7 @@ function HistoryTab({ exerciseId }: { exerciseId: number }) {
                 ))}
               </>
             ) : (
-              <div className="text-xs text-slate-500">No sets recorded</div>
+              <div className="text-sm text-slate-500">No sets recorded</div>
             )}
           </div>
         </div>
@@ -277,7 +277,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       {/* Demo media */}
       {exercise.mediaUrl && (
         <div className="bg-slate-800 rounded-lg p-4">
-          <div className="text-xs text-slate-500 mb-3">Demo</div>
+          <div className="text-sm text-slate-500 mb-3">Demo</div>
           <MediaEmbed url={exercise.mediaUrl} />
         </div>
       )}
@@ -285,7 +285,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       {/* Muscle diagram */}
       {exercise.muscleImageUrl && (
         <div className="bg-slate-800 rounded-lg p-4">
-          <div className="text-xs text-slate-500 mb-3">Muscle Groups</div>
+          <div className="text-sm text-slate-500 mb-3">Muscle Groups</div>
           <img
             src={exercise.muscleImageUrl}
             alt="Muscle groups"
@@ -297,11 +297,11 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       {/* Muscles */}
       <div className="bg-slate-800 rounded-lg p-4 space-y-3">
         <div>
-          <div className="text-xs text-slate-500 mb-1.5">Primary Muscles</div>
+          <div className="text-sm text-slate-500 mb-1.5">Primary Muscles</div>
           {primary.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {primary.map((m) => (
-                <span key={m} className="px-2.5 py-1 text-xs font-medium bg-blue-600/20 text-blue-300 rounded-full">{m}</span>
+                <span key={m} className="px-2.5 py-1 text-sm font-medium bg-blue-600/20 text-blue-300 rounded-full">{m}</span>
               ))}
             </div>
           ) : (
@@ -310,10 +310,10 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
         </div>
         {secondary.length > 0 && (
           <div>
-            <div className="text-xs text-slate-500 mb-1.5">Secondary Muscles</div>
+            <div className="text-sm text-slate-500 mb-1.5">Secondary Muscles</div>
             <div className="flex flex-wrap gap-1.5">
               {secondary.map((m) => (
-                <span key={m} className="px-2.5 py-1 text-xs font-medium bg-slate-700 text-slate-400 rounded-full border border-slate-600">{m}</span>
+                <span key={m} className="px-2.5 py-1 text-sm font-medium bg-slate-700 text-slate-400 rounded-full border border-slate-600">{m}</span>
               ))}
             </div>
           </div>
@@ -322,7 +322,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
 
       {/* Instructions */}
       <div className="bg-slate-800 rounded-lg p-4">
-        <div className="text-xs text-slate-500 mb-2">Instructions</div>
+        <div className="text-sm text-slate-500 mb-2">Instructions</div>
         {exercise.instructions ? (
           <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.instructions}</p>
         ) : (
@@ -386,10 +386,10 @@ function TagInput({ label, tags, onChange }: { label: string; tags: string[]; on
   }
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
+      <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
       <div className="flex flex-wrap gap-1.5 bg-dram-card border border-dram-border rounded-lg px-2 py-1.5 min-h-[38px]">
         {tags.map((t) => (
-          <span key={t} className="flex items-center gap-1 text-xs bg-dram-accent/15 text-dram-accent rounded-full px-2 py-0.5">
+          <span key={t} className="flex items-center gap-1 text-sm bg-dram-accent/15 text-dram-accent rounded-full px-2 py-0.5">
             {t}
             <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} className="text-dram-accent/50 hover:text-dram-accent leading-none">×</button>
           </span>
@@ -520,7 +520,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         <h2 className="text-base font-semibold text-white">Edit Exercise</h2>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Name</label>
           <input autoFocus type="text" value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
@@ -528,12 +528,12 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Category</label>
           {!useCustomCat && (
             <div className="flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <button key={cat} onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                  className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                  className={`text-sm px-3 py-1 rounded-lg border transition-colors ${
                     form.category === cat ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
                   }`}
                 >{cat}</button>
@@ -547,17 +547,17 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
             />
           )}
-          <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent hover:brightness-110 transition-colors">
+          <button onClick={() => setUseCustomCat((v) => !v)} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
             {useCustomCat ? '← Pick existing' : '+ New category'}
           </button>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Type</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Type</label>
           <div className="flex flex-wrap gap-1.5">
             {EXERCISE_TYPES.map((t) => (
               <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
-                className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                className={`text-sm px-3 py-1 rounded-lg border transition-colors ${
                   form.exerciseType === t ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
                 }`}
               >{t}</button>
@@ -566,7 +566,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Track Per Set</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Track Per Set</label>
           <div className="flex flex-wrap gap-2">
             {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
               const checked = form.trackedFields.includes(key);
@@ -580,7 +580,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
                       ? f.trackedFields.filter((x) => x !== key)
                       : [...f.trackedFields, key],
                   }))}
-                  className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                  className={`text-sm px-3 py-1 rounded-lg border transition-colors ${
                     checked
                       ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                       : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'
@@ -591,14 +591,14 @@ function EditModal({ exercise, categories, onSave, onClose }: {
               );
             })}
           </div>
-          <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+          <p className="text-sm text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
         </div>
 
         <TagInput label="Primary Muscles" tags={form.musclesPrimary} onChange={(v) => setForm((f) => ({ ...f, musclesPrimary: v }))} />
         <TagInput label="Secondary Muscles" tags={form.musclesSecondary} onChange={(v) => setForm((f) => ({ ...f, musclesSecondary: v }))} />
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Instructions</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Instructions</label>
           <textarea value={form.instructions}
             onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
             rows={4}
@@ -608,9 +608,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
         {/* Cover Image */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cover Image</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Cover Image</label>
           {form.coverImageKey && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
               <span className="truncate max-w-[280px]">{form.coverImageKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, coverImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -641,9 +641,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
         {/* How-To Media */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">How-To Media</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">How-To Media</label>
           {form.mediaKey && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
               <span className="truncate max-w-[280px]">{form.mediaKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, mediaKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -674,9 +674,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
 
         {/* Muscle Diagram */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Muscle Diagram</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Muscle Diagram</label>
           {form.muscleImageKey && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
               <span className="truncate max-w-[280px]">{form.muscleImageKey}</span>
               <button type="button" onClick={() => setForm((f) => ({ ...f, muscleImageKey: '' }))} className="text-red-400 hover:text-red-300 shrink-0">Remove</button>
             </div>
@@ -704,10 +704,10 @@ function EditModal({ exercise, categories, onSave, onClose }: {
             </label>
           </div>
         </div>
-        {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
+        {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Notes</label>
+          <label className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Notes</label>
           <textarea value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             rows={3}
@@ -808,14 +808,14 @@ export default function ExerciseDetailPage() {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setShowEdit(true)}
-            className="text-xs text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1 transition-colors"
+            className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1 transition-colors"
           >
             Edit
           </button>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="text-xs text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50 transition-colors"
+            className="text-sm text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50 transition-colors"
           >
             {deleting ? '…' : 'Delete'}
           </button>
@@ -830,7 +830,7 @@ export default function ExerciseDetailPage() {
             {/* Notes */}
             {exercise.notes && (
               <div className="bg-slate-800 rounded-lg px-4 py-3">
-                <div className="text-xs text-slate-500 mb-1">Notes</div>
+                <div className="text-sm text-slate-500 mb-1">Notes</div>
                 <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.notes}</p>
               </div>
             )}
@@ -842,7 +842,7 @@ export default function ExerciseDetailPage() {
           <div className="p-6 space-y-6 lg:overflow-y-auto">
             {/* Summary */}
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
               {stats
                 ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} />
                 : <div className="text-center text-sm text-slate-500 py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
@@ -851,7 +851,7 @@ export default function ExerciseDetailPage() {
 
             {/* History */}
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">History</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">History</div>
               <HistoryTab exerciseId={Number(id)} />
             </div>
           </div>

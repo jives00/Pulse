@@ -125,11 +125,11 @@ function StatTile({ icon, label, value, unit, color }: {
     <div className="flex flex-col gap-1.5 px-4 py-4">
       <div className="flex items-center gap-1.5">
         <span className="text-xl leading-none">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
+        <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{value}</span>
-        {unit && <span className="text-xs text-slate-400">{unit}</span>}
+        {unit && <span className="text-sm text-slate-400">{unit}</span>}
       </div>
     </div>
   );
@@ -206,7 +206,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           {/* Workout goals */}
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">This Week</div>
+            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">This Week</div>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Volume goal (lbs / week)</label>
@@ -221,7 +221,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
 
           {/* Body measurement goals */}
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Body Measurements</div>
+            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Body Measurements</div>
             <div className="space-y-4">
               {DISPLAYED_METRICS.map((key) => {
                 const cfg = METRIC_CONFIG[key];
@@ -231,11 +231,11 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="text-sm leading-none">{cfg.icon}</span>
                       <span className="text-sm font-medium text-slate-300">{cfg.label}</span>
-                      <span className="text-xs text-slate-500">({cfg.unit})</span>
+                      <span className="text-sm text-slate-500">({cfg.unit})</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">Target</label>
+                        <label className="block text-sm text-slate-500 mb-1">Target</label>
                         <input
                           type="number" min="0" step="0.1"
                           value={g.value}
@@ -245,7 +245,7 @@ function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">By date</label>
+                        <label className="block text-sm text-slate-500 mb-1">By date</label>
                         <input
                           type="date"
                           value={g.date}
@@ -285,7 +285,7 @@ const CHART_HEIGHT = 80;
 function ChartTooltip({ active, payload, label, unit }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-xs text-slate-200 shadow-lg">
+    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-slate-200 shadow-lg">
       <p className="font-medium mb-0.5 text-slate-400">{label}</p>
       <p style={{ color: payload[0]?.fill }}>{Math.round(payload[0]?.value)}{unit}</p>
     </div>
@@ -313,9 +313,9 @@ function WeeklyChart({ data, dataKey, label, icon, color, goal, unit }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
+          <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
         </div>
-        {goal != null && <span className="text-xs text-slate-400">Goal: {goal}{unit}/wk</span>}
+        {goal != null && <span className="text-sm text-slate-400">Goal: {goal}{unit}/wk</span>}
       </div>
       <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         <div style={{ width: chartWidth, height: CHART_HEIGHT }}>
@@ -484,17 +484,17 @@ function BodyMeasurementsCard({
               <div key={key} className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-base leading-none">{cfg.icon}</span>
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
+                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
                 </div>
 
                 {/* Current */}
                 <div>
-                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
+                  <div className="text-sm text-slate-500 mb-0.5 uppercase tracking-wide">Current</div>
                   <div className="flex items-baseline gap-1">
                     {latest ? (
                       <>
                         <span className="text-xl font-bold text-white">{latest.value}</span>
-                        <span className="text-xs text-slate-400">{cfg.unit}</span>
+                        <span className="text-sm text-slate-400">{cfg.unit}</span>
                       </>
                     ) : (
                       <span className="text-xl font-bold text-slate-500">—</span>
@@ -510,21 +510,21 @@ function BodyMeasurementsCard({
 
                 {/* Goal */}
                 <div>
-                  <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
+                  <div className="text-sm text-slate-500 mb-0.5 uppercase tracking-wide">Goal</div>
                   {goal ? (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-medium text-slate-300">{goal.targetValue}{cfg.unit}</span>
                       {goal.targetDate && (
-                        <span className="text-xs text-slate-500">by {formatDate(goal.targetDate)}</span>
+                        <span className="text-sm text-slate-500">by {formatDate(goal.targetDate)}</span>
                       )}
                       {onTrack !== null && (
-                        <span className={`text-xs font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`text-sm font-medium ${onTrack ? 'text-emerald-400' : 'text-red-400'}`}>
                           {onTrack ? '✓ on track' : '⚠ behind'}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-600">No goal set</span>
+                    <span className="text-sm text-slate-600">No goal set</span>
                   )}
                 </div>
 
@@ -569,11 +569,11 @@ function BodyMeasurementsCard({
                             />
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => setEditingId(null)} className="flex-1 text-xs text-slate-400 hover:text-slate-200 py-1 transition-colors">Cancel</button>
+                            <button onClick={() => setEditingId(null)} className="flex-1 text-sm text-slate-400 hover:text-slate-200 py-1 transition-colors">Cancel</button>
                             <button
                               onClick={() => handleEditSave(m.id)}
                               disabled={saving || !editForm.value}
-                              className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded py-1 transition-colors"
+                              className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded py-1 transition-colors"
                             >
                               {saving ? '…' : 'Save'}
                             </button>
@@ -693,7 +693,7 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
               <span className="text-2xl leading-none">{icon}</span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-bold" style={{ color: value !== '—' ? 'white' : '#475569' }}>{value}</span>
-                {unit && <span className="text-xs text-slate-400">{unit}</span>}
+                {unit && <span className="text-sm text-slate-400">{unit}</span>}
               </div>
               <span className="text-sm text-slate-300">{label}</span>
               {sub && <span className="text-sm text-slate-400 truncate">{sub}</span>}
@@ -784,7 +784,7 @@ function RoutineCardInTab({
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1 group-hover:bg-dram-border/20 transition">
             <span className="text-4xl font-bold text-dram-accent leading-none">{routine.exerciseCount}</span>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
           </div>
         )}
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
@@ -814,14 +814,14 @@ function RoutineCardInTab({
           <button
             onClick={handleStart}
             disabled={starting}
-            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-xs font-semibold rounded-lg py-1.5 transition-colors"
+            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded-lg py-1.5 transition-colors"
           >
             {starting ? 'Starting…' : 'Start'}
           </button>
           <button
             onClick={handleImageClick}
             disabled={uploading}
-            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-xs font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
+            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-sm font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
           >
             {uploading ? <Spinner size={3} /> : 'Edit'}
           </button>
@@ -884,7 +884,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
             <p className="text-sm font-semibold text-dram-accent truncate">
               {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
             </p>
-            <p className="text-xs text-dram-muted mt-0.5">
+            <p className="text-sm text-dram-muted mt-0.5">
               {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
             </p>
           </div>
@@ -974,10 +974,10 @@ function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
         <Link to={`/workouts/exercises/${exercise.id}`} className="font-semibold text-white text-sm leading-snug line-clamp-2 hover:text-dram-accent transition-colors block">
           {exercise.name}
         </Link>
-        <p className="text-dram-muted text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <p className="text-dram-muted text-sm mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
         <div className="flex flex-wrap gap-1 mt-2">
           {exercise.musclesPrimary?.slice(0, 2).map((m) => (
-            <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>
+            <span key={m} className="text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">{m}</span>
           ))}
         </div>
       </div>
@@ -1088,17 +1088,17 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
           <div className="bg-dram-card border border-dram-border rounded-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-dram-accent">New Exercise</h2>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
               <input autoFocus type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Exercise name"
                 className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
               {!useCustomCat && (
                 <div className="flex flex-wrap gap-1.5">
                   {categories.map((cat) => (
                     <button key={cat} onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                     >{cat}</button>
                   ))}
                 </div>
@@ -1107,34 +1107,34 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
                 <input type="text" value={form.customCategory} onChange={(e) => setForm((f) => ({ ...f, customCategory: e.target.value }))} placeholder="New category name"
                   className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50" />
               )}
-              <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent/50 hover:text-dram-accent transition-colors">
+              <button onClick={() => setUseCustomCat((v) => !v)} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">
                 {useCustomCat ? '← Pick existing' : '+ New category'}
               </button>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
               <div className="flex flex-wrap gap-1.5">
                 {EXERCISE_TYPES_TAB.map((t) => (
                   <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFieldsTab(t) }))}
-                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                    className={`text-sm px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                   >{t}</button>
                 ))}
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
               <div className="flex flex-wrap gap-2">
                 {TRACKED_FIELD_OPTIONS_TAB.map(({ key, label }) => {
                   const checked = form.trackedFields.includes(key);
                   return (
                     <button key={key} type="button"
                       onClick={() => setForm((f) => ({ ...f, trackedFields: checked ? f.trackedFields.filter((x) => x !== key) : [...f.trackedFields, key] }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                     >{label}</button>
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+              <p className="text-sm text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
             </div>
             <div className="flex justify-end gap-3 pt-1">
               <button onClick={closeForm} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">Cancel</button>

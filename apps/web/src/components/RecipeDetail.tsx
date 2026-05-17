@@ -126,7 +126,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
 
         {step === 'prompt' && (
           <div className="p-4 space-y-4">
-            <p className="text-xs text-slate-400">Describe what you'd like to change. The AI will update the ingredients, steps, and macros.</p>
+            <p className="text-sm text-slate-400">Describe what you'd like to change. The AI will update the ingredients, steps, and macros.</p>
             <textarea
               autoFocus
               value={prompt}
@@ -136,7 +136,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
               rows={3}
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-dram-accent resize-none"
             />
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <button
               onClick={handleSubmit}
               disabled={loading || !prompt.trim()}
@@ -151,14 +151,14 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
           <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
             {result.name !== recipe.name && (
               <div>
-                <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">Name</p>
+                <p className="text-sm text-slate-400 mb-1 uppercase tracking-wide">Name</p>
                 <p className="text-sm text-slate-300 line-through opacity-50">{recipe.name}</p>
                 <p className="text-sm text-white">{result.name}</p>
               </div>
             )}
             {(removed.length > 0 || added.length > 0 || changed.length > 0) && (
               <div>
-                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Ingredients</p>
+                <p className="text-sm text-slate-400 mb-2 uppercase tracking-wide">Ingredients</p>
                 <ul className="space-y-1 text-sm">
                   {removed.map((i) => (
                     <li key={i.name} className="text-red-400 line-through opacity-70">{i.name}</li>
@@ -179,7 +179,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
             )}
             {macroDiff.length > 0 && (
               <div>
-                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Macros</p>
+                <p className="text-sm text-slate-400 mb-2 uppercase tracking-wide">Macros</p>
                 <div className="space-y-1">
                   {macroDiff.map(({ label, orig, next, unit }) => (
                     <div key={label} className="flex items-center gap-2 text-sm">
@@ -192,7 +192,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
               </div>
             )}
             {!hasChanges && <p className="text-sm text-slate-400">No changes detected.</p>}
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => handleSave(false)}
@@ -211,7 +211,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
             </div>
             <button
               onClick={() => { setStep('prompt'); setError(null); }}
-              className="w-full text-xs text-slate-500 hover:text-slate-300 py-1"
+              className="w-full text-sm text-slate-500 hover:text-slate-300 py-1"
             >
               ← Back to edit
             </button>
@@ -381,20 +381,20 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
             </button>
             <button
               onClick={() => setShowAiModal(true)}
-              className="text-xs text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
+              className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
             >
               Modify
             </button>
             <button
               onClick={() => onEdit(recipe)}
-              className="text-xs text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
+              className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
             >
               Edit
             </button>
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="text-xs text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50"
+              className="text-sm text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50"
             >
               {deleting ? '…' : 'Delete'}
             </button>
@@ -431,7 +431,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               <p className="text-gray-400 text-sm mt-1 capitalize">
                 {recipe.type === 'cocktail' ? '🍸' : '🍴'} {recipe.type}
                 {(recipe as any).subcategory && (
-                  <span className="ml-2 text-xs bg-dram-border px-2 py-0.5 rounded-full">
+                  <span className="ml-2 text-sm bg-dram-border px-2 py-0.5 rounded-full">
                     {(recipe as any).subcategory === 'main' ? 'Main Dish' : (recipe as any).subcategory === 'side' ? 'Side Dish' : (recipe as any).subcategory === 'breakfast' ? 'Breakfast' : (recipe as any).subcategory === 'prepackaged' ? 'Prepackaged' : 'Desserts & Snacks'}
                   </span>
                 )}
@@ -443,7 +443,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                   {recipe.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5 capitalize"
+                      className="text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2.5 py-0.5 capitalize"
                     >
                       {tag}
                     </span>
@@ -539,7 +539,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                     ].filter(({ value }) => value != null).map(({ label, value, unit }) => (
                       <div key={label} className="bg-dram-card rounded-lg px-3 py-2 text-center">
                         <p className="text-dram-accent font-semibold text-sm">{value}{unit}</p>
-                        <p className="text-gray-500 text-xs mt-0.5">{label}</p>
+                        <p className="text-gray-500 text-sm mt-0.5">{label}</p>
                       </div>
                     ))}
                   </div>
@@ -547,7 +547,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               )}
 
               {/* Footer meta */}
-              <div className="mt-6 pt-4 border-t border-dram-border space-y-1 text-xs text-gray-500">
+              <div className="mt-6 pt-4 border-t border-dram-border space-y-1 text-sm text-gray-500">
                 {recipe.source && (
                   <p>From: <a href={recipe.source} target="_blank" rel="noopener noreferrer" className="text-dram-accent hover:underline">{recipe.source}</a></p>
                 )}
@@ -577,11 +577,11 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                     Made History ({log.length})
                   </h3>
                   {log.length > 0 && (
-                    <button onClick={handleClearLog} className="text-xs text-red-400 hover:text-red-300">Clear all</button>
+                    <button onClick={handleClearLog} className="text-sm text-red-400 hover:text-red-300">Clear all</button>
                   )}
                 </div>
                 {log.length === 0 ? (
-                  <p className="text-gray-500 text-xs">Not made yet.</p>
+                  <p className="text-gray-500 text-sm">Not made yet.</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {log.map((entry) => (
@@ -591,7 +591,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                         </span>
                         <button
                           onClick={() => handleDeleteLogEntry(entry.id)}
-                          className="text-xs text-gray-600 hover:text-red-400 transition"
+                          className="text-sm text-gray-600 hover:text-red-400 transition"
                         >
                           ✕
                         </button>
@@ -617,7 +617,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
           </div>
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-xs text-slate-400 mb-2">Meal</label>
+              <label className="block text-sm text-slate-400 mb-2">Meal</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((m) => (
                   <button
@@ -632,7 +632,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               </div>
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Servings</label>
+              <label className="block text-sm text-slate-400 mb-1">Servings</label>
               <input
                 type="number"
                 min="0.5"
@@ -643,12 +643,12 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               />
             </div>
             {recipe?.calories != null && (
-              <div className="bg-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-400">
+              <div className="bg-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-400">
                 ≈ {Math.round(recipe.calories * (Number(cookServings) || 1))} cal — will also log to nutrition
               </div>
             )}
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <label className="block text-sm text-slate-400 mb-1">Date</label>
               <input
                 type="date"
                 value={cookDate}

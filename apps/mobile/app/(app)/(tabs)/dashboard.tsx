@@ -127,7 +127,7 @@ function CalorieRing({ pct, color, size = 100, c }: { pct: number; color: string
 
       {/* Center label */}
       <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>
           {Math.round(clampedPct * 100)}%
         </Text>
       </View>
@@ -248,7 +248,7 @@ function DayVolumeBars({ workouts, volumeGoal, routineGoals, c }: {
             <View style={{ height: BAR_H, justifyContent: 'flex-end' }}>
               <View style={{ width: barW, height: barH, borderRadius: 3, backgroundColor: barColor }} />
             </View>
-            <Text style={{ fontSize: 9, color: isToday ? COL_GOLD : c.muted, fontWeight: isToday ? '700' : '400' }}>
+            <Text style={{ fontSize: 11, color: isToday ? COL_GOLD : c.muted, fontWeight: isToday ? '700' : '400' }}>
               {DAY_LABELS[i]}
             </Text>
           </View>
@@ -296,7 +296,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
     .filter((rid) => weeks.some((ws) => (routineValues[rid][ws] ?? 0) > 0));
 
   if (relevantIds.length === 0) {
-    return <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No routine data in last 13 weeks</Text>;
+    return <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No routine data in last 13 weeks</Text>;
   }
 
   const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineValues[rid])), 1);
@@ -326,7 +326,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
             {weeks.map((ws, i) => (
               i % 3 === 0 ? (
                 <View key={ws} style={{ width: cellW, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 7, color: c.muted }}>{shortDate(ws)}</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>{shortDate(ws)}</Text>
                 </View>
               ) : <View key={ws} style={{ width: cellW }} />
             ))}
@@ -336,7 +336,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
       {relevantIds.map((rid) => (
         <View key={rid} style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: nameColW }}>
-            <Text style={{ fontSize: fontSize.xs, color: c.text }} numberOfLines={1}>{routineById[rid]?.name ?? `Routine ${rid}`}</Text>
+            <Text style={{ fontSize: fontSize.sm, color: c.text }} numberOfLines={1}>{routineById[rid]?.name ?? `Routine ${rid}`}</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', gap: cellGap }}>
@@ -349,7 +349,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
         </View>
       ))}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-        <Text style={{ fontSize: 9, color: c.muted }}>Less</Text>
+        <Text style={{ fontSize: 11, color: c.muted }}>Less</Text>
         <View style={{ flexDirection: 'row', gap: 3 }}>
           {[0.12, 0.35, 0.55, 0.75, 1.0].map((t) => {
             const r = Math.round(212 * t + 30 * (1 - t));
@@ -358,7 +358,7 @@ function RoutineHeatmap({ workouts, routinesList, c }: {
             return <View key={t} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `rgb(${r},${g},${b})` }} />;
           })}
         </View>
-        <Text style={{ fontSize: 9, color: c.muted }}>More activity</Text>
+        <Text style={{ fontSize: 11, color: c.muted }}>More activity</Text>
       </View>
     </View>
   );
@@ -372,8 +372,8 @@ function ProgressBar({ label, actual, goal, unit, color, c }: {
   return (
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: fontSize.xs, color: c.muted }}>{label}</Text>
-        <Text style={{ fontSize: fontSize.xs, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+        <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{label}</Text>
+        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
           {actual.toLocaleString()}{unit}
           {goal != null ? <Text style={{ color: c.muted, fontWeight: '400' }}> / {goal.toLocaleString()}{unit}</Text> : null}
         </Text>
@@ -391,8 +391,8 @@ function CardHeader({ title, meta, c }: { title: string; meta?: string; c: Color
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
       <View style={{ width: 2, height: 14, borderRadius: 1, backgroundColor: COL_GOLD }} />
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Text>
-        {meta ? <Text style={{ fontSize: 9, color: c.muted, marginTop: 1 }}>{meta}</Text> : null}
+        <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Text>
+        {meta ? <Text style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>{meta}</Text> : null}
       </View>
     </View>
   );
@@ -715,7 +715,7 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <View style={{ alignItems: 'center', gap: 6 }}>
               <CalorieRing pct={caloriesGoal ? caloriesConsumed / caloriesGoal : 0} color={COL_CAL} size={84} c={c} />
-              <Text style={{ fontSize: fontSize.xs, color: c.muted, textAlign: 'center' }}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>
                 <Text style={{ fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{caloriesConsumed.toLocaleString()}</Text>
                 {caloriesGoal ? <Text style={{ color: c.muted }}>/{caloriesGoal.toLocaleString()} kcal</Text> : ' kcal'}
               </Text>
@@ -730,8 +730,8 @@ export default function DashboardScreen() {
           {/* Net vs TDEE */}
           {burnedToday > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Burned <Text style={{ color: '#f87171', fontWeight: '600' }}>{burnedToday.toLocaleString()} kcal</Text></Text>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Burned <Text style={{ color: '#f87171', fontWeight: '600' }}>{burnedToday.toLocaleString()} kcal</Text></Text>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
                 Net <Text style={{ fontWeight: '600', color: caloriesGoal && (caloriesConsumed - burnedToday) > caloriesGoal ? '#f87171' : c.text, fontVariant: ['tabular-nums'] }}>
                   {(caloriesConsumed - burnedToday).toLocaleString()} kcal
                 </Text>
@@ -743,7 +743,7 @@ export default function DashboardScreen() {
           {/* Water glasses */}
           <View style={{ gap: 6, marginTop: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted }}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
                 Water <Text style={{ fontWeight: '700', color: COL_WATER, fontVariant: ['tabular-nums'] }}>{waterGlasses}</Text>/<Text style={{ fontVariant: ['tabular-nums'] }}>{waterGoalGlasses}</Text> glasses
               </Text>
             </View>
@@ -762,13 +762,13 @@ export default function DashboardScreen() {
                 style={{ flex: 1, borderWidth: 1, borderColor: COL_WATER, borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                 onPress={() => handleAddWater(GLASS_OZ)}
               >
-                <Text style={{ fontSize: fontSize.xs, color: COL_WATER, fontWeight: '600' }}>+ 1 glass</Text>
+                <Text style={{ fontSize: fontSize.sm, color: COL_WATER, fontWeight: '600' }}>+ 1 glass</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, borderWidth: 1, borderColor: COL_WATER + '88', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
                 onPress={() => handleAddWater(BOTTLE_OZ)}
               >
-                <Text style={{ fontSize: fontSize.xs, color: COL_WATER + 'BB', fontWeight: '600' }}>+ Bottle (20 oz)</Text>
+                <Text style={{ fontSize: fontSize.sm, color: COL_WATER + 'BB', fontWeight: '600' }}>+ Bottle (20 oz)</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -780,9 +780,9 @@ export default function DashboardScreen() {
 
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: fontSize.xs, color: COL_CAL, fontWeight: '600' }}>Calories</Text>
-              {hasBurned && <Text style={{ fontSize: 9, color: c.muted }}>— {tdeeSeries ? 'TDEE' : 'burned'}</Text>}
-              {caloriesGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal</Text>}
+              <Text style={{ fontSize: fontSize.sm, color: COL_CAL, fontWeight: '600' }}>Calories</Text>
+              {hasBurned && <Text style={{ fontSize: 11, color: c.muted }}>— {tdeeSeries ? 'TDEE' : 'burned'}</Text>}
+              {caloriesGoal && <Text style={{ fontSize: 11, color: c.muted }}>- - goal</Text>}
             </View>
             {(() => {
               const calMax = Math.max(...calSeries, ...burnedSeries, caloriesGoal ?? 0, 1);
@@ -801,8 +801,8 @@ export default function DashboardScreen() {
 
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: fontSize.xs, color: COL_PROTEIN, fontWeight: '600' }}>Protein</Text>
-              {proteinGoal && <Text style={{ fontSize: 9, color: c.muted }}>- - goal {proteinGoal}g</Text>}
+              <Text style={{ fontSize: fontSize.sm, color: COL_PROTEIN, fontWeight: '600' }}>Protein</Text>
+              {proteinGoal && <Text style={{ fontSize: 11, color: c.muted }}>- - goal {proteinGoal}g</Text>}
             </View>
             <MiniLineChart data={proteinSeries} color={COL_PROTEIN} goalLine={proteinGoal} />
           </View>
@@ -810,8 +810,8 @@ export default function DashboardScreen() {
           {hasWeight && (
             <View style={{ gap: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: fontSize.xs, color: COL_WEIGHT, fontWeight: '600' }}>Weight</Text>
-                {weightGoalLbs != null && <Text style={{ fontSize: 9, color: c.muted }}>- - goal {weightGoalLbs.toFixed(1)} lbs</Text>}
+                <Text style={{ fontSize: fontSize.sm, color: COL_WEIGHT, fontWeight: '600' }}>Weight</Text>
+                {weightGoalLbs != null && <Text style={{ fontSize: 11, color: c.muted }}>- - goal {weightGoalLbs.toFixed(1)} lbs</Text>}
               </View>
               <MiniLineChart data={weightSeries} color={COL_WEIGHT} goalLine={weightGoalLbs} maxOverride={weightMax} minOverride={weightMin} />
             </View>
@@ -886,17 +886,17 @@ export default function DashboardScreen() {
                 <View key={key} style={{ width: '47%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 10, gap: 4 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: cfg.color }} />
-                    <Text style={{ fontSize: 9, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{cfg.label}</Text>
+                    <Text style={{ fontSize: 11, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{cfg.label}</Text>
                   </View>
                   {displayVal != null ? (
                     <>
                       <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 26 }}>
-                        {displayVal}{cfg.unit ? <Text style={{ fontSize: fontSize.xs, color: c.muted }}> {cfg.unit}</Text> : null}
+                        {displayVal}{cfg.unit ? <Text style={{ fontSize: fontSize.sm, color: c.muted }}> {cfg.unit}</Text> : null}
                       </Text>
-                      {deltaText && <Text style={{ fontSize: 9, color: deltaColor, fontWeight: '600' }}>{deltaText} / mo</Text>}
+                      {deltaText && <Text style={{ fontSize: 11, color: deltaColor, fontWeight: '600' }}>{deltaText} / mo</Text>}
                     </>
                   ) : (
-                    <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 4 }}>—{'\n'}Log it</Text>
+                    <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 4 }}>—{'\n'}Log it</Text>
                   )}
                 </View>
               );
@@ -915,7 +915,7 @@ export default function DashboardScreen() {
             <CardHeader title="This Week" c={c} />
             {weekStreak > 0 && (
               <View style={{ backgroundColor: streakIsMilestone ? COL_GOLD + '33' : 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: streakIsMilestone ? COL_GOLD : c.muted }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: streakIsMilestone ? COL_GOLD : c.muted }}>
                   {weekStreak}-week streak
                 </Text>
               </View>
@@ -926,12 +926,12 @@ export default function DashboardScreen() {
           {(weekDelta.volumePct != null || weekDelta.stepsPct != null) && (
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
               {weekDelta.volumePct != null && (
-                <Text style={{ fontSize: fontSize.xs, color: weekDelta.volumePct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontSize: fontSize.sm, color: weekDelta.volumePct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
                   {weekDelta.volumePct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.volumePct)}% vol vs last wk
                 </Text>
               )}
               {weekDelta.stepsPct != null && (
-                <Text style={{ fontSize: fontSize.xs, color: weekDelta.stepsPct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontSize: fontSize.sm, color: weekDelta.stepsPct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
                   {weekDelta.stepsPct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.stepsPct)}% steps vs last wk
                 </Text>
               )}
@@ -995,15 +995,15 @@ export default function DashboardScreen() {
           {/* Volume by strength routine — compact 3-col grid */}
           {(personalBests?.bestVolumeByRoutine?.length ?? 0) > 0 && (
             <View style={{ paddingBottom: 10 }}>
-              <Text style={{ fontSize: 10, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
+              <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {(personalBests!.bestVolumeByRoutine ?? []).map((r) => (
                   <View key={r.routineId} style={{ flex: 1 }}>
                     <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
-                      {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 10, fontWeight: '400', color: c.muted }}> lbs</Text>
+                      {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 13, fontWeight: '400', color: c.muted }}> lbs</Text>
                     </Text>
-                    <Text style={{ fontSize: 10, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
-                    {r.workoutDate && <Text style={{ fontSize: 10, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
+                    <Text style={{ fontSize: 13, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
+                    {r.workoutDate && <Text style={{ fontSize: 13, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
                   </View>
                 ))}
               </View>
@@ -1015,7 +1015,7 @@ export default function DashboardScreen() {
             <View style={[s.pbRow, (personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.heaviestLift.exerciseName}</Text>
-                <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
                   {personalBests.heaviestLift.reps != null ? `${personalBests.heaviestLift.reps} rep${personalBests.heaviestLift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtPbDate(personalBests.heaviestLift.workoutDate)}
                 </Text>
               </View>
@@ -1031,7 +1031,7 @@ export default function DashboardScreen() {
               <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
                 Most Calories Burned
               </Text>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2 }}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2 }}>
                 {personalBests?.mostCaloriesBurned
                   ? `${personalBests.mostCaloriesBurned.workoutName} · ${fmtPbDate(personalBests.mostCaloriesBurned.workoutDate)}`
                   : 'No data yet'}
@@ -1039,7 +1039,7 @@ export default function DashboardScreen() {
             </View>
             <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.mostCaloriesBurned ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
               {personalBests?.mostCaloriesBurned
-                ? <>{personalBests.mostCaloriesBurned.calories.toLocaleString()}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> kcal</Text></>
+                ? <>{personalBests.mostCaloriesBurned.calories.toLocaleString()}<Text style={{ fontSize: fontSize.sm, fontWeight: '400', color: c.muted }}> kcal</Text></>
                 : '—'}
             </Text>
           </View>
@@ -1050,13 +1050,13 @@ export default function DashboardScreen() {
               <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
                 {personalBests?.bestStairPace?.exerciseName ?? 'Best Stair Pace'}
               </Text>
-              <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
                 {personalBests?.bestStairPace ? `Best pace · ${fmtPbDate(personalBests.bestStairPace.workoutDate)}` : 'No data yet'}
               </Text>
             </View>
             <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.bestStairPace ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
               {personalBests?.bestStairPace
-                ? <>{Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.xs, fontWeight: '400', color: c.muted }}> stairs/min</Text></>
+                ? <>{Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.sm, fontWeight: '400', color: c.muted }}> stairs/min</Text></>
                 : '—'}
             </Text>
           </View>
@@ -1093,7 +1093,7 @@ export default function DashboardScreen() {
                 <View key={w.id} style={[s.workoutRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fontSize.xs, color: c.muted }}>
+                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
                         {new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         {w.durationMinutes ? `  ·  ${w.durationMinutes} min` : ''}
                       </Text>
@@ -1103,13 +1103,13 @@ export default function DashboardScreen() {
                           {highlights.map((h, idx) => (
                             <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                               <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: COL_GOLD }} />
-                              <Text style={{ fontSize: fontSize.xs, color: COL_GOLD }}>{h}</Text>
+                              <Text style={{ fontSize: fontSize.sm, color: COL_GOLD }}>{h}</Text>
                             </View>
                           ))}
                         </View>
                       )}
                     </View>
-                    <Text style={{ fontSize: fontSize.xs, color: c.muted, fontVariant: ['tabular-nums'] }}>{volDisplay}</Text>
+                    <Text style={{ fontSize: fontSize.sm, color: c.muted, fontVariant: ['tabular-nums'] }}>{volDisplay}</Text>
                   </View>
                 </View>
               );
@@ -1132,7 +1132,7 @@ export default function DashboardScreen() {
               onPress={() => openMeasModal('weight')}
               style={{ backgroundColor: c.accent + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
             >
-              <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: c.accent }}>+ Log</Text>
+              <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: c.accent }}>+ Log</Text>
             </TouchableOpacity>
           </View>
           {NORTH_STAR_METRICS.map((key) => {
@@ -1156,12 +1156,12 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
                   <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '22' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <Text style={s.metricCurrent}>
-                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.xs, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
+                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.sm, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
                   </Text>
                   {goal && (
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
@@ -1178,7 +1178,7 @@ export default function DashboardScreen() {
                   <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
                 </View>
                 {projectedDate && (
-                  <Text style={{ fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center', color: paceColor }}>{status === 'done' ? `Achieved: ${projectedDate}` : `Proj: ${projectedDate}`}</Text>
+                  <Text style={{ fontSize: fontSize.sm, fontWeight: '600', textAlign: 'center', color: paceColor }}>{status === 'done' ? `Achieved: ${projectedDate}` : `Proj: ${projectedDate}`}</Text>
                 )}
               </View>
             );
@@ -1262,25 +1262,25 @@ function makeStyles(c: Colors) {
     progressTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
     progressFill:  { height: '100%', borderRadius: 2 },
 
-    creatinePhaseBadge: { fontSize: 11, fontWeight: '700', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+    creatinePhaseBadge: { fontSize: 13, fontWeight: '700', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
     creatineStat:       { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 8, alignItems: 'center' },
     creatineStatVal:    { fontSize: fontSize.base, fontWeight: '700', color: c.text },
-    creatineStatLabel:  { fontSize: 10, color: c.muted, marginTop: 2 },
+    creatineStatLabel:  { fontSize: 13, color: c.muted, marginTop: 2 },
 
     pbRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10 },
     workoutRow: { gap: 2 },
     empty:    { fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 12 },
 
-    weeklyTh: { fontSize: 10, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
-    weeklyTd: { fontSize: 11, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
+    weeklyTh: { fontSize: 13, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
+    weeklyTd: { fontSize: 13, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
 
     measOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
     measModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border },
     measTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 14 },
-    measLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 6 },
+    measLabel: { fontSize: fontSize.sm, color: c.muted, marginBottom: 6 },
     measInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 14 },
     measChip: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: c.border },
-    measChipText: { fontSize: fontSize.xs, fontWeight: '600' },
+    measChipText: { fontSize: fontSize.sm, fontWeight: '600' },
     measButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
     measCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
     measCancelText: { color: c.muted, fontSize: fontSize.sm },

@@ -25,7 +25,7 @@ const CHART_HEIGHT = 80;
 function CustomTooltip({ active, payload, label, unit }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-xs text-slate-200 shadow-lg">
+    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-slate-200 shadow-lg">
       <p className="font-medium mb-0.5 text-slate-400">{label}</p>
       <p style={{ color: payload[0]?.fill }}>
         {Math.round(payload[0]?.value)}{unit}
@@ -57,10 +57,10 @@ function ScrollChart({ data, dataKey, label, icon, color, goal, unit }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
+          <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
         </div>
         {goal && (
-          <span className="text-xs text-slate-500">Goal: {goal}{unit}</span>
+          <span className="text-sm text-slate-500">Goal: {goal}{unit}</span>
         )}
       </div>
 
@@ -132,7 +132,7 @@ export default function NutritionHistoryCharts({ calorieGoal, proteinGoal }: Pro
     <div className="flex gap-3">
       {['Calories', 'Protein'].map((l) => (
         <div key={l} className="flex-1 bg-dram-card rounded-xl border border-dram-border px-4 py-3 h-[120px] flex items-center justify-center">
-          <p className="text-xs text-slate-600">Loading…</p>
+          <p className="text-sm text-slate-600">Loading…</p>
         </div>
       ))}
     </div>
@@ -142,7 +142,7 @@ export default function NutritionHistoryCharts({ calorieGoal, proteinGoal }: Pro
     <div className="flex gap-3">
       {['Calories', 'Protein'].map((l) => (
         <div key={l} className="flex-1 bg-dram-card rounded-xl border border-dram-border px-4 py-3 h-[120px] flex items-center justify-center">
-          <p className="text-xs text-slate-600">Could not load history.</p>
+          <p className="text-sm text-slate-600">Could not load history.</p>
         </div>
       ))}
     </div>

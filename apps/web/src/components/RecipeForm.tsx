@@ -356,7 +356,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                 key={tab}
                 type="button"
                 onClick={() => setImportTab(tab)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${importTab === tab ? 'bg-dram-accent text-black' : 'text-gray-400 hover:text-white'}`}
+                className={`px-3 py-1 rounded-lg text-sm font-semibold transition ${importTab === tab ? 'bg-dram-accent text-black' : 'text-gray-400 hover:text-white'}`}
               >
                 {tab === 'url' ? 'Import from URL' : 'Paste Text'}
               </button>
@@ -399,12 +399,12 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               </button>
             </div>
           )}
-          {importError && <p className="text-red-400 text-xs mt-2">{importError}</p>}
+          {importError && <p className="text-red-400 text-sm mt-2">{importError}</p>}
         </div>
 
         {/* Photo */}
         <div>
-          <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Photo</p>
+          <p className="text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Photo</p>
           {(photoPreview || photoUrlInput) && (
             <img
               src={photoUrlInput.trim() || photoPreview!}
@@ -439,7 +439,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {/* Name */}
         <div>
-          <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Name *</label>
+          <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Name *</label>
           <input
             type="text"
             value={name}
@@ -451,7 +451,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {/* Type */}
         <div>
-          <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Type</label>
+          <label className="block text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Type</label>
           <div className="flex gap-2">
             {(['cocktail', 'food', 'prepackaged'] as const).map((t) => (
               <button
@@ -472,7 +472,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {/* Description */}
         <div>
-          <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Description</label>
+          <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -483,7 +483,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {/* Ingredients */}
         <div>
-          <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Ingredients</label>
+          <label className="block text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Ingredients</label>
           <div className="space-y-2">
             {ingredients.map((ing, idx) => (
               <div key={idx} className="flex gap-2">
@@ -529,7 +529,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {/* Steps */}
         <div>
-          <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Steps</label>
+          <label className="block text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Steps</label>
           <div className="space-y-2">
             {steps.map((step, idx) => (
               <div key={idx} className="flex gap-2 items-start">
@@ -563,7 +563,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Tags */}
         {tagDefs && (
           <div>
-            <label className="block text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Tags</label>
+            <label className="block text-sm text-gray-400 font-semibold uppercase tracking-wide mb-3">Tags</label>
             <div className="space-y-3">
               {([
                 ['Health',   'health'],
@@ -571,7 +571,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                 ['Category', 'category'],
               ] as [string, keyof typeof tagDefs][]).map(([label, cat]) => (
                 <div key={cat}>
-                  <p className="text-xs text-gray-500 mb-1.5">{label}</p>
+                  <p className="text-sm text-gray-500 mb-1.5">{label}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {tagDefs[cat].map((tag) => {
                       const active = tags.includes(tag);
@@ -580,7 +580,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                           key={tag}
                           type="button"
                           onClick={() => toggleTag(tag)}
-                          className={`text-xs px-2.5 py-1 rounded-full border transition capitalize ${
+                          className={`text-sm px-2.5 py-1 rounded-full border transition capitalize ${
                             active
                               ? 'border-dram-accent text-dram-accent bg-dram-accent/10'
                               : 'border-dram-border text-gray-400 hover:border-gray-500 hover:text-white'
@@ -601,7 +601,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {type === 'cocktail' && (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Glass</label>
+              <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Glass</label>
               <select
                 value={glassType}
                 onChange={(e) => setGlassType(e.target.value)}
@@ -612,7 +612,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">ABV Level</label>
+              <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">ABV Level</label>
               <select
                 value={abvLevel}
                 onChange={(e) => setAbvLevel(e.target.value)}
@@ -628,7 +628,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Timing & meta — food only */}
         {type === 'food' && (
           <div>
-            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Category</label>
+            <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Category</label>
             <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value)}
@@ -646,7 +646,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {type === 'food' && (
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Prep Time (min)</label>
+              <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Prep Time (min)</label>
               <input
                 type="number"
                 min="0"
@@ -656,7 +656,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Cook Time (min)</label>
+              <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Cook Time (min)</label>
               <input
                 type="number"
                 min="0"
@@ -666,7 +666,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Servings</label>
+              <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Servings</label>
               <input
                 type="number"
                 min="1"
@@ -681,7 +681,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Servings — prepackaged */}
         {type === 'prepackaged' && (
           <div className="w-1/3">
-            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Servings</label>
+            <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Servings</label>
             <input
               type="number"
               min="1"
@@ -695,7 +695,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Nutrition — food and prepackaged */}
         {(type === 'food' || type === 'prepackaged') && (
           <div>
-            <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving)</p>
+            <p className="text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving)</p>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: 'Calories', value: calories, set: setCalories, unit: 'kcal', step: '1' },
@@ -706,7 +706,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                 { label: 'Sodium', value: sodiumMg, set: setSodiumMg, unit: 'mg', step: '1' },
               ].map(({ label, value, set, unit, step }) => (
                 <div key={label}>
-                  <label className="block text-xs text-gray-500 mb-1">{label} <span className="text-gray-600">({unit})</span></label>
+                  <label className="block text-sm text-gray-500 mb-1">{label} <span className="text-gray-600">({unit})</span></label>
                   <input
                     type="number"
                     min="0"
@@ -724,7 +724,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Nutrition — cocktail (optional) */}
         {type === 'cocktail' && (
           <div>
-            <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving, optional)</p>
+            <p className="text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wide">Nutrition (per serving, optional)</p>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: 'Calories', value: calories, set: setCalories, unit: 'kcal', step: '1' },
@@ -735,7 +735,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                 { label: 'Sodium', value: sodiumMg, set: setSodiumMg, unit: 'mg', step: '1' },
               ].map(({ label, value, set, unit, step }) => (
                 <div key={label}>
-                  <label className="block text-xs text-gray-500 mb-1">{label} <span className="text-gray-600">({unit})</span></label>
+                  <label className="block text-sm text-gray-500 mb-1">{label} <span className="text-gray-600">({unit})</span></label>
                   <input
                     type="number"
                     min="0"
@@ -753,7 +753,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         {/* Barcode — prepackaged type */}
         {type === 'prepackaged' && (
           <div className="border border-dram-accent/30 rounded-lg p-3 bg-dram-accent/5">
-            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
+            <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
             <input
               type="text"
               placeholder="e.g. 012345678901"
@@ -761,14 +761,14 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               onChange={(e) => setBarcode(e.target.value)}
               className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
             />
-            <p className="text-xs text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
+            <p className="text-sm text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
           </div>
         )}
 
         {/* Barcode — food type with existing barcode */}
         {type === 'food' && barcode && (
           <div>
-            <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
+            <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Barcode</label>
             <input
               type="text"
               placeholder="e.g. 012345678901"
@@ -776,12 +776,12 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               onChange={(e) => setBarcode(e.target.value)}
               className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-dram-accent"
             />
-            <p className="text-xs text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
+            <p className="text-sm text-gray-600 mt-1">Optional — enables barcode scanning on mobile</p>
           </div>
         )}
 
         <div>
-          <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Source / Attribution</label>
+          <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Source / Attribution</label>
           <input
             type="text"
             placeholder="e.g. Death & Co., Dad's recipe"
@@ -792,7 +792,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
         </div>
 
         <div>
-          <label className="block text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Notes</label>
+          <label className="block text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -806,7 +806,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
 
         {enableLogOption && !isEdit && (
           <div className="py-2 border-t border-dram-border space-y-2">
-            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Log to today</p>
+            <p className="text-sm text-slate-500 font-medium uppercase tracking-wide">Log to today</p>
             <div className="flex flex-col gap-1.5">
               {([
                 ['none', 'Don\'t log'],
@@ -822,7 +822,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
                     onChange={() => setLogMode(val)}
                     className="accent-dram-accent"
                   />
-                  <span className="text-xs text-slate-400">{label}</span>
+                  <span className="text-sm text-slate-400">{label}</span>
                 </label>
               ))}
             </div>
@@ -830,7 +830,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
               <select
                 value={logMeal}
                 onChange={(e) => setLogMeal(e.target.value as MealSlot)}
-                className="bg-dram-bg border border-dram-border rounded px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-dram-accent"
+                className="bg-dram-bg border border-dram-border rounded px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
               >
                 <option value="breakfast">Breakfast</option>
                 <option value="lunch">Lunch</option>

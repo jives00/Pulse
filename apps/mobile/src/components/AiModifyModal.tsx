@@ -318,7 +318,7 @@ function makeStyles(c: Colors) {
       minHeight: 80,
       textAlignVertical: 'top',
     },
-    error: { color: '#f87171', fontSize: fontSize.xs },
+    error: { color: '#f87171', fontSize: fontSize.sm },
     primaryBtn: {
       backgroundColor: c.accent,
       borderRadius: 12,
@@ -331,7 +331,7 @@ function makeStyles(c: Colors) {
     section: { gap: 4 },
     sectionLabel: {
       color: c.muted,
-      fontSize: fontSize.xs,
+      fontSize: fontSize.sm,
       fontWeight: '600',
       letterSpacing: 0.8,
       marginBottom: 4,

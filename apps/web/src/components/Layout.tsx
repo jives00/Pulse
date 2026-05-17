@@ -80,7 +80,7 @@ export default function Layout() {
               key={prefix}
               to={prefix}
               className={({ isActive }) =>
-                `flex-1 min-w-[3.5rem] flex flex-col items-center py-2 text-xs transition-colors ${
+                `flex-1 min-w-[3.5rem] flex flex-col items-center py-2 text-sm transition-colors ${
                   isActive ? 'text-dram-accent' : 'text-gray-400'
                 }`
               }

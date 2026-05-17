@@ -75,10 +75,10 @@ function ExerciseCard({ exercise }: { exercise: Exercise }) {
         >
           {exercise.name}
         </Link>
-        <p className="text-dram-muted text-xs mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
+        <p className="text-dram-muted text-sm mt-0.5 capitalize">{exercise.category} · {exercise.exerciseType}</p>
         <div className="flex flex-wrap gap-1 mt-2">
           {exercise.musclesPrimary?.slice(0, 2).map((m) => (
-            <span key={m} className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">
+            <span key={m} className="text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize">
               {m}
             </span>
           ))}
@@ -242,7 +242,7 @@ export default function ExercisesPage() {
 
             {/* Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Name</label>
               <input
                 autoFocus
                 type="text"
@@ -255,14 +255,14 @@ export default function ExercisesPage() {
 
             {/* Category */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Category</label>
               {!useCustomCat && (
                 <div className="flex flex-wrap gap-1.5">
                   {categories.map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${
                         form.category === cat ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
                           : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
                       }`}
@@ -281,20 +281,20 @@ export default function ExercisesPage() {
                   className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-dram-accent placeholder:text-dram-accent/30 focus:outline-none focus:border-dram-accent/50"
                 />
               )}
-              <button onClick={() => setUseCustomCat((v) => !v)} className="text-xs text-dram-accent/50 hover:text-dram-accent transition-colors">
+              <button onClick={() => setUseCustomCat((v) => !v)} className="text-sm text-dram-accent/50 hover:text-dram-accent transition-colors">
                 {useCustomCat ? '← Pick existing' : '+ New category'}
               </button>
             </div>
 
             {/* Type */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
               <div className="flex flex-wrap gap-1.5">
                 {EXERCISE_TYPES.map((t) => (
                   <button
                     key={t}
                     onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
-                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                    className={`text-sm px-3 py-1 rounded-full border transition-colors ${
                       form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
                         : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
                     }`}
@@ -307,7 +307,7 @@ export default function ExercisesPage() {
 
             {/* Tracked fields */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
+              <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
               <div className="flex flex-wrap gap-2">
                 {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
                   const checked = form.trackedFields.includes(key);
@@ -321,7 +321,7 @@ export default function ExercisesPage() {
                           ? f.trackedFields.filter((x) => x !== key)
                           : [...f.trackedFields, key],
                       }))}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      className={`text-sm px-3 py-1 rounded-full border transition-colors ${
                         checked
                           ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold'
                           : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'
@@ -332,7 +332,7 @@ export default function ExercisesPage() {
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
+              <p className="text-sm text-gray-500">Defaults set by type. Toggle to mix (e.g. stairs = Duration + Reps).</p>
             </div>
 
             <div className="flex justify-end gap-3 pt-1">

@@ -65,7 +65,7 @@ function RoutineCard({
             <span className="text-4xl font-bold text-dram-accent leading-none">
               {routine.exerciseCount}
             </span>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">
+            <span className="text-sm text-gray-500 uppercase tracking-wide">
               exercise{routine.exerciseCount !== 1 ? 's' : ''}
             </span>
           </div>
@@ -76,7 +76,7 @@ function RoutineCard({
           {uploading ? (
             <Spinner size={6} />
           ) : (
-            <span className="text-white text-xs font-medium">Change photo</span>
+            <span className="text-white text-sm font-medium">Change photo</span>
           )}
         </div>
 
@@ -181,7 +181,7 @@ export default function RoutinesPage() {
             <p className="text-sm font-semibold text-dram-accent truncate">
               {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
             </p>
-            <p className="text-xs text-dram-muted mt-0.5">
+            <p className="text-sm text-dram-muted mt-0.5">
               {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
             </p>
           </div>

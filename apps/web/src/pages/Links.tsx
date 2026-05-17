@@ -207,7 +207,7 @@ export default function Links() {
             <h2 className="font-semibold text-white">Edit Link</h2>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Name</label>
+              <label className="text-sm text-gray-400">Name</label>
               <input
                 autoFocus
                 value={editTitle}
@@ -218,7 +218,7 @@ export default function Links() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">URL</label>
+              <label className="text-sm text-gray-400">URL</label>
               <input
                 value={editUrl}
                 onChange={(e) => setEditUrl(e.target.value)}
@@ -228,7 +228,7 @@ export default function Links() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Image URL</label>
+              <label className="text-sm text-gray-400">Image URL</label>
               <div className="flex gap-2 items-center">
                 <input
                   value={editFavicon}
@@ -248,7 +248,7 @@ export default function Links() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Category</label>
+              <label className="text-sm text-gray-400">Category</label>
               <select
                 value={editCategory}
                 onChange={(e) => setEditCategory(e.target.value as LinkCategory)}

@@ -446,7 +446,7 @@ function GoalsTab() {
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Target</label>
+                    <label className="block text-sm text-gray-500 mb-1">Target</label>
                     <input
                       type="number" min="0" step="0.1"
                       value={g.value}
@@ -455,7 +455,7 @@ function GoalsTab() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">By date</label>
+                    <label className="block text-sm text-gray-500 mb-1">By date</label>
                     <input
                       type="date"
                       value={g.date}
@@ -610,7 +610,7 @@ function ProfileSection() {
               }`}
             >
               <span className="font-medium">{label}</span>
-              <span className="ml-2 text-xs opacity-70">{description}</span>
+              <span className="ml-2 text-sm opacity-70">{description}</span>
             </button>
           ))}
         </div>
@@ -872,7 +872,7 @@ function ExportTab() {
       </p>
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Start date</label>
+          <label className="text-sm text-gray-400">Start date</label>
           <input
             type="date"
             value={startDate}
@@ -881,7 +881,7 @@ function ExportTab() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">End date</label>
+          <label className="text-sm text-gray-400">End date</label>
           <input
             type="date"
             value={endDate}

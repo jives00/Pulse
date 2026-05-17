@@ -75,7 +75,7 @@ function MoveCopyPicker({ entry, mode, currentMeal, currentDate, onClose }: Move
         </div>
 
         <div>
-          <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Meal</div>
+          <div className="text-sm text-slate-500 mb-1.5 uppercase tracking-wide">Meal</div>
           <div className="grid grid-cols-2 gap-1.5">
             {MEAL_SLOTS.map((m) => (
               <button
@@ -94,7 +94,7 @@ function MoveCopyPicker({ entry, mode, currentMeal, currentDate, onClose }: Move
         </div>
 
         <div>
-          <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Date</div>
+          <div className="text-sm text-slate-500 mb-1.5 uppercase tracking-wide">Date</div>
           <div className="grid grid-cols-2 gap-1.5">
             {dateOptions.map((d) => (
               <button
@@ -195,7 +195,7 @@ function EditEntryModal({ entry, onClose }: EditEntryModalProps) {
         ) : (
           <>
             <div>
-              <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Serving size</div>
+              <div className="text-sm text-slate-500 mb-1.5 uppercase tracking-wide">Serving size</div>
               <div className="space-y-1">
                 {servingSizes.map((sv) => (
                   <button
@@ -214,7 +214,7 @@ function EditEntryModal({ entry, onClose }: EditEntryModalProps) {
             </div>
 
             <div>
-              <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">Quantity</div>
+              <div className="text-sm text-slate-500 mb-1.5 uppercase tracking-wide">Quantity</div>
               <input
                 type="number"
                 step="0.1"
@@ -224,7 +224,7 @@ function EditEntryModal({ entry, onClose }: EditEntryModalProps) {
                 className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
               />
               {caloriesPreview !== null && (
-                <div className="text-xs text-slate-500 mt-1.5 text-center">{caloriesPreview} kcal</div>
+                <div className="text-sm text-slate-500 mt-1.5 text-center">{caloriesPreview} kcal</div>
               )}
             </div>
 
@@ -357,7 +357,7 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
       {/* Item count */}
       <button
         onClick={() => entries.length > 0 && setExpanded((v) => !v)}
-        className="text-xs font-semibold py-1.5 transition-colors"
+        className="text-sm font-semibold py-1.5 transition-colors"
         style={{ color: entries.length > 0 ? meta.color : 'rgb(var(--color-muted))' }}
       >
         {entries.length > 0 ? `${entries.length} item${entries.length !== 1 ? 's' : ''}` : 'Nothing logged'}

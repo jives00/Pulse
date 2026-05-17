@@ -39,7 +39,7 @@ function MacroTile({
     <div className="flex flex-col gap-1.5 px-4 py-4">
       <div className="flex items-center gap-1.5">
         <span className="text-xl leading-none">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+        <span className="text-sm font-semibold uppercase tracking-wider" style={{ color }}>
           {label}
         </span>
       </div>
@@ -54,7 +54,7 @@ function MacroTile({
         />
       </div>
       {remaining != null && (
-        <div className="text-xs font-medium" style={{ color: over ? '#f87171' : color }}>
+        <div className="text-sm font-medium" style={{ color: over ? '#f87171' : color }}>
           {over ? `${Math.abs(remaining)}g over` : `${Math.abs(remaining)}g left`}
         </div>
       )}
@@ -78,7 +78,7 @@ function WaterTile({
     <div className="flex flex-col gap-1.5 px-4 py-4">
       <div className="flex items-center gap-1.5">
         <span className="text-xl leading-none">💧</span>
-        <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">Water</span>
+        <span className="text-sm font-semibold uppercase tracking-wider text-cyan-400">Water</span>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-white">{glasses}</span>
@@ -88,9 +88,9 @@ function WaterTile({
         <div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
       </div>
       {waterOz < waterGoalOz ? (
-        <div className="text-xs font-medium text-cyan-400">{remainingGlasses} glasses left</div>
+        <div className="text-sm font-medium text-cyan-400">{remainingGlasses} glasses left</div>
       ) : (
-        <div className="text-xs font-medium text-green-400">Goal reached!</div>
+        <div className="text-sm font-medium text-green-400">Goal reached!</div>
       )}
       {onAddWater && (
         <div className="mt-1 flex gap-2">
@@ -159,7 +159,7 @@ export default function NutritionSummaryCard({ actual, goals, waterOz, waterGoal
             </div>
 
             {remaining != null && (
-              <div className="mt-1.5 text-xs font-medium" style={{ color: calOver ? '#f87171' : '#D4A843' }}>
+              <div className="mt-1.5 text-sm font-medium" style={{ color: calOver ? '#f87171' : '#D4A843' }}>
                 {calOver
                   ? `${Math.abs(remaining).toLocaleString()} kcal over goal`
                   : `${remaining.toLocaleString()} kcal remaining`}

@@ -36,7 +36,7 @@ function RecipeCard({ recipe, onClick }: Props) {
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{recipe.name}</p>
         <div className="flex items-center justify-between mt-1">
-          <p className="text-dram-muted text-xs capitalize">
+          <p className="text-dram-muted text-sm capitalize">
             {recipe.type === 'cocktail' ? 'Cocktail' : 'Food'}
             {recipe.subcategory && (
               <span> | {recipe.subcategory === 'main' ? 'Main Dish' : recipe.subcategory === 'side' ? 'Side Dish' : recipe.subcategory === 'breakfast' ? 'Breakfast' : recipe.subcategory === 'prepackaged' ? 'Prepackaged' : 'Desserts & Snacks'}</span>
@@ -54,7 +54,7 @@ function RecipeCard({ recipe, onClick }: Props) {
             {recipe.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="text-xs border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize"
+                className="text-sm border border-dram-accent/40 text-dram-accent rounded-full px-2 py-0.5 capitalize"
               >
                 {tag}
               </span>

@@ -216,7 +216,7 @@ export default function TodayPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => copyFromDate(offsetDate(currentDate, -1))}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
               >
                 Copy from yesterday
               </button>

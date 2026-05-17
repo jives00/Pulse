@@ -108,7 +108,7 @@ function MeasurementModal({
         </h2>
         <div className="flex gap-3">
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-xs text-gray-400">Value ({metaUnit})</label>
+            <label className="text-sm text-gray-400">Value ({metaUnit})</label>
             <input
               type="number"
               step="0.1"
@@ -119,7 +119,7 @@ function MeasurementModal({
             />
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-xs text-gray-400">Date</label>
+            <label className="text-sm text-gray-400">Date</label>
             <input
               type="date"
               value={date}
@@ -129,7 +129,7 @@ function MeasurementModal({
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Notes (optional)</label>
+          <label className="text-sm text-gray-400">Notes (optional)</label>
           <input
             type="text"
             value={notes}
@@ -280,7 +280,7 @@ export default function History() {
                             {(w.name ?? w.routineName) && (
                               <p className="text-sm text-gray-500">{fmtWorkoutDate(w.workoutDate)}</p>
                             )}
-                            <p className="text-xs text-gray-500 mt-0.5">
+                            <p className="text-sm text-gray-500 mt-0.5">
                               {w.durationMinutes != null && `${w.durationMinutes} min · `}
                               {Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS).toLocaleString()} lbs volume
                             </p>
@@ -338,19 +338,19 @@ export default function History() {
                       {/* Day totals */}
                       <div className="px-4 py-3 border-b border-dram-border flex gap-6">
                         <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Calories</p>
+                          <p className="text-sm text-gray-500 uppercase tracking-wide">Calories</p>
                           <p className="text-base font-semibold text-white">{day.calories.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Protein</p>
+                          <p className="text-sm text-gray-500 uppercase tracking-wide">Protein</p>
                           <p className="text-base font-semibold text-white">{day.protein}g</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Carbs</p>
+                          <p className="text-sm text-gray-500 uppercase tracking-wide">Carbs</p>
                           <p className="text-base font-semibold text-white">{mealCarbs(day.entries)}g</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Fat</p>
+                          <p className="text-sm text-gray-500 uppercase tracking-wide">Fat</p>
                           <p className="text-base font-semibold text-white">{mealFat(day.entries)}g</p>
                         </div>
                       </div>
@@ -397,7 +397,7 @@ export default function History() {
               <div className="flex gap-1 bg-dram-card rounded-lg p-1">
                 <button
                   onClick={() => setMetricFilter('all')}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metricFilter === 'all' ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${metricFilter === 'all' ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
                 >
                   All
                 </button>
@@ -405,7 +405,7 @@ export default function History() {
                   <button
                     key={key}
                     onClick={() => setMetricFilter(metricFilter === key ? 'all' : key)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metricFilter === key ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${metricFilter === key ? 'bg-dram-accent text-black font-semibold' : 'text-dram-muted hover:text-slate-200'}`}
                   >
                     {label}
                   </button>
@@ -431,9 +431,9 @@ export default function History() {
               <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
                 {/* Header */}
                 <div className="grid grid-cols-[1fr_1fr_160px_60px] px-4 py-2 border-b border-dram-border">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Measurement</p>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Value</p>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide">Measurement</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide">Value</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide">Date</p>
                   <p />
                 </div>
                 {[...measurements]
@@ -499,7 +499,7 @@ export default function History() {
                 { label: 'Fat', value: `${foodDetail.fatG}g` },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2.5">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wide">{label}</p>
                   <p className="text-base font-semibold text-white mt-0.5">{value}</p>
                 </div>
               ))}

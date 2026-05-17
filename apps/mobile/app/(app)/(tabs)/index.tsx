@@ -252,7 +252,7 @@ function makeStyles(c: Colors) {
     title: { color: c.text, fontSize: fontSize['2xl'], fontWeight: 'bold' },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     logoutBtn: { paddingVertical: 4, paddingHorizontal: 2 },
-    logoutText: { color: c.muted, fontSize: fontSize.xs },
+    logoutText: { color: c.muted, fontSize: fontSize.sm },
     addBtn: { backgroundColor: c.accent, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     addBtnText: { color: c.bg, fontSize: fontSize.xl, fontWeight: 'bold', lineHeight: 28 },
     searchWrap: { paddingHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },

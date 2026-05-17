@@ -52,12 +52,12 @@ function makeStyles(c: Colors) {
     placeholder: { width: '100%', height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: c.border },
     placeholderIcon: { fontSize: fontSize['3xl'] },
     info: { padding: 8 },
-    name: { color: c.text, fontWeight: '600', fontSize: fontSize.xs, marginBottom: 4 },
+    name: { color: c.text, fontWeight: '600', fontSize: fontSize.sm, marginBottom: 4 },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    type: { color: c.muted, fontSize: fontSize.xs, textTransform: 'capitalize' },
+    type: { color: c.muted, fontSize: fontSize.sm, textTransform: 'capitalize' },
     indicators: { flexDirection: 'row', gap: 4, alignItems: 'center' },
-    star: { color: c.accent, fontSize: fontSize.xs },
-    check: { color: c.accent, fontSize: fontSize.xs },
-    tags: { color: c.muted, fontSize: fontSize.xs, marginTop: 3 },
+    star: { color: c.accent, fontSize: fontSize.sm },
+    check: { color: c.accent, fontSize: fontSize.sm },
+    tags: { color: c.muted, fontSize: fontSize.sm, marginTop: 3 },
   });
 }

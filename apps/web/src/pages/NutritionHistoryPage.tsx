@@ -106,7 +106,7 @@ export default function HistoryPage() {
               <button
                 key={r.value}
                 onClick={() => setRange(r.value)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                   range === r.value
                     ? 'bg-dram-accent text-black font-semibold'
                     : 'text-dram-muted hover:text-slate-200'
@@ -137,7 +137,7 @@ export default function HistoryPage() {
             ].map(({ label, value }) => (
               <div key={label} className="bg-slate-800 rounded-xl p-4 text-center">
                 <div className="text-2xl font-semibold text-slate-100">{value.toLocaleString()}</div>
-                <div className="text-xs text-slate-500 mt-1">{label}</div>
+                <div className="text-sm text-slate-500 mt-1">{label}</div>
               </div>
             ))}
           </div>
@@ -153,12 +153,12 @@ export default function HistoryPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis
                     dataKey="display"
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    tick={{ fill: '#94a3b8', fontSize: 13 }}
                     tickLine={false}
                     interval={Math.floor(days / 6)}
                   />
                   <YAxis
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    tick={{ fill: '#94a3b8', fontSize: 13 }}
                     tickLine={false}
                     axisLine={false}
                   />
@@ -193,12 +193,12 @@ export default function HistoryPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis
                     dataKey="display"
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    tick={{ fill: '#94a3b8', fontSize: 13 }}
                     tickLine={false}
                     interval={Math.floor(days / 6)}
                   />
                   <YAxis
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    tick={{ fill: '#94a3b8', fontSize: 13 }}
                     tickLine={false}
                     axisLine={false}
                   />
@@ -208,7 +208,7 @@ export default function HistoryPage() {
                     itemStyle={{ fontSize: 12 }}
                     formatter={(v: number, name: string) => [`${v}g`, name]}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+                  <Legend wrapperStyle={{ fontSize: 13, color: '#94a3b8' }} />
                   <Bar dataKey="carbsG"   name="Carbs"   fill="#f59e0b" stackId="a" />
                   <Bar dataKey="proteinG" name="Protein" fill="#3b82f6" stackId="a" />
                   <Bar dataKey="fatG"     name="Fat"     fill="#a78bfa" stackId="a" />
@@ -227,7 +227,7 @@ export default function HistoryPage() {
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-slate-500 border-b border-slate-700">
+                  <tr className="text-sm text-slate-500 border-b border-slate-700">
                     <th className="px-4 py-2 text-left font-normal">Week of</th>
                     <th className="px-4 py-2 text-right font-normal">Calories</th>
                     <th className="px-4 py-2 text-right font-normal">Carbs</th>

@@ -75,7 +75,7 @@ function makeStyles(c: Colors) {
     subtitle: { color: c.muted, fontSize: fontSize.sm, marginBottom: 40 },
     form: { width: '100%', gap: 12 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: c.text, fontSize: fontSize.base },
-    error: { color: c.error, fontSize: fontSize.xs, textAlign: 'center' },
+    error: { color: c.error, fontSize: fontSize.sm, textAlign: 'center' },
     passwordWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12 },
     eyeBtn: { paddingHorizontal: 12 },
     eyeIcon: { fontSize: 18 },

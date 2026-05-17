@@ -492,7 +492,7 @@ function ProfileSection() {
             onPress={() => setActivityLevel(value)}
           >
             <Text style={[s.sortPillText, activityLevel === value && s.sortPillTextActive, { fontWeight: '600' }]}>{label}</Text>
-            <Text style={[s.sortPillText, activityLevel === value && s.sortPillTextActive, { fontSize: 11, opacity: 0.75 }]}>{desc}</Text>
+            <Text style={[s.sortPillText, activityLevel === value && s.sortPillTextActive, { fontSize: 13, opacity: 0.75 }]}>{desc}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -707,11 +707,11 @@ function makeStyles(c: Colors) {
   tabLabel: { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
   tabLabelActive: { color: c.accent, fontWeight: '700' },
   tabScroll: { padding: 16, gap: 8 },
-  sectionLabel: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
+  sectionLabel: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
   card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, gap: 12 },
   twoCol: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   field: { flex: 1, minWidth: '40%', gap: 4 },
-  fieldLabel: { fontSize: fontSize.xs, color: c.muted },
+  fieldLabel: { fontSize: fontSize.sm, color: c.muted },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm, color: c.text },
   saveBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'flex-start', marginTop: 4 },
   saveBtnDim: { opacity: 0.5 },
@@ -724,7 +724,7 @@ function makeStyles(c: Colors) {
   divider: { height: 1, backgroundColor: c.border, marginVertical: 4 },
   deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   deleteLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
-  deleteDesc: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+  deleteDesc: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
   deleteBtn: { borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   deleteBtnText: { fontSize: fontSize.sm, color: '#ef4444' },
   sortPill: { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 7 },
@@ -733,7 +733,7 @@ function makeStyles(c: Colors) {
   sortPillTextActive: { color: c.bg, fontWeight: '700' },
   schemeOption: { alignItems: 'center', gap: 6, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 10 },
   schemeSwatch: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: c.border },
-  schemeLabel: { fontSize: fontSize.xs, color: c.muted },
+  schemeLabel: { fontSize: fontSize.sm, color: c.muted },
   });
 }
 

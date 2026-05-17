@@ -470,7 +470,7 @@ export default function HistoryScreen() {
                   ]}>
                     <Text style={[styles.measCell, { color: c.text }]}>{meta?.label ?? entry.metric}</Text>
                     <Text style={[styles.measCell, { color: c.text, fontWeight: '600' }]}>{entry.value} {meta?.unit ?? entry.unit}</Text>
-                    <Text style={[styles.measCell, { flex: 1.4, color: c.muted, fontSize: fontSize.xs }]}>
+                    <Text style={[styles.measCell, { flex: 1.4, color: c.muted, fontSize: fontSize.sm }]}>
                       {fmtMeasDate(entry.measuredAt)}
                     </Text>
                     <View style={{ width: 60, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
@@ -576,7 +576,7 @@ function makeStyles(c: Colors) {
     rangeRow: { flexDirection: 'row' },
     rangeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 4 },
     rangeChipActive: { backgroundColor: c.accent },
-    rangeChipText: { fontSize: fontSize.xs, fontWeight: '600', color: c.muted },
+    rangeChipText: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted },
     rangeChipTextActive: { color: c.bg },
     tabRow: { flexDirection: 'row', gap: 0 },
     tabBtn: { paddingRight: 20, paddingBottom: 0 },
@@ -586,42 +586,42 @@ function makeStyles(c: Colors) {
     tabUnderlineActive: { backgroundColor: c.accent },
 
     list: { padding: 16, paddingBottom: 32 },
-    sectionHeader: { fontSize: fontSize.xs, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+    sectionHeader: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 4 },
 
     // Workout
     cardTitle: { fontSize: fontSize.base, fontWeight: '600', color: c.text },
-    cardSubtitle: { fontSize: fontSize.xs, color: c.muted, marginTop: 1 },
-    cardMeta: { fontSize: fontSize.xs, color: c.muted, marginTop: 2 },
+    cardSubtitle: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
+    cardMeta: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
     exName: { fontSize: fontSize.sm, color: c.text, flex: 1 },
-    exMeta: { fontSize: fontSize.xs, color: c.muted },
+    exMeta: { fontSize: fontSize.sm, color: c.muted },
 
     // Nutrition
     dayTotals: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
-    dayTotalLabel: { fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    dayTotalLabel: { fontSize: 13, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
     dayTotalValue: { fontSize: fontSize.base, fontWeight: '600', color: c.text, marginTop: 1 },
     mealSection: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
     mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
     mealName: { fontSize: fontSize.sm, fontWeight: '600', color: c.text },
-    mealMeta: { fontSize: fontSize.xs, color: c.muted },
+    mealMeta: { fontSize: fontSize.sm, color: c.muted },
     foodRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 4 },
     foodName: { fontSize: fontSize.sm, color: c.text, flex: 1, minWidth: 0 },
-    foodBrand: { fontSize: fontSize.xs, color: c.muted },
-    foodCal: { fontSize: fontSize.xs, color: c.muted, paddingLeft: 8, flexShrink: 0 },
+    foodBrand: { fontSize: fontSize.sm, color: c.muted },
+    foodCal: { fontSize: fontSize.sm, color: c.muted, paddingLeft: 8, flexShrink: 0 },
 
     // Measurements
     measControls: { marginBottom: 12 },
     metricFilterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
     metricChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: c.border },
     metricChipActive: { backgroundColor: c.accent, borderColor: c.accent },
-    metricChipText: { fontSize: fontSize.xs, fontWeight: '600', color: c.muted },
+    metricChipText: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted },
     metricChipTextActive: { color: c.bg },
     addMeasRow: { flexDirection: 'row', gap: 16 },
     addMeasBtn: { fontSize: fontSize.sm, color: c.accent },
     measRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
     measHeaderRow: { borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 8 },
     measCell: { flex: 1, fontSize: fontSize.sm, color: c.muted },
-    measHeader: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },
+    measHeader: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },
 
     // Shared modals
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
@@ -636,13 +636,13 @@ function makeStyles(c: Colors) {
     detailServing: { fontSize: fontSize.sm, color: c.muted, marginBottom: 8 },
     detailMacros: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     detailMacroCell: { flex: 1, backgroundColor: c.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: c.border },
-    detailMacroLabel: { fontSize: 10, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    detailMacroLabel: { fontSize: 13, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
     detailMacroValue: { fontSize: fontSize.base, fontWeight: '600', color: c.text, marginTop: 2 },
 
     // Measurement modal
     measModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border },
     measModalTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 14 },
-    measModalLabel: { fontSize: fontSize.xs, color: c.muted, marginBottom: 6 },
+    measModalLabel: { fontSize: fontSize.sm, color: c.muted, marginBottom: 6 },
     measModalInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text },
     measModalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
     measCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },

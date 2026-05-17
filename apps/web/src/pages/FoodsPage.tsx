@@ -20,8 +20,8 @@ function FoodCard({ food, onDelete }: { food: Food; onDelete?: (id: number) => v
     <div className="flex items-center px-4 py-3 border-b border-slate-700/50 last:border-0">
       <div className="flex-1 min-w-0">
         <div className="text-sm text-slate-200 truncate">{food.name}</div>
-        {food.brand && <div className="text-xs text-slate-500 truncate">{food.brand}</div>}
-        <div className="text-xs text-slate-400 mt-0.5">
+        {food.brand && <div className="text-sm text-slate-500 truncate">{food.brand}</div>}
+        <div className="text-sm text-slate-400 mt-0.5">
           {cal} cal{def ? ` / ${def.label}` : ' / 100g'}
           {' · '}P {Math.round(food.nutrition.protein * (def?.grams ?? 100) / 100)}g
           {' · '}C {Math.round(food.nutrition.carbs * (def?.grams ?? 100) / 100)}g
@@ -153,15 +153,15 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
 
       <div className="space-y-2">
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Name *</label>
+          <label className="block text-sm text-slate-400 mb-1">Name *</label>
           <input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Brand</label>
+          <label className="block text-sm text-slate-400 mb-1">Brand</label>
           <input type="text" value={brand} onChange={(e) => setBrand(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">
+          <label className="block text-sm text-slate-400 mb-1">
             Description <span className="text-slate-500">(helps AI estimate)</span>
           </label>
           <input type="text" placeholder="e.g. grilled, with sauce, homemade…" value={desc} onChange={(e) => setDesc(e.target.value)} className={inputCls} />
@@ -170,17 +170,17 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
 
       <div className="border-t border-slate-700 pt-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Nutrition per 100g</span>
+          <span className="text-sm font-medium text-slate-400 uppercase tracking-wide">Nutrition per 100g</span>
           <button
             onClick={handleEstimate}
             disabled={estimating || !name.trim()}
-            className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
+            className="text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
           >
             {estimating ? 'Estimating…' : '✨ Estimate with AI'}
           </button>
         </div>
         {confidence && (
-          <div className={`text-xs mb-2 ${CONFIDENCE_COLORS[confidence]}`}>AI confidence: {confidence}</div>
+          <div className={`text-sm mb-2 ${CONFIDENCE_COLORS[confidence]}`}>AI confidence: {confidence}</div>
         )}
         <div className="grid grid-cols-2 gap-2">
           {([
@@ -192,7 +192,7 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
             ['Sodium (mg)', sodium, setSodium],
           ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
             <div key={label}>
-              <label className="block text-xs text-slate-500 mb-1">{label}</label>
+              <label className="block text-sm text-slate-500 mb-1">{label}</label>
               <input type="number" min="0" step="0.1" value={val} onChange={(e) => setter(e.target.value)} className={smallInputCls} />
             </div>
           ))}
@@ -200,20 +200,20 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
       </div>
 
       <div className="border-t border-slate-700 pt-3">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wide block mb-2">Serving size</span>
+        <span className="text-sm font-medium text-slate-400 uppercase tracking-wide block mb-2">Serving size</span>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Label</label>
+            <label className="block text-sm text-slate-500 mb-1">Label</label>
             <input type="text" value={servingLabel} onChange={(e) => setServingLabel(e.target.value)} className={smallInputCls} />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Grams</label>
+            <label className="block text-sm text-slate-500 mb-1">Grams</label>
             <input type="number" min="1" value={servingGrams} onChange={(e) => setServingGrams(e.target.value)} className={smallInputCls} />
           </div>
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="border-t border-slate-700 pt-3 space-y-2">
         <div className="flex items-center gap-2">
@@ -224,13 +224,13 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
               onChange={(e) => setLogAfterSave(e.target.checked)}
               className="accent-blue-500"
             />
-            <span className="text-xs text-slate-400">Log to today's food journal</span>
+            <span className="text-sm text-slate-400">Log to today's food journal</span>
           </label>
           {logAfterSave && (
             <select
               value={logMeal}
               onChange={(e) => setLogMeal(e.target.value as MealSlot)}
-              className="ml-auto bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+              className="ml-auto bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
             >
               <option value="breakfast">Breakfast</option>
               <option value="lunch">Lunch</option>

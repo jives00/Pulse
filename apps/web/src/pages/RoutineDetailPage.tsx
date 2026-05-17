@@ -587,7 +587,7 @@ export default function RoutineDetailPage() {
                 <p className="text-sm font-semibold text-dram-accent truncate">
                   {activeWorkout.routineName ?? activeWorkout.name ?? 'Workout in progress'}
                 </p>
-                <p className="text-xs text-dram-muted mt-0.5">
+                <p className="text-sm text-dram-muted mt-0.5">
                   {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''} logged
                 </p>
               </div>
