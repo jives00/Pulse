@@ -408,7 +408,6 @@ router.post('/:id/ai-modify', async (req: Request, res: Response) => {
         prompt.trim(),
         'update'
       );
-      console.log('[ai-modify] full result:', JSON.stringify(modified));
       res.json({ modified });
     } else {
       const [ingredients] = await pool.query<RowDataPacket[]>(

@@ -417,7 +417,6 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    console.log('Scraping URL:', url);
 
     // YouTube: extract description from embedded player response JSON
     if (isYouTubeUrl(url)) {
@@ -481,7 +480,6 @@ router.post('/', async (req: Request, res: Response) => {
     // Try JSON-LD first — most recipe sites include this and it's perfectly structured
     const jsonLd = extractJsonLd(html);
     if (jsonLd) {
-      console.log('Found JSON-LD recipe data');
       const recipe = parseJsonLd(jsonLd, url);
       const extractedTags: string[] = recipe.extracted_tags ?? [];
       delete recipe.extracted_tags;
@@ -498,7 +496,6 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Fallback: send page text to AI
-    console.log('No JSON-LD found, falling back to AI extraction');
     const $ = cheerio.load(html);
     $('script, style, nav, footer, aside, header, [role="banner"], [role="navigation"], [role="complementary"]').remove();
     // Prefer focused content areas over the full body to reduce token count
@@ -519,7 +516,6 @@ router.post('/', async (req: Request, res: Response) => {
     recipe.source = recipe.source || url;
     if (recipe.name) recipe.name = recipe.name.replace(/^(the\s+)?(best(\s+ever)?|ultimate|perfect|easiest|most\s+amazing|famous|favorite|favourite|homemade)\s+/i, '').replace(/^my\s+(best|favorite|favourite|homemade|easy|quick)\s+/i, '').trim();
     recipe.ingredients = titleCaseIngredients(recipe.ingredients ?? []);
-    console.log('AI extracted:', recipe.name, '| ingredients:', recipe.ingredients?.length, '| steps:', recipe.steps?.length);
 
     // If AI couldn't find a recipe (JS-rendered page or missing content), tell the user to paste manually
     if ((!recipe.name || recipe.name === 'UNKNOWN') && (!recipe.ingredients?.length) && (!recipe.steps?.length)) {

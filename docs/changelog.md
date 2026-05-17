@@ -10,6 +10,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **New color schemes** — added Midnight, Tide, and Graphite themes alongside existing Blue, Slate, Sand. `f708cab`
 - **Font size minimum** — replaced all `text-xs` (11px) with `text-sm` (14px) across 23 files; bumped `--t-xs` CSS variable from 11px to 13px. `af2f36d`
+- **Cleanup** — deleted unused `MacroBar` and `NutritionHistoryCharts` components. `e0d7d39`
+
+### API
+
+- **Cleanup** — removed debug `console.log` from recipes, scrape, and aiProvider; upgraded Anthropic fallback notices to `console.warn`. `e0d7d39`
 
 ### Mobile
 

@@ -56,7 +56,7 @@ export async function runText(params: {
       return (msg.content[0] as Anthropic.TextBlock).text;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;
-      console.log('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
     }
   }
 
@@ -106,11 +106,10 @@ export async function runWithTools(params: {
       });
       const toolUse = msg.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
       if (!toolUse) throw new Error('No tool use block in Anthropic response');
-      console.log('[runWithTools] Anthropic tool input:', JSON.stringify(toolUse.input));
       return toolUse.input as Record<string, unknown>;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;
-      console.log('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
     }
   }
 
