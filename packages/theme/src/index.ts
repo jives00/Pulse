@@ -1,4 +1,4 @@
-export type ColorScheme = 'blue' | 'slate' | 'sand';
+export type ColorScheme = 'blue' | 'slate' | 'sand' | 'midnight' | 'tide' | 'graphite';
 
 export const PALETTES = {
   blue: {
@@ -26,6 +26,33 @@ export const PALETTES = {
     border: '#967350',
     text:   '#FFFFFF',
     muted:  '#e6d2b9',
+    error:  '#F87171',
+  },
+  midnight: {
+    bg:     '#161c2e',
+    card:   '#1f2942',
+    accent: '#D4A843',
+    border: '#2e3a58',
+    text:   '#eef2fa',
+    muted:  '#abb6cd',
+    error:  '#F87171',
+  },
+  tide: {
+    bg:     '#162132',
+    card:   '#1f2c40',
+    accent: '#D4A843',
+    border: '#2d3c54',
+    text:   '#eef4fa',
+    muted:  '#a6bbd0',
+    error:  '#F87171',
+  },
+  graphite: {
+    bg:     '#1c1d22',
+    card:   '#262830',
+    accent: '#D4A843',
+    border: '#373941',
+    text:   '#efefe9',
+    muted:  '#aeaeb6',
     error:  '#F87171',
   },
 } as const;

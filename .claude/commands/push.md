@@ -41,14 +41,14 @@ Report: "Pushed to main. Deploy succeeded."
   $env:ANDROID_HOME = "C:\Users\jbrom\AppData\Local\Android\Sdk"
   $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
   $env:CMAKE_VERSION = "3.30.3"
-  cd "C:\Users\jbrom\SynologyDrive\Development\EverythingApp\apps\mobile\android"
+  cd "C:\Users\jbrom\SynologyDrive\Development\Pulse\apps\mobile\android"
   .\gradlew.bat app:assembleRelease -x lint -x test --% -PreactNativeArchitectures=arm64-v8a
   ```
   Report the APK path when complete: `apps\mobile\android\app\build\outputs\apk\release\app-release.apk`
   If CMake errors occur, delete stale caches first:
   ```powershell
-  Remove-Item "C:\Users\jbrom\SynologyDrive\Development\EverythingApp\node_modules\react-native-reanimated\android\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
-  Remove-Item "C:\Users\jbrom\SynologyDrive\Development\EverythingApp\apps\mobile\android\app\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item "C:\Users\jbrom\SynologyDrive\Development\Pulse\node_modules\react-native-reanimated\android\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item "C:\Users\jbrom\SynologyDrive\Development\Pulse\apps\mobile\android\app\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
   ```
 - If `--apk-cloud` was passed, run: `eas build --platform android` (from `apps/mobile/`) and report the build URL
 

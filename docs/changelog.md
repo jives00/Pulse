@@ -4,6 +4,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 17, 2026
+
+### Web
+
+- **New color schemes** — added Midnight, Tide, and Graphite themes alongside existing Blue, Slate, Sand. `f708cab`
+
+### Mobile
+
+- **New color schemes** — Midnight, Tide, and Graphite added to settings color picker. `f708cab`
+
 ## May 14, 2026
 
 ### API

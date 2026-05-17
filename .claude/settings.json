@@ -10,10 +10,10 @@
       "Bash(git commit --amend --no-edit)",
       "Bash(git rev-parse --short HEAD)",
       "Bash(git push origin main)",
-      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/server && npm test)",
-      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/web && npm test)",
-      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/mobile && npm test)",
-      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing && npx playwright test)",
+      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/server && npm test)",
+      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/web && npm test)",
+      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/mobile && npm test)",
+      "Bash(cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing && npx playwright test)",
       "PowerShell(& \"C:\\Program Files\\GitHub CLI\\gh.exe\" run watch *)",
       "PowerShell(& \"C:\\Program Files\\GitHub CLI\\gh.exe\" run list *)",
       "Read(//c/Users/jbrom/SynologyDrive/Coding and Design/dram/**)",
@@ -28,7 +28,7 @@
       "Bash(code \"C:\\\\Users\\\\jbrom\\\\.claude\\\\plans\\\\drifting-dancing-sundae.md\")"
     ],
     "additionalDirectories": [
-      "C:\\Users\\jbrom\\.claude\\projects\\c--Users-jbrom-SynologyDrive-Coding-and-Design-EverythingApp\\memory"
+      "C:\\Users\\jbrom\\.claude\\projects\\c--Users-jbrom-SynologyDrive-Coding-and-Design-Pulse\\memory"
     ]
   }
 }

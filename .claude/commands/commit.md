@@ -18,16 +18,16 @@ Run `git diff --stat` and `git status` so the user can see exactly what's changi
 ### 2. Run the test suite
 Always run (use absolute paths — relative `cd` fails if the shell isn't already at the repo root):
 ```bash
-cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/server && npm test
-cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/web && npm test
-cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing/mobile && npm test
+cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/server && npm test
+cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/web && npm test
+cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing/mobile && npm test
 ```
 
 > **Note:** The `testing/` directory is listed in `.gitignore` and is never committed. New test files written there will not appear in `git status` and must not be staged. Do not attempt to add or commit anything under `testing/`.
 
 If `--e2e` was passed, also run:
 ```bash
-cd /c/Users/jbrom/SynologyDrive/Development/EverythingApp/testing && npx playwright test
+cd /c/Users/jbrom/SynologyDrive/Development/Pulse/testing && npx playwright test
 ```
 
 ### 3a. If ALL tests pass

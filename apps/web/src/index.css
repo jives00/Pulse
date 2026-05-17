@@ -64,6 +64,30 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-muted:  230 210 185;
 }
 
+[data-theme="midnight"] {
+  --color-bg:     22 28 46;
+  --color-card:   31 41 66;
+  --color-accent: 212 168 67;
+  --color-border: 46 58 88;
+  --color-muted:  171 182 205;
+}
+
+[data-theme="tide"] {
+  --color-bg:     22 33 50;
+  --color-card:   31 44 64;
+  --color-accent: 212 168 67;
+  --color-border: 45 60 84;
+  --color-muted:  166 187 208;
+}
+
+[data-theme="graphite"] {
+  --color-bg:     28 29 34;
+  --color-card:   38 40 48;
+  --color-accent: 212 168 67;
+  --color-border: 55 57 65;
+  --color-muted:  174 174 182;
+}
+
 @layer base {
   html { background-color: rgb(var(--color-bg)); color: white; }
 }

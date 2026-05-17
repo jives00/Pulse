@@ -195,9 +195,12 @@ function TagDefinitionsSection() {
 }
 
 const THEMES: { id: ColorScheme; label: string; bg: string; card: string; accent: string }[] = [
-  { id: 'blue',  label: 'Deep Blue', bg: '#193549', card: '#0d2137', accent: '#D4A843' },
-  { id: 'slate', label: 'Slate',     bg: '#0f172a', card: '#1e293b', accent: '#D4A843' },
-  { id: 'sand',  label: 'Sand',      bg: '#785a3c', card: '#5a4128', accent: '#D4A843' },
+  { id: 'blue',     label: 'Deep Blue', bg: '#193549', card: '#0d2137', accent: '#D4A843' },
+  { id: 'slate',    label: 'Slate',     bg: '#0f172a', card: '#1e293b', accent: '#D4A843' },
+  { id: 'sand',     label: 'Sand',      bg: '#785a3c', card: '#5a4128', accent: '#D4A843' },
+  { id: 'midnight', label: 'Midnight',  bg: '#161c2e', card: '#1f2942', accent: '#D4A843' },
+  { id: 'tide',     label: 'Tide',      bg: '#162132', card: '#1f2c40', accent: '#D4A843' },
+  { id: 'graphite', label: 'Graphite',  bg: '#1c1d22', card: '#262830', accent: '#D4A843' },
 ];
 
 function ColorSchemeSection() {

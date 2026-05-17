@@ -11,4 +11,5 @@ apps/mobile/.expo/
 apps/server/scripts/*.sql
 .claude/settings.local.json
 .plans/
+docs/plans/
 testing/
