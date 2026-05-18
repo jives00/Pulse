@@ -25,9 +25,10 @@ jobs:
             # Load app env vars
             set -a; source /etc/pulse.env; set +a
 
-            export PATH="/home/ubuntu/.nvm/versions/node/v20.20.2/bin:$PATH"
+            export PATH="/home/ubuntu/.nvm/versions/node/v24.15.0/bin:$PATH"
 
             cd ~/pulse-app
+            git checkout -- package-lock.json
             git pull origin main
 
             # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors
@@ -48,8 +49,8 @@ jobs:
             # Prune devDeps while package.json still excludes mobile (prevents mobile deps being re-added)
             npm prune --omit=dev
 
-            # Restore package.json so git stays clean
-            git checkout package.json
+            # Restore package.json and package-lock.json so git stays clean
+            git checkout package.json package-lock.json
 
             # Restart server
             pm2 restart pulse-server --update-env
