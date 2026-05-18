@@ -8,6 +8,18 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Phase 6: AI assistant endpoint** — new `POST /api/ai/assistant` route; `runConversation` added to aiProvider for multi-turn history (Anthropic native messages, Gemini prompt-flattened); screen-aware system prompt maps recipe/food-log/routine/planning context to human-readable descriptions; structured JSON response with `log_food` and `update_nutrition_goal` action types. `2dccb52`
+
+### Web
+
+- **Phase 6: AI assistant** — floating ✦ FAB in Layout opens a slide-up chat panel; chat history with user/assistant bubbles, loading animation, and action execution via `logApi.logInline` and `goalsApi.saveNutrition`; screen context passed from `assistantStore`. `2dccb52`
+
+### Mobile
+
+- **Phase 6: AI assistant** — floating ✦ FAB overlaid on tab layout opens a `pageSheet` modal chat; bubbles, loading indicator, error display; executes `log_food` and `update_nutrition_goal` actions; screen context from Zustand `assistantStore`. `2dccb52`
+
+### API
+
 - **Phase 5: Workout scheduling** — new DB migration (023) adds `workout_schedules`, `workout_schedule_log`, `program_templates`, `program_template_days` tables; seeded with 3-Day Full Body, 4-Day Upper/Lower, 5-Day PPL, 6-Day PPL templates; full schedules route with recurrence expansion, override, and program import. `dfe19b0`
 
 ### Web

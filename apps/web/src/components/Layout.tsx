@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import AIAssistant from './AIAssistant';
 
 const TOP_SECTIONS = [
   { prefix: '/dashboard',    label: 'Dashboard',    icon: '📊', exact: false },
@@ -98,6 +99,8 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
         <Outlet />
       </main>
+
+      <AIAssistant />
     </div>
   );
 }

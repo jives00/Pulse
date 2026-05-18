@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../../src/hooks/useColors';
+import AIAssistant from '../../../src/components/AIAssistant';
 
 const MENU_WIDTH = 150;
 const MENU_MARGIN = 8;
@@ -140,6 +141,7 @@ const styles = StyleSheet.create({
 export default function TabsLayout() {
   const c = useColors();
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -188,5 +190,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen name="goals" options={{ href: null }} />
     </Tabs>
+    <AIAssistant />
+    </View>
   );
 }

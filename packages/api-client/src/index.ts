@@ -26,6 +26,8 @@ export { schedulesApi } from './endpoints/schedules';
 export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, ProgramTemplateDay, RecurrenceType } from './endpoints/schedules';
 export { profileApi } from './endpoints/profile';
 export type { UserProfile, ActivityLevel } from './endpoints/profile';
+export { assistantApi } from './endpoints/ai-assistant';
+export type { ConversationMessage, AssistantScreenContext, AssistantActionType, LogFoodPayload, UpdateNutritionGoalPayload, AssistantAction, AssistantResponse } from './endpoints/ai-assistant';
 
 // Types from new endpoint modules
 export type { DeleteScope }                                            from './endpoints/auth';

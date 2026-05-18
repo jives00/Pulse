@@ -69,6 +69,57 @@ export async function runText(params: {
   return result.response.text();
 }
 
+// ── runConversation ───────────────────────────────────────────────────────────
+// Multi-turn conversation with history. Anthropic uses native messages array;
+// Gemini flattens history into a single prompt string.
+
+export async function runConversation(params: {
+  model: ModelTier;
+  systemPrompt: string;
+  history: { role: 'user' | 'assistant'; content: string }[];
+  userMessage: string;
+  maxTokens: number;
+}): Promise<string> {
+  const { model, systemPrompt, history, userMessage, maxTokens } = params;
+
+  const anthropic = getAnthropic();
+  if (anthropic) {
+    try {
+      const messages: Anthropic.MessageParam[] = [
+        ...history.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userMessage },
+      ];
+      const msg = await anthropic.messages.create({
+        model: ANTHROPIC_MODELS[model],
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages,
+      });
+      return (msg.content[0] as Anthropic.TextBlock).text;
+    } catch (err) {
+      if (!env.GEMINI_API_KEY) throw err;
+      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+    }
+  }
+
+  const gemini = getGemini();
+  if (!gemini) throw new Error('No AI provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)');
+
+  const historyText = history
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n');
+  const fullPrompt = [
+    systemPrompt,
+    historyText ? `\nConversation so far:\n${historyText}` : '',
+    `\nUser: ${userMessage}`,
+    '\nAssistant:',
+  ].join('');
+
+  const geminiModel = gemini.getGenerativeModel({ model: GEMINI_MODELS[model] });
+  const result = await geminiModel.generateContent(fullPrompt);
+  return result.response.text();
+}
+
 // ── runWithTools ──────────────────────────────────────────────────────────────
 // For structured tool-use calls. Tries Anthropic tool_choice first; falls back
 // to instructing Gemini to return a JSON object matching the schema.

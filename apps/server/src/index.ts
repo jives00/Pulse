@@ -20,6 +20,7 @@ import exercisesRoutes     from './routes/exercises';
 import measurementsRoutes  from './routes/measurements';
 import routinesRoutes      from './routes/routines';
 import schedulesRoutes     from './routes/schedules';
+import aiAssistantRoutes   from './routes/ai-assistant';
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use('/api/exercises',     requireAuth, exercisesRoutes);
 app.use('/api/measurements',  requireAuth, measurementsRoutes);
 app.use('/api/routines',      requireAuth, routinesRoutes);
 app.use('/api/schedules',     requireAuth, schedulesRoutes);
+app.use('/api/ai/assistant', requireAuth, aiAssistantRoutes);
 
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);

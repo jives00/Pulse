@@ -831,6 +831,25 @@ export async function importProgramTemplate(token: string, templateId: number, d
   return handle<WorkoutSchedule[]>(res);
 }
 
+// AI Assistant
+export interface AssistantMessage { role: 'user' | 'assistant'; content: string }
+export interface AssistantScreenContext { screen: string; data?: Record<string, unknown> }
+export type AssistantActionType = 'log_food' | 'update_nutrition_goal';
+export interface AssistantAction { type: AssistantActionType; payload: Record<string, unknown> }
+export interface AssistantResponse { type: 'answer' | 'action'; text: string; action?: AssistantAction }
+
+export async function sendAssistantMessage(
+  token: string,
+  payload: { history: AssistantMessage[]; message: string; context?: AssistantScreenContext }
+): Promise<AssistantResponse> {
+  const res = await fetch(`${API_BASE}/api/ai/assistant`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  return handle<AssistantResponse>(res);
+}
+
 export async function logModifiedRecipe(
   token: string,
   payload: {
