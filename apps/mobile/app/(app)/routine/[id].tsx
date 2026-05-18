@@ -9,9 +9,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getRoutine, updateRoutine, deleteRoutine, startRoutine,
   addRoutineExercise, removeRoutineExercise, reorderRoutineExercises,
-  addRoutineTemplateSet, updateRoutineTemplateSet, deleteRoutineTemplateSet,
   getWorkouts, getExercises, getExerciseCategories, createCustomExercise,
-  type RoutineDetail, type RoutineExercise, type RoutineExerciseSet, type Exercise,
+  type RoutineDetail, type RoutineExercise, type Exercise,
   type WorkoutSummary,
 } from '../../../src/api/client';
 import { KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS, type RoutineType } from '../../../../../packages/api-client/src/index';
@@ -124,230 +123,18 @@ function VolumeLineChart({ data, c }: { data: { date: string; volumeLbs: number 
   );
 }
 
-// ── Template set row ──────────────────────────────────────────────────────────
-
-function TemplateSetRow({
-  set, routineId, reId, trackedFields, onUpdated, onDeleted, c,
-}: {
-  set: RoutineExerciseSet;
-  routineId: number;
-  reId: number;
-  trackedFields: string[];
-  onUpdated: (s: RoutineExerciseSet) => void;
-  onDeleted: (id: number) => void;
-  c: Colors;
-}) {
-  const token = useAuthStore((s) => s.token)!;
-  const showWeight   = trackedFields.includes('weight');
-  const showReps     = trackedFields.includes('reps');
-  const showDuration = trackedFields.includes('duration');
-  const showDistance = trackedFields.includes('distance');
-  const showSteps    = trackedFields.includes('steps');
-
-  const [reps, setReps]         = useState(String(set.reps ?? ''));
-  const [weight, setWeight]     = useState(fmtWeight(set.weightKg));
-  const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
-  const [distance, setDistance] = useState(String(set.distanceMeters ?? ''));
-  const [steps, setSteps]       = useState(String(set.steps ?? ''));
-
-  async function handleBlur() {
-    const newReps      = showReps     && reps     !== '' ? Number(reps)     : null;
-    const newWeightLbs = showWeight   && weight   !== '' ? Number(weight)   : null;
-    const newWeightKg  = newWeightLbs != null ? lbsToKg(newWeightLbs) : null;
-    const newDuration  = showDuration ? mmssToSeconds(duration) : null;
-    const newDistance  = showDistance && distance !== '' ? Number(distance) : null;
-    const newSteps     = showSteps    && steps    !== '' ? Number(steps)    : null;
-
-    // Skip API call and re-render if nothing changed
-    const unchanged =
-      newReps === set.reps &&
-      (newWeightKg == null ? set.weightKg == null : set.weightKg != null && Math.abs(newWeightKg - set.weightKg) < 0.001) &&
-      newDuration === set.durationSeconds &&
-      newDistance === set.distanceMeters &&
-      newSteps === (set as any).steps;
-    if (unchanged) return;
-
-    try {
-      await updateRoutineTemplateSet(token, routineId, reId, set.id, {
-        reps: newReps ?? undefined,
-        weightKg: newWeightKg ?? undefined,
-        durationSeconds: newDuration ?? undefined,
-        distanceMeters: newDistance ?? undefined,
-        steps: newSteps ?? undefined,
-      });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, durationSeconds: newDuration, distanceMeters: newDistance, steps: newSteps });
-    } catch {
-      setReps(String(set.reps ?? ''));
-      setWeight(fmtWeight(set.weightKg));
-      setDuration(secondsToMMSS(set.durationSeconds));
-      setDistance(String(set.distanceMeters ?? ''));
-      setSteps(String(set.steps ?? ''));
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await deleteRoutineTemplateSet(token, routineId, reId, set.id);
-      onDeleted(set.id);
-    } catch { /* ignore */ }
-  }
-
-  const fieldCount = [showWeight, showReps, showDuration, showDistance, showSteps].filter(Boolean).length;
-  const inputStyle = {
-    flex: 1,
-    backgroundColor: c.bg,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: c.border,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    fontSize: fontSize.sm,
-    color: c.text,
-    textAlign: 'center' as const,
-    minWidth: 0,
-  };
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
-      <Text style={{ fontSize: fontSize.sm, color: c.muted, width: 20, textAlign: 'center' }}>{set.setNumber}</Text>
-      {showWeight && (
-        <TextInput
-          style={inputStyle}
-          value={weight}
-          onChangeText={setWeight}
-          onBlur={handleBlur}
-          placeholder="lbs"
-          placeholderTextColor={c.muted}
-          keyboardType="decimal-pad"
-          returnKeyType="done"
-          blurOnSubmit
-        />
-      )}
-      {showReps && (
-        <TextInput
-          style={inputStyle}
-          value={reps}
-          onChangeText={setReps}
-          onBlur={handleBlur}
-          placeholder="reps"
-          placeholderTextColor={c.muted}
-          keyboardType="number-pad"
-          returnKeyType="done"
-          blurOnSubmit
-        />
-      )}
-      {showDuration && (
-        <TextInput
-          style={inputStyle}
-          value={duration}
-          onChangeText={setDuration}
-          onBlur={handleBlur}
-          placeholder="m:ss"
-          placeholderTextColor={c.muted}
-          keyboardType="numbers-and-punctuation"
-          returnKeyType="done"
-          blurOnSubmit
-        />
-      )}
-      {showDistance && (
-        <TextInput
-          style={inputStyle}
-          value={distance}
-          onChangeText={setDistance}
-          onBlur={handleBlur}
-          placeholder="dist"
-          placeholderTextColor={c.muted}
-          keyboardType="decimal-pad"
-          returnKeyType="done"
-          blurOnSubmit
-        />
-      )}
-      {showSteps && (
-        <TextInput
-          style={inputStyle}
-          value={steps}
-          onChangeText={setSteps}
-          onBlur={handleBlur}
-          placeholder="steps"
-          placeholderTextColor={c.muted}
-          keyboardType="number-pad"
-          returnKeyType="done"
-          blurOnSubmit
-        />
-      )}
-      <TouchableOpacity onPress={handleDelete} style={{ paddingHorizontal: 6 }}>
-        <Text style={{ fontSize: fontSize.sm, color: c.muted }}>✕</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ── Routine exercise block ────────────────────────────────────────────────────
 
 const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
-  re, routineId, onRemove, onSetsChanged, onMoveUp, onMoveDown, c,
+  re, onRemove, onMoveUp, onMoveDown, c,
 }: {
   re: RoutineExercise;
-  routineId: number;
   onRemove: (reId: number) => void;
-  onSetsChanged: (reId: number, sets: RoutineExerciseSet[]) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   c: Colors;
 }) {
   const router = useRouter();
-  const token = useAuthStore((s) => s.token)!;
-  const [sets, setSets] = useState<RoutineExerciseSet[]>(re.templateSets);
-  const [adding, setAdding] = useState(false);
-  const [importing, setImporting] = useState(false);
-
-  function updateSets(next: RoutineExerciseSet[]) {
-    setSets(next);
-    onSetsChanged(re.id, next);
-  }
-
-  async function handleAddSet() {
-    setAdding(true);
-    try {
-      const last = sets[sets.length - 1];
-      const refSets = re.lastPerformedSets;
-      const refLast = refSets ? refSets[refSets.length - 1] : null;
-      const s = await addRoutineTemplateSet(token, routineId, re.id, {
-        reps: last?.reps ?? refLast?.reps ?? undefined,
-        weightKg: last?.weightKg ?? refLast?.weightKg ?? undefined,
-        durationSeconds: last?.durationSeconds ?? refLast?.durationSeconds ?? undefined,
-      });
-      updateSets([...sets, s]);
-    } catch { /* ignore */ }
-    finally { setAdding(false); }
-  }
-
-  async function handleImportSets() {
-    if (!re.lastPerformedSets || re.lastPerformedSets.length === 0) return;
-    setImporting(true);
-    try {
-      const created: RoutineExerciseSet[] = [];
-      for (const ls of re.lastPerformedSets) {
-        const s = await addRoutineTemplateSet(token, routineId, re.id, {
-          reps: ls.reps ?? undefined,
-          weightKg: ls.weightKg ?? undefined,
-          durationSeconds: ls.durationSeconds ?? undefined,
-        });
-        created.push(s);
-      }
-      updateSets([...sets, ...created]);
-    } catch { /* ignore */ }
-    finally { setImporting(false); }
-  }
-
-  const trackedFields = re.exercise.trackedFields ?? ['reps', 'weight'];
-  const showWeightHeader   = trackedFields.includes('weight');
-  const showRepsHeader     = trackedFields.includes('reps');
-  const showDurationHeader = trackedFields.includes('duration');
-  const showDistanceHeader = trackedFields.includes('distance');
-  const showStepsHeader    = trackedFields.includes('steps');
-
-  const showLastPerformed = sets.length === 0 && re.lastPerformedSets && re.lastPerformedSets.length > 0;
 
   return (
     <View style={{ backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 12, gap: 8 }}>
@@ -373,12 +160,12 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
         </View>
       </View>
 
-      {/* Last performed reference */}
-      {showLastPerformed && (
-        <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8, gap: 6 }}>
-          <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Last session (reference)</Text>
-          {re.lastPerformedSets!.map((ls, i) => (
-            <Text key={i} style={{ fontSize: fontSize.sm, color: c.text, paddingVertical: 1 }}>
+      {/* Last session reference — shown when history exists */}
+      {re.lastPerformedSets && re.lastPerformedSets.length > 0 && (
+        <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8, gap: 4 }}>
+          <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Last session</Text>
+          {re.lastPerformedSets.map((ls, i) => (
+            <Text key={i} style={{ fontSize: fontSize.sm, color: c.text }}>
               Set {ls.setNumber}:
               {ls.weightKg != null && ` ${fmtWeight(ls.weightKg)} lbs`}
               {ls.reps != null && ` × ${ls.reps} reps`}
@@ -387,49 +174,8 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
               {(ls as any).steps != null && ` ${(ls as any).steps} steps`}
             </Text>
           ))}
-          <TouchableOpacity
-            onPress={handleImportSets}
-            disabled={importing}
-            style={{ borderWidth: 1, borderColor: c.accent, borderRadius: 6, paddingVertical: 6, alignItems: 'center', marginTop: 2, opacity: importing ? 0.5 : 1 }}
-          >
-            <Text style={{ fontSize: fontSize.sm, color: c.accent }}>{importing ? 'Importing…' : 'Import as template sets'}</Text>
-          </TouchableOpacity>
         </View>
       )}
-
-      {/* Column headers */}
-      {sets.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 2 }}>
-          <View style={{ width: 20 }} />
-          {showWeightHeader   && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>lbs</Text>}
-          {showRepsHeader     && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>reps</Text>}
-          {showDurationHeader && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>time</Text>}
-          {showDistanceHeader && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>dist</Text>}
-          {showStepsHeader    && <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>steps</Text>}
-          <View style={{ width: 28 }} />
-        </View>
-      )}
-
-      {sets.map((s) => (
-        <TemplateSetRow
-          key={s.id}
-          set={s}
-          routineId={routineId}
-          reId={re.id}
-          trackedFields={trackedFields}
-          onUpdated={(updated) => updateSets(sets.map((x) => x.id === updated.id ? updated : x))}
-          onDeleted={(id) => updateSets(sets.filter((x) => x.id !== id))}
-          c={c}
-        />
-      ))}
-
-      <TouchableOpacity
-        onPress={handleAddSet}
-        disabled={adding}
-        style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: c.border, borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: adding ? 0.5 : 1 }}
-      >
-        <Text style={{ fontSize: fontSize.sm, color: c.accent }}>{adding ? 'Adding…' : '+ Add set'}</Text>
-      </TouchableOpacity>
     </View>
   );
 });
@@ -609,13 +355,6 @@ export default function RoutineDetailScreen() {
     });
   }, [token]);
 
-  const handleSetsChanged = useCallback((reId: number, sets: RoutineExerciseSet[]) => {
-    setRoutine((prev) => prev ? {
-      ...prev,
-      exercises: prev.exercises.map((e) => e.id === reId ? { ...e, templateSets: sets } : e),
-    } : prev);
-  }, []);
-
   async function handleMoveExercise(reId: number, direction: 'up' | 'down') {
     if (!routine) return;
     const idx = routine.exercises.findIndex((e) => e.id === reId);
@@ -731,9 +470,7 @@ export default function RoutineDetailScreen() {
             <RoutineExerciseBlock
               key={re.id}
               re={re}
-              routineId={routine.id}
               onRemove={handleRemoveExercise}
-              onSetsChanged={handleSetsChanged}
               onMoveUp={idx > 0 ? () => handleMoveExercise(re.id, 'up') : undefined}
               onMoveDown={idx < routine.exercises.length - 1 ? () => handleMoveExercise(re.id, 'down') : undefined}
               c={c}

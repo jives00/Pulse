@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -8,7 +8,11 @@ import { useFocusEffect } from 'expo-router';
 import {
   getGoalsSummary, getExerciseGoals, saveExerciseGoals, saveNutritionGoals,
   getMeasurementGoals, setMeasurementGoal, deleteMeasurementGoal, getMeasurements,
+  getSchedules, getUpcomingSchedule, createSchedule, deleteSchedule,
+  getProgramTemplates, importProgramTemplate, getRoutines,
   type GoalsSummary, type ExerciseGoals, type MeasurementGoal, type BodyMeasurement,
+  type WorkoutSchedule, type UpcomingSession, type ProgramTemplate,
+  type RecurrenceType, type RoutineSummary,
 } from '../../../src/api/client';
 import { computeGoalPace, type PaceStatus } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -32,11 +36,17 @@ const METRIC_CONFIG: Record<string, { label: string; unit: string; dir: 'up' | '
 
 const ALL_METRICS = Object.keys(METRIC_CONFIG);
 
+const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function pct(actual: number, goal: number | null | undefined) {
   if (!goal) return 0;
   return Math.min(actual / goal, 1);
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function ProgressBar({ value, total, color, c }: { value: number; total: number | null | undefined; color: string; c: Colors }) {
@@ -59,6 +69,57 @@ function PaceBadge({ status, c }: { status: PaceStatus; c: Colors }) {
   return (
     <View style={{ backgroundColor: `${color}22`, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
       <Text style={{ color, fontSize: fontSize.xs, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+}
+
+// ─── Week strip ───────────────────────────────────────────────────────────────
+
+function WeekStrip({ upcoming, c }: { upcoming: UpcomingSession[]; c: Colors }) {
+  const today = todayStr();
+  const jsToday = new Date(today + 'T00:00:00');
+  const jsDow = jsToday.getDay(); // 0=Sun
+  const mondayOffset = jsDow === 0 ? -6 : 1 - jsDow;
+  const monday = new Date(jsToday);
+  monday.setDate(jsToday.getDate() + mondayOffset);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const session = upcoming.find((u) => u.date === dateStr);
+    return { dateStr, dayNum: d.getDate(), session, isToday: dateStr === today };
+  });
+
+  function dotColor(session?: UpcomingSession) {
+    if (!session) return 'transparent';
+    if (session.status === 'completed') return '#86AA80';
+    if (session.status === 'skipped')  return '#C5896E';
+    if (session.status === 'rest')     return c.muted;
+    return c.accent;
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      {days.map(({ dateStr, dayNum, session, isToday }, i) => (
+        <View key={dateStr} style={{ alignItems: 'center', flex: 1, gap: 3 }}>
+          <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{DOW_LABELS[i].slice(0, 1)}</Text>
+          <View style={[
+            { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+            isToday && { backgroundColor: c.accent },
+          ]}>
+            <Text style={{ color: isToday ? '#000' : c.text, fontSize: fontSize.sm, fontWeight: isToday ? '700' : '400' }}>
+              {dayNum}
+            </Text>
+          </View>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dotColor(session) }} />
+          {session && !session.isRestDay && (
+            <Text style={{ color: c.muted, fontSize: 9, textAlign: 'center' }} numberOfLines={1}>
+              {session.routineName ?? session.dayLabel ?? ''}
+            </Text>
+          )}
+        </View>
+      ))}
     </View>
   );
 }
@@ -348,6 +409,460 @@ function AddGoalPickerModal({ available, onPick, onClose, c }: {
   );
 }
 
+// ─── Add schedule modal ───────────────────────────────────────────────────────
+
+function AddScheduleModal({ token, routinesList, onClose, onSaved, c }: {
+  token: string;
+  routinesList: RoutineSummary[];
+  onClose: () => void;
+  onSaved: () => void;
+  c: Colors;
+}) {
+  const s = makeStyles(c);
+  const [isRestDay,      setIsRestDay]      = useState(false);
+  const [routineId,      setRoutineId]      = useState<number | null>(null);
+  const [label,          setLabel]          = useState('');
+  const [recType,        setRecType]        = useState<RecurrenceType>('days_of_week');
+  const [dowDays,        setDowDays]        = useState<number[]>([]);
+  const [xDaysInterval,  setXDaysInterval]  = useState('3');
+  const [domType,        setDomType]        = useState<'specific_dates' | 'nth_weekday'>('specific_dates');
+  const [domDates,       setDomDates]       = useState('1, 15');
+  const [domN,           setDomN]           = useState('1');
+  const [domWeekday,     setDomWeekday]     = useState('0');
+  const [startDate,      setStartDate]      = useState(todayStr());
+  const [endDate,        setEndDate]        = useState('');
+  const [saving,         setSaving]         = useState(false);
+  const [pickingRoutine, setPickingRoutine] = useState(false);
+
+  function buildConfig() {
+    if (recType === 'daily' || recType === 'every_other_day') return {};
+    if (recType === 'days_of_week') return { days: dowDays };
+    if (recType === 'every_x_days') return { interval: Number(xDaysInterval) || 3 };
+    if (recType === 'day_of_month') {
+      if (domType === 'specific_dates') {
+        return {
+          type: 'specific_dates',
+          dates: domDates.split(',').map((d) => Number(d.trim())).filter((d) => d >= 1 && d <= 31),
+        };
+      }
+      return { type: 'nth_weekday', n: Number(domN) || 1, weekday: Number(domWeekday) || 0 };
+    }
+    return {};
+  }
+
+  async function handleSave() {
+    if (!isRestDay && routineId === null) return;
+    setSaving(true);
+    try {
+      await createSchedule(token, {
+        routineId: isRestDay ? null : routineId,
+        label: label.trim() || undefined,
+        isRestDay,
+        recurrenceType: recType,
+        recurrenceConfig: buildConfig(),
+        startDate,
+        endDate: endDate.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch { Alert.alert('Error', 'Could not save schedule.'); }
+    finally { setSaving(false); }
+  }
+
+  const selectedRoutine = routinesList.find((r) => r.id === routineId);
+  const canSave = isRestDay || routineId !== null;
+
+  if (pickingRoutine) {
+    return (
+      <Modal transparent animationType="slide" onRequestClose={() => setPickingRoutine(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '80%' }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: c.text }]}>Choose Routine</Text>
+              <TouchableOpacity onPress={() => setPickingRoutine(false)}>
+                <Text style={{ color: c.muted, fontSize: 22 }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {routinesList.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => { setRoutineId(r.id); setPickingRoutine(false); }}
+                  style={[s.pickerRow, { borderColor: c.border }, routineId === r.id && { backgroundColor: `${c.accent}22` }]}
+                >
+                  <Text style={{ color: c.text, fontSize: fontSize.sm }}>{r.name}</Text>
+                  {routineId === r.id && <Text style={{ color: c.accent, fontSize: fontSize.sm }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: c.text }]}>Add Schedule</Text>
+              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
+
+              {/* Rest day toggle */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ color: c.text, fontSize: fontSize.sm }}>Rest day</Text>
+                <TouchableOpacity
+                  onPress={() => setIsRestDay(!isRestDay)}
+                  style={{
+                    width: 48, height: 28, borderRadius: 14,
+                    backgroundColor: isRestDay ? c.accent : c.border,
+                    justifyContent: 'center', paddingHorizontal: 3,
+                  }}
+                >
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff',
+                    alignSelf: isRestDay ? 'flex-end' : 'flex-start',
+                  }} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Routine picker */}
+              {!isRestDay && (
+                <TouchableOpacity
+                  onPress={() => setPickingRoutine(true)}
+                  style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderColor: c.border, backgroundColor: c.bg }]}
+                >
+                  <Text style={{ color: selectedRoutine ? c.text : c.muted, fontSize: fontSize.sm }}>
+                    {selectedRoutine ? selectedRoutine.name : 'Select routine…'}
+                  </Text>
+                  <Text style={{ color: c.muted }}>›</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Optional label */}
+              <View style={[s.field, { marginBottom: 8 }]}>
+                <Text style={[s.fieldLabel, { color: c.muted }]}>Label (optional)</Text>
+                <TextInput
+                  style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                  value={label} onChangeText={setLabel}
+                  placeholder="e.g. Morning workout" placeholderTextColor={c.muted}
+                />
+              </View>
+
+              {/* Recurrence type */}
+              <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Repeats</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                {(['daily', 'every_other_day', 'days_of_week', 'every_x_days', 'day_of_month'] as RecurrenceType[]).map((rt) => (
+                  <TouchableOpacity
+                    key={rt}
+                    onPress={() => setRecType(rt)}
+                    style={{
+                      marginRight: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: recType === rt ? c.accent : c.border,
+                    }}
+                  >
+                    <Text style={{ color: recType === rt ? '#000' : c.text, fontSize: fontSize.xs }}>
+                      {rt === 'daily' ? 'Daily'
+                        : rt === 'every_other_day' ? 'Every other'
+                        : rt === 'days_of_week'    ? 'Days of week'
+                        : rt === 'every_x_days'    ? 'Every X days'
+                        :                            'Day of month'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* days_of_week config */}
+              {recType === 'days_of_week' && (
+                <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
+                  {DOW_LABELS.map((lbl, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setDowDays((prev) => prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i])}
+                      style={{
+                        flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                        backgroundColor: dowDays.includes(i) ? c.accent : c.border,
+                      }}
+                    >
+                      <Text style={{ color: dowDays.includes(i) ? '#000' : c.text, fontSize: fontSize.xs }}>
+                        {lbl.slice(0, 1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* every_x_days config */}
+              {recType === 'every_x_days' && (
+                <View style={[s.field, { marginBottom: 8 }]}>
+                  <Text style={[s.fieldLabel, { color: c.muted }]}>Interval (days)</Text>
+                  <TextInput
+                    style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                    value={xDaysInterval} onChangeText={setXDaysInterval}
+                    keyboardType="numeric" placeholderTextColor={c.muted}
+                  />
+                </View>
+              )}
+
+              {/* day_of_month config */}
+              {recType === 'day_of_month' && (
+                <>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                    {(['specific_dates', 'nth_weekday'] as const).map((dt) => (
+                      <TouchableOpacity
+                        key={dt}
+                        onPress={() => setDomType(dt)}
+                        style={{
+                          flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                          backgroundColor: domType === dt ? c.accent : c.border,
+                        }}
+                      >
+                        <Text style={{ color: domType === dt ? '#000' : c.text, fontSize: fontSize.xs }}>
+                          {dt === 'specific_dates' ? 'Specific dates' : 'Nth weekday'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {domType === 'specific_dates' ? (
+                    <View style={[s.field, { marginBottom: 8 }]}>
+                      <Text style={[s.fieldLabel, { color: c.muted }]}>Dates (comma-separated, e.g. 1, 15)</Text>
+                      <TextInput
+                        style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                        value={domDates} onChangeText={setDomDates}
+                        placeholderTextColor={c.muted}
+                      />
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      <View style={[s.field, { flex: 1 }]}>
+                        <Text style={[s.fieldLabel, { color: c.muted }]}>Which (1–4)</Text>
+                        <TextInput
+                          style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                          value={domN} onChangeText={setDomN}
+                          keyboardType="numeric" placeholderTextColor={c.muted}
+                        />
+                      </View>
+                      <View style={[s.field, { flex: 2 }]}>
+                        <Text style={[s.fieldLabel, { color: c.muted }]}>Weekday (0=Mon … 6=Sun)</Text>
+                        <TextInput
+                          style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                          value={domWeekday} onChangeText={setDomWeekday}
+                          keyboardType="numeric" placeholderTextColor={c.muted}
+                        />
+                      </View>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Start date */}
+              <View style={[s.field, { marginBottom: 8 }]}>
+                <Text style={[s.fieldLabel, { color: c.muted }]}>Start date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                  value={startDate} onChangeText={setStartDate}
+                  placeholder="2025-01-01" placeholderTextColor={c.muted}
+                />
+              </View>
+
+              {/* End date */}
+              <View style={[s.field, { marginBottom: 8 }]}>
+                <Text style={[s.fieldLabel, { color: c.muted }]}>End date (optional)</Text>
+                <TextInput
+                  style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                  value={endDate} onChangeText={setEndDate}
+                  placeholder="Leave blank for ongoing" placeholderTextColor={c.muted}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={s.modalActions}>
+              <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving || !canSave}
+                style={[s.saveBtn, { backgroundColor: c.accent, opacity: (saving || !canSave) ? 0.5 : 1 }]}
+              >
+                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>
+                  {saving ? 'Saving…' : 'Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Import program modal ─────────────────────────────────────────────────────
+
+function ImportProgramModal({ token, templates, routinesList, onClose, onSaved, c }: {
+  token: string;
+  templates: ProgramTemplate[];
+  routinesList: RoutineSummary[];
+  onClose: () => void;
+  onSaved: () => void;
+  c: Colors;
+}) {
+  const s = makeStyles(c);
+  const [selectedTemplate, setSelectedTemplate] = useState<ProgramTemplate | null>(null);
+  const [slotMap,          setSlotMap]          = useState<Record<string, number | null>>({});
+  const [startDate,        setStartDate]        = useState(todayStr());
+  const [saving,           setSaving]           = useState(false);
+  const [pickingSlot,      setPickingSlot]      = useState<string | null>(null);
+
+  const slots = useMemo(() => {
+    if (!selectedTemplate) return [];
+    const seen = new Set<string>();
+    selectedTemplate.days.forEach((d) => {
+      if (!d.isRestDay && d.slotLabel) seen.add(d.slotLabel);
+    });
+    return Array.from(seen);
+  }, [selectedTemplate]);
+
+  async function handleImport() {
+    if (!selectedTemplate) return;
+    setSaving(true);
+    try {
+      await importProgramTemplate(token, selectedTemplate.id, { startDate, slotMap });
+      onSaved();
+      onClose();
+    } catch { Alert.alert('Error', 'Could not import program.'); }
+    finally { setSaving(false); }
+  }
+
+  if (pickingSlot !== null) {
+    const slot = pickingSlot;
+    return (
+      <Modal transparent animationType="slide" onRequestClose={() => setPickingSlot(null)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '80%' }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: c.text }]}>{slot}</Text>
+              <TouchableOpacity onPress={() => setPickingSlot(null)}>
+                <Text style={{ color: c.muted, fontSize: 22 }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              <TouchableOpacity
+                onPress={() => { setSlotMap((prev) => ({ ...prev, [slot]: null })); setPickingSlot(null); }}
+                style={[s.pickerRow, { borderColor: c.border }]}
+              >
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>None (skip slot)</Text>
+              </TouchableOpacity>
+              {routinesList.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => { setSlotMap((prev) => ({ ...prev, [slot]: r.id })); setPickingSlot(null); }}
+                  style={[s.pickerRow, { borderColor: c.border }, slotMap[slot] === r.id && { backgroundColor: `${c.accent}22` }]}
+                >
+                  <Text style={{ color: c.text, fontSize: fontSize.sm }}>{r.name}</Text>
+                  {slotMap[slot] === r.id && <Text style={{ color: c.accent, fontSize: fontSize.sm }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: c.text }]}>Import Program</Text>
+              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+              {!selectedTemplate ? (
+                templates.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => setSelectedTemplate(t)}
+                    style={[s.pickerRow, { borderColor: c.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>{t.name}</Text>
+                      {t.description && (
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{t.description}</Text>
+                      )}
+                    </View>
+                    <Text style={{ color: c.muted, fontSize: fontSize.sm }}>{t.weeks}w ›</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => setSelectedTemplate(null)} style={{ marginBottom: 12 }}>
+                    <Text style={{ color: c.accent, fontSize: fontSize.sm }}>← Change program</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600', marginBottom: 8 }}>
+                    {selectedTemplate.name}
+                  </Text>
+                  {slots.length > 0 && (
+                    <>
+                      <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Map slots to your routines:</Text>
+                      {slots.map((slot) => {
+                        const mappedId = slotMap[slot];
+                        const mappedRoutine = routinesList.find((r) => r.id === mappedId);
+                        return (
+                          <TouchableOpacity
+                            key={slot}
+                            onPress={() => setPickingSlot(slot)}
+                            style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderColor: c.border, backgroundColor: c.bg }]}
+                          >
+                            <Text style={{ color: c.muted, fontSize: fontSize.sm }}>{slot}:</Text>
+                            <Text style={{ color: mappedRoutine ? c.text : c.muted, fontSize: fontSize.sm }}>
+                              {mappedRoutine ? mappedRoutine.name : 'Pick routine ›'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </>
+                  )}
+                  <View style={[s.field, { marginBottom: 8 }]}>
+                    <Text style={[s.fieldLabel, { color: c.muted }]}>Start date (YYYY-MM-DD)</Text>
+                    <TextInput
+                      style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                      value={startDate} onChangeText={setStartDate}
+                      placeholder="2025-01-01" placeholderTextColor={c.muted}
+                    />
+                  </View>
+                </>
+              )}
+            </ScrollView>
+            {selectedTemplate && (
+              <View style={s.modalActions}>
+                <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                  <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleImport}
+                  disabled={saving}
+                  style={[s.saveBtn, { backgroundColor: c.accent, opacity: saving ? 0.5 : 1 }]}
+                >
+                  <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>
+                    {saving ? 'Importing…' : 'Import'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function PlanningScreen() {
@@ -355,28 +870,42 @@ export default function PlanningScreen() {
   const c = useColors();
   const s = makeStyles(c);
 
-  const [summary,          setSummary]          = useState<GoalsSummary | null>(null);
-  const [exGoals,          setExGoals]          = useState<ExerciseGoals | null>(null);
-  const [measGoals,        setMeasGoals]        = useState<Record<string, MeasurementGoal>>({});
-  const [measurements,     setMeasurements]     = useState<BodyMeasurement[]>([]);
-  const [loading,          setLoading]          = useState(true);
-  const [showNutEdit,      setShowNutEdit]      = useState(false);
-  const [showExEdit,       setShowExEdit]       = useState(false);
+  const [summary,           setSummary]           = useState<GoalsSummary | null>(null);
+  const [exGoals,           setExGoals]           = useState<ExerciseGoals | null>(null);
+  const [measGoals,         setMeasGoals]         = useState<Record<string, MeasurementGoal>>({});
+  const [measurements,      setMeasurements]      = useState<BodyMeasurement[]>([]);
+  const [schedules,         setSchedules]         = useState<WorkoutSchedule[]>([]);
+  const [upcoming,          setUpcoming]          = useState<UpcomingSession[]>([]);
+  const [routinesList,      setRoutinesList]      = useState<RoutineSummary[]>([]);
+  const [templates,         setTemplates]         = useState<ProgramTemplate[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [showNutEdit,       setShowNutEdit]       = useState(false);
+  const [showExEdit,        setShowExEdit]        = useState(false);
   const [editingMeasMetric, setEditingMeasMetric] = useState<string | null>(null);
-  const [showAddPicker,    setShowAddPicker]    = useState(false);
+  const [showAddPicker,     setShowAddPicker]     = useState(false);
+  const [showAddSchedule,   setShowAddSchedule]   = useState(false);
+  const [showImportProgram, setShowImportProgram] = useState(false);
 
   async function load() {
     try {
-      const [sum, eg, mg, ms] = await Promise.all([
+      const [sum, eg, mg, ms, scheds, upc, routines, tmplts] = await Promise.all([
         getGoalsSummary(token).catch(() => null),
         getExerciseGoals(token).catch(() => null),
         getMeasurementGoals(token).catch(() => ({})),
         getMeasurements(token).catch(() => []),
+        getSchedules(token).catch(() => []),
+        getUpcomingSchedule(token, 14).catch(() => []),
+        getRoutines(token).catch(() => []),
+        getProgramTemplates(token).catch(() => []),
       ]);
       setSummary(sum);
       setExGoals(eg);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
       setMeasurements(ms as BodyMeasurement[]);
+      setSchedules(scheds as WorkoutSchedule[]);
+      setUpcoming(upc as UpcomingSession[]);
+      setRoutinesList(routines as RoutineSummary[]);
+      setTemplates(tmplts as ProgramTemplate[]);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }
@@ -524,6 +1053,59 @@ export default function PlanningScreen() {
           )}
         </View>
 
+        {/* ── Workout Schedule ── */}
+        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={s.cardHeader}>
+            <Text style={[s.sectionTitle, { color: c.text }]}>Workout Schedule</Text>
+            <TouchableOpacity onPress={() => setShowImportProgram(true)}>
+              <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Import</Text>
+            </TouchableOpacity>
+          </View>
+
+          <WeekStrip upcoming={upcoming} c={c} />
+
+          {schedules.length === 0 && (
+            <Text style={[s.emptyNote, { color: c.muted }]}>No schedule yet. Add one or import a program.</Text>
+          )}
+
+          {schedules.map((sch, i) => (
+            <View
+              key={sch.id}
+              style={[s.measRow, { borderTopColor: c.border }, i === 0 && { borderTopWidth: 0 }]}
+            >
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[s.rowLabel, { color: c.text }]}>
+                  {sch.isRestDay ? 'Rest day' : (sch.routineName ?? sch.label ?? 'Workout')}
+                </Text>
+                <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{sch.recurrenceDescription}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() =>
+                  Alert.alert('Remove schedule?', sch.isRestDay ? 'Rest day' : (sch.routineName ?? sch.label ?? 'Workout'), [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Remove', style: 'destructive',
+                      onPress: async () => {
+                        try { await deleteSchedule(token, sch.id); load(); }
+                        catch { Alert.alert('Error', 'Could not remove schedule.'); }
+                      },
+                    },
+                  ])
+                }
+              >
+                <Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingLeft: 12 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            onPress={() => setShowAddSchedule(true)}
+            style={[s.addBtn, { borderColor: c.accent }]}
+          >
+            <Text style={{ color: c.accent, fontSize: fontSize.sm, fontWeight: '600' }}>+ Add schedule</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -562,6 +1144,27 @@ export default function PlanningScreen() {
           c={c}
           onPick={(metric) => { setShowAddPicker(false); setEditingMeasMetric(metric); }}
           onClose={() => setShowAddPicker(false)}
+        />
+      )}
+
+      {showAddSchedule && (
+        <AddScheduleModal
+          token={token}
+          routinesList={routinesList}
+          c={c}
+          onClose={() => setShowAddSchedule(false)}
+          onSaved={load}
+        />
+      )}
+
+      {showImportProgram && (
+        <ImportProgramModal
+          token={token}
+          templates={templates}
+          routinesList={routinesList}
+          c={c}
+          onClose={() => setShowImportProgram(false)}
+          onSaved={load}
         />
       )}
     </SafeAreaView>

@@ -8,10 +8,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import {
   getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
   getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery,
+  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule,
   type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
-  type TDEEBreakdown, type ExerciseGoals,
+  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession,
 } from '../../../src/api/client';
 import {
   KG_TO_LBS, localDateStr, getWeekStart, shortDate,
@@ -254,7 +254,8 @@ export default function DashboardV4Screen() {
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
-  const [recovery, setRecovery] = useState<RecoveryData | null>(null);
+  const [recovery,  setRecovery]  = useState<RecoveryData | null>(null);
+  const [upcoming,  setUpcoming]  = useState<UpcomingSession[]>([]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -262,7 +263,7 @@ export default function DashboardV4Screen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec] = await Promise.all([
+      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -274,6 +275,7 @@ export default function DashboardV4Screen() {
         getTDEE(token).catch(() => null),
         getAiInsight(token).catch(() => null),
         getRecovery(token).catch(() => null),
+        getUpcomingSchedule(token, 7).catch(() => []),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -286,6 +288,7 @@ export default function DashboardV4Screen() {
       setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
       setAiInsight(insight?.text ?? null);
       setRecovery(rec);
+      setUpcoming(upc as UpcomingSession[]);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -521,6 +524,41 @@ export default function DashboardV4Screen() {
               <Text style={{ fontSize: fontSize.sm, color: c.muted }}>—</Text>
             )}
           </View>
+
+          {/* Upcoming workouts */}
+          {upcoming.length > 0 && (
+            <View style={s.card}>
+              <CardHeader title="Upcoming" meta="next 7 days" c={c} />
+              {upcoming.map((session, i) => {
+                const statusColor = session.status === 'completed' ? COL_GOOD
+                  : session.status === 'skipped' ? COL_WARN
+                  : session.status === 'rest'    ? c.muted
+                  : COL_GOLD;
+                const label = session.isRestDay ? 'Rest' : (session.routineName ?? 'Workout');
+                const dateLabel = new Date(session.date + 'T12:00:00')
+                  .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                return (
+                  <View
+                    key={`${session.scheduleId}-${session.date}`}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: i === 0 ? 0 : 8, borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: c.border }}
+                  >
+                    <View style={{ width: 2, height: 22, backgroundColor: statusColor, opacity: 0.75 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: fontSize.sm, color: c.text, fontWeight: '500' }}>{label}</Text>
+                      <Text style={{ fontSize: fontSize.xs, color: c.muted, marginTop: 1 }}>{dateLabel}</Text>
+                    </View>
+                    {session.status === 'completed' && <Text style={{ fontSize: fontSize.sm, color: COL_GOOD }}>✓</Text>}
+                    {session.status === 'skipped'   && <Text style={{ fontSize: fontSize.sm, color: COL_WARN }}>✕</Text>}
+                    {session.status === 'scheduled' && !session.isRestDay && (
+                      <TouchableOpacity onPress={() => router.push('/(app)/(tabs)/workouts')}>
+                        <Text style={{ fontSize: fontSize.xs, color: c.muted }}>Start</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
         </>)}
 

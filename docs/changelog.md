@@ -6,12 +6,22 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 18, 2026
 
+### API
+
+- **Phase 5: Workout scheduling** — new DB migration (023) adds `workout_schedules`, `workout_schedule_log`, `program_templates`, `program_template_days` tables; seeded with 3-Day Full Body, 4-Day Upper/Lower, 5-Day PPL, 6-Day PPL templates; full schedules route with recurrence expansion, override, and program import. `dfe19b0`
+
 ### Web
 
+- **Phase 5: Planning page scheduling** — Workout Schedule section with week strip, active schedule list, Add Schedule modal (all recurrence types), and Import Program modal. `dfe19b0`
+- **Phase 5: Upcoming workouts card** — DashboardPage Upcoming card now shows real schedule data from the API instead of the routines placeholder. `dfe19b0`
+- **Phase 5: Routine detail simplification** — removed template sets UI; routine detail now shows exercise list with last-session reference only. `dfe19b0`
 - **Dashboard v4 preview** — new `/dashboard-v4` route with 4-band layout (Fuel, Body, Trends, Sessions) using custom SVG sparklines, display typography, and square-corner panels matching the reference design. `fda83ff`
 
 ### Mobile
 
+- **Phase 5: Planning tab scheduling** — Workout Schedule section with week strip, active schedule list, Add Schedule modal (all recurrence types), and Import Program modal. `dfe19b0`
+- **Phase 5: Upcoming workouts card** — dashboard-v4 Now tab gains an Upcoming card showing the next 7 days from the schedule API. `dfe19b0`
+- **Phase 5: Routine detail simplification** — removed template sets UI; routine detail now shows exercise list with last-session reference only. `dfe19b0`
 - **Dashboard v4 preview** — new dashboard screen accessible via More menu (hidden from tab bar); matches the 4-band reference design. `fda83ff`
 
 ## May 17, 2026

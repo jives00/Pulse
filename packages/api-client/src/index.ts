@@ -21,7 +21,9 @@ export { recipesApi, uploadPhotoToS3 } from './endpoints/recipes';
 export { tagsApi }                     from './endpoints/tags';
 export { linksApi }                    from './endpoints/links';
 export { workoutsApi, exercisesApi, measurementsApi } from './endpoints/workouts';
-export { routinesApi } from './endpoints/routines';
+export { routinesApi }  from './endpoints/routines';
+export { schedulesApi } from './endpoints/schedules';
+export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, ProgramTemplateDay, RecurrenceType } from './endpoints/schedules';
 export { profileApi } from './endpoints/profile';
 export type { UserProfile, ActivityLevel } from './endpoints/profile';
 

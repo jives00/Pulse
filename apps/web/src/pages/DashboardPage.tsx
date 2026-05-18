@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi,
   localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown,
-  type WeekBucket,
+  type WeekBucket, type UpcomingSession,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -394,36 +394,48 @@ function RecoveryCard() {
   );
 }
 
-// ─── Upcoming workouts (placeholder) ─────────────────────────────────────────
+// ─── Upcoming workouts ────────────────────────────────────────────────────────
 
-function UpcomingCard({ routines, navigate }: { routines: RoutineSummary[]; navigate: (p: string) => void }) {
-  if (!routines.length) {
-    return <div style={{ fontSize: 13, color: MUTED2 }}>No routines configured yet.</div>;
+function UpcomingCard({ upcoming, navigate }: { upcoming: UpcomingSession[]; navigate: (p: string) => void }) {
+  if (!upcoming.length) {
+    return <div style={{ fontSize: 13, color: MUTED2 }}>No schedule configured. Set one up in <span style={{ color: ACCENT, cursor: 'pointer' }} onClick={() => navigate('/planning')}>Planning</span>.</div>;
   }
-  const col1 = routines.slice(0, Math.ceil(routines.length / 2)).slice(0, 4);
-  const col2 = routines.slice(Math.ceil(routines.length / 2)).slice(0, 4);
-  const Row = ({ r, first }: { r: RoutineSummary; first: boolean }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: first ? 'none' : `1px solid ${LINE_SOFT}` }}>
-      <div style={{ width: 2, height: 22, background: ACCENT, opacity: 0.75, flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: 'white', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
-        <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 2 }}>
-          {r.lastUsedDate ? `Last: ${new Date(r.lastUsedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Never used'}
-        </div>
-      </div>
-      <button
-        onClick={() => navigate('/workouts')}
-        style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: 11, cursor: 'pointer' }}
-      >Start</button>
-    </div>
-  );
+
+  function statusColor(status: string) {
+    if (status === 'completed') return '#86AA80';
+    if (status === 'skipped')  return '#C5896E';
+    if (status === 'rest')     return MUTED2;
+    return ACCENT;
+  }
+
+  function fmtDate(dateStr: string) {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
   return (
     <div>
-      <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginBottom: 10 }}>Planned workouts coming in Phase 5 — showing your routines for now</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <div>{col1.map((r, i) => <Row key={r.id} r={r} first={i === 0} />)}</div>
-        <div>{col2.map((r, i) => <Row key={r.id} r={r} first={i === 0} />)}</div>
-      </div>
+      {upcoming.map((session, i) => (
+        <div
+          key={`${session.scheduleId}-${session.date}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE_SOFT}` }}
+        >
+          <div style={{ width: 2, height: 22, background: statusColor(session.status), opacity: 0.75, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: 'white', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {session.isRestDay ? 'Rest' : (session.routineName ?? 'Workout')}
+            </div>
+            <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 2 }}>{fmtDate(session.date)}</div>
+          </div>
+          {session.status === 'completed' && <span style={{ fontSize: 11, color: '#86AA80' }}>✓</span>}
+          {session.status === 'skipped'   && <span style={{ fontSize: 11, color: '#C5896E' }}>✕</span>}
+          {session.status === 'scheduled' && !session.isRestDay && (
+            <button
+              onClick={() => navigate('/workouts')}
+              style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: 11, cursor: 'pointer' }}
+            >Start</button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1003,6 +1015,7 @@ export default function DashboardPage() {
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [routines,       setRoutines]       = useState<RoutineSummary[]>([]);
   const [todayTDEE,      setTodayTDEE]      = useState<TDEEBreakdown | null>(null);
+  const [upcoming,       setUpcoming]       = useState<UpcomingSession[]>([]);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1016,7 +1029,8 @@ export default function DashboardPage() {
       logApi.getHistory(60).catch(() => []),
       routinesApi.getAll().catch(() => []),
       goalsApi.getTDEE().catch(() => null),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee]) => {
+      schedulesApi.getUpcoming(7).catch(() => []),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1027,6 +1041,7 @@ export default function DashboardPage() {
       setRoutines(rl as RoutineSummary[]);
       const t = tdee as import('@pulse/api-client').TDEEResult | null;
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
+      setUpcoming(upc as UpcomingSession[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1103,8 +1118,8 @@ export default function DashboardPage() {
           <Panel title="Recovery" meta="load + rest signal">
             <RecoveryCard />
           </Panel>
-          <Panel title="Upcoming workouts" meta="your routines">
-            <UpcomingCard routines={routines} navigate={navigate} />
+          <Panel title="Upcoming workouts" meta="next 7 days">
+            <UpcomingCard upcoming={upcoming} navigate={navigate} />
           </Panel>
           <Panel title="Personal bests" meta="all-time">
             <PersonalBestsTable pb={personalBests} />

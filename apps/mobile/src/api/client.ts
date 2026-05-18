@@ -1,4 +1,13 @@
 import type {
+  WorkoutSchedule,
+  UpcomingSession,
+  ProgramTemplate,
+  RecurrenceType,
+} from '../../../../packages/api-client/src/endpoints/schedules';
+
+export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, RecurrenceType };
+
+import type {
   Recipe,
   RecipeDetail,
   RecipeFormData,
@@ -770,6 +779,56 @@ export async function logInline(
     body: JSON.stringify(payload),
   });
   await handle(res);
+}
+
+// Workout schedules
+export async function getSchedules(token: string): Promise<WorkoutSchedule[]> {
+  const res = await fetch(`${API_BASE}/api/schedules`, { headers: headers(token) });
+  return handle<WorkoutSchedule[]>(res);
+}
+export async function getUpcomingSchedule(token: string, days = 14): Promise<UpcomingSession[]> {
+  const res = await fetch(`${API_BASE}/api/schedules/upcoming?days=${days}`, { headers: headers(token) });
+  return handle<UpcomingSession[]>(res);
+}
+export async function createSchedule(token: string, data: {
+  routineId?: number | null;
+  label?: string;
+  isRestDay?: boolean;
+  recurrenceType: RecurrenceType;
+  recurrenceConfig: any;
+  startDate: string;
+  endDate?: string | null;
+}): Promise<WorkoutSchedule> {
+  const res = await fetch(`${API_BASE}/api/schedules`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<WorkoutSchedule>(res);
+}
+export async function updateSchedule(token: string, id: number, data: Partial<{
+  routineId: number | null;
+  label: string | null;
+  isRestDay: boolean;
+  recurrenceType: RecurrenceType;
+  recurrenceConfig: any;
+  startDate: string;
+  endDate: string | null;
+}>): Promise<WorkoutSchedule> {
+  const res = await fetch(`${API_BASE}/api/schedules/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle<WorkoutSchedule>(res);
+}
+export async function deleteSchedule(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/schedules/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function overrideScheduleDay(token: string, scheduleId: number, data: { date: string; status: 'completed' | 'skipped' | 'rest'; workoutLogId?: number }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/schedules/${scheduleId}/override`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+export async function getProgramTemplates(token: string): Promise<ProgramTemplate[]> {
+  const res = await fetch(`${API_BASE}/api/schedules/program-templates`, { headers: headers(token) });
+  return handle<ProgramTemplate[]>(res);
+}
+export async function importProgramTemplate(token: string, templateId: number, data: { startDate: string; slotMap: Record<string, number | null> }): Promise<WorkoutSchedule[]> {
+  const res = await fetch(`${API_BASE}/api/schedules/program-templates/${templateId}/import`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle<WorkoutSchedule[]>(res);
 }
 
 export async function logModifiedRecipe(
