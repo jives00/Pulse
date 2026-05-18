@@ -392,7 +392,12 @@ export default function MealSection({ meal, entries, photoUrl }: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-2 shrink-0">
-                <span className="text-sm text-slate-300">{Math.round(entry.nutrition.calories)} cal</span>
+                <div className="text-right">
+                  <div className="text-sm text-slate-300">{Math.round(entry.nutrition.calories)} cal</div>
+                  <div className="text-xs text-slate-500">
+                    P {Math.round(entry.nutrition.protein)}g · C {Math.round(entry.nutrition.carbs)}g · F {Math.round(entry.nutrition.fat)}g
+                  </div>
+                </div>
                 <button
                   onClick={() => setActiveEntry(entry)}
                   className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-200 transition-all text-base leading-none px-1"

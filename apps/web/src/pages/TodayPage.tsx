@@ -100,12 +100,6 @@ export default function TodayPage() {
             Manage Goals
           </button>
           <button
-            onClick={() => setShowRecipeFormModal(true)}
-            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-          >
-            Create Custom Food
-          </button>
-          <button
             onClick={() => setShowAddModal(true)}
             className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
           >

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { foodsApi, recipesApi, logApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
-import type { Food, MealSlot, RecipeSearchResult, RecipeMacroResult } from '@pulse/api-client';
+import type { Food, MealSlot, RecipeSearchResult, RecipeMacroResult, FrequentFood } from '@pulse/api-client';
 
 type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create' | 'custom-inline' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
 
@@ -100,6 +100,8 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
   const [ciEstimating, setCiEstimating] = useState(false);
   const [ciLogging, setCiLogging] = useState(false);
 
+  const [frequentFoods, setFrequentFoods] = useState<FrequentFood[]>([]);
+
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchId = useRef(0);
 
@@ -127,6 +129,11 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
     }, 300);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [query]);
+
+  // Load frequent foods once on mount
+  useEffect(() => {
+    logApi.getFrequent().then(setFrequentFoods).catch(() => {});
+  }, []);
 
   // Close on Escape
   useEffect(() => {
@@ -239,6 +246,22 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
       // ignore — TODO: show error toast
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleFrequentSelect(food: FrequentFood) {
+    if (!selectedMeal) return;
+    try {
+      await addEntry({
+        logDate: currentDate,
+        meal: selectedMeal,
+        foodId: food.foodId,
+        servingSizeId: food.servingSizeId,
+        quantity: 1,
+      });
+      onClose();
+    } catch {
+      // ignore
     }
   }
 
@@ -500,7 +523,35 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                 </div>
               )}
 
-              {!query.trim() && (
+              {!query.trim() && frequentFoods.length > 0 && (
+                <div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-800/50">
+                    Frequent Foods
+                  </div>
+                  <ul className="divide-y divide-slate-700/50">
+                    {frequentFoods.map((food) => (
+                      <li key={food.foodId}>
+                        <button
+                          className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left transition-colors"
+                          onClick={() => handleFrequentSelect(food)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-slate-200 truncate">{food.name}</div>
+                            {food.brand && <div className="text-xs text-slate-500 truncate">{food.brand}</div>}
+                          </div>
+                          <div className="ml-3 text-right shrink-0">
+                            <div className="text-sm text-slate-400">{food.caloriesPerServing} cal</div>
+                            <div className="text-xs text-slate-600">
+                              P{food.proteinPerServing}g · C{food.carbsPerServing}g · F{food.fatPerServing}g
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!query.trim() && frequentFoods.length === 0 && (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
                   Start typing to search foods
                 </div>

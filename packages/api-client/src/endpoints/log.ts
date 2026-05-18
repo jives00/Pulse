@@ -8,6 +8,20 @@ import type {
   CopyLogPayload,
 } from '../nutrition';
 
+export interface FrequentFood {
+  foodId: number;
+  name: string;
+  brand: string | null;
+  logCount: number;
+  servingSizeId: number;
+  servingLabel: string;
+  servingGrams: number;
+  caloriesPerServing: number;
+  proteinPerServing: number;
+  carbsPerServing: number;
+  fatPerServing: number;
+}
+
 export interface FoodLogHistoryEntry {
   id: number;
   meal: string;
@@ -76,6 +90,9 @@ export const logApi = {
     sodium_mg?: number | null;
   }) =>
     apiClient.post<{ success: boolean }>('/log/inline', payload).then((r) => r.data),
+
+  getFrequent: () =>
+    apiClient.get<FrequentFood[]>('/log/frequent').then((r) => r.data),
 
   copyEntry: (entry: LogEntry, targetMeal: MealSlot, targetDate: string) =>
     apiClient.post<LogEntry>('/log', {

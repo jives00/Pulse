@@ -8,14 +8,21 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Phase 7: Frequent foods endpoint** — new `GET /api/log/frequent` returns top 10 foods logged by the user in the past 90 days with macros per default serving; excludes quick-log entries. `6311fbe`
+- **Phase 7: Bidirectional recipe log sync** — `POST /log/recipe` now also inserts into `recipe_log`, so logging a recipe from the food log screen marks it as "I Made This". `6311fbe`
 - **Phase 6: AI assistant endpoint** — new `POST /api/ai/assistant` route; `runConversation` added to aiProvider for multi-turn history (Anthropic native messages, Gemini prompt-flattened); screen-aware system prompt maps recipe/food-log/routine/planning context to human-readable descriptions; structured JSON response with `log_food` and `update_nutrition_goal` action types. `2dccb52`
 
 ### Web
 
+- **Phase 7: Frequent foods in search modal** — food search now loads top 10 frequent foods on open; shows as a tappable list when query is empty; clicking logs the food immediately at qty 1. `6311fbe`
+- **Phase 7: Per-entry macros in food log** — each food entry in MealSection now shows P / C / F breakdown below the calorie count. `6311fbe`
+- **Phase 7: Remove "Create Custom Food" header button** — button removed from TodayPage header; the flow remains accessible via the search modal footer. `6311fbe`
 - **Phase 6: AI assistant** — floating ✦ FAB in Layout opens a slide-up chat panel; chat history with user/assistant bubbles, loading animation, and action execution via `logApi.logInline` and `goalsApi.saveNutrition`; screen context passed from `assistantStore`. `2dccb52`
 
 ### Mobile
 
+- **Phase 7: Frequent foods in search modal** — food search loads top 10 frequent foods when modal opens; shows tappable list when query is empty; tapping logs immediately at qty 1. `6311fbe`
+- **Phase 7: Per-entry macros in food log** — each food entry now shows P · C · F macro line alongside calories. `6311fbe`
 - **Phase 6: AI assistant** — floating ✦ FAB overlaid on tab layout opens a `pageSheet` modal chat; bubbles, loading indicator, error display; executes `log_food` and `update_nutrition_goal` actions; screen context from Zustand `assistantStore`. `2dccb52`
 
 ### API

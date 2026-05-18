@@ -41,7 +41,7 @@ export type { Exercise, ExerciseSet, WorkoutExercise, WorkoutExerciseSummary, Wo
               BodyMeasurement, MeasurementGoal, PersonalBests,
               ExerciseStats, ExerciseHistoryEntry }                    from './endpoints/workouts';
 export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet, RoutineGoal } from './endpoints/routines';
-export type { FoodLogHistoryDay, FoodLogHistoryEntry } from './endpoints/log';
+export type { FoodLogHistoryDay, FoodLogHistoryEntry, FrequentFood } from './endpoints/log';
 export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 
 // Shared utilities

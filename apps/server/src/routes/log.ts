@@ -81,6 +81,49 @@ function rowToEntry(row: RowDataPacket) {
   };
 }
 
+// ── GET /log/frequent — top foods logged by this user ─────────
+
+router.get('/frequent', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT f.id, f.name, f.brand,
+              COUNT(DISTINCT fl.id) AS log_count,
+              ss.id AS serving_size_id, ss.label AS serving_label, ss.grams AS serving_grams,
+              ROUND(f.calories_per100 * ss.grams / 100) AS calories_per_serving,
+              ROUND(f.protein_per100 * ss.grams / 100, 1) AS protein_per_serving,
+              ROUND(f.carbs_per100 * ss.grams / 100, 1) AS carbs_per_serving,
+              ROUND(f.fat_per100 * ss.grams / 100, 1) AS fat_per_serving
+       FROM food_log fl
+       JOIN foods f ON f.id = fl.food_id
+       LEFT JOIN serving_sizes ss ON ss.food_id = f.id AND ss.is_default = 1
+       WHERE fl.user_id = ?
+         AND fl.log_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+         AND (f.source IS NULL OR f.source != 'quick_log')
+       GROUP BY f.id, ss.id
+       ORDER BY log_count DESC
+       LIMIT 10`,
+      [req.userId]
+    );
+
+    res.json(rows.map((r) => ({
+      foodId: r.id,
+      name: r.name,
+      brand: r.brand ?? null,
+      logCount: Number(r.log_count),
+      servingSizeId: r.serving_size_id ?? 0,
+      servingLabel: r.serving_label ?? '1 serving',
+      servingGrams: Number(r.serving_grams ?? 100),
+      caloriesPerServing: Number(r.calories_per_serving ?? 0),
+      proteinPerServing: Number(r.protein_per_serving ?? 0),
+      carbsPerServing: Number(r.carbs_per_serving ?? 0),
+      fatPerServing: Number(r.fat_per_serving ?? 0),
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch frequent foods' });
+  }
+});
+
 // ── GET /log?date=YYYY-MM-DD ──────────────────────────────────
 
 router.get('/', async (req, res) => {
@@ -301,6 +344,7 @@ router.post('/recipe', async (req, res) => {
 
     await conn.beginTransaction();
     await upsertRecipeNutritionLog(conn, recipe, req.userId!, meal, qty, logDate ?? null);
+    await conn.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [recipeId, req.userId]);
     await conn.commit();
 
     res.status(201).json({ success: true });

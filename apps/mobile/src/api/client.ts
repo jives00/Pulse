@@ -710,6 +710,25 @@ export async function getFoodLogHistory(token: string, params?: { limit?: number
   return handle<FoodLogHistoryDay[]>(res);
 }
 
+export interface FrequentFood {
+  foodId: number;
+  name: string;
+  brand: string | null;
+  logCount: number;
+  servingSizeId: number;
+  servingLabel: string;
+  servingGrams: number;
+  caloriesPerServing: number;
+  proteinPerServing: number;
+  carbsPerServing: number;
+  fatPerServing: number;
+}
+
+export async function getFrequentFoods(token: string): Promise<FrequentFood[]> {
+  const res = await fetch(`${API_BASE}/api/log/frequent`, { headers: headers(token) });
+  return handle<FrequentFood[]>(res);
+}
+
 export async function logRecipeToNutrition(
   token: string,
   payload: { recipeId: number; meal: string; servings: number; logDate?: string }

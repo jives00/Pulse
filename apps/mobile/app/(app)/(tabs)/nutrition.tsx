@@ -9,9 +9,9 @@ import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry,
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
-  aiModifyRecipe, logModifiedRecipe, logInline, estimateMacros,
+  aiModifyRecipe, logModifiedRecipe, logInline, estimateMacros, getFrequentFoods,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
-  type RecipeSearchResult,
+  type RecipeSearchResult, type FrequentFood,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -114,6 +114,7 @@ export default function NutritionScreen() {
   const [foodResults, setFoodResults] = useState<Food[]>([]);
   const [recipeResults, setRecipeResults] = useState<RecipeSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [frequentFoods, setFrequentFoods] = useState<FrequentFood[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Food pick
@@ -216,6 +217,7 @@ export default function NutritionScreen() {
     setModifyResult(null);
     setModifyError(null);
     scannedRef.current = false;
+    getFrequentFoods(token).then(setFrequentFoods).catch(() => {});
   }
 
   async function openAddFoodScan(meal: MealSlot) {
@@ -332,6 +334,23 @@ export default function NutritionScreen() {
 
   function removeQueueItem(key: string) {
     setBarcodeQueue((q) => q.filter((item) => item.key !== key));
+  }
+
+  async function confirmAddFrequent(food: FrequentFood) {
+    if (!addMeal || !food.servingSizeId) return;
+    try {
+      await addLogEntry(token, {
+        logDate: date,
+        meal: addMeal,
+        foodId: food.foodId,
+        servingSizeId: food.servingSizeId,
+        quantity: 1,
+      });
+      setAddMeal(null);
+      setTimeout(() => load(true), 500);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not add food.');
+    }
   }
 
   async function confirmAdd() {
@@ -761,7 +780,12 @@ export default function NutritionScreen() {
                               {entry.food.brand ? ` · ${entry.food.brand}` : ''}
                             </Text>
                           </View>
-                          <Text style={s.foodCals}>{Math.round(entry.nutrition.calories)}</Text>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={s.foodCals}>{Math.round(entry.nutrition.calories)} cal</Text>
+                            <Text style={s.foodMacros}>
+                              P{Math.round(entry.nutrition.protein)}·C{Math.round(entry.nutrition.carbs)}·F{Math.round(entry.nutrition.fat)}
+                            </Text>
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -1485,9 +1509,30 @@ export default function NutritionScreen() {
               </View>
 
               {recipeResults.length === 0 && foodResults.length === 0 && query.length === 0 ? (
-                <View style={s.emptyState}>
-                  <Text style={s.emptyText}>Search by name or scan a barcode</Text>
-                </View>
+                frequentFoods.length > 0 ? (
+                  <FlatList
+                    data={frequentFoods}
+                    keyExtractor={(f) => String(f.foodId)}
+                    ListHeaderComponent={<Text style={s.sectionHeader}>Frequent Foods</Text>}
+                    renderItem={({ item: f }) => (
+                      <TouchableOpacity style={s.resultRow} onPress={() => confirmAddFrequent(f)}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.resultName}>{f.name}</Text>
+                          {f.brand && <Text style={s.resultBrand}>{f.brand}</Text>}
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={s.resultCals}>{f.caloriesPerServing} kcal</Text>
+                          <Text style={[s.resultBrand, { marginTop: 0 }]}>P{f.proteinPerServing}·C{f.carbsPerServing}·F{f.fatPerServing}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyboardShouldPersistTaps="handled"
+                  />
+                ) : (
+                  <View style={s.emptyState}>
+                    <Text style={s.emptyText}>Search by name or scan a barcode</Text>
+                  </View>
+                )
               ) : (
                 <FlatList
                   data={[
@@ -1621,6 +1666,7 @@ function makeStyles(c: Colors) {
     foodName: { fontSize: fontSize.sm, color: c.text },
     foodServing: { fontSize: fontSize.sm, color: c.muted, marginTop: 1 },
     foodCals: { fontSize: fontSize.sm, color: c.muted },
+    foodMacros: { fontSize: 11, color: c.muted, marginTop: 1 },
     addFoodBtn: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
     addFoodBtnText: { fontSize: fontSize.sm, color: c.accent },
     addFoodScanBtn: { paddingLeft: 12, paddingVertical: 2 },
