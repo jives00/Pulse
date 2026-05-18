@@ -648,6 +648,16 @@ export async function getDailyHistory(token: string, start: string, end: string)
   return handle<DailyHistoryEntry[]>(res);
 }
 
+// AI insight + recovery (Phase 4 endpoints — graceful-fail callers)
+export async function getAiInsight(token: string): Promise<{ text: string }> {
+  const res = await fetch(`${API_BASE}/api/ai/insight`, { headers: headers(token) });
+  return handle<{ text: string }>(res);
+}
+export async function getRecovery(token: string): Promise<{ level: 'high' | 'medium' | 'low'; score: number; hint: string }> {
+  const res = await fetch(`${API_BASE}/api/recovery`, { headers: headers(token) });
+  return handle<{ level: 'high' | 'medium' | 'low'; score: number; hint: string }>(res);
+}
+
 // Workout personal bests
 export async function getPersonalBests(token: string): Promise<PersonalBests> {
   const res = await fetch(`${API_BASE}/api/workouts/personal-bests`, { headers: headers(token) });

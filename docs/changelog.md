@@ -4,6 +4,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 18, 2026
+
+### Web
+
+- **Dashboard v4 preview** — new `/dashboard-v4` route with 4-band layout (Fuel, Body, Trends, Sessions) using custom SVG sparklines, display typography, and square-corner panels matching the reference design. `fda83ff`
+
+### Mobile
+
+- **Dashboard v4 preview** — new dashboard screen accessible via More menu (hidden from tab bar); matches the 4-band reference design. `fda83ff`
+
 ## May 17, 2026
 
 ### Web

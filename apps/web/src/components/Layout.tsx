@@ -2,15 +2,16 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const TOP_SECTIONS = [
-  { prefix: '/dashboard', label: 'Dashboard', icon: '📊', exact: false },
-  { prefix: '/planning',  label: 'Planning',  icon: '🎯', exact: false },
-  { prefix: '/food',      label: 'Recipes',   icon: '🍴', exact: false },
-  { prefix: '/drinks',    label: 'Drinks',    icon: '🍸', exact: false },
-  { prefix: '/nutrition', label: 'Food Log',  icon: '🥗', exact: false },
-  { prefix: '/workouts',  label: 'Workouts',  icon: '💪', exact: false },
-  { prefix: '/history',   label: 'History',   icon: '📋', exact: false },
-  { prefix: '/links',     label: 'Links',     icon: '🔗', exact: false },
-  { prefix: '/settings',  label: 'Settings',  icon: '⚙️', exact: false },
+  { prefix: '/dashboard',    label: 'Dashboard',    icon: '📊', exact: false },
+  { prefix: '/dashboard-v4', label: 'Dashboard v4', icon: '✦',  exact: false },
+  { prefix: '/planning',     label: 'Planning',     icon: '🎯', exact: false },
+  { prefix: '/food',         label: 'Recipes',      icon: '🍴', exact: false },
+  { prefix: '/drinks',       label: 'Drinks',       icon: '🍸', exact: false },
+  { prefix: '/nutrition',    label: 'Food Log',     icon: '🥗', exact: false },
+  { prefix: '/workouts',     label: 'Workouts',     icon: '💪', exact: false },
+  { prefix: '/history',      label: 'History',      icon: '📋', exact: false },
+  { prefix: '/links',        label: 'Links',        icon: '🔗', exact: false },
+  { prefix: '/settings',     label: 'Settings',     icon: '⚙️', exact: false },
 ];
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {

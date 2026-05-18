@@ -31,7 +31,7 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
     });
   }
 
-  function go(path: '/(app)/(tabs)/links' | '/(app)/(tabs)/history' | '/(app)/(tabs)/settings') {
+  function go(path: '/(app)/(tabs)/links' | '/(app)/(tabs)/history' | '/(app)/(tabs)/settings' | '/(app)/(tabs)/dashboard-v4') {
     setVisible(false);
     router.push(path);
   }
@@ -77,6 +77,11 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
               },
             ]}
           >
+            <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/dashboard-v4')}>
+              <Ionicons name="pulse-outline" size={20} color={c.muted} />
+              <Text style={[styles.menuLabel, { color: c.text }]}>Dashboard v4</Text>
+            </TouchableOpacity>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/links')}>
               <Ionicons name="link-outline" size={20} color={c.muted} />
               <Text style={[styles.menuLabel, { color: c.text }]}>Links</Text>
@@ -177,6 +182,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="dashboard-v4" options={{ href: null }} />
       <Tabs.Screen name="links" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
