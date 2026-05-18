@@ -607,7 +607,7 @@ export async function updateProfile(token: string, data: Partial<UserProfile>): 
 // Nutrition goals
 export interface NutritionGoals { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz?: number; }
 export async function saveNutritionGoals(token: string, data: NutritionGoals): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/goals/nutrition`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  const res = await fetch(`${API_BASE}/api/goals`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   await handle(res);
 }
 
@@ -635,6 +635,10 @@ export async function getMeasurementGoals(token: string): Promise<Record<string,
 }
 export async function setMeasurementGoal(token: string, metric: string, data: { targetValue: number; unit: string; targetDate: string | null }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/measurements/goals/${metric}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+export async function deleteMeasurementGoal(token: string, metric: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/measurements/goals/${metric}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
 }
 

@@ -33,6 +33,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Nav bar redesign** — replaced emoji icons with Ionicons, added Planning tab, renamed labels (Home/Plan/Log/Train/Recipes), fixed More button alignment and styling. `d1598f5`
 - **Metro config** — added explicit `extraNodeModules` mapping for `@pulse/theme` to fix workspace resolution. `d1598f5`
 - **Font size minimum** — replaced all `fontSize.xs` and hardcoded sub-13 sizes across all screens; chart/heatmap labels floored at 11. `af2f36d`
+- **Plan tab** — fully implemented: nutrition goals with inline editing, exercise targets (workouts/minutes/volume) with progress bars, and body measurement goals with pace tracking and add/edit/delete. `8de0807`
+
+### Web
+
+- **Planning page** — new `/planning` route in the sidebar centralizes all goal management: nutrition targets, weekly exercise targets with volume, and body measurement goals with pace badges and projected dates. Inline goal editors removed from Today and Dashboard pages. `8de0807`
 
 ## May 14, 2026
 

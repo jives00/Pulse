@@ -97,145 +97,6 @@ function StatTile({ icon, label, value, unit, color }: {
 
 // ─── Goals modal ─────────────────────────────────────────────────────────────
 
-function GoalsModal({ exGoals, measurementGoals, onSaved, onClose }: {
-  exGoals: ExerciseGoals | null;
-  measurementGoals: Record<string, MeasurementGoal>;
-  onSaved: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-dram-accent';
-
-  const [volume, setVolume] = useState(String(exGoals?.volumeLbsPerWeek ?? ''));
-  const [workoutCount, setWorkoutCount] = useState(String(exGoals?.workoutsPerWeek ?? ''));
-  const [saving, setSaving] = useState(false);
-
-  // One state entry per displayed measurement metric
-  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
-    const init: Record<string, { value: string; date: string }> = {};
-    for (const key of DISPLAYED_METRICS) {
-      const g = measurementGoals[key];
-      init[key] = { value: g ? String(g.targetValue) : '', date: g?.targetDate ?? '' };
-    }
-    return init;
-  });
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await goalsApi.saveExercise({
-        workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
-        minutesPerWeek: exGoals?.minutesPerWeek ?? null,
-        volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
-      });
-
-      await Promise.all(
-        DISPLAYED_METRICS.map((key) => {
-          const { value, date } = mGoals[key];
-          if (!value) return Promise.resolve();
-          const cfg = METRIC_CONFIG[key];
-          return measurementsApi.setGoal(key, {
-            targetValue: Number(value),
-            unit: cfg.unit,
-            targetDate: date || null,
-          });
-        })
-      );
-
-      onSaved();
-      onClose();
-    } catch { /* ignore */ } finally { setSaving(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="bg-dram-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col border border-dram-border"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0 border-b border-dram-border">
-          <h2 className="text-base font-semibold text-slate-200">Edit Goals</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-          {/* Workout goals */}
-          <div>
-            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">This Week</div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Volume goal (lbs / week)</label>
-                <input type="number" min="0" value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls} placeholder="e.g. 10000" />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Workouts / week</label>
-                <input type="number" min="0" value={workoutCount} onChange={(e) => setWorkoutCount(e.target.value)} className={inputCls} />
-              </div>
-            </div>
-          </div>
-
-          {/* Body measurement goals */}
-          <div>
-            <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Body Measurements</div>
-            <div className="space-y-4">
-              {DISPLAYED_METRICS.map((key) => {
-                const cfg = METRIC_CONFIG[key];
-                const g = mGoals[key];
-                return (
-                  <div key={key}>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-sm leading-none">{cfg.icon}</span>
-                      <span className="text-sm font-medium text-slate-300">{cfg.label}</span>
-                      <span className="text-sm text-slate-500">({cfg.unit})</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm text-slate-500 mb-1">Target</label>
-                        <input
-                          type="number" min="0" step="0.1"
-                          value={g.value}
-                          onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: e.target.value } }))}
-                          className={inputCls}
-                          placeholder={`e.g. ${cfg.unit === 'lbs' ? '180' : cfg.unit === '%' ? '15' : '32'}`}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-slate-500 mb-1">By date</label>
-                        <input
-                          type="date"
-                          value={g.date}
-                          onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: e.target.value } }))}
-                          className={inputCls}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="px-5 pb-5 pt-3 border-t border-dram-border shrink-0 flex gap-2">
-          <button onClick={onClose} className="flex-1 text-sm text-slate-400 hover:text-slate-200 py-2 transition-colors">Cancel</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded-lg py-2 transition-colors"
-          >
-            {saving ? 'Saving…' : 'Save Goals'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Weekly bar charts ────────────────────────────────────────────────────────
 
 const BAR_WIDTH = 16;
@@ -3209,7 +3070,6 @@ export default function WorkoutsDashboardPage() {
   const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
   const [starting, setStarting] = useState(false);
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
-  const [goalsOpen, setGoalsOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'other'>('dashboard');
 
@@ -3297,15 +3157,6 @@ export default function WorkoutsDashboardPage() {
           ))}
         </div>
       </div>
-
-      {goalsOpen && (
-        <GoalsModal
-          exGoals={exGoals}
-          measurementGoals={measurementGoals}
-          onSaved={load}
-          onClose={() => setGoalsOpen(false)}
-        />
-      )}
 
       {startPickerOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={() => setStartPickerOpen(false)}>

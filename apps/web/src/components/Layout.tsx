@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 
 const TOP_SECTIONS = [
   { prefix: '/dashboard', label: 'Dashboard', icon: '📊', exact: false },
+  { prefix: '/planning',  label: 'Planning',  icon: '🎯', exact: false },
   { prefix: '/food',      label: 'Recipes',   icon: '🍴', exact: false },
   { prefix: '/drinks',    label: 'Drinks',    icon: '🍸', exact: false },
   { prefix: '/nutrition', label: 'Food Log',  icon: '🥗', exact: false },
