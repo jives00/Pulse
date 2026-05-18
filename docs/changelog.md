@@ -16,6 +16,17 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **Cleanup** — removed debug `console.log` from recipes, scrape, and aiProvider; upgraded Anthropic fallback notices to `console.warn`. `e0d7d39`
 
+### Web
+
+- **Log custom food (AI inline)** — added "✦ Log custom food" flow to the food log modal: describe what you ate, estimate macros with AI, log without creating a permanent food record. `d876ece`
+
+### Mobile
+
+- **"I Made This" logs to food log** — button now opens a meal/servings modal and logs the recipe to the nutrition food log in addition to make history. `d876ece`
+- **Rest timer stays accurate when backgrounded** — replaced interval-based countdown with a start-timestamp approach; timer now resyncs from `Date.now()` on each tick. `d876ece`
+- **Rest timer ding at zero** — haptic + audio alert fires when rest expires; requires EAS build (graceful no-op in Expo Go). `d876ece`
+- **Routine: import last session** — exercises with no template sets now show an "Import as template sets" button that copies last-performed weights/reps as editable template rows. `d876ece`
+
 ### Mobile
 
 - **New color schemes** — Midnight, Tide, and Graphite added to settings color picker. `f708cab`

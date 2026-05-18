@@ -3,7 +3,7 @@ import { foodsApi, recipesApi, logApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
 import type { Food, MealSlot, RecipeSearchResult, RecipeMacroResult } from '@pulse/api-client';
 
-type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
+type View = 'meal' | 'search' | 'pick' | 'recipe-pick' | 'create' | 'custom-inline' | 'modify-pick' | 'modify-prompt' | 'modify-preview';
 
 interface Props {
   meal?: MealSlot;
@@ -89,6 +89,16 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
   const [estimating, setEstimating] = useState(false);
   const [confidence, setConfidence] = useState<'high' | 'medium' | 'low' | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
+
+  // Custom inline state (AI estimate + log once, no food saved)
+  const [ciDescription, setCiDescription] = useState('');
+  const [ciCalories, setCiCalories] = useState('');
+  const [ciProtein, setCiProtein] = useState('');
+  const [ciCarbs, setCiCarbs] = useState('');
+  const [ciFat, setCiFat] = useState('');
+  const [ciEstimated, setCiEstimated] = useState(false);
+  const [ciEstimating, setCiEstimating] = useState(false);
+  const [ciLogging, setCiLogging] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchId = useRef(0);
@@ -287,6 +297,45 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
     }
   }
 
+  async function handleCIEstimate() {
+    if (!ciDescription.trim()) return;
+    setCiEstimating(true);
+    try {
+      const result = await foodsApi.estimateMacros({ name: ciDescription.trim() });
+      const n = result.nutrition;
+      setCiCalories(String(Math.round(n.calories)));
+      setCiProtein(String(Math.round(n.protein * 10) / 10));
+      setCiCarbs(String(Math.round(n.carbs * 10) / 10));
+      setCiFat(String(Math.round(n.fat * 10) / 10));
+      setCiEstimated(true);
+    } catch {
+      // ignore
+    } finally {
+      setCiEstimating(false);
+    }
+  }
+
+  async function handleCILog() {
+    if (!ciDescription.trim() || !ciCalories || !selectedMeal) return;
+    setCiLogging(true);
+    try {
+      await logApi.logInline({
+        name: ciDescription.trim(),
+        meal: selectedMeal,
+        logDate: currentDate,
+        calories: Number(ciCalories),
+        carbs_g: Number(ciCarbs) || 0,
+        protein_g: Number(ciProtein) || 0,
+        fat_g: Number(ciFat) || 0,
+      });
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setCiLogging(false);
+    }
+  }
+
   const selectedServing = selectedFood?.servingSizes.find((s) => s.id === servingSizeId);
   const qty = Number(quantity) || 1;
   const previewCal = selectedFood && selectedServing
@@ -313,6 +362,9 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             {view === 'modify-pick' && (
               <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
+            {view === 'custom-inline' && (
+              <button onClick={() => setView('search')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
+            )}
             {view === 'modify-prompt' && (
               <button onClick={() => setView('modify-pick')} className="text-slate-400 hover:text-slate-200 transition-colors">←</button>
             )}
@@ -328,6 +380,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
               {view === 'modify-pick'     && 'Log modified recipe'}
               {view === 'modify-prompt'   && (modifyRecipe?.name ?? '')}
               {view === 'modify-preview'  && 'Preview changes'}
+              {view === 'custom-inline'   && 'Log custom food'}
             </h2>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors">×</button>
@@ -466,6 +519,12 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
                 className="w-full text-sm text-dram-accent hover:text-dram-accent/80 transition-colors py-1"
               >
                 ✦ Log modified recipe
+              </button>
+              <button
+                onClick={() => { setCiDescription(''); setCiCalories(''); setCiProtein(''); setCiCarbs(''); setCiFat(''); setCiEstimated(false); setView('custom-inline'); }}
+                className="w-full text-sm text-dram-accent hover:text-dram-accent/80 transition-colors py-1"
+              >
+                ✦ Log custom food
               </button>
             </div>
           </div>
@@ -701,6 +760,63 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
             >
               {modifyLogging ? 'Logging…' : `Log it`}
             </button>
+          </div>
+        )}
+
+        {/* ── Custom inline (AI estimate + log once, no food saved) ── */}
+        {view === 'custom-inline' && (
+          <div className="flex flex-col flex-1 p-4 gap-4 overflow-y-auto">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">What did you eat?</label>
+              <textarea
+                autoFocus
+                rows={2}
+                value={ciDescription}
+                onChange={(e) => { setCiDescription(e.target.value); setCiEstimated(false); }}
+                placeholder='e.g. "6oz grilled chicken breast" or "bowl of oatmeal with berries"'
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500 resize-none"
+              />
+            </div>
+            <button
+              onClick={handleCIEstimate}
+              disabled={!ciDescription.trim() || ciEstimating}
+              className="w-full bg-dram-accent/20 border border-dram-accent/40 text-dram-accent font-semibold py-2 rounded-lg hover:bg-dram-accent/30 transition disabled:opacity-50"
+            >
+              {ciEstimating ? 'Estimating…' : '✦ Estimate macros with AI'}
+            </button>
+
+            {(ciEstimated || ciCalories !== '') && (
+              <>
+                <p className="text-sm text-slate-500 -mt-2">
+                  {ciEstimated ? 'AI estimate — edit if needed' : 'Enter macros manually'}
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { label: 'Cal', value: ciCalories, set: setCiCalories },
+                    { label: 'Protein g', value: ciProtein, set: setCiProtein },
+                    { label: 'Carbs g', value: ciCarbs, set: setCiCarbs },
+                    { label: 'Fat g', value: ciFat, set: setCiFat },
+                  ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
+                    <div key={label}>
+                      <label className="block text-xs text-slate-500 mb-1 text-center">{label}</label>
+                      <input
+                        type="number"
+                        value={value}
+                        onChange={(e) => set(e.target.value)}
+                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-brand-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleCILog}
+                  disabled={!ciDescription.trim() || !ciCalories || ciLogging || !selectedMeal}
+                  className="w-full bg-dram-accent text-black font-semibold py-2.5 rounded-lg hover:brightness-110 transition disabled:opacity-50"
+                >
+                  {ciLogging ? 'Logging…' : `Log to ${selectedMeal ? MEAL_LABELS[selectedMeal] : '…'}`}
+                </button>
+              </>
+            )}
           </div>
         )}
 

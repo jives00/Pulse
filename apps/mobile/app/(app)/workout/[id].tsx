@@ -162,6 +162,21 @@ async function dismissWorkoutNotification() {
   } catch { /* notification may not exist */ }
 }
 
+async function playRestDing() {
+  try {
+    const Haptics = await import('expo-haptics');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  } catch { /* not available in Expo Go */ }
+  try {
+    const { Audio } = await import('expo-av');
+    const { sound } = await Audio.Sound.createAsync(require('../../../assets/ding.wav'));
+    await sound.playAsync();
+    sound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
+  } catch { /* not available in Expo Go — works in EAS build */ }
+}
+
 function defaultTrackedFields(exerciseType: string): string[] {
   switch (exerciseType) {
     case 'cardio':     return ['duration', 'distance'];
@@ -191,6 +206,8 @@ export default function WorkoutDetailScreen() {
   const [isPaused, setIsPaused] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [restDuration, setRestDuration] = useState(REST_SECONDS);
+  const restDurationRef = useRef(REST_SECONDS);
+  const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<string | null>(null);
   const pausedAtRef = useRef<string | null>(null);
@@ -307,12 +324,21 @@ export default function WorkoutDetailScreen() {
   }, [load]);
 
   useEffect(() => {
-    if (restSeconds <= 0) return;
-    const id = setInterval(() => {
-      setRestSeconds((sec) => Math.max(0, sec - 1));
-    }, 1000);
+    if (restStartedAt === null) return;
+    const duration = restDurationRef.current;
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+      setRestSeconds(remaining);
+      if (remaining === 0) {
+        setRestStartedAt(null);
+        playRestDing();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [restSeconds]);
+  }, [restStartedAt]);
 
   // Handle pause/resume triggered from notification action button
   useEffect(() => {
@@ -621,8 +647,10 @@ export default function WorkoutDetailScreen() {
   async function handleToggleSet(we: WorkoutExercise, set: ExerciseSet) {
     const newCompleted = !set.completed;
     if (newCompleted) {
+      restDurationRef.current = REST_SECONDS;
       setRestDuration(REST_SECONDS);
       setRestSeconds(REST_SECONDS);
+      setRestStartedAt(Date.now());
     }
     // Optimistic update
     setWorkout((prev) => {
@@ -731,10 +759,11 @@ export default function WorkoutDetailScreen() {
           duration={restDuration}
           c={c}
           onAdd={() => {
+            restDurationRef.current += 30;
             setRestDuration((d) => d + 30);
             setRestSeconds((sec) => sec + 30);
           }}
-          onSkip={() => setRestSeconds(0)}
+          onSkip={() => { setRestStartedAt(null); setRestSeconds(0); }}
         />
       )}
 

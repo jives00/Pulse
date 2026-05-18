@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Dimensions, Image, Linking, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRecipe, logRecipe, updateRecipe, getRecipeLog, deleteLogEntry, deleteAllLog, type RecipeDetail, type MakeLogEntry } from '../../../src/api/client';
+import { getRecipe, logRecipe, logRecipeToNutrition, updateRecipe, getRecipeLog, deleteLogEntry, deleteAllLog, type RecipeDetail, type MakeLogEntry, type MealSlot } from '../../../src/api/client';
+import { localDateStr } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
@@ -10,6 +11,21 @@ import Spinner from '../../../src/components/Spinner';
 import AiModifyModal from '../../../src/components/AiModifyModal';
 
 const { width } = Dimensions.get('window');
+
+function defaultMealByTime(): MealSlot {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return 'breakfast';
+  if (h >= 11 && h < 14) return 'lunch';
+  if (h >= 17 && h < 20) return 'dinner';
+  return 'snack';
+}
+
+const MEAL_OPTIONS: { value: MealSlot; label: string }[] = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+  { value: 'snack', label: 'Snack' },
+];
 
 function formatTime(minutes?: number | null) {
   if (!minutes) return null;
@@ -39,6 +55,9 @@ export default function RecipeDetailScreen() {
   const [logSaving, setLogSaving] = useState(false);
   const [makeLog, setMakeLog] = useState<MakeLogEntry[]>([]);
   const [showModify, setShowModify] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logMeal, setLogMeal] = useState<MealSlot>(defaultMealByTime());
+  const [logServings, setLogServings] = useState(1);
 
   const loadRecipe = useCallback(() => {
     return Promise.all([
@@ -69,14 +88,25 @@ export default function RecipeDetailScreen() {
     await updateRecipe(token, recipe.id, { type: recipe.type, name: recipe.name, is_favorite: newVal }).catch(() => {});
   }
 
-  async function handleLogMade() {
+  function handleLogMade() {
     if (!recipe) return;
+    setLogMeal(defaultMealByTime());
+    setLogServings(1);
+    setShowLogModal(true);
+  }
+
+  async function handleConfirmLog() {
+    if (!recipe) return;
+    setShowLogModal(false);
     setLogSaving(true);
     try {
-      await logRecipe(token, recipe.id);
+      await Promise.all([
+        logRecipe(token, recipe.id),
+        logRecipeToNutrition(token, { recipeId: recipe.id, meal: logMeal, servings: logServings, logDate: localDateStr() }),
+      ]);
       const logData = await getRecipeLog(token, recipe.id);
       setMakeLog(logData.entries);
-      Alert.alert('Logged!', `${recipe.name} recorded.`);
+      Alert.alert('Logged!', `${recipe.name} added to ${logMeal}.`);
     } catch { Alert.alert('Error', 'Could not log recipe.'); }
     finally { setLogSaving(false); }
   }
@@ -260,6 +290,49 @@ export default function RecipeDetailScreen() {
           }}
         />
       )}
+
+      <Modal transparent animationType="slide" visible={showLogModal} onRequestClose={() => setShowLogModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.logModal}>
+              <Text style={styles.logModalTitle}>Log to Food Log</Text>
+
+              <Text style={styles.logModalLabel}>Meal</Text>
+              <View style={styles.mealRow}>
+                {MEAL_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.mealBtn, logMeal === opt.value && styles.mealBtnActive]}
+                    onPress={() => setLogMeal(opt.value)}
+                  >
+                    <Text style={[styles.mealBtnText, logMeal === opt.value && styles.mealBtnTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.logModalLabel}>Servings</Text>
+              <View style={styles.servingRowModal}>
+                <TouchableOpacity onPress={() => setLogServings((s) => Math.max(0.5, parseFloat((s - 0.5).toFixed(1))))} style={styles.stepBtn}>
+                  <Text style={styles.stepBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.servingCount}>{logServings}</Text>
+                <TouchableOpacity onPress={() => setLogServings((s) => parseFloat((s + 0.5).toFixed(1)))} style={styles.stepBtn}>
+                  <Text style={styles.stepBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.logBtn} onPress={handleConfirmLog}>
+                <Text style={styles.logBtnText}>Log to Food Log</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelModalBtn} onPress={() => setShowLogModal(false)}>
+                <Text style={styles.cancelModalBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -307,5 +380,17 @@ function makeStyles(c: Colors) {
   logDelete: { color: c.muted, fontSize: fontSize.sm, paddingHorizontal: 8 },
   backBtn: { position: 'absolute', top: 48, left: 16, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backBtnText: { color: c.text, fontSize: fontSize.xl },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  logModal: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: c.border },
+  logModalTitle: { color: c.text, fontSize: fontSize.lg, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
+  logModalLabel: { color: c.muted, fontSize: fontSize.sm, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
+  mealRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  mealBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  mealBtnActive: { backgroundColor: c.accent, borderColor: c.accent },
+  mealBtnText: { color: c.muted, fontSize: fontSize.sm },
+  mealBtnTextActive: { color: c.bg, fontWeight: '600' },
+  servingRowModal: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  cancelModalBtn: { alignItems: 'center', paddingVertical: 12 },
+  cancelModalBtnText: { color: c.muted, fontSize: fontSize.sm },
   });
 }

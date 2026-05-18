@@ -299,6 +299,7 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
   const token = useAuthStore((s) => s.token)!;
   const [sets, setSets] = useState<RoutineExerciseSet[]>(re.templateSets);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   function updateSets(next: RoutineExerciseSet[]) {
     setSets(next);
@@ -319,6 +320,24 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
       updateSets([...sets, s]);
     } catch { /* ignore */ }
     finally { setAdding(false); }
+  }
+
+  async function handleImportSets() {
+    if (!re.lastPerformedSets || re.lastPerformedSets.length === 0) return;
+    setImporting(true);
+    try {
+      const created: RoutineExerciseSet[] = [];
+      for (const ls of re.lastPerformedSets) {
+        const s = await addRoutineTemplateSet(token, routineId, re.id, {
+          reps: ls.reps ?? undefined,
+          weightKg: ls.weightKg ?? undefined,
+          durationSeconds: ls.durationSeconds ?? undefined,
+        });
+        created.push(s);
+      }
+      updateSets([...sets, ...created]);
+    } catch { /* ignore */ }
+    finally { setImporting(false); }
   }
 
   const trackedFields = re.exercise.trackedFields ?? ['reps', 'weight'];
@@ -356,8 +375,8 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
 
       {/* Last performed reference */}
       {showLastPerformed && (
-        <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8 }}>
-          <Text style={{ fontSize: fontSize.sm, color: c.muted, marginBottom: 4 }}>Last session (reference)</Text>
+        <View style={{ backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, padding: 8, gap: 6 }}>
+          <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Last session (reference)</Text>
           {re.lastPerformedSets!.map((ls, i) => (
             <Text key={i} style={{ fontSize: fontSize.sm, color: c.text, paddingVertical: 1 }}>
               Set {ls.setNumber}:
@@ -368,6 +387,13 @@ const RoutineExerciseBlock = memo(function RoutineExerciseBlock({
               {(ls as any).steps != null && ` ${(ls as any).steps} steps`}
             </Text>
           ))}
+          <TouchableOpacity
+            onPress={handleImportSets}
+            disabled={importing}
+            style={{ borderWidth: 1, borderColor: c.accent, borderRadius: 6, paddingVertical: 6, alignItems: 'center', marginTop: 2, opacity: importing ? 0.5 : 1 }}
+          >
+            <Text style={{ fontSize: fontSize.sm, color: c.accent }}>{importing ? 'Importing…' : 'Import as template sets'}</Text>
+          </TouchableOpacity>
         </View>
       )}
 

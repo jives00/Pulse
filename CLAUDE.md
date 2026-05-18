@@ -1,5 +1,9 @@
 # Pulse — CLAUDE.md
 
+## Rules
+
+**Never commit or push without the user explicitly running `/commit` or `/push`.** Finishing a task, completing a phase, or running tests successfully is not authorization to commit. Wait for the explicit command every time.
+
 ## Project overview
 
 Pulse is a personal health tracker: food/drink recipes, nutrition logging, workout tracking, and goal dashboards. It is a full-stack TypeScript monorepo deployed on AWS EC2 + S3. 
