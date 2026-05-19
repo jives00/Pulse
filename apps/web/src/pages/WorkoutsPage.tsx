@@ -811,7 +811,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   return (
     <>
       {activeWorkout && (
-        <div className="mx-6 mt-2 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
+        <div className="mx-9 mt-2 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
           <span className="text-dram-accent text-lg">⏱</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-dram-accent truncate">
@@ -830,7 +830,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
         </div>
       )}
 
-      <div className="px-6 py-4">
+      <div className="px-9 py-4">
         {loading ? (
           <div className="flex justify-center mt-8"><Spinner size={10} /></div>
         ) : routines.length === 0 ? (
@@ -840,7 +840,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
             <button onClick={() => setShowCreate(true)} className="text-dram-accent hover:underline text-sm mt-1">Create your first routine</button>
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {[...routines]
               .sort((a, b) => {
                 if (!a.lastUsedDate && !b.lastUsedDate) return 0;
@@ -990,13 +990,13 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
 
   return (
     <>
-      <div className="px-6 pt-3 pb-3 space-y-2">
+      <div className="px-9 pt-3 pb-3 flex items-center gap-3">
         <input
           type="text" placeholder="🔍 Search exercises…" value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+          className="w-64 shrink-0 bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
         />
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide flex-1">
           <button
             onClick={() => setFilterCat('')}
             className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition ${!filterCat ? 'border-dram-accent text-dram-accent bg-dram-accent/10' : 'border-dram-border text-gray-400 hover:border-gray-600 hover:text-gray-200'}`}
@@ -1009,7 +1009,7 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
         </div>
       </div>
 
-      <div className="px-6 pb-6">
+      <div className="px-9 pb-6">
         {loading ? (
           <div className="flex justify-center mt-8"><Spinner size={10} /></div>
         ) : filtered.length === 0 ? (
@@ -1018,7 +1018,7 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
             <p className="text-lg">No exercises found.</p>
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {filtered.map((ex) => <ExerciseCardInTab key={ex.id} exercise={ex} />)}
           </div>
         )}
@@ -1096,6 +1096,21 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
 const ACCENT = '#D4A843';
 const MUTED  = '#828ea8';
 
+const MI_TO_M = 1609.344;
+
+function fmtDistanceMi(meters: number): string {
+  const miles = meters / MI_TO_M;
+  return miles >= 0.1 ? `${miles.toFixed(2)} mi` : `${Math.round(meters / 0.3048)} ft`;
+}
+
+function fmtPaceMiPerMin(distanceMeters: number, durationSeconds: number): string | null {
+  if (distanceMeters <= 0 || durationSeconds <= 0) return null;
+  const secPerMile = (durationSeconds / (distanceMeters / MI_TO_M));
+  const m = Math.floor(secPerMile / 60);
+  const s = Math.round(secPerMile % 60);
+  return `${m}:${String(s).padStart(2, '0')}/mi`;
+}
+
 interface WeekStats { count: number; calsBurned: number; volumeLbs: number }
 
 function WorkoutHeroBanner() {
@@ -1153,19 +1168,15 @@ function WorkoutHeroBanner() {
   const todayMinutes = todayWorkouts.reduce((s, w) => s + (w.durationMinutes ?? 0), 0);
   const todayCals = todayWorkouts.reduce((s, w) => s + (w.caloriesBurned ?? 0), 0);
 
-  const d = new Date(today + 'T12:00:00');
-  const dateLabel = `${d.toLocaleDateString('en-US', { weekday: 'short' })} · ${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getDate()} · ${d.getFullYear()}`;
-
   const stepsCount = steps ?? 0;
   const stepsPct = Math.min(stepsCount / STEPS_GOAL, 1);
 
   return (
     <section style={{ padding: '20px 36px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
       {/* Band header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-        <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>Stats</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: MUTED, marginLeft: 4 }}>{dateLabel}</span>
+      <div className="flex items-center gap-3 mb-4">
+        <div style={{ width: 14, height: 2, background: ACCENT }} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Stats</h2>
       </div>
 
       {/* Stat tiles */}
@@ -1175,50 +1186,67 @@ function WorkoutHeroBanner() {
           <div className="flex items-center gap-1.5 mb-2">
             <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Today</span>
           </div>
-          {primaryWorkout ? (
+          {todayWorkouts.length > 0 ? (
             <div>
-              {/* Routine name + stats (non-stairs only) */}
-              <div className="flex items-center gap-3">
-                <p className="text-base font-bold text-white leading-snug truncate flex-1 min-w-0">
-                  {primaryWorkout.routineName ?? primaryWorkout.name ?? 'Workout'}
-                </p>
-                {primaryWorkout.routineType !== 'steps' && (
+              {/* Routine name header — only when there IS a named routine */}
+              {primaryWorkout?.routineName && (
+                <div className="flex items-center gap-3 mb-2">
+                  <p className="text-base font-bold text-white leading-snug truncate flex-1 min-w-0">
+                    {primaryWorkout.routineName}
+                  </p>
                   <div className="flex items-center gap-2 shrink-0 text-sm text-slate-300">
                     {todayMinutes > 0 && <span>{todayMinutes} min</span>}
                     {todayCals > 0 && <span>{todayCals.toLocaleString()} kcal</span>}
-                    {todayWorkouts.length > 1 && <span className="text-slate-500">{todayWorkouts.length} sessions</span>}
                   </div>
-                )}
-              </div>
-              {/* Exercise list */}
-              {primaryWorkout.exercises.length > 0 && (
-                <div className="mt-2 space-y-0.5">
-                  {primaryWorkout.exercises.map((ex, i) => {
-                    if (primaryWorkout.routineType === 'steps') {
+                </div>
+              )}
+              {/* All exercises from all today's workouts, flat */}
+              <div className="space-y-0.5">
+                {todayWorkouts.flatMap((w, wi) =>
+                  w.exercises.map((ex, ei) => {
+                    const wCals = w.caloriesBurned ?? 0;
+
+                    if (ex.totalSteps != null) {
                       const pace = ex.totalSteps && ex.totalDurationSeconds && ex.totalDurationSeconds > 0
                         ? Math.round(ex.totalSteps / (ex.totalDurationSeconds / 60))
                         : null;
                       return (
-                        <div key={i} className="flex items-center justify-between text-sm">
+                        <div key={`${wi}-${ei}`} className="flex items-center justify-between text-sm">
                           <span className="text-slate-400 truncate shrink-0 mr-2">{ex.name}</span>
                           <div className="flex items-center gap-2 text-slate-300 flex-wrap justify-end">
-                            {ex.totalSteps != null && <span>{ex.totalSteps.toLocaleString()} stairs</span>}
+                            <span>{ex.totalSteps.toLocaleString()} stairs</span>
                             {ex.totalDurationSeconds != null && <span>{secondsToMMSS(ex.totalDurationSeconds)}</span>}
-                            {todayCals > 0 && <span>{todayCals.toLocaleString()} kcal</span>}
+                            {wCals > 0 && <span>{wCals.toLocaleString()} kcal</span>}
                             {pace != null && <span>{pace} stairs/min</span>}
                           </div>
                         </div>
                       );
                     }
+
+                    if (ex.totalDistanceMeters != null) {
+                      const pace = fmtPaceMiPerMin(ex.totalDistanceMeters, ex.totalDurationSeconds ?? 0);
+                      return (
+                        <div key={`${wi}-${ei}`} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400 truncate shrink-0 mr-2">{ex.name}</span>
+                          <div className="flex items-center gap-2 text-slate-300 flex-wrap justify-end">
+                            {ex.totalDurationSeconds != null && <span>{secondsToMMSS(ex.totalDurationSeconds)}</span>}
+                            <span>{fmtDistanceMi(ex.totalDistanceMeters)}</span>
+                            {wCals > 0 && <span>{wCals.toLocaleString()} kcal</span>}
+                            {pace != null && <span>{pace}</span>}
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div key={i} className="flex items-center justify-between text-sm">
+                      <div key={`${wi}-${ei}`} className="flex items-center justify-between text-sm">
                         <span className="text-slate-400 truncate">{ex.name}</span>
                         <span className="text-slate-600 shrink-0 ml-2">{ex.setCount} set{ex.setCount !== 1 ? 's' : ''}</span>
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-slate-500 mt-1">No workout yet today</p>
@@ -1358,14 +1386,14 @@ export default function WorkoutsPage() {
         <WorkoutHeroBanner />
 
         {/* Routines section */}
-        <div className="px-6 pt-6 pb-2 flex items-center gap-3">
+        <div className="px-9 pt-6 pb-2 flex items-center gap-3">
           <div style={{ width: 14, height: 2, background: ACCENT }} />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Routines</h2>
         </div>
         <RoutinesTab ref={routinesTabRef} />
 
         {/* Exercises section */}
-        <div className="px-6 pt-8 pb-2 flex items-center gap-3 border-t border-dram-border mt-4">
+        <div className="px-9 pt-8 pb-2 flex items-center gap-3 border-t border-dram-border mt-4">
           <div style={{ width: 14, height: 2, background: ACCENT }} />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Exercises</h2>
         </div>
