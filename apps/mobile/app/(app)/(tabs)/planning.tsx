@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -10,10 +10,17 @@ import {
   getMeasurementGoals, setMeasurementGoal, deleteMeasurementGoal, getMeasurements,
   getSchedules, getUpcomingSchedule, createSchedule, deleteSchedule,
   getProgramTemplates, importProgramTemplate, getRoutines,
+  searchFoods, searchRecipes,
+  getMealPlanWeek, addMealPlanFoodEntry, addMealPlanRecipeEntry,
+  deleteMealPlanEntry, getMealPlanTemplates, saveMealPlanTemplate,
+  applyMealPlanTemplate, deleteMealPlanTemplate,
   type GoalsSummary, type ExerciseGoals, type MeasurementGoal, type BodyMeasurement,
   type WorkoutSchedule, type UpcomingSession, type ProgramTemplate,
   type RecurrenceType, type RoutineSummary,
+  type MealSlot, type MealPlanWeek, type MealPlanTemplate, type MealPlanEntry,
+  type Food, type RecipeSearchResult,
 } from '../../../src/api/client';
+import { getWeekStart, localDateStr } from '../../../../../packages/api-client/src/index';
 import { computeGoalPace, type PaceStatus } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -863,6 +870,211 @@ function ImportProgramModal({ token, templates, routinesList, onClose, onSaved, 
   );
 }
 
+// ─── Meal Planning ────────────────────────────────────────────────────────────
+
+const MEAL_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const MEAL_LABELS: Record<MealSlot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+
+function MobileMealPlanPickerModal({ token, meal, date, c, onClose, onAdded }: {
+  token: string;
+  meal: MealSlot;
+  date: string;
+  c: Colors;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const s = makeStyles(c);
+  const [tab, setTab] = useState<'food' | 'recipe'>('food');
+  const [search, setSearch] = useState('');
+  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [recipeResults, setRecipeResults] = useState<RecipeSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedServingId, setSelectedServingId] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState('1');
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeSearchResult | null>(null);
+  const [recipeServings, setRecipeServings] = useState('1');
+  const [adding, setAdding] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (!search.trim()) { setFoodResults([]); setRecipeResults([]); return; }
+    timerRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        if (tab === 'food') setFoodResults(await searchFoods(token, search));
+        else setRecipeResults(await searchRecipes(token, search));
+      } catch { /* ignore */ } finally { setSearching(false); }
+    }, 400);
+  }, [search, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (selectedFood) {
+      const def = selectedFood.servingSizes.find(s => s.isDefault) ?? selectedFood.servingSizes[0];
+      setSelectedServingId(def?.id ?? null);
+    }
+  }, [selectedFood]);
+
+  async function handleAdd() {
+    setAdding(true);
+    try {
+      if (tab === 'food' && selectedFood && selectedServingId) {
+        await addMealPlanFoodEntry(token, { planDate: date, meal, foodId: selectedFood.id, servingSizeId: selectedServingId, quantity: Number(quantity) || 1 });
+      } else if (tab === 'recipe' && selectedRecipe) {
+        await addMealPlanRecipeEntry(token, { planDate: date, meal, recipeId: selectedRecipe.id, recipeServings: Number(recipeServings) || 1 });
+      }
+      onAdded();
+    } catch { Alert.alert('Error', 'Could not add item.'); }
+    finally { setAdding(false); }
+  }
+
+  const previewCal = (() => {
+    if (tab === 'food' && selectedFood && selectedServingId) {
+      const ss = selectedFood.servingSizes.find(s => s.id === selectedServingId);
+      if (!ss) return null;
+      return Math.round(selectedFood.nutrition.calories * ss.grams * (Number(quantity) || 1) / 100);
+    }
+    if (tab === 'recipe' && selectedRecipe?.calories != null) {
+      const f = (Number(recipeServings) || 1) / (selectedRecipe.servings ?? 1);
+      return Math.round(Number(selectedRecipe.calories) * f);
+    }
+    return null;
+  })();
+
+  const canAdd = tab === 'food'
+    ? !!(selectedFood && selectedServingId && Number(quantity) > 0)
+    : !!(selectedRecipe && Number(recipeServings) > 0);
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '85%' }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: c.text }]}>Add to {MEAL_LABELS[meal]}</Text>
+              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+            </View>
+
+            {/* Tabs */}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['food', 'recipe'] as const).map(t => (
+                <TouchableOpacity key={t} onPress={() => { setTab(t); setSearch(''); setSelectedFood(null); setSelectedRecipe(null); }}
+                  style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99,
+                    backgroundColor: tab === t ? c.accent : c.bg,
+                    borderWidth: 1, borderColor: tab === t ? c.accent : c.border }}>
+                  <Text style={{ color: tab === t ? '#000' : c.muted, fontSize: fontSize.sm, fontWeight: '600' }}>
+                    {t === 'food' ? 'Food' : 'Recipe'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Search */}
+            <TextInput
+              style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+              placeholder={tab === 'food' ? 'Search foods…' : 'Search recipes…'}
+              placeholderTextColor={c.muted}
+              value={search}
+              onChangeText={v => { setSearch(v); setSelectedFood(null); setSelectedRecipe(null); }}
+              autoFocus
+            />
+
+            {/* Results */}
+            {!selectedFood && !selectedRecipe && (
+              <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                {searching && <Text style={{ color: c.muted, fontSize: fontSize.sm, textAlign: 'center', paddingVertical: 12 }}>Searching…</Text>}
+                {!searching && !search.trim() && <Text style={{ color: c.muted, fontSize: fontSize.sm, textAlign: 'center', paddingVertical: 12 }}>Type to search</Text>}
+                {tab === 'food' && !searching && foodResults.map(f => {
+                  const def = f.servingSizes.find(s => s.isDefault) ?? f.servingSizes[0];
+                  const cal = def ? Math.round(f.nutrition.calories * def.grams / 100) : null;
+                  return (
+                    <TouchableOpacity key={f.id} onPress={() => setSelectedFood(f)}
+                      style={{ paddingVertical: 10, paddingHorizontal: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={{ color: c.text, fontSize: fontSize.sm }} numberOfLines={1}>{f.name}</Text>
+                        {f.brand && <Text style={{ color: c.muted, fontSize: fontSize.xs }} numberOfLines={1}>{f.brand}</Text>}
+                      </View>
+                      {cal != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{cal} kcal</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+                {tab === 'recipe' && !searching && recipeResults.map(r => (
+                  <TouchableOpacity key={r.id} onPress={() => setSelectedRecipe(r)}
+                    style={{ paddingVertical: 10, paddingHorizontal: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: c.text, fontSize: fontSize.sm, flex: 1, marginRight: 8 }} numberOfLines={1}>{r.name}</Text>
+                    {r.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{Math.round(Number(r.calories))} kcal</Text>}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Food detail */}
+            {selectedFood && (
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity onPress={() => setSelectedFood(null)}>
+                  <Text style={{ color: c.accent, fontSize: fontSize.sm }}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }} numberOfLines={1}>{selectedFood.name}</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs, marginBottom: 4 }}>Serving</Text>
+                    {selectedFood.servingSizes.map(ss => (
+                      <TouchableOpacity key={ss.id} onPress={() => setSelectedServingId(ss.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 2,
+                          borderColor: selectedServingId === ss.id ? c.accent : c.border,
+                          backgroundColor: selectedServingId === ss.id ? c.accent : 'transparent' }} />
+                        <Text style={{ color: c.text, fontSize: fontSize.sm }}>{ss.label} ({ss.grams}g)</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={{ width: 70 }}>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs, marginBottom: 4 }}>Qty</Text>
+                    <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                      value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
+                  </View>
+                </View>
+                {previewCal != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{previewCal} kcal estimated</Text>}
+              </View>
+            )}
+
+            {/* Recipe detail */}
+            {selectedRecipe && (
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity onPress={() => setSelectedRecipe(null)}>
+                  <Text style={{ color: c.accent, fontSize: fontSize.sm }}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }} numberOfLines={1}>{selectedRecipe.name}</Text>
+                <View>
+                  <Text style={{ color: c.muted, fontSize: fontSize.xs, marginBottom: 4 }}>
+                    Servings (recipe makes {selectedRecipe.servings ?? 1})
+                  </Text>
+                  <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg, width: 80 }]}
+                    value={recipeServings} onChangeText={setRecipeServings} keyboardType="decimal-pad" />
+                </View>
+                {previewCal != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{previewCal} kcal estimated</Text>}
+              </View>
+            )}
+
+            <View style={s.modalActions}>
+              <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleAdd} disabled={!canAdd || adding}
+                style={[s.saveBtn, { backgroundColor: c.accent, opacity: (!canAdd || adding) ? 0.4 : 1 }]}>
+                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>
+                  {adding ? 'Adding…' : 'Add to plan'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function PlanningScreen() {
@@ -886,6 +1098,18 @@ export default function PlanningScreen() {
   const [showAddSchedule,   setShowAddSchedule]   = useState(false);
   const [showImportProgram, setShowImportProgram] = useState(false);
 
+  // Meal planning
+  const today = localDateStr();
+  const [mpWeekStart,  setMpWeekStart]  = useState(() => getWeekStart(today));
+  const [mealPlan,     setMealPlan]     = useState<MealPlanWeek | null>(null);
+  const [mpTemplates,  setMpTemplates]  = useState<MealPlanTemplate[]>([]);
+  const [mpSelDate,    setMpSelDate]    = useState(today);
+  const [mpLoading,    setMpLoading]    = useState(false);
+  const [mpPicker,     setMpPicker]     = useState<{ meal: MealSlot; date: string } | null>(null);
+  const [mpSaveOpen,   setMpSaveOpen]   = useState(false);
+  const [mpTplName,    setMpTplName]    = useState('');
+  const [mpApplyId,    setMpApplyId]    = useState<number | null>(null);
+
   async function load() {
     try {
       const [sum, eg, mg, ms, scheds, upc, routines, tmplts] = await Promise.all([
@@ -908,6 +1132,31 @@ export default function PlanningScreen() {
       setTemplates(tmplts as ProgramTemplate[]);
     } catch { /* ignore */ }
     finally { setLoading(false); }
+  }
+
+  async function loadMealPlan(weekStart: string) {
+    setMpLoading(true);
+    try {
+      const [plan, tmplts] = await Promise.all([
+        getMealPlanWeek(token, weekStart).catch(() => null),
+        getMealPlanTemplates(token).catch(() => []),
+      ]);
+      setMealPlan(plan);
+      setMpTemplates(tmplts as MealPlanTemplate[]);
+      if (plan) {
+        const dates = plan.days.map(d => d.date);
+        setMpSelDate(sel => dates.includes(sel) ? sel : dates[0]);
+      }
+    } finally { setMpLoading(false); }
+  }
+
+  useEffect(() => { loadMealPlan(mpWeekStart); }, [mpWeekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function mpShiftWeek(delta: number) {
+    const d = new Date(mpWeekStart + 'T12:00:00');
+    d.setDate(d.getDate() + delta * 7);
+    const ns = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setMpWeekStart(ns);
   }
 
   useFocusEffect(useCallback(() => {
@@ -1106,6 +1355,172 @@ export default function PlanningScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ── Meal Planning ── */}
+        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          {/* Header with week nav */}
+          <View style={s.cardHeader}>
+            <Text style={[s.sectionTitle, { color: c.text }]}>Meal Planning</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity onPress={() => mpShiftWeek(-1)}>
+                <Text style={{ color: c.muted, fontSize: 18, paddingHorizontal: 4 }}>‹</Text>
+              </TouchableOpacity>
+              <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                {mealPlan ? `${mealPlan.days[0].date.slice(5).replace('-', '/')} – ${mealPlan.days[6].date.slice(5).replace('-', '/')}` : '…'}
+              </Text>
+              <TouchableOpacity onPress={() => mpShiftWeek(1)}>
+                <Text style={{ color: c.muted, fontSize: 18, paddingHorizontal: 4 }}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Day strip */}
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {(mealPlan?.days ?? []).map((day) => {
+              const isSel = day.date === mpSelDate;
+              const isToday = day.date === today;
+              const hasMeals = Object.values(day.meals).some(m => m.length > 0);
+              return (
+                <TouchableOpacity key={day.date} onPress={() => setMpSelDate(day.date)}
+                  style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 6, borderRadius: 10,
+                    backgroundColor: isSel ? `${c.accent}22` : 'transparent',
+                    borderWidth: isSel ? 1 : 0, borderColor: c.accent }}>
+                  <Text style={{ color: isSel ? c.accent : c.muted, fontSize: fontSize.xs }}>{day.dayLabel.slice(0, 1)}</Text>
+                  <Text style={{ color: isSel ? c.accent : isToday ? c.text : c.muted, fontSize: fontSize.sm, fontWeight: '600' }}>
+                    {new Date(day.date + 'T12:00:00').getDate()}
+                  </Text>
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: hasMeals ? c.accent : 'transparent' }} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {mpLoading ? (
+            <ActivityIndicator color={c.accent} style={{ marginVertical: 12 }} />
+          ) : mealPlan ? (() => {
+            const selDay = mealPlan.days.find(d => d.date === mpSelDate);
+            if (!selDay) return null;
+            const hasAny = Object.values(selDay.meals).some(m => m.length > 0);
+            return (
+              <>
+                {hasAny && (
+                  <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                      <Text style={{ color: c.text, fontWeight: '600' }}>{Math.round(selDay.totals.calories)}</Text> kcal
+                    </Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                      <Text style={{ color: c.text, fontWeight: '600' }}>{selDay.totals.proteinG.toFixed(0)}g</Text> protein
+                    </Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                      <Text style={{ color: c.text, fontWeight: '600' }}>{selDay.totals.carbsG.toFixed(0)}g</Text> carbs
+                    </Text>
+                  </View>
+                )}
+                {MEAL_ORDER.map((meal) => {
+                  const entries = selDay.meals[meal];
+                  return (
+                    <View key={meal}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {MEAL_LABELS[meal]}
+                        </Text>
+                        <TouchableOpacity onPress={() => setMpPicker({ meal, date: mpSelDate })}>
+                          <Text style={{ color: c.accent, fontSize: fontSize.sm, fontWeight: '600' }}>+ Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {entries.length === 0 ? (
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs, fontStyle: 'italic' }}>Nothing planned</Text>
+                      ) : (
+                        entries.map((entry: MealPlanEntry) => (
+                          <View key={entry.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5,
+                            borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={{ color: c.text, fontSize: fontSize.sm }} numberOfLines={1}>{entry.name}</Text>
+                              <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                                {Math.round(entry.calories)} kcal · {entry.proteinG.toFixed(0)}g P · {entry.carbsG.toFixed(0)}g C
+                              </Text>
+                            </View>
+                            <TouchableOpacity onPress={async () => {
+                              await deleteMealPlanEntry(token, entry.id).catch(() => null);
+                              loadMealPlan(mpWeekStart);
+                            }}>
+                              <Text style={{ color: c.muted, fontSize: 18 }}>×</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            );
+          })() : null}
+
+          {/* Template controls */}
+          <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border, paddingTop: 12, gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              <TouchableOpacity onPress={() => setMpSaveOpen(!mpSaveOpen)}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: c.border }}>
+                <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Save as template</Text>
+              </TouchableOpacity>
+              {mpTemplates.length > 0 && (
+                <TouchableOpacity onPress={() => {
+                  Alert.alert('Apply template', 'Which template?',
+                    mpTemplates.map(t => ({
+                      text: t.name,
+                      onPress: async () => {
+                        await applyMealPlanTemplate(token, t.id, mpWeekStart).catch(() => null);
+                        loadMealPlan(mpWeekStart);
+                      },
+                    })).concat([{ text: 'Cancel', onPress: async () => {} }])
+                  );
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: c.accent }}>
+                  <Text style={{ color: c.accent, fontSize: fontSize.xs, fontWeight: '600' }}>Apply template</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {mpSaveOpen && (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  style={[{ flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm },
+                    { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                  value={mpTplName} onChangeText={setMpTplName}
+                  placeholder="Template name…" placeholderTextColor={c.muted}
+                />
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (!mpTplName.trim()) return;
+                    await saveMealPlanTemplate(token, mpTplName.trim(), mpWeekStart).catch(() => null);
+                    setMpTplName(''); setMpSaveOpen(false);
+                    setMpTemplates(await getMealPlanTemplates(token).catch(() => []));
+                  }}
+                  disabled={!mpTplName.trim()}
+                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
+                    backgroundColor: c.accent, opacity: mpTplName.trim() ? 1 : 0.4 }}>
+                  <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {mpTemplates.length > 0 && (
+              <View style={{ gap: 4 }}>
+                {mpTemplates.map(t => (
+                  <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{t.name}</Text>
+                    <TouchableOpacity onPress={async () => {
+                      await deleteMealPlanTemplate(token, t.id).catch(() => null);
+                      setMpTemplates(await getMealPlanTemplates(token).catch(() => []));
+                    }}>
+                      <Text style={{ color: c.muted, fontSize: 16 }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -1165,6 +1580,17 @@ export default function PlanningScreen() {
           c={c}
           onClose={() => setShowImportProgram(false)}
           onSaved={load}
+        />
+      )}
+
+      {mpPicker && (
+        <MobileMealPlanPickerModal
+          token={token}
+          meal={mpPicker.meal}
+          date={mpPicker.date}
+          c={c}
+          onClose={() => setMpPicker(null)}
+          onAdded={() => { setMpPicker(null); loadMealPlan(mpWeekStart); }}
         />
       )}
     </SafeAreaView>

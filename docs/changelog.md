@@ -8,6 +8,18 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Phase 10: Meal planning API** — migration 025 adds `meal_plan_entries`, `meal_plan_templates`, `meal_plan_template_items`; new `/api/meal-plan` route with CRUD for planned meals, template save/apply/delete; macros pre-computed at insert time from food or recipe data. `57fefb7`
+
+### Web
+
+- **Phase 10: Meal Planning section in Planning page** — day strip with week navigation, per-day macro totals, four meal slots with add/delete, food/recipe picker modal with debounced search and serving size/quantity picker, template save and apply controls. `57fefb7`
+
+### Mobile
+
+- **Phase 10: Meal Planning card in Planning tab** — day strip with week navigation, meal slots with add/delete, food/recipe picker modal, template save/apply via action sheet. `57fefb7`
+
+### API
+
 - **Phase 9: Bidirectional "I Made This" sync via food log** — `POST /log` now inserts into `recipe_log` when `dramRecipeId` is present, so logging a recipe-based food entry from the food log screen also marks it as made in Recipes. `7f6db3f`
 - **Phase 8: Daily steps logger** — migration 024 adds `steps_log` table; new `/api/steps` route with GET (by date), POST (upsert), and GET /history endpoints. `5eb9ca9`
 

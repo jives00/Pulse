@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   goalsApi, measurementsApi, schedulesApi, routinesApi,
+  mealPlanApi, foodsApi, recipesApi,
   computeGoalPace,
   GLASS_OZ,
+  getWeekStart, localDateStr, shortDate,
   type GoalsSummary, type ExerciseGoals, type MeasurementGoal, type BodyMeasurement, type PaceStatus,
   type WorkoutSchedule, type UpcomingSession, type ProgramTemplate, type RecurrenceType, type RoutineSummary,
+  type MealPlanWeek, type MealPlanTemplate,
+  type MealSlot, type Food, type Recipe,
 } from '@pulse/api-client';
 import { useNavigate } from 'react-router-dom';
 
@@ -879,6 +883,430 @@ function WorkoutScheduleSection({
   );
 }
 
+// ─── Meal Planning ────────────────────────────────────────────────────────────
+
+const MEAL_LABELS: Record<MealSlot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+const MEAL_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+function FoodPickerModal({ meal, date, onClose, onAdded }: {
+  meal: MealSlot;
+  date: string;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [tab, setTab] = useState<'food' | 'recipe'>('food');
+  const [search, setSearch] = useState('');
+  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [recipeResults, setRecipeResults] = useState<Recipe[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedServingId, setSelectedServingId] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState('1');
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [recipeServings, setRecipeServings] = useState('1');
+  const [adding, setAdding] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (!search.trim()) { setFoodResults([]); setRecipeResults([]); return; }
+    timerRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        if (tab === 'food') {
+          setFoodResults(await foodsApi.search(search, 20));
+        } else {
+          setRecipeResults(await recipesApi.getAll({ search, type: 'food', limit: 30 }));
+        }
+      } finally { setSearching(false); }
+    }, 400);
+  }, [search, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (selectedFood) {
+      const def = selectedFood.servingSizes.find(s => s.isDefault) ?? selectedFood.servingSizes[0];
+      setSelectedServingId(def?.id ?? null);
+    }
+  }, [selectedFood]);
+
+  async function handleAdd() {
+    setAdding(true);
+    try {
+      if (tab === 'food' && selectedFood && selectedServingId) {
+        await mealPlanApi.addFoodEntry({ planDate: date, meal, foodId: selectedFood.id, servingSizeId: selectedServingId, quantity: Number(quantity) || 1 });
+      } else if (tab === 'recipe' && selectedRecipe) {
+        await mealPlanApi.addRecipeEntry({ planDate: date, meal, recipeId: selectedRecipe.id, recipeServings: Number(recipeServings) || 1 });
+      }
+      onAdded();
+    } catch { /* ignore */ } finally { setAdding(false); }
+  }
+
+  const preview = (() => {
+    if (tab === 'food' && selectedFood && selectedServingId) {
+      const ss = selectedFood.servingSizes.find(s => s.id === selectedServingId);
+      if (!ss) return null;
+      const f = ss.grams * (Number(quantity) || 1) / 100;
+      return {
+        cal:   Math.round(selectedFood.nutrition.calories * f),
+        pro:   Math.round(selectedFood.nutrition.protein  * f * 10) / 10,
+        carbs: Math.round(selectedFood.nutrition.carbs    * f * 10) / 10,
+        fat:   Math.round(selectedFood.nutrition.fat      * f * 10) / 10,
+      };
+    }
+    if (tab === 'recipe' && selectedRecipe?.calories != null) {
+      const totalServings = selectedRecipe.servings ?? 1;
+      const f = (Number(recipeServings) || 1) / totalServings;
+      return {
+        cal:   Math.round(Number(selectedRecipe.calories)  * f),
+        pro:   Math.round(Number(selectedRecipe.protein_g) * f * 10) / 10,
+        carbs: Math.round(Number(selectedRecipe.carbs_g)   * f * 10) / 10,
+        fat:   Math.round(Number(selectedRecipe.fat_g)     * f * 10) / 10,
+      };
+    }
+    return null;
+  })();
+
+  const canAdd = tab === 'food'
+    ? !!(selectedFood && selectedServingId && Number(quantity) > 0)
+    : !!(selectedRecipe && Number(recipeServings) > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="dram-card w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 flex flex-col gap-3 max-h-[85vh]"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-200">Add to {MEAL_LABELS[meal]}</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+        </div>
+
+        <div className="flex gap-2">
+          {(['food', 'recipe'] as const).map(t => (
+            <button key={t}
+              onClick={() => { setTab(t); setSearch(''); setSelectedFood(null); setSelectedRecipe(null); }}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+                ${tab === t ? 'bg-dram-accent text-black' : 'bg-dram-card border border-dram-border text-slate-400 hover:text-slate-200'}`}>
+              {t === 'food' ? 'Food' : 'Recipe'}
+            </button>
+          ))}
+        </div>
+
+        <input
+          className={inputCls}
+          placeholder={tab === 'food' ? 'Search foods…' : 'Search recipes…'}
+          value={search}
+          onChange={e => { setSearch(e.target.value); setSelectedFood(null); setSelectedRecipe(null); }}
+          autoFocus
+        />
+
+        {!selectedFood && !selectedRecipe && (
+          <div className="overflow-y-auto max-h-52 space-y-0.5 -mx-1">
+            {searching && <p className="text-xs text-slate-500 py-3 text-center">Searching…</p>}
+            {!searching && !search.trim() && <p className="text-xs text-slate-500 py-3 text-center">Type to search</p>}
+            {tab === 'food' && !searching && foodResults.map(f => {
+              const def = f.servingSizes.find(s => s.isDefault) ?? f.servingSizes[0];
+              const cal = def ? Math.round(f.nutrition.calories * def.grams / 100) : null;
+              return (
+                <button key={f.id} onClick={() => setSelectedFood(f)}
+                  className="w-full text-left px-3 py-2 rounded hover:bg-white/5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-200 truncate">{f.name}</p>
+                    {f.brand && <p className="text-xs text-slate-500 truncate">{f.brand}</p>}
+                  </div>
+                  {cal != null && <span className="text-xs text-slate-400 shrink-0">{cal} kcal</span>}
+                </button>
+              );
+            })}
+            {tab === 'recipe' && !searching && recipeResults.map(r => (
+              <button key={r.id} onClick={() => setSelectedRecipe(r)}
+                className="w-full text-left px-3 py-2 rounded hover:bg-white/5 flex items-center justify-between gap-2">
+                <p className="text-sm text-slate-200 truncate">{r.name}</p>
+                {r.calories != null && <span className="text-xs text-slate-400 shrink-0">{Math.round(Number(r.calories))} kcal</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedFood && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelectedFood(null)} className="text-xs text-dram-accent hover:opacity-75">← Back</button>
+              <p className="text-sm font-medium text-slate-200 truncate flex-1">{selectedFood.name}</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs text-slate-500 mb-1 block">Serving</label>
+                <select value={selectedServingId ?? ''} onChange={e => setSelectedServingId(Number(e.target.value))}
+                  className={inputCls}>
+                  {selectedFood.servingSizes.map(s => (
+                    <option key={s.id} value={s.id}>{s.label} ({s.grams}g)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-20">
+                <label className="text-xs text-slate-500 mb-1 block">Qty</label>
+                <input type="number" min="0.1" step="0.1" value={quantity}
+                  onChange={e => setQuantity(e.target.value)} className={inputCls} />
+              </div>
+            </div>
+            {preview && (
+              <p className="text-xs text-slate-400">{preview.cal} kcal · {preview.pro}g P · {preview.carbs}g C · {preview.fat}g F</p>
+            )}
+          </div>
+        )}
+
+        {selectedRecipe && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelectedRecipe(null)} className="text-xs text-dram-accent hover:opacity-75">← Back</button>
+              <p className="text-sm font-medium text-slate-200 truncate flex-1">{selectedRecipe.name}</p>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">
+                Servings (recipe makes {selectedRecipe.servings ?? 1})
+              </label>
+              <input type="number" min="0.5" step="0.5" value={recipeServings}
+                onChange={e => setRecipeServings(e.target.value)} className={inputCls + ' w-24'} />
+            </div>
+            {preview && (
+              <p className="text-xs text-slate-400">{preview.cal} kcal · {preview.pro}g P · {preview.carbs}g C · {preview.fat}g F</p>
+            )}
+          </div>
+        )}
+
+        <button onClick={handleAdd} disabled={!canAdd || adding}
+          className="w-full py-2 rounded-lg text-sm font-semibold bg-dram-accent text-black disabled:opacity-40 transition-opacity">
+          {adding ? 'Adding…' : `Add to ${MEAL_LABELS[meal]}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MealPlanningSection() {
+  const today = localDateStr();
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
+  const [plan, setPlan] = useState<MealPlanWeek | null>(null);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [templates, setTemplates] = useState<MealPlanTemplate[]>([]);
+  const [loadingPlan, setLoadingPlan] = useState(false);
+  const [picker, setPicker] = useState<{ meal: MealSlot; date: string } | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [applyId, setApplyId] = useState('');
+  const [applying, setApplying] = useState(false);
+
+  async function loadPlan() {
+    setLoadingPlan(true);
+    try {
+      const [p, tmplts] = await Promise.all([
+        mealPlanApi.getWeek(weekStart),
+        mealPlanApi.getTemplates().catch(() => []),
+      ]);
+      setPlan(p);
+      setTemplates(tmplts as MealPlanTemplate[]);
+    } finally { setLoadingPlan(false); }
+  }
+
+  useEffect(() => { loadPlan(); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!plan) return;
+    const dates = plan.days.map(d => d.date);
+    if (!dates.includes(selectedDate)) setSelectedDate(dates[0]);
+  }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function shiftWeek(delta: number) {
+    const d = new Date(weekStart + 'T12:00:00');
+    d.setDate(d.getDate() + delta * 7);
+    setWeekStart(localDateStr(d));
+  }
+
+  async function handleDelete(id: number) {
+    await mealPlanApi.deleteEntry(id);
+    loadPlan();
+  }
+
+  async function handleSaveTemplate() {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      await mealPlanApi.saveTemplate(templateName.trim(), weekStart);
+      setTemplateName('');
+      setSaveOpen(false);
+      setTemplates(await mealPlanApi.getTemplates());
+    } finally { setSavingTemplate(false); }
+  }
+
+  async function handleApply() {
+    if (!applyId) return;
+    setApplying(true);
+    try {
+      await mealPlanApi.applyTemplate(Number(applyId), weekStart);
+      setApplyId('');
+      loadPlan();
+    } finally { setApplying(false); }
+  }
+
+  async function handleDeleteTemplate(id: number) {
+    if (!confirm('Delete this template?')) return;
+    await mealPlanApi.deleteTemplate(id);
+    setTemplates(await mealPlanApi.getTemplates());
+  }
+
+  const selectedDay = plan?.days.find(d => d.date === selectedDate);
+  const weekEnd = plan?.days[6]?.date;
+  const weekLabel = plan ? `${shortDate(weekStart)} – ${shortDate(weekEnd!)}` : '…';
+
+  return (
+    <>
+      <div className="dram-card rounded-xl p-4 space-y-4">
+        <SectionHeader title="Meal Planning">
+          <div className="flex items-center gap-1 text-sm">
+            <button onClick={() => shiftWeek(-1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">‹</button>
+            <span className="text-slate-400 text-xs min-w-[118px] text-center">{weekLabel}</span>
+            <button onClick={() => shiftWeek(1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">›</button>
+          </div>
+        </SectionHeader>
+
+        {/* Day strip */}
+        <div className="flex gap-1">
+          {plan?.days.map((day) => {
+            const isSelected = day.date === selectedDate;
+            const isToday = day.date === today;
+            const hasMeals = Object.values(day.meals).some(m => m.length > 0);
+            return (
+              <button key={day.date} onClick={() => setSelectedDate(day.date)}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-colors
+                  ${isSelected ? 'bg-dram-accent/20 ring-1 ring-dram-accent/40' : 'hover:bg-white/5'}`}>
+                <span className={`text-xs font-medium ${isSelected ? 'text-dram-accent' : 'text-slate-500'}`}>
+                  {day.dayLabel}
+                </span>
+                <span className={`text-sm font-semibold ${isSelected ? 'text-dram-accent' : isToday ? 'text-slate-200' : 'text-slate-400'}`}>
+                  {new Date(day.date + 'T12:00:00').getDate()}
+                </span>
+                <div className={`w-1.5 h-1.5 rounded-full transition-colors ${hasMeals ? 'bg-dram-accent' : 'bg-transparent'}`} />
+              </button>
+            );
+          })}
+        </div>
+
+        {loadingPlan ? (
+          <p className="text-xs text-slate-500 text-center py-4">Loading…</p>
+        ) : selectedDay ? (
+          <>
+            {/* Daily totals */}
+            {Object.values(selectedDay.meals).some(m => m.length > 0) && (
+              <div className="flex gap-3 text-xs text-slate-400 px-1 flex-wrap">
+                <span><strong className="text-slate-200">{Math.round(selectedDay.totals.calories)}</strong> kcal</span>
+                <span><strong className="text-slate-200">{selectedDay.totals.proteinG.toFixed(0)}g</strong> protein</span>
+                <span><strong className="text-slate-200">{selectedDay.totals.carbsG.toFixed(0)}g</strong> carbs</span>
+                <span><strong className="text-slate-200">{selectedDay.totals.fatG.toFixed(0)}g</strong> fat</span>
+              </div>
+            )}
+
+            {/* Meal slots */}
+            <div className="space-y-3">
+              {MEAL_ORDER.map((meal) => {
+                const entries = selectedDay.meals[meal];
+                return (
+                  <div key={meal}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{MEAL_LABELS[meal]}</span>
+                      <button onClick={() => setPicker({ meal, date: selectedDay.date })}
+                        className="text-xs text-dram-accent hover:opacity-75 font-medium">+ Add</button>
+                    </div>
+                    {entries.length === 0 ? (
+                      <p className="text-xs text-slate-600 italic px-1">Nothing planned</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {entries.map((entry) => (
+                          <div key={entry.id}
+                            className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] group">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-slate-200 truncate">{entry.name}</p>
+                              <p className="text-xs text-slate-500">
+                                {Math.round(entry.calories)} kcal · {entry.proteinG.toFixed(0)}g P · {entry.carbsG.toFixed(0)}g C · {entry.fatG.toFixed(0)}g F
+                              </p>
+                            </div>
+                            <button onClick={() => handleDelete(entry.id)}
+                              className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-lg leading-none shrink-0 ml-1">
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {/* Template controls */}
+        <div className="border-t border-dram-border pt-3 space-y-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <button onClick={() => setSaveOpen(!saveOpen)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-dram-border text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors">
+              Save as template
+            </button>
+            {templates.length > 0 && (
+              <div className="flex gap-1.5 items-center flex-1 min-w-[140px]">
+                <select value={applyId} onChange={e => setApplyId(e.target.value)}
+                  className="flex-1 text-xs bg-dram-bg border border-dram-border rounded-lg px-2 py-1.5 text-slate-300 focus:outline-none">
+                  <option value="">Apply template…</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                {applyId && (
+                  <button onClick={handleApply} disabled={applying}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-dram-accent text-black font-semibold disabled:opacity-40">
+                    {applying ? '…' : 'Apply'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {saveOpen && (
+            <div className="flex gap-2">
+              <input value={templateName} onChange={e => setTemplateName(e.target.value)}
+                placeholder="Template name…" className={inputCls + ' flex-1 text-sm'} />
+              <button onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()}
+                className="px-3 py-1.5 rounded-lg bg-dram-accent text-black text-sm font-semibold disabled:opacity-40">
+                {savingTemplate ? '…' : 'Save'}
+              </button>
+              <button onClick={() => { setSaveOpen(false); setTemplateName(''); }}
+                className="text-slate-500 hover:text-slate-300 text-sm px-1">Cancel</button>
+            </div>
+          )}
+
+          {templates.length > 0 && (
+            <div className="space-y-0.5">
+              {templates.map(t => (
+                <div key={t.id} className="flex items-center justify-between text-xs text-slate-500 py-0.5 px-1">
+                  <span>{t.name}</span>
+                  <button onClick={() => handleDeleteTemplate(t.id)}
+                    className="text-slate-600 hover:text-red-400 ml-2 transition-colors">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {picker && (
+        <FoodPickerModal
+          meal={picker.meal}
+          date={picker.date}
+          onClose={() => setPicker(null)}
+          onAdded={() => { setPicker(null); loadPlan(); }}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function PlanningPage() {
@@ -938,6 +1366,7 @@ export default function PlanningPage() {
             templates={templates}
             onReload={load}
           />
+          <MealPlanningSection />
         </div>
       )}
     </div>

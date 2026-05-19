@@ -22,6 +22,7 @@ import routinesRoutes      from './routes/routines';
 import schedulesRoutes     from './routes/schedules';
 import stepsRoutes         from './routes/steps';
 import aiAssistantRoutes   from './routes/ai-assistant';
+import mealPlanRoutes      from './routes/meal-plan';
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/routines',      requireAuth, routinesRoutes);
 app.use('/api/schedules',     requireAuth, schedulesRoutes);
 app.use('/api/steps',        requireAuth, stepsRoutes);
 app.use('/api/ai/assistant', requireAuth, aiAssistantRoutes);
+app.use('/api/meal-plan',    requireAuth, mealPlanRoutes);
 
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);

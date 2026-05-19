@@ -865,6 +865,65 @@ export async function importProgramTemplate(token: string, templateId: number, d
   return handle<WorkoutSchedule[]>(res);
 }
 
+// Meal planning
+export interface MealPlanEntry {
+  id: number;
+  type: 'food' | 'recipe';
+  name: string;
+  foodId?: number;
+  servingSizeId?: number;
+  servingLabel?: string;
+  quantity?: number;
+  recipeId?: number;
+  recipeServings?: number;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  sortOrder: number;
+}
+export interface MealPlanDay {
+  date: string;
+  dayLabel: string;
+  meals: Record<MealSlot, MealPlanEntry[]>;
+  totals: { calories: number; proteinG: number; carbsG: number; fatG: number };
+}
+export interface MealPlanWeek { weekStart: string; days: MealPlanDay[] }
+export interface MealPlanTemplate { id: number; name: string; createdAt: string }
+
+export async function getMealPlanWeek(token: string, weekStart: string): Promise<MealPlanWeek> {
+  const res = await fetch(`${API_BASE}/api/meal-plan?week=${weekStart}`, { headers: headers(token) });
+  return handle<MealPlanWeek>(res);
+}
+export async function addMealPlanFoodEntry(token: string, payload: { planDate: string; meal: MealSlot; foodId: number; servingSizeId: number; quantity: number }): Promise<MealPlanEntry> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/entries`, { method: 'POST', headers: headers(token), body: JSON.stringify(payload) });
+  return handle<MealPlanEntry>(res);
+}
+export async function addMealPlanRecipeEntry(token: string, payload: { planDate: string; meal: MealSlot; recipeId: number; recipeServings: number }): Promise<MealPlanEntry> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/entries`, { method: 'POST', headers: headers(token), body: JSON.stringify(payload) });
+  return handle<MealPlanEntry>(res);
+}
+export async function deleteMealPlanEntry(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/entries/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function getMealPlanTemplates(token: string): Promise<MealPlanTemplate[]> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/templates`, { headers: headers(token) });
+  return handle<MealPlanTemplate[]>(res);
+}
+export async function saveMealPlanTemplate(token: string, name: string, weekStart: string): Promise<{ id: number; name: string }> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/templates`, { method: 'POST', headers: headers(token), body: JSON.stringify({ name, weekStart }) });
+  return handle<{ id: number; name: string }>(res);
+}
+export async function applyMealPlanTemplate(token: string, templateId: number, weekStart: string): Promise<{ applied: number }> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/templates/${templateId}/apply`, { method: 'POST', headers: headers(token), body: JSON.stringify({ weekStart }) });
+  return handle<{ applied: number }>(res);
+}
+export async function deleteMealPlanTemplate(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/meal-plan/templates/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
 // AI Assistant
 export interface AssistantMessage { role: 'user' | 'assistant'; content: string }
 export interface AssistantScreenContext { screen: string; data?: Record<string, unknown> }
