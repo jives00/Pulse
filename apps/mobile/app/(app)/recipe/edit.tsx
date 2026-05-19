@@ -54,6 +54,7 @@ export default function EditRecipeScreen() {
   const [recipeId, setRecipeId] = useState<number | null>(id ? Number(id) : null);
   const [barcode, setBarcode] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanMode, setScanMode] = useState<'barcode' | 'url'>('barcode');
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
@@ -121,11 +122,12 @@ export default function EditRecipeScreen() {
   }
 
 
-  async function openScanner() {
+  async function openScanner(mode: 'barcode' | 'url' = 'barcode') {
     if (!cameraPermission?.granted) {
       const { granted } = await requestCameraPermission();
       if (!granted) { Alert.alert('Permission required', 'Camera access is needed to scan barcodes.'); return; }
     }
+    setScanMode(mode);
     setScannerVisible(true);
   }
 
@@ -211,6 +213,9 @@ export default function EditRecipeScreen() {
           {importTab === 'url' ? (
             <View style={styles.importRow}>
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Paste a recipe URL…" placeholderTextColor={c.muted} autoCapitalize="none" autoCorrect={false} value={importUrl} onChangeText={setImportUrl} />
+              <TouchableOpacity onPress={() => openScanner('url')} style={styles.scanBtn}>
+                <Text style={styles.scanBtnText}>QR</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={handleImport} disabled={importing} style={styles.importBtn}>
                 <Text style={styles.importBtnText}>{importing ? '…' : 'Import'}</Text>
               </TouchableOpacity>
@@ -423,7 +428,11 @@ export default function EditRecipeScreen() {
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'] }}
             onBarcodeScanned={({ data }) => {
-              setBarcode(data);
+              if (scanMode === 'url') {
+                setImportUrl(data);
+              } else {
+                setBarcode(data);
+              }
               setScannerVisible(false);
             }}
           />

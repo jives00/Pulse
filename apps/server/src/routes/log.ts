@@ -384,6 +384,13 @@ router.post('/', async (req, res) => {
        notes ?? null, dramRecipeId ?? null]
     );
 
+    if (dramRecipeId) {
+      await pool.execute(
+        'INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)',
+        [dramRecipeId, req.userId]
+      );
+    }
+
     const [entry] = await pool.query<RowDataPacket[]>(
       `SELECT fl.*, f.name AS food_name, f.brand, f.source, f.is_custom,
               f.calories_per100, f.carbs_per100, f.protein_per100, f.fat_per100,

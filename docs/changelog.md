@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Phase 9: Bidirectional "I Made This" sync via food log** — `POST /log` now inserts into `recipe_log` when `dramRecipeId` is present, so logging a recipe-based food entry from the food log screen also marks it as made in Recipes. `7f6db3f`
 - **Phase 8: Daily steps logger** — migration 024 adds `steps_log` table; new `/api/steps` route with GET (by date), POST (upsert), and GET /history endpoints. `5eb9ca9`
 
 ### Web
@@ -16,6 +17,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Phase 9: Hello Fresh QR scan import** — added QR button next to the URL import field in the recipe edit screen; scanning a QR code populates the URL field so it feeds directly into the existing import flow. `7f6db3f`
 - **Phase 8: Steps logger in Log tab** — daily steps card with manual input, save button, and progress toward 10,000 goal. `5eb9ca9`
 - **Phase 8: Active workout banner on Routines tab** — resume banner surfaces when a workout is in progress. `5eb9ca9`
 - **Phase 8: Exercise How To as default tab** — exercise detail screen opens on How To instead of Summary. `5eb9ca9`
