@@ -11,6 +11,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Square corners site-wide** — removed rounded-xl/2xl from all card and panel containers across every page (dashboard, workouts, routines, planning, settings, history, recipes, foods, links, exercise/workout/routine detail); also fixed `.card` CSS class which had `border-radius: 14px`. Modals, buttons, inputs, and pills retain their rounding. `64f78b4`
 - **Workouts Today card** — now flattens exercises across all of today's sessions; per-exercise type detection (stairs: count/MM:SS/pace, distance: miles/pace, strength: set count); calories attributed per-workout. `c19fd8d`
 - **Workouts layout polish** — Stats header matches Routines/Exercises style and date removed; routine and exercise grids expanded to 6 columns; Routines/Exercises sections aligned to match Stats horizontal padding; search bar and filter chips on same row in Exercises section. `c19fd8d`
+- **Routine detail redesign** — thumbnail in header with click-to-upload; Start/Delete buttons moved to header top-right; cover image and standalone Start button removed from body; line chart replaced with full-width bar chart (wider bars, larger fonts, slate tooltip); exercises in 2-3 column grid with Add Exercise as next grid slot; stats strip shows "Last session:" instead of exercise count. `fd2db7d`
 
 ### API
 

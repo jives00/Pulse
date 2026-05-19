@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail, type RoutineExercise,
@@ -68,8 +68,6 @@ function RoutineExerciseBlock({
           <button onClick={() => onRemove(re.id)} className="text-slate-600 hover:text-red-400 transition-colors text-sm ml-1 shrink-0">Remove</button>
         </div>
       </div>
-
-      {/* Last session reference */}
       {re.lastPerformedSets && re.lastPerformedSets.length > 0 && (
         <div className="p-2 rounded border border-slate-700 text-sm text-slate-400">
           <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Last session</div>
@@ -352,7 +350,25 @@ export default function RoutineDetailPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
-        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0">←</button>
+        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-300 transition-colors shrink-0 mt-1">←</button>
+
+        {/* Thumbnail */}
+        <div
+          className="shrink-0 h-28 w-28 bg-dram-bg border border-dram-border overflow-hidden cursor-pointer relative group"
+          onClick={() => imageInputRef.current?.click()}
+          title={routine.coverImageUrl ? 'Change photo' : 'Upload photo'}
+        >
+          {routine.coverImageUrl ? (
+            <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs text-center leading-tight px-1">Add photo</div>
+          )}
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-white text-sm font-medium">{uploadingImage ? 'Uploading…' : routine.coverImageUrl ? 'Change photo' : 'Upload photo'}</span>
+          </div>
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+        </div>
+
         <div className="flex-1 min-w-0">
           {editingName ? (
             <input
@@ -387,8 +403,8 @@ export default function RoutineDetailPage() {
             const cals   = lastW?.caloriesBurned ? lastW.caloriesBurned.toLocaleString() : null;
             return (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-sm text-slate-400">
-                <span>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</span>
-                {volLbs && <><span className="text-slate-600">·</span><span>{volLbs} lbs</span></>}
+                <span>Last session:</span>
+                {volLbs && <span>{volLbs} lbs</span>}
                 {cals   && <><span className="text-slate-600">·</span><span>{cals} kcal burned</span></>}
               </div>
             );
@@ -417,17 +433,28 @@ export default function RoutineDetailPage() {
             </button>
           )}
         </div>
-        <button
-          onClick={handleDelete}
-          className="border border-dram-border text-slate-300 hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-1.5 text-sm shrink-0 transition-colors"
-        >
-          Delete
-        </button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleStart}
+            disabled={starting || routine.exercises.length === 0}
+            className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+          >
+            {starting ? 'Starting…' : 'Start Routine'}
+          </button>
+          <button
+            onClick={handleDelete}
+            className="border border-dram-border text-slate-300 hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-2 text-sm shrink-0 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4">
 
           {/* Active workout banner */}
           {activeWorkout && (
@@ -450,71 +477,51 @@ export default function RoutineDetailPage() {
             </div>
           )}
 
-          {/* Cover image */}
-          <div
-            className="relative w-full aspect-video bg-dram-bg border border-dram-border overflow-hidden cursor-pointer group"
-            onClick={() => imageInputRef.current?.click()}
-          >
-            {routine.coverImageUrl ? (
-              <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">No cover image</div>
-            )}
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="text-white text-sm font-medium">
-                {uploadingImage ? 'Uploading…' : routine.coverImageUrl ? 'Change photo' : 'Upload photo'}
-              </span>
-            </div>
-            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-          </div>
-
-          {/* Start button */}
-          <button
-            onClick={handleStart}
-            disabled={starting || routine.exercises.length === 0}
-            className="w-full bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg py-3 transition-colors"
-          >
-            {starting ? 'Starting…' : 'Start Routine'}
-          </button>
-
           {/* Session metric history chart */}
           {chartData.length > 0 && (
-            <div className="bg-dram-card p-3">
-              <div className="text-sm font-medium text-dram-muted mb-2">{chartLabel}</div>
-              <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={30} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} axisLine={false} tickLine={false} width={32} />
+            <div className="bg-dram-card p-4">
+              <div className="text-sm font-medium text-dram-muted mb-3">{chartLabel}</div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barCategoryGap="12%">
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={shortDate} minTickGap={40} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} axisLine={false} tickLine={false} width={38} />
                   <Tooltip
-                    contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }}
+                    contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 13, color: '#94a3b8' }}
+                    labelStyle={{ color: '#94a3b8' }}
+                    itemStyle={{ color: '#94a3b8' }}
                     labelFormatter={(l) => shortDate(String(l))}
                     formatter={chartFormatter as any}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                   />
-                  <Line dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 4 }} />
-                </LineChart>
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                    {chartData.map((_, i) => (
+                      <Cell key={i} fill={i === chartData.length - 1 ? '#3b82f6' : '#3b82f655'} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
 
-          {/* Exercise blocks */}
-          {routine.exercises.map((re, idx) => (
-            <RoutineExerciseBlock
-              key={re.id}
-              re={re}
-              onRemove={handleRemoveExercise}
-              onMoveUp={idx > 0 ? () => handleMoveExercise(re.id, 'up') : undefined}
-              onMoveDown={idx < routine.exercises.length - 1 ? () => handleMoveExercise(re.id, 'down') : undefined}
-            />
-          ))}
-
-          {/* Add exercise */}
-          <button
-            onClick={() => setShowPicker(true)}
-            disabled={addingExercise}
-            className="w-full py-3 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors border border-dashed border-slate-700 rounded-lg"
-          >
-            {addingExercise ? 'Adding…' : '+ Add Exercise'}
-          </button>
+          {/* Exercise blocks + add button in same grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {routine.exercises.map((re, idx) => (
+              <RoutineExerciseBlock
+                key={re.id}
+                re={re}
+                onRemove={handleRemoveExercise}
+                onMoveUp={idx > 0 ? () => handleMoveExercise(re.id, 'up') : undefined}
+                onMoveDown={idx < routine.exercises.length - 1 ? () => handleMoveExercise(re.id, 'down') : undefined}
+              />
+            ))}
+            <button
+              onClick={() => setShowPicker(true)}
+              disabled={addingExercise}
+              className="py-3 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors border border-dashed border-slate-700 bg-slate-800/30"
+            >
+              {addingExercise ? 'Adding…' : '+ Add Exercise'}
+            </button>
+          </div>
 
           {showPicker && <ExercisePicker onSelect={handleSelectExercise} onClose={() => setShowPicker(false)} />}
         </div>
