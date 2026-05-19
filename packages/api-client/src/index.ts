@@ -24,6 +24,8 @@ export { workoutsApi, exercisesApi, measurementsApi } from './endpoints/workouts
 export { routinesApi }  from './endpoints/routines';
 export { schedulesApi } from './endpoints/schedules';
 export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, ProgramTemplateDay, RecurrenceType } from './endpoints/schedules';
+export { stepsApi } from './endpoints/steps';
+export type { StepsDay } from './endpoints/steps';
 export { profileApi } from './endpoints/profile';
 export type { UserProfile, ActivityLevel } from './endpoints/profile';
 export { assistantApi } from './endpoints/ai-assistant';

@@ -8,6 +8,21 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Phase 8: Daily steps logger** — migration 024 adds `steps_log` table; new `/api/steps` route with GET (by date), POST (upsert), and GET /history endpoints. `5eb9ca9`
+
+### Web
+
+- **Phase 8: Steps card on Workouts page** — Routines tab now shows a steps card with today's count vs. 10,000 goal, progress bar, and manual input field. `5eb9ca9`
+
+### Mobile
+
+- **Phase 8: Steps logger in Log tab** — daily steps card with manual input, save button, and progress toward 10,000 goal. `5eb9ca9`
+- **Phase 8: Active workout banner on Routines tab** — resume banner surfaces when a workout is in progress. `5eb9ca9`
+- **Phase 8: Exercise How To as default tab** — exercise detail screen opens on How To instead of Summary. `5eb9ca9`
+- **Phase 8: Recent Sessions on Summary tab** — last 5 sessions shown with date, set count, top weight, and total volume. `5eb9ca9`
+
+### API
+
 - **Phase 7: Frequent foods endpoint** — new `GET /api/log/frequent` returns top 10 foods logged by the user in the past 90 days with macros per default serving; excludes quick-log entries. `6311fbe`
 - **Phase 7: Bidirectional recipe log sync** — `POST /log/recipe` now also inserts into `recipe_log`, so logging a recipe from the food log screen marks it as "I Made This". `6311fbe`
 - **Phase 6: AI assistant endpoint** — new `POST /api/ai/assistant` route; `runConversation` added to aiProvider for multi-turn history (Anthropic native messages, Gemini prompt-flattened); screen-aware system prompt maps recipe/food-log/routine/planning context to human-readable descriptions; structured JSON response with `log_food` and `update_nutrition_goal` action types. `2dccb52`

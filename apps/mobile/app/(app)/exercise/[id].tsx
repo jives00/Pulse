@@ -37,11 +37,12 @@ type MetricKey = typeof METRICS[number]['key'];
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
 
-function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
+function SummaryTab({ stats, metric, onMetricChange, plateauDetected, recentSessions }: {
   stats: ExerciseStats;
   metric: MetricKey;
   onMetricChange: (m: MetricKey) => void;
   plateauDetected: boolean;
+  recentSessions: ExerciseHistoryEntry[];
 }) {
   const c = useColors();
   const ts = makeTabStyles(c);
@@ -112,6 +113,30 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
         <View style={{ marginHorizontal: 0, marginTop: 4, backgroundColor: 'rgba(250,204,21,0.08)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.25)', borderRadius: 10, padding: 12 }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: '#facc15', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Plateau detected</Text>
           <Text style={{ fontSize: 13, color: 'rgba(250,204,21,0.8)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</Text>
+        </View>
+      )}
+
+      {recentSessions.length > 0 && (
+        <View style={ts.section}>
+          <Text style={ts.sectionTitle}>Recent Sessions</Text>
+          <View style={ts.tableHeader}>
+            <Text style={[ts.tableHeaderCell, { flex: 2 }]}>Date</Text>
+            <Text style={ts.tableHeaderCell}>Sets</Text>
+            <Text style={ts.tableHeaderCell}>Top Wt</Text>
+            <Text style={ts.tableHeaderCell}>Volume</Text>
+          </View>
+          {recentSessions.map((session, i) => {
+            const topWeight = session.sets.reduce((max, set) => set.weightKg != null && set.weightKg > max ? set.weightKg : max, 0);
+            const volume = session.sets.reduce((sum, set) => set.weightKg != null && set.reps != null ? sum + set.weightKg * set.reps : sum, 0);
+            return (
+              <View key={`${session.workoutId}-${i}`} style={ts.tableRow}>
+                <Text style={[ts.tableCell, { flex: 2 }]}>{shortDate(session.workoutDate)}</Text>
+                <Text style={ts.tableCell}>{session.sets.length}</Text>
+                <Text style={ts.tableCell}>{topWeight > 0 ? fmtLbs(topWeight) : '—'}</Text>
+                <Text style={ts.tableCell}>{volume > 0 ? fmtLbs(volume) : '—'}</Text>
+              </View>
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -561,8 +586,8 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-type TabKey = 'summary' | 'history' | 'howto';
-const EXERCISE_TAB_ORDER = ['summary', 'history', 'howto'] as const;
+type TabKey = 'howto' | 'summary' | 'history';
+const EXERCISE_TAB_ORDER = ['howto', 'summary', 'history'] as const;
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -576,7 +601,8 @@ export default function ExerciseDetailScreen() {
   const [stats, setStats] = useState<ExerciseStats | null>(null);
   const [hwProgressSeries, setHwProgressSeries] = useState<Array<{ date: string; value: number }>>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [tab, setTab] = useState<TabKey>('summary');
+  const [recentSessions, setRecentSessions] = useState<ExerciseHistoryEntry[]>([]);
+  const [tab, setTab] = useState<TabKey>('howto');
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
   const swipe = useSwipeNav(3, EXERCISE_TAB_ORDER, tab, setTab);
   const [loading, setLoading] = useState(true);
@@ -589,8 +615,9 @@ export default function ExerciseDetailScreen() {
       getExercise(token, numId),
       getExerciseStats(token, numId, 'heaviest_weight'),
       getExerciseCategories(token),
+      getExerciseHistory(token, numId, { limit: 5 }),
     ])
-      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setHwProgressSeries(st.progressSeries); setCategories(cats); })
+      .then(([ex, st, cats, recent]) => { setExercise(ex); setStats(st); setHwProgressSeries(st.progressSeries); setCategories(cats); setRecentSessions(recent); })
       .catch(() => router.back())
       .finally(() => setLoading(false));
   }, [id]);
@@ -648,10 +675,10 @@ export default function ExerciseDetailScreen() {
 
       {/* Tab bar */}
       <View style={s.tabBar}>
-        {(['summary', 'history', 'howto'] as TabKey[]).map((t) => (
+        {(['howto', 'summary', 'history'] as TabKey[]).map((t) => (
           <TouchableOpacity key={t} style={[s.tabBtn, tab === t && s.tabBtnActive]} onPress={() => setTab(t)}>
             <Text style={[s.tabLabel, tab === t && s.tabLabelActive]}>
-              {t === 'summary' ? 'Summary' : t === 'history' ? 'History' : 'How To'}
+              {t === 'howto' ? 'How To' : t === 'summary' ? 'Summary' : 'History'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -659,7 +686,7 @@ export default function ExerciseDetailScreen() {
 
       {tab === 'summary' && (
         stats
-          ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} />
+          ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} recentSessions={recentSessions} />
           : <Text style={ts.empty}>No data yet</Text>
       )}
       {tab === 'history' && <HistoryTab exerciseId={Number(id)} />}

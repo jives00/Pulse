@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 're
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi, stepsApi,
   type WorkoutSummary, type WorkoutDetail, type ExerciseGoals,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
@@ -833,6 +833,8 @@ function RoutineCardInTab({
 
 export interface RoutinesTabHandle { openCreate: () => void; }
 
+const STEPS_GOAL = 10_000;
+
 const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
@@ -842,18 +844,38 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const [newName, setNewName] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [creating, setCreating] = useState(false);
+  const [steps, setSteps] = useState<number | null>(null);
+  const [stepsInput, setStepsInput] = useState('');
+  const [savingSteps, setSavingSteps] = useState(false);
 
   useImperativeHandle(ref, () => ({ openCreate: () => setShowCreate(true) }));
+
+  const today = localDateStr();
 
   useEffect(() => {
     Promise.all([
       routinesApi.getAll(),
       workoutsApi.getActive().catch(() => null),
-    ]).then(([rs, active]) => {
+      stepsApi.getDay(today).catch(() => null),
+    ]).then(([rs, active, stepsDay]) => {
       setRoutines(rs);
       setActiveWorkout(active);
+      setSteps(stepsDay?.steps ?? null);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  async function handleSaveSteps() {
+    const n = parseInt(stepsInput, 10);
+    if (isNaN(n) || n < 0) return;
+    setSavingSteps(true);
+    try {
+      const result = await stepsApi.log(today, n);
+      setSteps(result.steps);
+      setStepsInput('');
+    } finally {
+      setSavingSteps(false);
+    }
+  }
 
   useEffect(() => {
     if (!showCreate) return;
@@ -874,6 +896,9 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
       navigate(`/workouts/routines/${routine.id}`);
     } catch { setCreating(false); }
   }
+
+  const stepsCount = steps ?? 0;
+  const stepsPct = Math.min(stepsCount / STEPS_GOAL, 1);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -896,6 +921,47 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
           </button>
         </div>
       )}
+
+      {/* Steps card */}
+      <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">👟</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">Steps</span>
+              <span className="text-sm text-white font-bold">{stepsCount.toLocaleString()}</span>
+              <span className="text-sm text-slate-500">/ {STEPS_GOAL.toLocaleString()}</span>
+              {stepsCount >= STEPS_GOAL
+                ? <span className="text-sm font-medium text-green-400 ml-auto">Goal reached!</span>
+                : <span className="text-sm font-medium text-emerald-400 ml-auto">{(STEPS_GOAL - stepsCount).toLocaleString()} left</span>
+              }
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden bg-emerald-400/10">
+              <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${stepsPct * 100}%` }} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <input
+              type="number"
+              min={0}
+              max={200000}
+              placeholder="Log steps"
+              value={stepsInput}
+              onChange={(e) => setStepsInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveSteps()}
+              className="w-28 bg-dram-bg border border-dram-border rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              onClick={handleSaveSteps}
+              disabled={savingSteps || !stepsInput}
+              className="bg-dram-accent text-black text-sm font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition disabled:opacity-40"
+            >
+              {savingSteps ? '…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>

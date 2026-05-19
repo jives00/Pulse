@@ -14,6 +14,7 @@ import {
   getMeasurements, addMeasurement, getMeasurementGoals, type BodyMeasurement, type MeasurementGoal,
   getPersonalBests, type PersonalBests,
   getActiveWorkout, type WorkoutDetail,
+  getSteps, logSteps, type StepsEntry,
 } from '../../../src/api/client';
 import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -41,6 +42,9 @@ function LogTab() {
   const grid = makeGridStyles(c);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
+  const [steps, setSteps] = useState<StepsEntry | null>(null);
+  const [stepsInput, setStepsInput] = useState('');
+  const [savingSteps, setSavingSteps] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -48,12 +52,15 @@ function LogTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, active] = await Promise.all([
+      const [data, active, stepsData] = await Promise.all([
         getWorkouts(token, { limit: 30, offset: 0 }),
         getActiveWorkout(token).catch(() => null),
+        getSteps(token).catch(() => null),
       ]);
       setWorkouts(data);
       setActiveWorkout(active);
+      setSteps(stepsData);
+      if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
     } finally {
@@ -66,15 +73,29 @@ function LogTab() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [data, active] = await Promise.all([
+      const [data, active, stepsData] = await Promise.all([
         getWorkouts(token, { limit: 30, offset: 0 }),
         getActiveWorkout(token).catch(() => null),
+        getSteps(token).catch(() => null),
       ]);
       setWorkouts(data);
       setActiveWorkout(active);
+      setSteps(stepsData);
+      if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
     } catch { /* ignore */ }
     finally { setRefreshing(false); }
   }, [token]);
+
+  async function handleSaveSteps() {
+    const count = parseInt(stepsInput, 10);
+    if (isNaN(count) || count < 0) return;
+    setSavingSteps(true);
+    try {
+      const result = await logSteps(token, count);
+      setSteps(result);
+    } catch { /* ignore */ }
+    finally { setSavingSteps(false); }
+  }
 
   async function handleDelete(id: number) {
     Alert.alert('Delete', 'Delete this workout?', [
@@ -96,20 +117,49 @@ function LogTab() {
       keyExtractor={(item) => String(item.id)}
       contentContainerStyle={s.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
-      ListHeaderComponent={activeWorkout ? (
-        <TouchableOpacity
-          style={s.resumeBanner}
-          onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={s.resumeTitle}>Workout in progress</Text>
-            <Text style={s.resumeSub}>
-              {activeWorkout.name ?? 'Untitled'} · {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''}
-            </Text>
+      ListHeaderComponent={
+        <>
+          {activeWorkout && (
+            <TouchableOpacity
+              style={s.resumeBanner}
+              onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={s.resumeTitle}>Workout in progress</Text>
+                <Text style={s.resumeSub}>
+                  {activeWorkout.name ?? 'Untitled'} · {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <Text style={s.resumeArrow}>›</Text>
+            </TouchableOpacity>
+          )}
+          <View style={s.stepsCard}>
+            <Text style={s.stepsLabel}>Today's Steps</Text>
+            <View style={s.stepsRow}>
+              <TextInput
+                style={s.stepsInput}
+                value={stepsInput}
+                onChangeText={setStepsInput}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={c.muted}
+                returnKeyType="done"
+                onSubmitEditing={handleSaveSteps}
+              />
+              <TouchableOpacity
+                style={[s.stepsSaveBtn, savingSteps && { opacity: 0.5 }]}
+                onPress={handleSaveSteps}
+                disabled={savingSteps}
+              >
+                <Text style={s.stepsSaveBtnText}>{savingSteps ? '…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+            {steps?.steps != null && (
+              <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
+            )}
           </View>
-          <Text style={s.resumeArrow}>›</Text>
-        </TouchableOpacity>
-      ) : null}
+        </>
+      }
       renderItem={({ item }) => (
         <TouchableOpacity
           style={s.card}
@@ -162,6 +212,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState<number | null>(null);
@@ -171,8 +222,12 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getRoutines(token);
+      const [data, active] = await Promise.all([
+        getRoutines(token),
+        getActiveWorkout(token).catch(() => null),
+      ]);
       setRoutines(data);
+      setActiveWorkout(active);
     } catch {
       Alert.alert('Error', 'Could not load routines.');
     } finally {
@@ -237,6 +292,20 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         numColumns={2}
         contentContainerStyle={grid.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
+        ListHeaderComponent={activeWorkout ? (
+          <TouchableOpacity
+            style={[s.resumeBanner, { marginBottom: 12 }]}
+            onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={s.resumeTitle}>Workout in progress</Text>
+              <Text style={s.resumeSub}>
+                {activeWorkout.name ?? 'Untitled'} · {activeWorkout.exercises.length} exercise{activeWorkout.exercises.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={s.resumeArrow}>›</Text>
+          </TouchableOpacity>
+        ) : null}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={grid.card}
@@ -1174,6 +1243,13 @@ function makeSStyles(c: Colors) {
     resumeTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.accent },
     resumeSub: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
     resumeArrow: { fontSize: 22, color: c.accent, marginLeft: 8 },
+    stepsCard: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 10 },
+    stepsLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    stepsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    stepsInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: fontSize.base, color: c.text },
+    stepsSaveBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
+    stepsSaveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+    stepsSaved: { fontSize: fontSize.sm, color: c.muted, marginTop: 6 },
   });
 }
 

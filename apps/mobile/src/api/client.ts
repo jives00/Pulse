@@ -695,6 +695,21 @@ export async function deleteMeasurement(token: string, id: number): Promise<void
   await handle(res);
 }
 
+export interface StepsEntry { date: string; steps: number | null; source?: string; }
+export async function getSteps(token: string, date?: string): Promise<StepsEntry> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+  const res = await fetch(`${API_BASE}/api/steps${qs}`, { headers: headers(token) });
+  return handle<StepsEntry>(res);
+}
+export async function logSteps(token: string, steps: number, date?: string): Promise<StepsEntry> {
+  const res = await fetch(`${API_BASE}/api/steps`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ steps, date }),
+  });
+  return handle<StepsEntry>(res);
+}
+
 export async function getWaterHistory(token: string, start: string, end: string): Promise<WaterHistory> {
   const res = await fetch(`${API_BASE}/api/water/history?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { headers: headers(token) });
   return handle<WaterHistory>(res);

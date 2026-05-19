@@ -1,7 +1,77 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { routinesApi, workoutsApi, type RoutineSummary, type WorkoutDetail } from '@pulse/api-client';
+import { routinesApi, workoutsApi, stepsApi, localDateStr, type RoutineSummary, type WorkoutDetail } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
+
+const STEPS_GOAL = 10_000;
+
+function StepsCard({ date }: { date: string }) {
+  const [steps, setSteps] = useState<number | null>(null);
+  const [input, setInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    stepsApi.getDay(date).then((d) => setSteps(d.steps)).catch(() => {});
+  }, [date]);
+
+  async function handleSave() {
+    const n = parseInt(input, 10);
+    if (isNaN(n) || n < 0) return;
+    setSaving(true);
+    try {
+      const result = await stepsApi.log(date, n);
+      setSteps(result.steps);
+      setInput('');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const count = steps ?? 0;
+  const pct = Math.min(count / STEPS_GOAL, 1);
+  const reached = count >= STEPS_GOAL;
+
+  return (
+    <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border rounded-xl px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="text-lg">👟</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">Steps</span>
+            <span className="text-sm text-white font-bold">{count.toLocaleString()}</span>
+            <span className="text-sm text-slate-500">/ {STEPS_GOAL.toLocaleString()}</span>
+            {reached
+              ? <span className="text-sm font-medium text-green-400 ml-auto">Goal reached!</span>
+              : <span className="text-sm font-medium text-emerald-400 ml-auto">{(STEPS_GOAL - count).toLocaleString()} left</span>
+            }
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden bg-emerald-400/10">
+            <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+          <input
+            type="number"
+            min={0}
+            max={200000}
+            placeholder="Log steps"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+            className="w-28 bg-dram-bg border border-dram-border rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || !input}
+            className="bg-dram-accent text-black text-sm font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition disabled:opacity-40"
+          >
+            {saving ? '…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -172,6 +242,9 @@ export default function RoutinesPage() {
           + New Routine
         </button>
       </div>
+
+      {/* Steps card */}
+      <StepsCard date={localDateStr()} />
 
       {/* Active workout banner */}
       {activeWorkout && (
