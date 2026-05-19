@@ -37,7 +37,7 @@ export default function Login() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-slate-800 rounded-xl p-6 border border-slate-700"
+          className="bg-slate-800 p-6 border border-slate-700"
         >
           <div className="mb-4">
             <label className="block text-sm text-slate-400 mb-1">Username</label>

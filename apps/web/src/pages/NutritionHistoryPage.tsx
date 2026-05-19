@@ -135,7 +135,7 @@ export default function HistoryPage() {
               { label: 'Avg calories', value: avgCal },
               { label: 'Calorie goal', value: calGoal },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-slate-800 rounded-xl p-4 text-center">
+              <div key={label} className="bg-slate-800 p-4 text-center">
                 <div className="text-2xl font-semibold text-slate-100">{value.toLocaleString()}</div>
                 <div className="text-sm text-slate-500 mt-1">{label}</div>
               </div>
@@ -143,7 +143,7 @@ export default function HistoryPage() {
           </div>
 
           {/* Calorie line chart */}
-          <div className="bg-slate-800 rounded-xl p-4">
+          <div className="bg-slate-800 p-4">
             <h2 className="text-sm font-medium text-slate-300 mb-4">Calories</h2>
             {daily.length === 0 ? (
               <div className="text-center text-slate-600 text-sm py-8">No data yet</div>
@@ -183,7 +183,7 @@ export default function HistoryPage() {
           </div>
 
           {/* Macro bar chart */}
-          <div className="bg-slate-800 rounded-xl p-4">
+          <div className="bg-slate-800 p-4">
             <h2 className="text-sm font-medium text-slate-300 mb-4">Macros per day</h2>
             {daily.length === 0 ? (
               <div className="text-center text-slate-600 text-sm py-8">No data yet</div>
@@ -218,7 +218,7 @@ export default function HistoryPage() {
           </div>
 
           {/* Weekly summary table */}
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-800 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700">
               <h2 className="text-sm font-medium text-slate-300">Weekly averages</h2>
             </div>

@@ -258,7 +258,7 @@ function ExerciseBlock({
   })();
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
+    <div className="bg-slate-800 p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <Link

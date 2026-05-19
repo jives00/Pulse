@@ -48,7 +48,7 @@ function ExerciseCard({ exercise }: { exercise: Exercise }) {
   const emoji = CATEGORY_EMOJI[exercise.category.toLowerCase()] ?? '🏋️';
 
   return (
-    <div className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
+    <div className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
       {/* Image / placeholder */}
       <Link to={`/workouts/exercises/${exercise.id}`} className="block">
         <div className="aspect-square bg-dram-bg relative overflow-hidden">

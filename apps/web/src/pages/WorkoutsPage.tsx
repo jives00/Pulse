@@ -309,7 +309,7 @@ function WeeklyChart({ data, dataKey, label, icon, color, goal, unit }: {
   }, [data.length]);
 
   return (
-    <div className="flex-1 min-w-0 bg-dram-card rounded-xl border border-dram-border px-4 pt-3 pb-2 overflow-hidden">
+    <div className="flex-1 min-w-0 bg-dram-card border border-dram-border px-4 pt-3 pb-2 overflow-hidden">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{icon}</span>
@@ -466,8 +466,8 @@ function BodyMeasurementsCard({
   const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-dram-accent';
 
   return (
-    <div className="bg-dram-card rounded-2xl overflow-hidden">
-      <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
+    <div className="bg-dram-card overflow-hidden">
+      <div className="h-[3px] bg-dram-accent" />
       <div className="px-6 py-5">
         <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-4">Body Measurements</h2>
 
@@ -681,8 +681,8 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
   ];
 
   return (
-    <div className="bg-dram-card rounded-2xl overflow-hidden">
-      <div className="h-[3px] bg-dram-accent rounded-t-2xl" />
+    <div className="bg-dram-card overflow-hidden">
+      <div className="h-[3px] bg-dram-accent" />
       <div className="px-6 py-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Personal Bests</h2>
@@ -775,7 +775,7 @@ function RoutineCardInTab({
   return (
     <div
       onClick={() => navigate(`/workouts/routines/${routine.id}`)}
-      className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
+      className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
     >
       {/* Image */}
       <div className="aspect-square bg-dram-bg relative overflow-hidden">
@@ -903,7 +903,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {activeWorkout && (
-        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
           <span className="text-dram-accent text-lg">⏱</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-dram-accent truncate">
@@ -923,7 +923,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
       )}
 
       {/* Steps card */}
-      <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border rounded-xl px-4 py-3">
+      <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border px-4 py-3">
         <div className="flex items-center gap-3">
           <span className="text-lg">👟</span>
           <div className="flex-1 min-w-0">
@@ -1024,7 +1024,7 @@ function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
   const imgSrc = exercise.coverImageUrl ?? null;
   const emoji = CATEGORY_EMOJI_TAB[exercise.category.toLowerCase()] ?? '🏋️';
   return (
-    <div className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
+    <div className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
       <Link to={`/workouts/exercises/${exercise.id}`} className="block">
         <div className="aspect-square bg-dram-bg relative overflow-hidden">
           {imgSrc ? (

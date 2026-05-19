@@ -12,7 +12,7 @@ function RecipeCard({ recipe, onClick }: Props) {
   return (
     <div
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="bg-dram-card rounded-xl overflow-hidden cursor-pointer border border-dram-border hover:border-dram-accent/50 transition group"
+      className="bg-dram-card overflow-hidden cursor-pointer border border-dram-border hover:border-dram-accent/50 transition group"
     >
       {/* Photo */}
       <div className="aspect-square bg-dram-card relative overflow-hidden">

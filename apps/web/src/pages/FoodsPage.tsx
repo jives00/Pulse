@@ -346,7 +346,7 @@ export default function FoodsPage() {
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
 
-          <div className="bg-slate-800 rounded-lg overflow-hidden">
+          <div className="bg-slate-800 overflow-hidden">
             {searching && (
               <div className="px-4 py-6 text-center text-sm text-slate-500">Searching…</div>
             )}
@@ -372,7 +372,7 @@ export default function FoodsPage() {
         <div className="space-y-4">
           <CreateFoodForm onCreated={handleCreated} />
 
-          <div className="bg-slate-800 rounded-lg overflow-hidden">
+          <div className="bg-slate-800 overflow-hidden">
             {loadingCustom && (
               <div className="px-4 py-6 text-center text-sm text-slate-500">Loading…</div>
             )}

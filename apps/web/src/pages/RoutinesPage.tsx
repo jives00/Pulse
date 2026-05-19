@@ -32,7 +32,7 @@ function StepsCard({ date }: { date: string }) {
   const reached = count >= STEPS_GOAL;
 
   return (
-    <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border rounded-xl px-4 py-3">
+    <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border px-4 py-3">
       <div className="flex items-center gap-3">
         <span className="text-lg">👟</span>
         <div className="flex-1 min-w-0">
@@ -117,7 +117,7 @@ function RoutineCard({
   return (
     <div
       onClick={onClick}
-      className="bg-dram-card rounded-xl overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
+      className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
     >
       {/* Image / stat area */}
       <div
@@ -248,7 +248,7 @@ export default function RoutinesPage() {
 
       {/* Active workout banner */}
       {activeWorkout && (
-        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
           <span className="text-dram-accent text-lg">⏱</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-dram-accent truncate">

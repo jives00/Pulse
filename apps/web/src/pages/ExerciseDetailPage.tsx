@@ -27,7 +27,7 @@ type MetricKey = typeof METRICS[number]['key'];
 
 function PBTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-slate-800 rounded-lg p-3 flex flex-col gap-0.5">
+    <div className="bg-slate-800 p-3 flex flex-col gap-0.5">
       <div className="text-sm text-slate-400">{label}</div>
       <div className="text-base font-semibold text-slate-100">{value}</div>
       {sub && <div className="text-sm text-slate-400">{sub}</div>}
@@ -70,7 +70,7 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
 
       {/* Set records */}
       {stats.setRecords.length > 0 && (
-        <div className="bg-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-slate-800 overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-700">
             <span className="text-base font-medium text-slate-200">Set Records</span>
           </div>
@@ -106,7 +106,7 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
 
       {/* Progress chart */}
       {chartData.length > 0 ? (
-        <div className="bg-slate-800 rounded-lg p-3">
+        <div className="bg-slate-800 p-3">
           <div className="text-sm text-slate-400 mb-2">{selectedMetricLabel} over time</div>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -184,7 +184,7 @@ function HistoryTab({ exerciseId }: { exerciseId: number }) {
   return (
     <div className="space-y-3">
       {entries.map((entry, i) => (
-        <div key={`${entry.workoutId}-${i}`} className="bg-slate-800 rounded-lg overflow-hidden">
+        <div key={`${entry.workoutId}-${i}`} className="bg-slate-800 overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-700">
             <div className="text-base font-medium text-slate-200">{formatDate(entry.workoutDate)}</div>
             {entry.workoutName && (
@@ -276,7 +276,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
     <div className="space-y-4">
       {/* Demo media */}
       {exercise.mediaUrl && (
-        <div className="bg-slate-800 rounded-lg p-4">
+        <div className="bg-slate-800 p-4">
           <div className="text-sm text-slate-500 mb-3">Demo</div>
           <MediaEmbed url={exercise.mediaUrl} />
         </div>
@@ -284,7 +284,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
 
       {/* Muscle diagram */}
       {exercise.muscleImageUrl && (
-        <div className="bg-slate-800 rounded-lg p-4">
+        <div className="bg-slate-800 p-4">
           <div className="text-sm text-slate-500 mb-3">Muscle Groups</div>
           <img
             src={exercise.muscleImageUrl}
@@ -295,7 +295,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       )}
 
       {/* Muscles */}
-      <div className="bg-slate-800 rounded-lg p-4 space-y-3">
+      <div className="bg-slate-800 p-4 space-y-3">
         <div>
           <div className="text-sm text-slate-500 mb-1.5">Primary Muscles</div>
           {primary.length > 0 ? (
@@ -321,7 +321,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       </div>
 
       {/* Instructions */}
-      <div className="bg-slate-800 rounded-lg p-4">
+      <div className="bg-slate-800 p-4">
         <div className="text-sm text-slate-500 mb-2">Instructions</div>
         {exercise.instructions ? (
           <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.instructions}</p>
@@ -829,7 +829,7 @@ export default function ExerciseDetailPage() {
           <div className="p-6 space-y-4 lg:border-r lg:border-dram-border lg:overflow-y-auto">
             {/* Notes */}
             {exercise.notes && (
-              <div className="bg-slate-800 rounded-lg px-4 py-3">
+              <div className="bg-slate-800 px-4 py-3">
                 <div className="text-sm text-slate-500 mb-1">Notes</div>
                 <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.notes}</p>
               </div>

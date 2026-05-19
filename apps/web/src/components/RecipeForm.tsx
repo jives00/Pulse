@@ -349,7 +349,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
         {/* Import */}
-        <div className="bg-dram-card border border-dram-border rounded-xl p-4">
+        <div className="bg-dram-card border border-dram-border p-4">
           <div className="flex gap-1 mb-3">
             {(['url', 'paste'] as const).map((tab) => (
               <button

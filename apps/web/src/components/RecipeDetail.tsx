@@ -537,7 +537,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                       { label: 'Fiber', value: recipe.fiber_g, unit: 'g' },
                       { label: 'Sodium', value: recipe.sodium_mg, unit: 'mg' },
                     ].filter(({ value }) => value != null).map(({ label, value, unit }) => (
-                      <div key={label} className="bg-dram-card rounded-lg px-3 py-2 text-center">
+                      <div key={label} className="bg-dram-card px-3 py-2 text-center">
                         <p className="text-dram-accent font-semibold text-sm">{value}{unit}</p>
                         <p className="text-gray-500 text-sm mt-0.5">{label}</p>
                       </div>

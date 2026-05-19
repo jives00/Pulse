@@ -270,7 +270,7 @@ export default function History() {
                       <div
                         key={w.id}
                         onClick={() => navigate(`/workouts/${w.id}`)}
-                        className="bg-dram-card border border-dram-border hover:border-dram-accent/40 rounded-xl px-4 py-3 cursor-pointer group transition"
+                        className="bg-dram-card border border-dram-border hover:border-dram-accent/40 px-4 py-3 cursor-pointer group transition"
                       >
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
@@ -334,7 +334,7 @@ export default function History() {
                 return (
                   <div key={day.date}>
                     <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{dayLabel(day.date)}</p>
-                    <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
+                    <div className="bg-dram-card border border-dram-border overflow-hidden">
                       {/* Day totals */}
                       <div className="px-4 py-3 border-b border-dram-border flex gap-6">
                         <div>
@@ -424,11 +424,11 @@ export default function History() {
               </div>
             </div>
             {measurements.filter((m) => metricFilter === 'all' || m.metric === metricFilter).length === 0 ? (
-              <div className="bg-dram-card border border-dram-border rounded-xl px-4 py-8 text-sm text-gray-500 text-center">
+              <div className="bg-dram-card border border-dram-border px-4 py-8 text-sm text-gray-500 text-center">
                 {metricFilter === 'all' ? 'No measurements logged yet' : `No ${METRICS.find((m) => m.key === metricFilter)?.label ?? metricFilter} measurements logged yet`}
               </div>
             ) : (
-              <div className="bg-dram-card border border-dram-border rounded-xl overflow-hidden">
+              <div className="bg-dram-card border border-dram-border overflow-hidden">
                 {/* Header */}
                 <div className="grid grid-cols-[1fr_1fr_160px_60px] px-4 py-2 border-b border-dram-border">
                   <p className="text-sm text-gray-500 uppercase tracking-wide">Measurement</p>

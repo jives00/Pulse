@@ -165,7 +165,7 @@ export default function Links() {
               {visible.map((link) => (
                 <div
                   key={link.id}
-                  className="flex items-center gap-3 bg-dram-card border border-dram-border rounded-xl px-4 py-3 group hover:border-dram-accent/40 transition"
+                  className="flex items-center gap-3 bg-dram-card border border-dram-border px-4 py-3 group hover:border-dram-accent/40 transition"
                 >
                   <FaviconImg src={link.favicon_url} title={link.title} />
 

@@ -14,7 +14,7 @@ const inputCls = 'w-full bg-dram-bg border border-dram-border rounded-lg px-3 py
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-4">
+    <div className="bg-dram-card border border-dram-border p-5 space-y-4">
       <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">{title}</h2>
       {children}
     </div>

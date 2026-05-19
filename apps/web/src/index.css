@@ -30,7 +30,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 .bg-card      { background: rgb(var(--color-card)); }
 .border-bd    { border-color: rgb(var(--color-border)); }
 .text-muted   { color: rgb(var(--color-muted)); }
-.card         { background: rgb(var(--color-card)); border: 1px solid rgb(var(--color-border)); border-radius: 14px; }
+.card         { background: rgb(var(--color-card)); border: 1px solid rgb(var(--color-border)); border-radius: 0; }
 .hover\:gold:hover   { color: rgb(var(--color-accent)); }
 .hover\:border-gold:hover { border-color: rgb(var(--color-accent)); }
 

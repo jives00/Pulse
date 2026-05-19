@@ -207,7 +207,7 @@ function NutritionSection({ summary, onSaved }: { summary: GoalsSummary | null; 
   ];
 
   return (
-    <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-4">
+    <div className="bg-dram-card border border-dram-border p-5 space-y-4">
       <SectionHeader title="Daily Nutrition Targets">
         {!editing && (
           <button onClick={openEdit} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
@@ -302,7 +302,7 @@ function ExerciseSection({ summary, exGoals, onSaved }: {
   ];
 
   return (
-    <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-4">
+    <div className="bg-dram-card border border-dram-border p-5 space-y-4">
       <SectionHeader title="Weekly Exercise Targets">
         {!editing && (
           <button onClick={openEdit} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
@@ -482,7 +482,7 @@ function MeasurementGoalsSection({
   }
 
   return (
-    <div className="bg-dram-card border border-dram-border rounded-xl p-5">
+    <div className="bg-dram-card border border-dram-border p-5">
       <SectionHeader title="Body Measurement Goals" />
 
       {activeMetrics.length === 0 && !addingMetric && (
@@ -877,7 +877,7 @@ function WorkoutScheduleSection({
 
   return (
     <>
-      <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-4">
+      <div className="bg-dram-card border border-dram-border p-5 space-y-4">
         <SectionHeader title="Workout Schedule">
           <button onClick={() => setShowImport(true)} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
             Import
@@ -1217,7 +1217,7 @@ function MealPlanningSection({ onPlanChange }: { onPlanChange?: () => void }) {
 
   return (
     <>
-      <div className="dram-card rounded-xl p-4 space-y-4">
+      <div className="dram-card p-4 space-y-4">
         <SectionHeader title="Meal Planning">
           <div className="flex items-center gap-1 text-sm">
             <button onClick={() => shiftWeek(-1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">‹</button>
@@ -1474,7 +1474,7 @@ function ProjectionsSection({
   }
 
   return (
-    <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-5">
+    <div className="bg-dram-card border border-dram-border p-5 space-y-5">
       <SectionHeader title="Projections">
         <button onClick={fetchData} disabled={loading} className="text-sm text-dram-accent hover:brightness-110 transition-colors disabled:opacity-50">
           {loading ? '…' : '↻ Refresh'}

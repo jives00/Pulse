@@ -51,7 +51,7 @@ function RoutineExerciseBlock({
   onMoveDown?: () => void;
 }) {
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
+    <div className="bg-slate-800 p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <Link
@@ -407,7 +407,7 @@ export default function RoutineDetailPage() {
 
           {/* Active workout banner */}
           {activeWorkout && (
-            <div className="bg-dram-accent/10 border border-dram-accent/40 rounded-xl px-4 py-3 flex items-center gap-3">
+            <div className="bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
               <span className="text-dram-accent text-lg">⏱</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-dram-accent truncate">
@@ -437,7 +437,7 @@ export default function RoutineDetailPage() {
 
           {/* Session metric history chart */}
           {chartData.length > 0 && (
-            <div className="bg-dram-card rounded-lg p-3">
+            <div className="bg-dram-card p-3">
               <div className="text-sm font-medium text-dram-muted mb-2">{chartLabel}</div>
               <ResponsiveContainer width="100%" height={120}>
                 <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
