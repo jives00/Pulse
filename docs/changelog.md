@@ -12,6 +12,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Phase 10: Projections section in Planning page** — planned macros vs. weekly goals with 7-bar day chart, scheduled workout calorie burn estimate, weight projection (14-day trend + meal-plan implied rate + 30-day forward view), goal progress ETAs comparing current trajectory vs. meal plan trajectory, and What if mode for interactive daily intake adjustment. `79aa558`
 - **Phase 10: Meal Planning section in Planning page** — day strip with week navigation, per-day macro totals, four meal slots with add/delete, food/recipe picker modal with debounced search and serving size/quantity picker, template save and apply controls. `57fefb7`
 
 ### Mobile

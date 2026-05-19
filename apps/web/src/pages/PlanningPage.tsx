@@ -5,7 +5,7 @@ import {
   computeGoalPace,
   GLASS_OZ,
   getWeekStart, localDateStr, shortDate,
-  type GoalsSummary, type ExerciseGoals, type MeasurementGoal, type BodyMeasurement, type PaceStatus,
+  type GoalsSummary, type ExerciseGoals, type MeasurementGoal, type BodyMeasurement, type PaceStatus, type TDEEResult,
   type WorkoutSchedule, type UpcomingSession, type ProgramTemplate, type RecurrenceType, type RoutineSummary,
   type MealPlanWeek, type MealPlanTemplate,
   type MealSlot, type Food, type Recipe,
@@ -103,6 +103,62 @@ function WeekStrip({ upcoming }: { upcoming: UpcomingSession[] }) {
       ))}
     </div>
   );
+}
+
+// ─── Week calorie bar chart ───────────────────────────────────────────────────
+
+function WeekCalorieChart({ days, goal }: {
+  days: Array<{ label: string; calories: number }>;
+  goal: number | null;
+}) {
+  const H = 48;
+  const max = Math.max(...days.map(d => d.calories), goal ?? 0, 100);
+  return (
+    <div>
+      <div className="relative" style={{ height: `${H}px` }}>
+        {goal != null && goal > 0 && (
+          <div
+            className="absolute left-0 right-0 border-t border-dashed border-dram-accent/40 pointer-events-none"
+            style={{ bottom: `${Math.round((goal / max) * H)}px` }}
+          />
+        )}
+        <div className="flex items-end gap-0.5 h-full">
+          {days.map((d, i) => (
+            <div key={i} className="flex-1 h-full flex items-end">
+              <div
+                className="w-full rounded-t"
+                style={{
+                  height: d.calories > 0
+                    ? `${Math.max(Math.round((d.calories / max) * H), 3)}px`
+                    : '2px',
+                  backgroundColor: d.calories > 0 ? '#D4A84388' : 'rgba(255,255,255,0.05)',
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-0.5 mt-1">
+        {days.map((d, i) => (
+          <div key={i} className="flex-1 text-center">
+            <span className="text-[10px] text-slate-600">{d.label.slice(0, 1)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function computeETAFromSlope(latestLbs: number, targetLbs: number, slopePerWeek: number): string | null {
+  if (Math.abs(slopePerWeek) < 0.001) return null;
+  const remaining = targetLbs - latestLbs;
+  if ((remaining < 0 && slopePerWeek < 0) || (remaining > 0 && slopePerWeek > 0)) {
+    const weeks = remaining / slopePerWeek;
+    const d = new Date();
+    d.setDate(d.getDate() + Math.round(weeks * 7));
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return null;
 }
 
 // ─── Section 1: Nutrition Targets ────────────────────────────────────────────
@@ -1082,7 +1138,7 @@ function FoodPickerModal({ meal, date, onClose, onAdded }: {
   );
 }
 
-function MealPlanningSection() {
+function MealPlanningSection({ onPlanChange }: { onPlanChange?: () => void }) {
   const today = localDateStr();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
   const [plan, setPlan] = useState<MealPlanWeek | null>(null);
@@ -1105,6 +1161,7 @@ function MealPlanningSection() {
       ]);
       setPlan(p);
       setTemplates(tmplts as MealPlanTemplate[]);
+      onPlanChange?.();
     } finally { setLoadingPlan(false); }
   }
 
@@ -1307,6 +1364,380 @@ function MealPlanningSection() {
   );
 }
 
+// ─── Section 6: Projections ───────────────────────────────────────────────────
+
+function ProjectionsSection({
+  summary,
+  measurements,
+  measurementGoals,
+  upcoming,
+  refreshKey,
+}: {
+  summary: GoalsSummary | null;
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  upcoming: UpcomingSession[];
+  refreshKey: number;
+}) {
+  const today = localDateStr();
+  const weekStart = getWeekStart(today);
+
+  const [weekPlan, setWeekPlan] = useState<MealPlanWeek | null>(null);
+  const [tdee,     setTdee]     = useState<TDEEResult | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [whatIfMode, setWhatIfMode] = useState(false);
+  const [whatIfCals, setWhatIfCals] = useState('');
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const [plan, tdeeResult] = await Promise.all([
+        mealPlanApi.getWeek(weekStart).catch(() => null),
+        goalsApi.getTDEE().catch(() => null),
+      ]);
+      setWeekPlan(plan);
+      setTdee(tdeeResult);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { fetchData(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tdeePDay = tdee?.available ? tdee.total : null;
+  const goals = summary?.nutrition.goals;
+
+  // Weekly planned totals from current meal plan
+  const plannedTotals = useMemo(() => {
+    if (!weekPlan) return null;
+    return weekPlan.days.reduce(
+      (acc, d) => ({
+        calories:     acc.calories     + d.totals.calories,
+        proteinG:     acc.proteinG     + d.totals.proteinG,
+        carbsG:       acc.carbsG       + d.totals.carbsG,
+        fatG:         acc.fatG         + d.totals.fatG,
+        daysWithData: acc.daysWithData + (d.totals.calories > 0 ? 1 : 0),
+      }),
+      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, daysWithData: 0 },
+    );
+  }, [weekPlan]);
+
+  // Scheduled workout sessions this week (non-rest)
+  const scheduledSessionCount = useMemo(() => {
+    const endOfWeek = new Date(weekStart + 'T12:00:00');
+    endOfWeek.setDate(endOfWeek.getDate() + 6);
+    const endStr = localDateStr(endOfWeek);
+    return upcoming.filter(s => !s.isRestDay && s.date >= weekStart && s.date <= endStr).length;
+  }, [upcoming, weekStart]);
+
+  // 14-day weight trend slope
+  const weightTrend = useMemo(() => {
+    const all = measurements
+      .filter(m => m.metric === 'weight')
+      .map(m => ({ date: m.measuredAt, lbs: m.unit === 'kg' ? m.value * 2.20462 : m.value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (all.length === 0) return null;
+    const latest = all[all.length - 1];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const recent = all.filter(m => new Date(m.date + 'T12:00:00') >= cutoff);
+    if (recent.length < 2) return { slopePerWeek: 0, latestLbs: latest.lbs };
+    const oldest = recent[0];
+    const newest = recent[recent.length - 1];
+    const days = (new Date(newest.date + 'T12:00:00').getTime() - new Date(oldest.date + 'T12:00:00').getTime()) / 86400000;
+    return { slopePerWeek: days > 0 ? ((newest.lbs - oldest.lbs) / days) * 7 : 0, latestLbs: latest.lbs };
+  }, [measurements]);
+
+  // Weight change rate implied by current meal plan vs TDEE
+  const mealPlanRate = useMemo(() => {
+    if (!tdeePDay || !plannedTotals || plannedTotals.daysWithData === 0) return null;
+    const avgDailyPlanned = plannedTotals.calories / plannedTotals.daysWithData;
+    const weeklyDeficit  = (tdeePDay - avgDailyPlanned) * 7;
+    const weeklyChange   = -weeklyDeficit / 3500;
+    return { avgDailyPlanned, weeklyDeficit, weeklyChange };
+  }, [tdeePDay, plannedTotals]);
+
+  // What-if rate
+  const whatIfCalNum = Number(whatIfCals) || 0;
+  const whatIfRate   = whatIfMode && tdeePDay && whatIfCalNum > 0
+    ? -((tdeePDay - whatIfCalNum) * 7) / 3500
+    : null;
+
+  const weightGoal = measurementGoals['weight'];
+  const dayBars    = weekPlan?.days.map(d => ({ label: d.dayLabel, calories: d.totals.calories })) ?? [];
+
+  function slopeLabel(s: number): string {
+    if (Math.abs(s) < 0.01) return 'Stable';
+    return `${s > 0 ? '+' : ''}${s.toFixed(2)} lbs/wk`;
+  }
+  function slopeColor(s: number): string {
+    if (Math.abs(s) < 0.01) return 'text-slate-400';
+    return s < 0 ? 'text-emerald-400' : 'text-amber-400';
+  }
+
+  return (
+    <div className="bg-dram-card border border-dram-border rounded-xl p-5 space-y-5">
+      <SectionHeader title="Projections">
+        <button onClick={fetchData} disabled={loading} className="text-sm text-dram-accent hover:brightness-110 transition-colors disabled:opacity-50">
+          {loading ? '…' : '↻ Refresh'}
+        </button>
+      </SectionHeader>
+
+      {/* ── Planned Macros ── */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Planned Macros · This Week</p>
+        {!plannedTotals || plannedTotals.daysWithData === 0 ? (
+          <p className="text-sm text-slate-500">No meals planned for this week yet.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500">{plannedTotals.daysWithData} of 7 days have meals planned</p>
+            {([
+              { label: 'Calories', val: plannedTotals.calories, goal: goals?.calories != null ? goals.calories * 7 : null, unit: 'kcal', color: '#D4A843' },
+              { label: 'Protein',  val: plannedTotals.proteinG, goal: goals?.proteinG != null ? goals.proteinG * 7 : null, unit: 'g',    color: '#60a5fa' },
+              { label: 'Carbs',    val: plannedTotals.carbsG,   goal: goals?.carbsG   != null ? goals.carbsG * 7   : null, unit: 'g',    color: '#34d399' },
+              { label: 'Fat',      val: plannedTotals.fatG,     goal: goals?.fatG     != null ? goals.fatG * 7     : null, unit: 'g',    color: '#fb923c' },
+            ] as Array<{ label: string; val: number; goal: number | null; unit: string; color: string }>).map(({ label, val, goal: g, unit, color }) => (
+              <div key={label}>
+                <div className="flex justify-between items-baseline mb-1">
+                  <span className="text-sm text-slate-300">{label}</span>
+                  <span className="text-sm text-slate-400">
+                    {Math.round(val).toLocaleString()} {unit}
+                    {g != null ? ` / ${Math.round(g).toLocaleString()} ${unit}` : ''}
+                  </span>
+                </div>
+                <ProgressBar actual={val} goal={g} color={color} />
+              </div>
+            ))}
+            {dayBars.length > 0 && (
+              <div className="pt-1">
+                <WeekCalorieChart days={dayBars} goal={goals?.calories ?? null} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-dram-border" />
+
+      {/* ── Projected Calorie Burn ── */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Projected Calorie Burn · This Week</p>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-300">Scheduled workouts</span>
+            <span className="text-sm font-medium text-slate-200">{scheduledSessionCount}</span>
+          </div>
+          {scheduledSessionCount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-400">Estimated burn (~350 kcal/session)</span>
+              <span className="text-sm text-slate-400">~{(scheduledSessionCount * 350).toLocaleString()} kcal</span>
+            </div>
+          )}
+          {tdeePDay != null && (
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-400">TDEE (daily)</span>
+              <span className="text-sm text-slate-400">{Math.round(tdeePDay).toLocaleString()} kcal</span>
+            </div>
+          )}
+          {tdeePDay != null && mealPlanRate != null && (
+            <div className="flex justify-between pt-1 border-t border-dram-border">
+              <span className="text-sm text-slate-300">Est. weekly {mealPlanRate.weeklyDeficit > 0 ? 'deficit' : 'surplus'}</span>
+              <span className={`text-sm font-medium ${mealPlanRate.weeklyDeficit > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {mealPlanRate.weeklyDeficit > 0 ? '−' : '+'}
+                {Math.abs(Math.round(mealPlanRate.weeklyDeficit)).toLocaleString()} kcal
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-dram-border" />
+
+      {/* ── Weight Projection ── */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Weight Projection</p>
+        {!weightTrend ? (
+          <p className="text-sm text-slate-500">No weight measurements found. Log measurements to see projections.</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-300">Current weight</span>
+              <span className="text-sm font-medium text-slate-200">{weightTrend.latestLbs.toFixed(1)} lbs</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-300">14-day trend</span>
+              <span className={`text-sm font-medium ${slopeColor(weightTrend.slopePerWeek)}`}>
+                {slopeLabel(weightTrend.slopePerWeek)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-400">In 30 days (current rate)</span>
+              <span className="text-sm text-slate-400">
+                {(weightTrend.latestLbs + weightTrend.slopePerWeek * (30 / 7)).toFixed(1)} lbs
+              </span>
+            </div>
+
+            {mealPlanRate && (
+              <div className="pt-1 border-t border-dram-border space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-slate-400">Avg planned (logged days)</span>
+                  <span className="text-sm text-slate-400">{Math.round(mealPlanRate.avgDailyPlanned).toLocaleString()} kcal/day</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-slate-300">Rate with meal plan</span>
+                  <span className={`text-sm font-medium ${slopeColor(mealPlanRate.weeklyChange)}`}>
+                    {slopeLabel(mealPlanRate.weeklyChange)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-slate-400">In 30 days (with plan)</span>
+                  <span className="text-sm text-slate-400">
+                    {(weightTrend.latestLbs + mealPlanRate.weeklyChange * (30 / 7)).toFixed(1)} lbs
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* What if mode */}
+            <div className="pt-2 border-t border-dram-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-slate-300">What if mode</span>
+                <button
+                  onClick={() => {
+                    if (!whatIfMode && !whatIfCals && goals?.calories) setWhatIfCals(String(goals.calories));
+                    setWhatIfMode(m => !m);
+                  }}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${whatIfMode ? 'bg-dram-accent' : 'bg-dram-border'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${whatIfMode ? 'left-[18px]' : 'left-0.5'}`} />
+                </button>
+              </div>
+              {whatIfMode && (
+                <div className="space-y-2">
+                  {!tdeePDay ? (
+                    <p className="text-xs text-slate-500">Complete your profile to enable TDEE-based projections.</p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-slate-400 shrink-0">Daily intake:</label>
+                        <input
+                          type="number" min="500" max="10000"
+                          value={whatIfCals}
+                          onChange={(e) => setWhatIfCals(e.target.value)}
+                          className={inputCls + ' w-28 text-center text-sm'}
+                          placeholder="kcal/day"
+                        />
+                        <span className="text-sm text-slate-500">kcal/day</span>
+                      </div>
+                      {whatIfRate != null && (
+                        <div className="space-y-1 pl-1">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-slate-400">Projected rate</span>
+                            <span className={`text-sm font-medium ${slopeColor(whatIfRate)}`}>
+                              {slopeLabel(whatIfRate)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-slate-400">In 30 days</span>
+                            <span className="text-sm font-medium text-slate-200">
+                              {(weightTrend.latestLbs + whatIfRate * (30 / 7)).toFixed(1)} lbs
+                            </span>
+                          </div>
+                          {weightGoal && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-slate-400">Goal ({weightGoal.targetValue} lbs) ETA</span>
+                              <span className="text-sm text-slate-300">
+                                {computeETAFromSlope(weightTrend.latestLbs, weightGoal.targetValue, whatIfRate) ?? 'N/A'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Goal Progress Projection ── */}
+      {Object.keys(measurementGoals).length > 0 && (
+        <>
+          <div className="border-t border-dram-border" />
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Goal Progress Projection</p>
+            <div className="space-y-3">
+              {Object.entries(measurementGoals).map(([metric, goal]) => {
+                const cfg = METRIC_CONFIG[metric];
+                if (!cfg) return null;
+
+                const sorted = measurements
+                  .filter(m => m.metric === metric)
+                  .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+                const latest = sorted[0];
+                if (!latest) return null;
+
+                const currentVal = metric === 'weight' && latest.unit === 'kg'
+                  ? latest.value * 2.20462
+                  : latest.value;
+
+                const { status } = computeGoalPace(measurements, metric, goal, cfg.dir);
+
+                const currentETA = metric === 'weight' && weightTrend
+                  ? computeETAFromSlope(weightTrend.latestLbs, goal.targetValue, weightTrend.slopePerWeek)
+                  : computeGoalPace(measurements, metric, goal, cfg.dir).projectedDate;
+
+                const planETA = metric === 'weight' && mealPlanRate && weightTrend
+                  ? computeETAFromSlope(weightTrend.latestLbs, goal.targetValue, mealPlanRate.weeklyChange)
+                  : null;
+
+                const hasPlanCol = metric === 'weight' && mealPlanRate != null && weightTrend != null;
+
+                return (
+                  <div key={metric} className="bg-dram-bg/50 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-200">{cfg.label}</span>
+                      <PaceBadge status={status} />
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {currentVal.toFixed(1)} {cfg.unit} now → {goal.targetValue} {cfg.unit} target
+                      {goal.targetDate && (
+                        <span className="text-slate-500"> · deadline {new Date(goal.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      )}
+                    </p>
+                    <div className={`grid gap-2 ${hasPlanCol ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-0.5">Current trajectory</p>
+                        {metric === 'weight' && weightTrend && (
+                          <p className={`text-xs font-medium ${slopeColor(weightTrend.slopePerWeek)}`}>
+                            {slopeLabel(weightTrend.slopePerWeek)}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500">ETA: {currentETA ?? '—'}</p>
+                      </div>
+                      {hasPlanCol && (
+                        <div>
+                          <p className="text-xs text-slate-500 mb-0.5">With meal plan</p>
+                          <p className={`text-xs font-medium ${slopeColor(mealPlanRate!.weeklyChange)}`}>
+                            {slopeLabel(mealPlanRate!.weeklyChange)}
+                          </p>
+                          <p className={`text-xs ${planETA ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            ETA: {planETA ?? '—'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function PlanningPage() {
@@ -1320,6 +1751,7 @@ export default function PlanningPage() {
   const [routinesList,     setRoutinesList]     = useState<RoutineSummary[]>([]);
   const [templates,        setTemplates]        = useState<ProgramTemplate[]>([]);
   const [loading,          setLoading]          = useState(true);
+  const [projRefreshKey,   setProjRefreshKey]   = useState(0);
 
   async function load() {
     try {
@@ -1366,7 +1798,14 @@ export default function PlanningPage() {
             templates={templates}
             onReload={load}
           />
-          <MealPlanningSection />
+          <MealPlanningSection onPlanChange={() => setProjRefreshKey(k => k + 1)} />
+          <ProjectionsSection
+            summary={summary}
+            measurements={measurements}
+            measurementGoals={measurementGoals}
+            upcoming={upcoming}
+            refreshKey={projRefreshKey}
+          />
         </div>
       )}
     </div>
