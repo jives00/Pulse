@@ -12,6 +12,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Food Log redesign** — Today page updated to match reference design: tabbed FoodSearchModal (Search / Add Recipe / Describe a Meal), Band-style section headers with gold accent line, NutritionSummaryCard with 2-column layout + large donut + glass water visualization, sharp-cornered meal cards, text-sm minimum font sizes, inline date nav in header, Copy from yesterday moved to Meals band. `fbbb525`
 - **Library category filter** — food category (All, Main Dishes, Breakfast, etc.) is now a dropdown chip in the filter bar alongside Favorites/Made/Tags, replacing the old tab row. `2f53420`
 - **Food log auto-refresh** — modal closes immediately after save; page updates silently in background with no loading spinner; frequent-food taps now guarded against double-log. `2f53420`
 - **New recipe defaults to Food type** instead of Cocktail. `2f53420`

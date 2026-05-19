@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useLogStore, todayStr } from '../store/logStore';
 import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
-import RecipeForm from '../components/RecipeForm';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
 import { recipesApi } from '@pulse/api-client';
 import type { MealSlot } from '@pulse/api-client';
@@ -17,10 +15,16 @@ const MEAL_SUBCATEGORIES: Record<MealSlot, string> = {
 
 const MEALS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+const ACCENT = '#D4A843';
+const MUTED  = '#828ea8';
+
 function fmtDate(iso: string) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  });
+  const d = new Date(iso + 'T12:00:00');
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const month   = d.toLocaleDateString('en-US', { month: 'short' });
+  const day     = d.getDate();
+  const year    = d.getFullYear();
+  return `${weekday} · ${month} ${day} · ${year}`;
 }
 
 function offsetDate(iso: string, days: number) {
@@ -30,22 +34,14 @@ function offsetDate(iso: string, days: number) {
 }
 
 export default function TodayPage() {
-  const navigate = useNavigate();
   const { currentDate, dailyLog, waterDay, loading, setDate, fetchDay, addWater, copyFromDate } = useLogStore();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showRecipeFormModal, setShowRecipeFormModal] = useState(false);
-  const [mealPhotos, setMealPhotos] = useState<Record<MealSlot, string | null>>({
+  const [showAddModal, setShowAddModal]   = useState(false);
+  const [addModalMeal, setAddModalMeal]   = useState<MealSlot | null>(null);
+  const [mealPhotos, setMealPhotos]       = useState<Record<MealSlot, string | null>>({
     breakfast: null, lunch: null, dinner: null, snack: null,
   });
 
   useEffect(() => { fetchDay(); }, []);
-
-  useEffect(() => {
-    if (!showRecipeFormModal) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowRecipeFormModal(false); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [showRecipeFormModal]);
 
   useEffect(() => {
     const meals: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -60,114 +56,122 @@ export default function TodayPage() {
     });
   }, []);
 
-  const goals = dailyLog?.goals;
+  const goals  = dailyLog?.goals;
   const totals = dailyLog?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
-  const nutritionGoals = goals ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG, waterGoalOz: goals.waterGoalOz } : null;
+  const nutritionGoals = goals
+    ? { calories: goals.calories, carbsG: goals.carbsG, proteinG: goals.proteinG, fatG: goals.fatG, waterGoalOz: goals.waterGoalOz }
+    : null;
   const waterTotal = waterDay?.totalOz ?? 0;
-  const waterGoal = waterDay?.goalOz ?? goals?.waterGoalOz ?? 64;
+  const waterGoal  = waterDay?.goalOz ?? goals?.waterGoalOz ?? 64;
+
+  function openAddModal(meal?: MealSlot) {
+    setAddModalMeal(meal ?? null);
+    setShowAddModal(true);
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
-      {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center gap-3">
-        {/* Title */}
-        <h1 className="text-xl font-semibold text-slate-200 flex-shrink-0">Nutrition</h1>
-
-        {/* Date nav */}
-        <div className="flex items-center gap-1 flex-1 justify-center">
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-slate-200">Food Log</h1>
           <button
             onClick={() => setDate(offsetDate(currentDate, -1))}
-            className="p-2 rounded-lg hover:bg-dram-card text-slate-400 hover:text-slate-100 transition-colors"
+            className="p-1 rounded text-slate-500 hover:text-slate-200 transition-colors"
+            aria-label="Previous day"
           >
-            ◀
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M6.5 1.5 L2.5 5 L6.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
-          <div className="text-slate-200 font-medium px-1 min-w-[200px] text-center text-sm">{fmtDate(currentDate)}</div>
+          <span className="text-xl font-semibold text-slate-400 select-none">{fmtDate(currentDate)}</span>
           <button
             onClick={() => setDate(offsetDate(currentDate, 1))}
-            className="p-2 rounded-lg hover:bg-dram-card text-slate-400 hover:text-slate-100 transition-colors"
             disabled={currentDate >= todayStr()}
+            className="p-1 rounded text-slate-500 hover:text-slate-200 transition-colors disabled:opacity-30"
+            aria-label="Next day"
           >
-            ▶
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3.5 1.5 L7.5 5 L3.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         </div>
 
-        {/* Right: action buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/planning')}
-            className="border border-dram-border text-slate-300 hover:text-white hover:border-slate-400 rounded-lg px-4 py-2 text-sm transition-colors"
-          >
-            Manage Goals
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-          >
-            Log Food
-          </button>
-        </div>
+        <button
+          onClick={() => openAddModal()}
+          className="bg-dram-accent text-black font-semibold px-3.5 py-2 rounded-lg text-sm hover:brightness-110 transition flex items-center gap-1.5"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M5 1 V9 M1 5 H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          Log food
+        </button>
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="text-center text-slate-500 py-8">Loading…</div>
+          <div className="text-center py-8" style={{ color: MUTED }}>Loading…</div>
         ) : (
           <>
-            {/* Summary card — full width */}
-            <NutritionSummaryCard
-              actual={{ calories: totals.calories, carbsG: totals.carbs, proteinG: totals.protein, fatG: totals.fat }}
-              goals={nutritionGoals}
-              waterOz={waterTotal}
-              waterGoalOz={waterGoal}
-              onAddWater={(oz) => addWater(oz)}
-            />
+            {/* ── Band: Today / Fuel + macros ── */}
+            <section style={{ padding: '28px 36px 8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
+                <span style={{ fontSize: 14, letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 600, color: 'white' }}>Today</span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>Fuel + macros</span>
+                {goals && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: MUTED, marginLeft: 14 }}>
+                    {Math.round(totals.calories).toLocaleString()} / {goals.calories.toLocaleString()} kcal · {Math.round(totals.protein)}/{goals.proteinG}g protein
+                  </span>
+                )}
+              </div>
+              <NutritionSummaryCard
+                actual={{ calories: totals.calories, carbsG: totals.carbs, proteinG: totals.protein, fatG: totals.fat }}
+                goals={nutritionGoals}
+                waterOz={waterTotal}
+                waterGoalOz={waterGoal}
+                onAddWater={(oz) => addWater(oz)}
+              />
+            </section>
 
-            {/* Copy from yesterday */}
-            <div className="flex justify-end">
-              <button
-                onClick={() => copyFromDate(offsetDate(currentDate, -1))}
-                className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                Copy from yesterday
-              </button>
-            </div>
+            {/* ── Band: Meals / What you ate today ── */}
+            <section style={{ padding: '28px 36px 8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
+                <span style={{ fontSize: 14, letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 600, color: 'white' }}>Meals</span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>What you ate today</span>
+                <button
+                  onClick={() => copyFromDate(offsetDate(currentDate, -1))}
+                  className="border border-dram-border text-dram-muted hover:text-white hover:border-slate-400 transition-colors text-xs px-2.5 py-1"
+                  style={{ marginLeft: 'auto', borderRadius: 6 }}
+                >
+                  Copy from yesterday →
+                </button>
+              </div>
+              <div className="grid grid-cols-4" style={{ gap: 14 }}>
+                {MEALS.map((meal) => (
+                  <MealSection
+                    key={meal}
+                    meal={meal}
+                    entries={dailyLog?.meals[meal] ?? []}
+                    onAdd={(m) => openAddModal(m)}
+                    photoUrl={mealPhotos[meal]}
+                  />
+                ))}
+              </div>
+            </section>
 
-            {/* Meal cards */}
-            <div className="grid grid-cols-4 gap-3">
-              {MEALS.map((meal) => (
-                <MealSection
-                  key={meal}
-                  meal={meal}
-                  entries={dailyLog?.meals[meal] ?? []}
-                  onAdd={() => setShowAddModal(true)}
-                  photoUrl={mealPhotos[meal]}
-                />
-              ))}
-            </div>
+            <div className="pb-16" />
           </>
         )}
       </div>
 
       {showAddModal && (
         <FoodSearchModal
-          onClose={() => setShowAddModal(false)}
-          onCreateCustomFood={() => { setShowAddModal(false); setShowRecipeFormModal(true); }}
+          meal={addModalMeal ?? undefined}
+          onClose={() => { setShowAddModal(false); setAddModalMeal(null); }}
         />
-      )}
-
-      {showRecipeFormModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRecipeFormModal(false)} />
-          <div className="relative w-full max-w-lg h-[90vh] rounded-2xl overflow-hidden shadow-2xl">
-            <RecipeForm
-              initialType="food"
-              enableLogOption
-              onSaved={() => { setShowRecipeFormModal(false); fetchDay(); }}
-              onCancel={() => setShowRecipeFormModal(false)}
-            />
-          </div>
-        </div>
       )}
     </div>
   );
