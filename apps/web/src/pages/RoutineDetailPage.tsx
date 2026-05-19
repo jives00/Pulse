@@ -175,6 +175,10 @@ export default function RoutineDetailPage() {
   const [notes, setNotes] = useState('');
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
+  // Image upload
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!id) return;
     const numId = Number(id);
@@ -215,6 +219,21 @@ export default function RoutineDetailPage() {
       await routinesApi.update(routine.id, { notes: trimmed || undefined });
       setRoutine((prev) => prev ? { ...prev, notes: trimmed || null } : prev);
     } catch { setNotes(routine.notes ?? ''); }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !routine) return;
+    setUploadingImage(true);
+    try {
+      const { uploadUrl, key } = await routinesApi.getPhotoUploadUrl(routine.id, file.type);
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      await routinesApi.update(routine.id, { coverImageKey: key });
+      setRoutine((prev) => prev ? { ...prev, coverImageUrl: URL.createObjectURL(file) } : prev);
+    } catch { /* ignore */ } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
   }
 
   async function handleStart() {
@@ -351,14 +370,6 @@ export default function RoutineDetailPage() {
             </button>
           )}
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-sm text-dram-muted">{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</span>
-            <span className="text-dram-muted text-sm">·</span>
-            {lastSessionLabel && (
-              <>
-                <span className="text-sm text-dram-muted">Last: {lastSessionLabel}</span>
-                <span className="text-dram-muted text-sm">·</span>
-              </>
-            )}
             <select
               value={routine.routineType ?? 'strength'}
               onChange={(e) => saveRoutineType(e.target.value as RoutineType)}
@@ -369,6 +380,19 @@ export default function RoutineDetailPage() {
               ))}
             </select>
           </div>
+          {/* Stats strip */}
+          {(() => {
+            const lastW = routineWorkouts[0] ?? null;
+            const volLbs = lastW?.totalVolumeKg ? Math.round(lastW.totalVolumeKg * KG_TO_LBS).toLocaleString() : null;
+            const cals   = lastW?.caloriesBurned ? lastW.caloriesBurned.toLocaleString() : null;
+            return (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-sm text-slate-400">
+                <span>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</span>
+                {volLbs && <><span className="text-slate-600">·</span><span>{volLbs} lbs</span></>}
+                {cals   && <><span className="text-slate-600">·</span><span>{cals} kcal burned</span></>}
+              </div>
+            );
+          })()}
           {editingNotes ? (
             <textarea
               ref={notesRef}
@@ -425,6 +449,24 @@ export default function RoutineDetailPage() {
               </button>
             </div>
           )}
+
+          {/* Cover image */}
+          <div
+            className="relative w-full aspect-video bg-dram-bg border border-dram-border overflow-hidden cursor-pointer group"
+            onClick={() => imageInputRef.current?.click()}
+          >
+            {routine.coverImageUrl ? (
+              <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">No cover image</div>
+            )}
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-white text-sm font-medium">
+                {uploadingImage ? 'Uploading…' : routine.coverImageUrl ? 'Change photo' : 'Upload photo'}
+              </span>
+            </div>
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          </div>
 
           {/* Start button */}
           <button

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import QuickLogModal from '../components/QuickLogModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, exercisesApi, stepsApi,
   type WorkoutSummary, type WorkoutDetail, type ExerciseGoals,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type Exercise,
-  KG_TO_LBS,
+  KG_TO_LBS, secondsToMMSS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
@@ -731,46 +732,8 @@ const CATEGORY_EMOJI_TAB: Record<string, string> = {
   olympic: '🥇', plyometrics: '🦘', stretching: '🧘',
 };
 
-function RoutineCardInTab({
-  routine,
-  onImageUpdated,
-}: {
-  routine: RoutineSummary;
-  onImageUpdated: (id: number, url: string) => void;
-}) {
+function RoutineCardInTab({ routine }: { routine: RoutineSummary }) {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [starting, setStarting] = useState(false);
-
-  function handleImageClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    fileInputRef.current?.click();
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { uploadUrl, key } = await routinesApi.getPhotoUploadUrl(routine.id, file.type);
-      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-      await routinesApi.update(routine.id, { coverImageKey: key });
-      onImageUpdated(routine.id, URL.createObjectURL(file));
-    } catch { /* silent */ } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  async function handleStart(e: React.MouseEvent) {
-    e.stopPropagation();
-    setStarting(true);
-    try {
-      const workout = await routinesApi.start(routine.id);
-      navigate(`/workouts/${workout.id}`);
-    } catch { setStarting(false); }
-  }
 
   return (
     <div
@@ -787,45 +750,16 @@ function RoutineCardInTab({
             <span className="text-sm text-gray-500 uppercase tracking-wide">exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
           </div>
         )}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
       </div>
 
       {/* Info */}
       <div className="p-3">
         <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{routine.name}</p>
-        <div className="mt-0.5 space-y-0.5">
-          <p className="text-slate-400 text-sm">{routine.lastUsedDate ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Never used'}</p>
-          {routine.routineType === 'steps' && routine.lastPrimaryMetric != null && (
-            <p className="text-slate-400 text-sm">{Math.round(routine.lastPrimaryMetric)} stairs/min</p>
-          )}
-          {routine.routineType === 'cardio_distance' && routine.lastPrimaryMetric != null && (
-            <p className="text-slate-400 text-sm">{routine.lastPrimaryMetric.toFixed(2)} mi/min</p>
-          )}
-          {(routine.routineType === 'strength' || routine.routineType === 'bodyweight' || !routine.routineType) && routine.lastVolumeLbs != null && (
-            <p className="text-slate-400 text-sm">{routine.lastVolumeLbs.toLocaleString()} lbs</p>
-          )}
-          {routine.lastCaloriesBurned != null && <p className="text-slate-400 text-sm">{routine.lastCaloriesBurned.toLocaleString()} kcal burned</p>}
-        </div>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-dram-accent text-sm font-medium">{routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}</span>
-          {routine.notes && <span className="text-slate-400 text-sm line-clamp-1 flex-1">{routine.notes}</span>}
-        </div>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleStart}
-            disabled={starting}
-            className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded-lg py-1.5 transition-colors"
-          >
-            {starting ? 'Starting…' : 'Start'}
-          </button>
-          <button
-            onClick={handleImageClick}
-            disabled={uploading}
-            className="px-3 bg-dram-bg hover:bg-dram-border/40 disabled:opacity-50 text-slate-400 hover:text-white text-sm font-medium rounded-lg py-1.5 border border-dram-border transition-colors"
-          >
-            {uploading ? <Spinner size={3} /> : 'Edit'}
-          </button>
-        </div>
+        <p className="text-slate-400 text-sm mt-0.5">
+          {routine.lastUsedDate
+            ? `Last used ${new Date(routine.lastUsedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+            : 'Never used'}
+        </p>
       </div>
     </div>
   );
@@ -844,38 +778,18 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const [newName, setNewName] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [creating, setCreating] = useState(false);
-  const [steps, setSteps] = useState<number | null>(null);
-  const [stepsInput, setStepsInput] = useState('');
-  const [savingSteps, setSavingSteps] = useState(false);
 
   useImperativeHandle(ref, () => ({ openCreate: () => setShowCreate(true) }));
-
-  const today = localDateStr();
 
   useEffect(() => {
     Promise.all([
       routinesApi.getAll(),
       workoutsApi.getActive().catch(() => null),
-      stepsApi.getDay(today).catch(() => null),
-    ]).then(([rs, active, stepsDay]) => {
+    ]).then(([rs, active]) => {
       setRoutines(rs);
       setActiveWorkout(active);
-      setSteps(stepsDay?.steps ?? null);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
-
-  async function handleSaveSteps() {
-    const n = parseInt(stepsInput, 10);
-    if (isNaN(n) || n < 0) return;
-    setSavingSteps(true);
-    try {
-      const result = await stepsApi.log(today, n);
-      setSteps(result.steps);
-      setStepsInput('');
-    } finally {
-      setSavingSteps(false);
-    }
-  }
 
   useEffect(() => {
     if (!showCreate) return;
@@ -884,9 +798,6 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
     return () => document.removeEventListener('keydown', handler);
   }, [showCreate]);
 
-  function handleImageUpdated(id: number, previewUrl: string) {
-    setRoutines((prev) => prev.map((r) => r.id === id ? { ...r, coverImageUrl: previewUrl } : r));
-  }
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -897,13 +808,10 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
     } catch { setCreating(false); }
   }
 
-  const stepsCount = steps ?? 0;
-  const stepsPct = Math.min(stepsCount / STEPS_GOAL, 1);
-
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <>
       {activeWorkout && (
-        <div className="mx-6 mt-4 flex-shrink-0 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
+        <div className="mx-6 mt-2 bg-dram-accent/10 border border-dram-accent/40 px-4 py-3 flex items-center gap-3">
           <span className="text-dram-accent text-lg">⏱</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-dram-accent truncate">
@@ -922,60 +830,27 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
         </div>
       )}
 
-      {/* Steps card */}
-      <div className="mx-6 mt-4 flex-shrink-0 bg-dram-card border border-dram-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <span className="text-lg">👟</span>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">Steps</span>
-              <span className="text-sm text-white font-bold">{stepsCount.toLocaleString()}</span>
-              <span className="text-sm text-slate-500">/ {STEPS_GOAL.toLocaleString()}</span>
-              {stepsCount >= STEPS_GOAL
-                ? <span className="text-sm font-medium text-green-400 ml-auto">Goal reached!</span>
-                : <span className="text-sm font-medium text-emerald-400 ml-auto">{(STEPS_GOAL - stepsCount).toLocaleString()} left</span>
-              }
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden bg-emerald-400/10">
-              <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${stepsPct * 100}%` }} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            <input
-              type="number"
-              min={0}
-              max={200000}
-              placeholder="Log steps"
-              value={stepsInput}
-              onChange={(e) => setStepsInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveSteps()}
-              className="w-28 bg-dram-bg border border-dram-border rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
-            />
-            <button
-              onClick={handleSaveSteps}
-              disabled={savingSteps || !stepsInput}
-              className="bg-dram-accent text-black text-sm font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition disabled:opacity-40"
-            >
-              {savingSteps ? '…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="px-6 py-4">
         {loading ? (
-          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+          <div className="flex justify-center mt-8"><Spinner size={10} /></div>
         ) : routines.length === 0 ? (
-          <div className="flex flex-col items-center mt-20 text-gray-600">
+          <div className="flex flex-col items-center mt-12 text-gray-600">
             <span className="text-5xl mb-3">📋</span>
             <p className="text-lg">No routines yet.</p>
             <button onClick={() => setShowCreate(true)} className="text-dram-accent hover:underline text-sm mt-1">Create your first routine</button>
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-            {routines.map((r) => (
-              <RoutineCardInTab key={r.id} routine={r} onImageUpdated={handleImageUpdated} />
-            ))}
+            {[...routines]
+              .sort((a, b) => {
+                if (!a.lastUsedDate && !b.lastUsedDate) return 0;
+                if (!a.lastUsedDate) return 1;
+                if (!b.lastUsedDate) return -1;
+                return a.lastUsedDate.localeCompare(b.lastUsedDate);
+              })
+              .map((r) => (
+                <RoutineCardInTab key={r.id} routine={r} />
+              ))}
           </div>
         )}
       </div>
@@ -1009,11 +884,11 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 });
 
-// ─── Exercises tab ────────────────────────────────────────────────────────────
+// ─── Exercises section ────────────────────────────────────────────────────────
 
 interface ExerciseFormState {
   name: string; category: string; customCategory: string; exerciseType: string; trackedFields: string[];
@@ -1114,8 +989,8 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
     .sort((a, b) => defaultExerciseSort === 'name' ? a.name.localeCompare(b.name) : a.id - b.id);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 px-6 pt-4 pb-3 space-y-2">
+    <>
+      <div className="px-6 pt-3 pb-3 space-y-2">
         <input
           type="text" placeholder="🔍 Search exercises…" value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -1134,11 +1009,11 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="px-6 pb-6">
         {loading ? (
-          <div className="flex justify-center mt-16"><Spinner size={10} /></div>
+          <div className="flex justify-center mt-8"><Spinner size={10} /></div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center mt-20 text-gray-600">
+          <div className="flex flex-col items-center mt-12 text-gray-600">
             <span className="text-5xl mb-3">🏋️</span>
             <p className="text-lg">No exercises found.</p>
           </div>
@@ -1212,79 +1087,294 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 });
 
+// ─── Hero banner ─────────────────────────────────────────────────────────────
+
+const ACCENT = '#D4A843';
+const MUTED  = '#828ea8';
+
+interface WeekStats { count: number; calsBurned: number; volumeLbs: number }
+
+function WorkoutHeroBanner() {
+  const today = localDateStr();
+  const [todayWorkouts, setTodayWorkouts] = useState<WorkoutSummary[]>([]);
+  const [week7, setWeek7] = useState<WeekStats | null>(null);
+  const [prev7, setPrev7] = useState<WeekStats | null>(null);
+  const [steps, setSteps] = useState<number | null>(null);
+  const [stepsInput, setStepsInput] = useState('');
+  const [savingSteps, setSavingSteps] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      workoutsApi.getAll({ limit: 100 }),
+      stepsApi.getDay(today).catch(() => null),
+    ]).then(([workouts, stepsDay]) => {
+      const dayOffset = (n: number) => {
+        const d = new Date(today + 'T12:00:00');
+        d.setDate(d.getDate() - n);
+        return localDateStr(d);
+      };
+      const sevenDaysAgo    = dayOffset(6);
+      const fourteenDaysAgo = dayOffset(13);
+
+      const summarize = (list: WorkoutSummary[]): WeekStats => ({
+        count: list.length,
+        calsBurned: list.reduce((s, w) => s + (w.caloriesBurned ?? 0), 0),
+        volumeLbs: list.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0),
+      });
+
+      setTodayWorkouts(workouts.filter((w) => w.workoutDate === today));
+      setWeek7(summarize(workouts.filter((w) => w.workoutDate >= sevenDaysAgo)));
+      setPrev7(summarize(workouts.filter((w) => w.workoutDate >= fourteenDaysAgo && w.workoutDate < sevenDaysAgo)));
+      setSteps(stepsDay?.steps ?? null);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function handleSaveSteps() {
+    const n = parseInt(stepsInput, 10);
+    if (isNaN(n) || n < 0) return;
+    setSavingSteps(true);
+    try {
+      const result = await stepsApi.log(today, n);
+      setSteps(result.steps ?? n);
+      setStepsInput('');
+    } finally {
+      setSavingSteps(false);
+    }
+  }
+
+  if (loading) return null;
+
+  const primaryWorkout = todayWorkouts[0] ?? null;
+  const todayMinutes = todayWorkouts.reduce((s, w) => s + (w.durationMinutes ?? 0), 0);
+  const todayCals = todayWorkouts.reduce((s, w) => s + (w.caloriesBurned ?? 0), 0);
+
+  const d = new Date(today + 'T12:00:00');
+  const dateLabel = `${d.toLocaleDateString('en-US', { weekday: 'short' })} · ${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getDate()} · ${d.getFullYear()}`;
+
+  const stepsCount = steps ?? 0;
+  const stepsPct = Math.min(stepsCount / STEPS_GOAL, 1);
+
+  return (
+    <section style={{ padding: '20px 36px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      {/* Band header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+        <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>Stats</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: MUTED, marginLeft: 4 }}>{dateLabel}</span>
+      </div>
+
+      {/* Stat tiles */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Today's workout */}
+        <div className="bg-dram-card border border-dram-border px-5 py-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Today</span>
+          </div>
+          {primaryWorkout ? (
+            <div>
+              {/* Routine name + stats (non-stairs only) */}
+              <div className="flex items-center gap-3">
+                <p className="text-base font-bold text-white leading-snug truncate flex-1 min-w-0">
+                  {primaryWorkout.routineName ?? primaryWorkout.name ?? 'Workout'}
+                </p>
+                {primaryWorkout.routineType !== 'steps' && (
+                  <div className="flex items-center gap-2 shrink-0 text-sm text-slate-300">
+                    {todayMinutes > 0 && <span>{todayMinutes} min</span>}
+                    {todayCals > 0 && <span>{todayCals.toLocaleString()} kcal</span>}
+                    {todayWorkouts.length > 1 && <span className="text-slate-500">{todayWorkouts.length} sessions</span>}
+                  </div>
+                )}
+              </div>
+              {/* Exercise list */}
+              {primaryWorkout.exercises.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {primaryWorkout.exercises.map((ex, i) => {
+                    if (primaryWorkout.routineType === 'steps') {
+                      const pace = ex.totalSteps && ex.totalDurationSeconds && ex.totalDurationSeconds > 0
+                        ? Math.round(ex.totalSteps / (ex.totalDurationSeconds / 60))
+                        : null;
+                      return (
+                        <div key={i} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400 truncate shrink-0 mr-2">{ex.name}</span>
+                          <div className="flex items-center gap-2 text-slate-300 flex-wrap justify-end">
+                            {ex.totalSteps != null && <span>{ex.totalSteps.toLocaleString()} stairs</span>}
+                            {ex.totalDurationSeconds != null && <span>{secondsToMMSS(ex.totalDurationSeconds)}</span>}
+                            {todayCals > 0 && <span>{todayCals.toLocaleString()} kcal</span>}
+                            {pace != null && <span>{pace} stairs/min</span>}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400 truncate">{ex.name}</span>
+                        <span className="text-slate-600 shrink-0 ml-2">{ex.setCount} set{ex.setCount !== 1 ? 's' : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 mt-1">No workout yet today</p>
+          )}
+        </div>
+
+        {/* Last 7 days */}
+        {(() => {
+          const trendPct = (week7 && prev7 && prev7.volumeLbs > 0)
+            ? Math.round(((week7.volumeLbs - prev7.volumeLbs) / prev7.volumeLbs) * 100)
+            : null;
+          const trendUp = trendPct !== null ? trendPct >= 0 : null;
+          return (
+            <div className="bg-dram-card border border-dram-border px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#60a5fa' }}>Last 7 Days</span>
+                </div>
+                {trendPct !== null && (
+                  <span className={`text-sm font-bold ${trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {trendUp ? '↑' : '↓'} {Math.abs(trendPct)}%
+                  </span>
+                )}
+              </div>
+              {week7 && week7.count > 0 ? (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-bold text-white">{week7.count}</span>
+                      <span className="text-sm text-slate-400">session{week7.count !== 1 ? 's' : ''}</span>
+                    </div>
+                    {week7.calsBurned > 0 && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-white">{week7.calsBurned.toLocaleString()}</span>
+                        <span className="text-sm text-slate-400">calories burned</span>
+                      </div>
+                    )}
+                    {week7.volumeLbs > 0 && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-white">{Math.round(week7.volumeLbs).toLocaleString()}</span>
+                        <span className="text-sm text-slate-400">volume</span>
+                      </div>
+                    )}
+                  </div>
+                  {prev7 && prev7.count > 0 && (
+                    <div className="mt-2 pt-2 border-t border-dram-border/60">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Previous Week</div>
+                      <div className="text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+                        <span><span className="font-bold text-slate-300">{prev7.count}</span> session{prev7.count !== 1 ? 's' : ''}</span>
+                        {prev7.calsBurned > 0 && <span>· <span className="font-bold text-slate-300">{prev7.calsBurned.toLocaleString()}</span> calories burned</span>}
+                        {prev7.volumeLbs > 0 && <span>· <span className="font-bold text-slate-300">{Math.round(prev7.volumeLbs).toLocaleString()}</span> volume</span>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-slate-500 mt-1">No workouts this week</p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Steps */}
+        <div className="bg-dram-card border border-dram-border px-5 py-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#34d399' }}>Steps</span>
+          </div>
+          <div className="flex items-baseline gap-1 mb-2">
+            <span className="text-xl font-bold text-white">{stepsCount.toLocaleString()}</span>
+            <span className="text-sm text-slate-400">/ {STEPS_GOAL.toLocaleString()}</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden bg-emerald-400/10 mb-2">
+            <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${stepsPct * 100}%` }} />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={200000}
+              placeholder={stepsCount >= STEPS_GOAL ? 'Goal reached!' : `${(STEPS_GOAL - stepsCount).toLocaleString()} left`}
+              value={stepsInput}
+              onChange={(e) => setStepsInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveSteps()}
+              className="flex-1 min-w-0 bg-dram-bg border border-dram-border rounded px-2 py-1 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              onClick={handleSaveSteps}
+              disabled={savingSteps || !stepsInput}
+              className="bg-emerald-500 hover:brightness-110 disabled:opacity-40 text-black text-sm font-semibold px-3 py-1 rounded transition-colors"
+            >
+              {savingSteps ? '…' : 'Log'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const TABS = [
-  { key: 'routines',  label: 'Routines'  },
-  { key: 'exercises', label: 'Exercises' },
-] as const;
-
-type Tab = typeof TABS[number]['key'];
-
-const VALID_TABS = ['routines', 'exercises'] as const;
-
 export default function WorkoutsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const routinesTabRef = useRef<RoutinesTabHandle>(null);
   const exercisesTabRef = useRef<ExercisesTabHandle>(null);
-  const rawTab = searchParams.get('tab');
-  const activeTab: Tab = (VALID_TABS as readonly string[]).includes(rawTab ?? '') ? rawTab as Tab : 'routines';
-  function setActiveTab(tab: Tab) { setSearchParams({ tab }, { replace: true }); }
+  const [showQuickLog, setShowQuickLog] = useState(false);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
-      {/* Toolbar */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-dram-border">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
-          <div className="flex items-center gap-2">
-            {activeTab === 'routines' && (
-              <button
-                onClick={() => routinesTabRef.current?.openCreate()}
-                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-              >
-                + New Routine
-              </button>
-            )}
-            {activeTab === 'exercises' && (
-              <button
-                onClick={() => exercisesTabRef.current?.openCreate()}
-                className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
-              >
-                + New Exercise
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tab bar */}
-        <div className="flex gap-1 mt-3">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === key
-                  ? 'border-dram-accent text-dram-accent'
-                  : 'border-transparent text-dram-muted hover:text-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Page header */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-3 border-b border-dram-border flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-200">Workouts</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowQuickLog(true)}
+            className="border border-dram-accent text-dram-accent font-semibold px-4 py-2 rounded-lg text-sm hover:bg-dram-accent/10 transition"
+          >
+            ⚡ Quick Log
+          </button>
+          <button
+            onClick={() => routinesTabRef.current?.openCreate()}
+            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
+          >
+            + New Routine
+          </button>
+          <button
+            onClick={() => exercisesTabRef.current?.openCreate()}
+            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition"
+          >
+            + New Exercise
+          </button>
         </div>
       </div>
 
-      {/* Tab content */}
-      {activeTab === 'routines' ? (
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Hero banner */}
+        <WorkoutHeroBanner />
+
+        {/* Routines section */}
+        <div className="px-6 pt-6 pb-2 flex items-center gap-3">
+          <div style={{ width: 14, height: 2, background: ACCENT }} />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Routines</h2>
+        </div>
         <RoutinesTab ref={routinesTabRef} />
-      ) : (
+
+        {/* Exercises section */}
+        <div className="px-6 pt-8 pb-2 flex items-center gap-3 border-t border-dram-border mt-4">
+          <div style={{ width: 14, height: 2, background: ACCENT }} />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Exercises</h2>
+        </div>
         <ExercisesTab ref={exercisesTabRef} />
-      )}
+
+        <div className="pb-16" />
+      </div>
+
+      {showQuickLog && <QuickLogModal onClose={() => setShowQuickLog(false)} />}
     </div>
   );
 }

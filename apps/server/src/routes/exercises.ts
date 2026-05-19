@@ -358,6 +358,7 @@ router.get('/:id/history', async (req, res) => {
         weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
         durationSeconds: s.duration_seconds ?? null,
         distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
+        steps: s.steps ?? null,
         completed: Boolean(s.completed),
       })),
     })));

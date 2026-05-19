@@ -1,7 +1,7 @@
 import { useState, useEffect, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, KG_TO_LBS, shortDate, formatDate, computePlateau } from '@pulse/api-client';
+import { exercisesApi, workoutsApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, computePlateau } from '@pulse/api-client';
 
 function kgToLbs(kg: number) {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
@@ -731,6 +731,270 @@ function EditModal({ exercise, categories, onSave, onClose }: {
   );
 }
 
+// ─── Quick log ────────────────────────────────────────────────────────────────
+
+function lbsToKg(lbs: number) { return Math.round((lbs / KG_TO_LBS) * 1000) / 1000; }
+function fmtWeight(kg: number | null) {
+  if (kg == null) return '';
+  const lbs = Math.round(kg * KG_TO_LBS * 10) / 10;
+  return String(lbs % 1 === 0 ? lbs : lbs.toFixed(1));
+}
+function secondsToMMSS(sec: number | null): string {
+  if (sec == null) return '';
+  return _secondsToMMSS(sec);
+}
+function mmssToSeconds(val: string): number | null {
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10);
+    const s = parseInt(parts[1], 10);
+    if (!isNaN(m) && !isNaN(s)) return m * 60 + s;
+  }
+  const n = parseInt(trimmed, 10);
+  return isNaN(n) ? null : n;
+}
+
+const MI_TO_M = 1609.344;
+const FT_TO_M = 0.3048;
+function fmtDistance(m: number): string {
+  const miles = m / MI_TO_M;
+  if (miles >= 0.1) return (Math.round(miles * 100) / 100) + ' mi';
+  return Math.round(m / FT_TO_M) + ' ft';
+}
+function metersToMiInput(m: number | null): string {
+  if (m == null) return '';
+  return String(Math.round((m / MI_TO_M) * 100) / 100);
+}
+function miInputToMeters(val: string): number | null {
+  const n = parseFloat(val.trim());
+  if (isNaN(n) || n < 0) return null;
+  return Math.round(n * MI_TO_M * 10) / 10;
+}
+
+interface QuickSetRowProps {
+  set: ExerciseSet;
+  index: number;
+  workoutId: number;
+  weId: number;
+  trackedFields: string[];
+  onUpdated: (s: ExerciseSet) => void;
+  onDeleted: (id: number) => void;
+}
+
+function QuickSetRow({ set, index, workoutId, weId, trackedFields, onUpdated, onDeleted }: QuickSetRowProps) {
+  const trackWeight   = trackedFields.includes('weight');
+  const trackReps     = trackedFields.includes('reps');
+  const trackDuration = trackedFields.includes('duration');
+  const trackDistance = trackedFields.includes('distance');
+  const trackSteps    = trackedFields.includes('steps');
+
+  const [reps,     setReps]     = useState(String(set.reps ?? ''));
+  const [weight,   setWeight]   = useState(fmtWeight(set.weightKg));
+  const [duration, setDuration] = useState(secondsToMMSS(set.durationSeconds));
+  const [distance, setDistance] = useState(metersToMiInput(set.distanceMeters));
+  const [steps,    setSteps]    = useState(String((set as any).steps ?? ''));
+  const [saving,   setSaving]   = useState(false);
+
+  async function handleBlur() {
+    if (saving) return;
+    const newReps    = trackReps     && reps     !== '' ? Number(reps)     : null;
+    const newWtLbs   = trackWeight   && weight   !== '' ? Number(weight)   : null;
+    const newWtKg    = newWtLbs != null ? lbsToKg(newWtLbs) : null;
+    const newDurSec  = trackDuration ? mmssToSeconds(duration) : null;
+    const newDistM   = trackDistance ? miInputToMeters(distance) : null;
+    const newSteps   = trackSteps    && steps    !== '' ? Number(steps)    : null;
+
+    const unchanged =
+      newReps    === set.reps &&
+      newWtKg    === set.weightKg &&
+      newDurSec  === set.durationSeconds &&
+      newDistM   === set.distanceMeters &&
+      newSteps   === ((set as any).steps ?? null);
+    if (unchanged) return;
+
+    setSaving(true);
+    try {
+      await workoutsApi.updateSet(workoutId, weId, set.id, {
+        reps: newReps, weightKg: newWtKg, durationSeconds: newDurSec, distanceMeters: newDistM, steps: newSteps,
+      } as any);
+      onUpdated({ ...set, reps: newReps, weightKg: newWtKg, durationSeconds: newDurSec, distanceMeters: newDistM, steps: newSteps } as any);
+    } catch {
+      setReps(String(set.reps ?? ''));
+      setWeight(fmtWeight(set.weightKg));
+      setDuration(secondsToMMSS(set.durationSeconds));
+      setDistance(metersToMiInput(set.distanceMeters));
+      setSteps(String((set as any).steps ?? ''));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await workoutsApi.deleteSet(workoutId, weId, set.id);
+      onDeleted(set.id);
+    } catch { /* ignore */ }
+  }
+
+  const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-dram-accent';
+  const colFlags = [trackWeight, trackReps, trackDuration, trackDistance, trackSteps];
+
+  return (
+    <div className={`grid gap-2 items-center text-sm ${saving ? 'opacity-60' : ''}`}
+      style={{ gridTemplateColumns: `1.5rem ${colFlags.filter(Boolean).map(() => '1fr').join(' ')} 1.5rem` }}
+    >
+      <span className="text-slate-500 text-center">{index + 1}</span>
+      {trackWeight && (
+        <input type="number" min={0} step={2.5} placeholder="lbs" value={weight}
+          onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackReps && (
+        <input type="number" min={0} placeholder="reps" value={reps}
+          onChange={(e) => setReps(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackDuration && (
+        <input type="text" placeholder="m:ss" value={duration}
+          onChange={(e) => setDuration(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackDistance && (
+        <input type="number" min={0} step={0.01} placeholder="mi" value={distance}
+          onChange={(e) => setDistance(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      {trackSteps && (
+        <input type="number" min={0} placeholder="steps" value={steps}
+          onChange={(e) => setSteps(e.target.value)} onBlur={handleBlur} className={inputCls} />
+      )}
+      <button onClick={handleDelete} className="text-slate-600 hover:text-red-400 transition-colors text-center leading-none">×</button>
+    </div>
+  );
+}
+
+interface QuickLogState {
+  workoutId: number;
+  weId: number;
+  sets: ExerciseSet[];
+}
+
+interface QuickLogPanelProps {
+  exercise: Exercise;
+  lastSets: ExerciseSet[];
+  state: QuickLogState;
+  onSetsChange: (sets: ExerciseSet[]) => void;
+  onFinish: () => void;
+  onDiscard: () => void;
+  finishing: boolean;
+}
+
+function QuickLogPanel({ exercise, lastSets, state, onSetsChange, onFinish, onDiscard, finishing }: QuickLogPanelProps) {
+  const [addingSet, setAddingSet] = useState(false);
+  const trackedFields = exercise.trackedFields?.length ? exercise.trackedFields : ['reps', 'weight'];
+
+  async function handleAddSet() {
+    setAddingSet(true);
+    try {
+      const newSet = await workoutsApi.addSet(state.workoutId, state.weId, {});
+      onSetsChange([...state.sets, newSet]);
+    } catch { /* ignore */ } finally {
+      setAddingSet(false);
+    }
+  }
+
+  function updateSet(updated: ExerciseSet) {
+    onSetsChange(state.sets.map((s) => s.id === updated.id ? updated : s));
+  }
+
+  function deleteSet(id: number) {
+    onSetsChange(state.sets.filter((s) => s.id !== id));
+  }
+
+  const trackWeight   = trackedFields.includes('weight');
+  const trackReps     = trackedFields.includes('reps');
+  const trackDuration = trackedFields.includes('duration');
+  const trackDistance = trackedFields.includes('distance');
+  const trackSteps    = trackedFields.includes('steps');
+  const colFlags = [trackWeight, trackReps, trackDuration, trackDistance, trackSteps];
+
+  return (
+    <div className="bg-dram-accent/5 border border-dram-accent/30 p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-dram-accent uppercase tracking-wider">Quick Log</span>
+          <span className="text-sm text-slate-400">{state.sets.length} set{state.sets.length !== 1 ? 's' : ''}</span>
+        </div>
+        <button onClick={onDiscard} className="text-sm text-slate-500 hover:text-red-400 transition-colors">Discard</button>
+      </div>
+
+      {/* Last session reference */}
+      {lastSets.length > 0 && (
+        <div className="text-sm text-slate-500">
+          Last session: {lastSets.slice(0, 3).map((s, i) => {
+            const parts: string[] = [];
+            if (s.weightKg != null) parts.push(fmtWeight(s.weightKg) + ' lbs');
+            if (s.reps != null) parts.push(s.reps + ' reps');
+            if ((s as any).steps != null) parts.push((s as any).steps + ' stairs');
+            if (s.durationSeconds != null) parts.push(secondsToMMSS(s.durationSeconds));
+            if (s.distanceMeters != null) parts.push(fmtDistance(s.distanceMeters));
+            return <span key={i}>{i > 0 ? ' · ' : ''}{parts.join(' × ')}</span>;
+          })}
+          {lastSets.length > 3 && <span> +{lastSets.length - 3} more</span>}
+        </div>
+      )}
+
+      {/* Column headers */}
+      {state.sets.length > 0 && (
+        <div className="grid gap-2 text-sm text-slate-500"
+          style={{ gridTemplateColumns: `1.5rem ${colFlags.filter(Boolean).map(() => '1fr').join(' ')} 1.5rem` }}
+        >
+          <span />
+          {trackWeight   && <span className="text-center">lbs</span>}
+          {trackReps     && <span className="text-center">reps</span>}
+          {trackDuration && <span className="text-center">m:ss</span>}
+          {trackDistance && <span className="text-center">mi</span>}
+          {trackSteps    && <span className="text-center">steps</span>}
+          <span />
+        </div>
+      )}
+
+      {/* Set rows */}
+      <div className="space-y-2">
+        {state.sets.map((s, i) => (
+          <QuickSetRow
+            key={s.id}
+            set={s}
+            index={i}
+            workoutId={state.workoutId}
+            weId={state.weId}
+            trackedFields={trackedFields}
+            onUpdated={updateSet}
+            onDeleted={deleteSet}
+          />
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={handleAddSet}
+          disabled={addingSet}
+          className="flex-1 border border-dram-border text-slate-300 hover:border-slate-500 hover:text-white text-sm py-1.5 rounded-lg transition-colors disabled:opacity-40"
+        >
+          {addingSet ? '…' : '+ Add Set'}
+        </button>
+        <button
+          onClick={onFinish}
+          disabled={finishing}
+          className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black text-sm font-semibold py-1.5 rounded-lg transition-colors"
+        >
+          {finishing ? 'Saving…' : 'Finish'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ExerciseDetailPage() {
@@ -746,6 +1010,11 @@ export default function ExerciseDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
+  const [quickLogLastSets, setQuickLogLastSets] = useState<ExerciseSet[]>([]);
+  const [startingQuickLog, setStartingQuickLog] = useState(false);
+  const [finishingQuickLog, setFinishingQuickLog] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -780,10 +1049,56 @@ export default function ExerciseDetailPage() {
     setDeleting(true);
     try {
       await exercisesApi.deleteCustom(exercise.id);
-      navigate('/workouts?tab=exercises');
+      navigate('/workouts');
     } catch {
       setDeleting(false);
     }
+  }
+
+  async function startQuickLog() {
+    if (!exercise) return;
+    setStartingQuickLog(true);
+    try {
+      const history = await exercisesApi.getHistory(exercise.id, { limit: 1 });
+      const lastSets = history[0]?.sets ?? [];
+      const workout = await workoutsApi.create({ name: `Quick: ${exercise.name}` });
+      const we = await workoutsApi.addExercise(workout.id, exercise.id);
+      const initialSets = await Promise.all([
+        workoutsApi.addSet(workout.id, we.id, {}),
+        workoutsApi.addSet(workout.id, we.id, {}),
+        workoutsApi.addSet(workout.id, we.id, {}),
+      ]);
+      setQuickLogLastSets(lastSets as unknown as ExerciseSet[]);
+      setQuickLog({ workoutId: workout.id, weId: we.id, sets: initialSets });
+    } catch { /* ignore */ } finally {
+      setStartingQuickLog(false);
+    }
+  }
+
+  async function finishQuickLog() {
+    if (!quickLog || !id) return;
+    setFinishingQuickLog(true);
+    try {
+      const emptySets = quickLog.sets.filter(
+        (s) => s.reps === null && s.weightKg === null && s.durationSeconds === null && s.distanceMeters === null && (s as any).steps == null
+      );
+      await Promise.all(emptySets.map((s) => workoutsApi.deleteSet(quickLog.workoutId, quickLog.weId, s.id)));
+      await workoutsApi.update(quickLog.workoutId, { completed: true });
+      setQuickLog(null);
+      setHistoryKey((k) => k + 1);
+      const st = await exercisesApi.getStats(Number(id), metric);
+      setStats(st);
+      if (metric === 'heaviest_weight') setHwProgressSeries(st.progressSeries);
+    } catch { /* ignore */ } finally {
+      setFinishingQuickLog(false);
+    }
+  }
+
+  async function discardQuickLog() {
+    if (!quickLog) return;
+    if (!window.confirm('Discard this session? All logged sets will be lost.')) return;
+    try { await workoutsApi.delete(quickLog.workoutId); } catch { /* ignore */ }
+    setQuickLog(null);
   }
 
   if (loading) {
@@ -806,6 +1121,15 @@ export default function ExerciseDetailPage() {
           <div className="text-sm text-slate-500 capitalize">{exercise.category} · {exercise.exerciseType}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {!quickLog && (
+            <button
+              onClick={startQuickLog}
+              disabled={startingQuickLog}
+              className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold border border-dram-accent rounded-lg px-3 py-1 transition-colors"
+            >
+              {startingQuickLog ? '…' : '⚡ Quick Log'}
+            </button>
+          )}
           <button
             onClick={() => setShowEdit(true)}
             className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1 transition-colors"
@@ -838,8 +1162,21 @@ export default function ExerciseDetailPage() {
             <HowToTab exercise={exercise} />
           </div>
 
-          {/* Right column — Summary + History */}
+          {/* Right column — Quick Log + Summary + History */}
           <div className="p-6 space-y-6 lg:overflow-y-auto">
+            {/* Quick log panel */}
+            {quickLog && exercise && (
+              <QuickLogPanel
+                exercise={exercise}
+                lastSets={quickLogLastSets}
+                state={quickLog}
+                onSetsChange={(sets) => setQuickLog((q) => q ? { ...q, sets } : q)}
+                onFinish={finishQuickLog}
+                onDiscard={discardQuickLog}
+                finishing={finishingQuickLog}
+              />
+            )}
+
             {/* Summary */}
             <div>
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
@@ -852,7 +1189,7 @@ export default function ExerciseDetailPage() {
             {/* History */}
             <div>
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">History</div>
-              <HistoryTab exerciseId={Number(id)} />
+              <HistoryTab key={historyKey} exerciseId={Number(id)} />
             </div>
           </div>
         </div>
