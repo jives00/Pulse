@@ -41,7 +41,7 @@ const CONFIDENCE_COLORS = {
 };
 
 export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreateCustomFood }: Props) {
-  const { currentDate, addEntry } = useLogStore();
+  const { currentDate, refreshDay } = useLogStore();
 
   const [view, setView] = useState<View>(mode === 'create' ? 'create' : mealProp ? 'search' : 'meal');
   const [selectedMeal, setSelectedMeal] = useState<MealSlot | null>(mealProp ?? defaultMealByTime());
@@ -190,6 +190,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         sodium_mg: modifyResult.sodium_mg,
       });
       onClose();
+      refreshDay();
     } catch {
       setModifyError('Failed to log. Please try again.');
     } finally {
@@ -223,6 +224,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         logDate: recipeLogDate,
       });
       onClose();
+      refreshDay();
     } catch {
       // ignore
     } finally {
@@ -234,7 +236,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
     if (!selectedFood || !servingSizeId || !selectedMeal) return;
     setAdding(true);
     try {
-      await addEntry({
+      await logApi.add({
         logDate,
         meal: selectedMeal,
         foodId: selectedFood.id,
@@ -242,6 +244,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         quantity: Number(quantity) || 1,
       });
       onClose();
+      refreshDay();
     } catch {
       // ignore — TODO: show error toast
     } finally {
@@ -249,10 +252,13 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
     }
   }
 
+  const [addingFrequent, setAddingFrequent] = useState(false);
+
   async function handleFrequentSelect(food: FrequentFood) {
-    if (!selectedMeal) return;
+    if (!selectedMeal || addingFrequent) return;
+    setAddingFrequent(true);
     try {
-      await addEntry({
+      await logApi.add({
         logDate: currentDate,
         meal: selectedMeal,
         foodId: food.foodId,
@@ -260,8 +266,11 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         quantity: 1,
       });
       onClose();
+      refreshDay();
     } catch {
       // ignore
+    } finally {
+      setAddingFrequent(false);
     }
   }
 
@@ -352,6 +361,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose, onCreat
         fat_g: Number(ciFat) || 0,
       });
       onClose();
+      refreshDay();
     } catch {
       // ignore
     } finally {

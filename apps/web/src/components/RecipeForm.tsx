@@ -63,7 +63,7 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>(initialData?.type || initialType || 'cocktail');
+  const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>(initialData?.type || initialType || 'food');
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [notes, setNotes] = useState(initialData?.notes || '');

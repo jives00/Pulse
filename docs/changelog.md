@@ -4,6 +4,18 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 19, 2026
+
+### API
+
+- **log DELETE clears made-date** — deleting a food log entry that references a recipe now also removes the linked `recipe_log` row, keeping the recipe card's made-date accurate. `2f53420`
+
+### Web
+
+- **Library category filter** — food category (All, Main Dishes, Breakfast, etc.) is now a dropdown chip in the filter bar alongside Favorites/Made/Tags, replacing the old tab row. `2f53420`
+- **Food log auto-refresh** — modal closes immediately after save; page updates silently in background with no loading spinner; frequent-food taps now guarded against double-log. `2f53420`
+- **New recipe defaults to Food type** instead of Cocktail. `2f53420`
+
 ## May 18, 2026
 
 ### API

@@ -554,7 +554,23 @@ router.get('/history', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT dram_recipe_id FROM food_log WHERE id = ? AND user_id = ?',
+      [req.params.id, req.userId]
+    );
+    if (!rows.length) { res.status(404).json({ error: 'Not found' }); return; }
+
+    const recipeId = rows[0].dram_recipe_id;
     await pool.execute('DELETE FROM food_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
+
+    if (recipeId) {
+      await pool.execute(
+        `DELETE FROM recipe_log WHERE recipe_id = ? AND user_id = ?
+         ORDER BY made_at DESC LIMIT 1`,
+        [recipeId, req.userId]
+      );
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);

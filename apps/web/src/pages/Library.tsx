@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSettingsStore } from '../store/settings';
+import type { SortOption } from '../store/settings';
 import { recipesApi, tagsApi, type Recipe, type RecipeDetail as RecipeDetailType } from '@pulse/api-client';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
@@ -8,14 +9,6 @@ import RecipeForm from '../components/RecipeForm';
 import Spinner from '../components/Spinner';
 
 type CategoryFilter = '' | 'cocktail' | 'food' | 'prepackaged' | 'main' | 'side' | 'breakfast' | 'dessert';
-import type { SortOption } from '../store/settings';
-
-const FOOD_SUBCATEGORIES: [Exclude<CategoryFilter, '' | 'cocktail' | 'food' | 'prepackaged'>, string][] = [
-  ['main', 'Main Dishes'],
-  ['side', 'Side Dishes'],
-  ['breakfast', 'Breakfast'],
-  ['dessert', 'Desserts & Snacks'],
-];
 
 const FOOD_TABS = [
   { sub: '',            label: 'All'              },
@@ -160,26 +153,7 @@ export default function Library() {
             </button>
           </div>
 
-          {/* Row 2: Food tabs */}
-          {isFood && (
-            <div className="flex gap-1 mb-3">
-              {FOOD_TABS.map(({ sub: tabSub, label }) => (
-                <button
-                  key={tabSub}
-                  onClick={() => navigate(tabSub ? `/food?sub=${tabSub}` : '/food')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    sub === tabSub
-                      ? 'border-dram-accent text-dram-accent'
-                      : 'border-transparent text-dram-muted hover:text-slate-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Row 3: Search */}
+          {/* Row 2: Search */}
           <div className="mb-3">
             <input
               type="text"
@@ -190,7 +164,7 @@ export default function Library() {
             />
           </div>
 
-          {/* Row 4: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
+          {/* Row 3: Filters + Sort — isolated in FilterBar so picker state doesn't re-render the grid */}
           <div className="pb-3">
             <FilterBar
               showFavorites={showFavorites}
@@ -203,6 +177,9 @@ export default function Library() {
               sort={sort}
               setSort={setSort}
               allTags={allTags}
+              isFood={isFood}
+              sub={sub}
+              setSub={(s) => navigate(s ? `/food?sub=${s}` : '/food')}
             />
           </div>
         </div>
@@ -290,6 +267,7 @@ const FilterBar = memo(function FilterBar({
   selectedTags, toggleTag, clearTags,
   sort, setSort,
   allTags,
+  isFood, sub, setSub,
 }: {
   showFavorites: boolean;
   setShowFavorites: (v: (prev: boolean) => boolean) => void;
@@ -301,15 +279,20 @@ const FilterBar = memo(function FilterBar({
   sort: SortOption;
   setSort: (v: SortOption) => void;
   allTags: string[];
+  isFood: boolean;
+  sub: string;
+  setSub: (s: string) => void;
 }) {
   const [showMadePicker, setShowMadePicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
-  const anyPickerOpen = showMadePicker || showTagPicker;
+  const anyPickerOpen = showMadePicker || showTagPicker || showCategoryPicker;
 
   function closeAllPickers() {
     setShowMadePicker(false);
     setShowTagPicker(false);
+    setShowCategoryPicker(false);
   }
 
   useEffect(() => {
@@ -326,13 +309,35 @@ const FilterBar = memo(function FilterBar({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <FilterChip active={showFavorites} onClick={() => { setShowFavorites((v) => !v); closeAllPickers(); }}>
-        Favourites
-      </FilterChip>
+      {/* Category picker — food page only */}
+      {isFood && (
+        <div className="relative">
+          <FilterChip
+            active={sub !== ''}
+            onClick={() => { setShowCategoryPicker((v) => !v); setShowMadePicker(false); setShowTagPicker(false); }}
+          >
+            {FOOD_TABS.find((t) => t.sub === sub)?.label ?? 'Category'} ▾
+          </FilterChip>
+          {showCategoryPicker && (
+            <div className="absolute top-9 left-0 z-20 bg-dram-card border border-dram-border rounded-xl p-2 w-44 shadow-xl">
+              {FOOD_TABS.map(({ sub: s, label }) => (
+                <button
+                  key={s}
+                  onClick={() => { setSub(s); setShowCategoryPicker(false); }}
+                  className={`w-full text-left text-sm px-3 py-1.5 rounded-lg transition ${sub === s ? 'text-dram-accent bg-dram-accent/10' : 'text-gray-400 hover:text-white hover:bg-dram-border'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="relative">
         <FilterChip
           active={madeFilter !== 'all'}
-          onClick={() => { setShowMadePicker((v) => !v); setShowTagPicker(false); }}
+          onClick={() => { setShowMadePicker((v) => !v); setShowTagPicker(false); setShowCategoryPicker(false); }}
         >
           {madeFilter === 'made' ? 'Made' : madeFilter === 'not_made' ? 'Not Made' : 'Made'} ▾
         </FilterChip>
@@ -355,7 +360,7 @@ const FilterBar = memo(function FilterBar({
       <div className="relative">
         <FilterChip
           active={selectedTags.length > 0}
-          onClick={() => { setShowTagPicker((v) => !v); setShowMadePicker(false); }}
+          onClick={() => { setShowTagPicker((v) => !v); setShowMadePicker(false); setShowCategoryPicker(false); }}
         >
           Tags {selectedTags.length > 0 ? `(${selectedTags.length})` : '▾'}
         </FilterChip>
@@ -387,6 +392,10 @@ const FilterBar = memo(function FilterBar({
           </div>
         )}
       </div>
+
+      <FilterChip active={showFavorites} onClick={() => { setShowFavorites((v) => !v); closeAllPickers(); }}>
+        Favorites
+      </FilterChip>
 
       <div className="ml-auto">
         <select

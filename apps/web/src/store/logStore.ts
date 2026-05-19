@@ -13,6 +13,7 @@ interface LogState {
   loading: boolean;
   setDate: (date: string) => void;
   fetchDay: (date?: string) => Promise<void>;
+  refreshDay: (date?: string) => Promise<void>;
   addEntry: (payload: AddLogEntryPayload) => Promise<void>;
   removeEntry: (id: number) => Promise<void>;
   updateEntry: (id: number, payload: UpdateLogEntryPayload) => Promise<void>;
@@ -45,6 +46,19 @@ export const useLogStore = create<LogState>((set, get) => ({
       set({ dailyLog: log, waterDay: water });
     } finally {
       set({ loading: false });
+    }
+  },
+
+  refreshDay: async (date) => {
+    const d = date ?? get().currentDate;
+    try {
+      const [log, water] = await Promise.all([
+        logApi.getDay(d),
+        waterApi.getDay(d),
+      ]);
+      set({ dailyLog: log, waterDay: water });
+    } catch {
+      // silent — background refresh, don't disrupt the UI
     }
   },
 
