@@ -8,6 +8,9 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Routine detail redesign** — full match to exercise detail page style: dram theme throughout, Overview stats band (Sessions, Best Volume + date, Last Performed + day-of-week, Avg/Week), 3-column layout (left 2: Progress chart with Now/vs-30-days + History table, right 1: Exercises list), history rewritten as table view (Exercise | Sets | Max Weight | Avg Reps). `bf425b1`
+- **Exercise detail vs-30-days fixes** — font size matches Now (text-3xl), unit label added, spacing increased between Now and vs-30-days. `bf425b1`
+
 - **Square corners site-wide** — removed rounded-xl/2xl from all card and panel containers across every page (dashboard, workouts, routines, planning, settings, history, recipes, foods, links, exercise/workout/routine detail); also fixed `.card` CSS class which had `border-radius: 14px`. Modals, buttons, inputs, and pills retain their rounding. `64f78b4`
 - **Workouts Today card** — now flattens exercises across all of today's sessions; per-exercise type detection (stairs: count/MM:SS/pace, distance: miles/pace, strength: set count); calories attributed per-workout. `c19fd8d`
 - **Workouts layout polish** — Stats header matches Routines/Exercises style and date removed; routine and exercise grids expanded to 6 columns; Routines/Exercises sections aligned to match Stats horizontal padding; search bar and filter chips on same row in Exercises section. `c19fd8d`

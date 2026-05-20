@@ -84,7 +84,7 @@ function SummaryTab({ stats, metric, onMetricChange }: {
             </button>
           ))}
         </div>
-        <div className="flex items-start gap-6 shrink-0">
+        <div className="flex items-start gap-10 shrink-0">
           {nowValue != null && (
             <div className="text-left">
               <div className="text-sm text-dram-muted uppercase tracking-wide mb-0.5">Now</div>
@@ -96,8 +96,8 @@ function SummaryTab({ stats, metric, onMetricChange }: {
           {vs30Value != null && delta != null && (
             <div className="text-left">
               <div className="text-sm text-dram-muted uppercase tracking-wide mb-0.5">vs 30 days ago</div>
-              <div className={`text-2xl font-bold leading-none ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {delta >= 0 ? '+' : ''}{Math.round(delta)}
+              <div className={`text-3xl font-bold leading-none ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {delta >= 0 ? '+' : ''}{Math.round(delta)}<span className="text-sm font-normal opacity-70 ml-1">{yUnit}</span>
                 {deltaPct != null && (
                   <span className="text-sm font-normal opacity-70 ml-1">({deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(1)}%)</span>
                 )}
