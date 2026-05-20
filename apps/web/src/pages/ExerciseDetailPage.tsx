@@ -1,4 +1,4 @@
-import { useState, useEffect, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { exercisesApi, workoutsApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, computePlateau } from '@pulse/api-client';
@@ -997,6 +997,13 @@ function QuickLogPanel({ exercise, lastSets, state, onSetsChange, onFinish, onDi
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const EXERCISE_TYPE_LABELS: Record<string, string> = {
+  weight:     'Strength / Weight',
+  bodyweight: 'Bodyweight',
+  cardio:     'Cardio',
+  duration:   'Duration',
+};
+
 export default function ExerciseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1015,6 +1022,20 @@ export default function ExerciseDetailPage() {
   const [startingQuickLog, setStartingQuickLog] = useState(false);
   const [finishingQuickLog, setFinishingQuickLog] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [lastSessionEntry, setLastSessionEntry] = useState<ExerciseHistoryEntry | null>(null);
+
+  // Inline name editing
+  const [editingName, setEditingName] = useState(false);
+  const [name, setName] = useState('');
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Inline notes editing
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notes, setNotes] = useState('');
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
+  useEffect(() => { if (editingNotes) notesRef.current?.focus(); }, [editingNotes]);
 
   useEffect(() => {
     if (!id) return;
@@ -1023,8 +1044,17 @@ export default function ExerciseDetailPage() {
       exercisesApi.getOne(numId),
       exercisesApi.getStats(numId, 'heaviest_weight'),
       exercisesApi.getCategories(),
+      exercisesApi.getHistory(numId, { limit: 1 }),
     ])
-      .then(([ex, st, cats]) => { setExercise(ex); setStats(st); setHwProgressSeries(st.progressSeries); setCategories(cats); })
+      .then(([ex, st, cats, hist]) => {
+        setExercise(ex);
+        setStats(st);
+        setHwProgressSeries(st.progressSeries);
+        setCategories(cats);
+        setName(ex.name);
+        setNotes(ex.notes ?? '');
+        setLastSessionEntry(hist[0] ?? null);
+      })
       .catch(() => navigate('/workouts'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -1053,6 +1083,36 @@ export default function ExerciseDetailPage() {
     } catch {
       setDeleting(false);
     }
+  }
+
+  async function saveName() {
+    if (!exercise) return;
+    setEditingName(false);
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === exercise.name) { setName(exercise.name); return; }
+    try {
+      const updated = await exercisesApi.update(exercise.id, { name: trimmed });
+      setExercise(updated);
+    } catch { setName(exercise.name); }
+  }
+
+  async function saveExerciseType(newType: string) {
+    if (!exercise) return;
+    try {
+      const updated = await exercisesApi.update(exercise.id, { exerciseType: newType });
+      setExercise(updated);
+    } catch { /* ignore */ }
+  }
+
+  async function saveNotes() {
+    if (!exercise) return;
+    setEditingNotes(false);
+    const trimmed = notes.trim();
+    if (trimmed === (exercise.notes ?? '')) { setNotes(exercise.notes ?? ''); return; }
+    try {
+      const updated = await exercisesApi.update(exercise.id, { notes: trimmed || null });
+      setExercise(updated);
+    } catch { setNotes(exercise.notes ?? ''); }
   }
 
   async function startQuickLog() {
@@ -1109,37 +1169,119 @@ export default function ExerciseDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0 flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-slate-500 hover:text-slate-300 transition-colors shrink-0"
-        >
-          ←
-        </button>
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
+        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-300 transition-colors shrink-0 mt-1">←</button>
+
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-semibold text-slate-200 truncate">{exercise.name}</h1>
-          <div className="text-sm text-slate-500 capitalize">{exercise.category} · {exercise.exerciseType}</div>
+          {/* Inline name */}
+          {editingName ? (
+            <input
+              ref={nameRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setName(exercise.name); } }}
+              className="w-full bg-transparent text-xl font-semibold text-slate-200 focus:outline-none border-b border-slate-600"
+            />
+          ) : (
+            <button onClick={() => setEditingName(true)} className="text-left text-xl font-semibold text-slate-200 hover:text-white transition-colors w-full truncate">
+              {exercise.name}
+            </button>
+          )}
+
+          {/* Exercise type dropdown */}
+          <div className="flex items-center gap-2 mt-0.5">
+            <select
+              value={exercise.exerciseType}
+              onChange={(e) => saveExerciseType(e.target.value)}
+              className="text-sm bg-transparent text-dram-muted border-none focus:outline-none cursor-pointer hover:text-slate-200 transition-colors"
+            >
+              {Object.entries(EXERCISE_TYPE_LABELS).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Last session stats */}
+          {(() => {
+            if (!lastSessionEntry || lastSessionEntry.sets.length === 0) return null;
+            const sets = lastSessionEntry.sets;
+            const tf = exercise.trackedFields ?? ['reps', 'weight'];
+            let primary: string | null = null;
+            let secondary: string | null = null;
+            if (tf.includes('steps')) {
+              const totalSteps = sets.reduce((sum, s) => sum + ((s as any).steps ?? 0), 0);
+              const totalDur = sets.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+              primary = totalSteps > 0 ? `${totalSteps.toLocaleString()} steps` : null;
+              secondary = totalDur > 0 ? secondsToMMSS(totalDur) : null;
+            } else if (tf.includes('distance')) {
+              const totalDist = sets.reduce((sum, s) => sum + (s.distanceMeters ?? 0), 0);
+              const totalDur = sets.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+              primary = totalDist > 0 ? fmtDistance(totalDist) : null;
+              secondary = totalDur > 0 ? secondsToMMSS(totalDur) : null;
+            } else if (tf.includes('duration')) {
+              const totalDur = sets.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+              primary = totalDur > 0 ? secondsToMMSS(totalDur) : null;
+            } else {
+              const weightsKg = sets.filter((s) => s.weightKg != null).map((s) => s.weightKg!);
+              const maxKg = weightsKg.length ? Math.max(...weightsKg) : null;
+              const totalVolKg = sets.reduce((sum, s) => sum + ((s.weightKg ?? 0) * (s.reps ?? 0)), 0);
+              primary = maxKg != null ? fmtLbs(maxKg) : null;
+              secondary = totalVolKg > 0 ? `${Math.round(totalVolKg * KG_TO_LBS).toLocaleString()} lbs vol` : null;
+            }
+            if (!primary && !secondary) return null;
+            return (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-sm text-slate-400">
+                <span>Last session:</span>
+                {primary && <span>{primary}</span>}
+                {secondary && <><span className="text-slate-600">·</span><span>{secondary}</span></>}
+              </div>
+            );
+          })()}
+
+          {/* Inline notes */}
+          {editingNotes ? (
+            <textarea
+              ref={notesRef}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveNotes}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setEditingNotes(false); setNotes(exercise.notes ?? ''); } }}
+              rows={2}
+              placeholder="Add notes…"
+              className="w-full mt-1 bg-transparent text-sm text-slate-300 focus:outline-none border-b border-slate-600 resize-none"
+            />
+          ) : (
+            <button onClick={() => setEditingNotes(true)} className="text-left text-sm mt-1 w-full transition-colors">
+              {notes
+                ? <span className="text-slate-400 hover:text-slate-200">{notes}</span>
+                : <span className="text-slate-600 hover:text-slate-400 italic">Add notes…</span>}
+            </button>
+          )}
         </div>
+
+        {/* Action buttons */}
         <div className="flex items-center gap-2 shrink-0">
           {!quickLog && (
             <button
               onClick={startQuickLog}
               disabled={startingQuickLog}
-              className="text-sm bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold border border-dram-accent rounded-lg px-3 py-1 transition-colors"
+              className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
             >
-              {startingQuickLog ? '…' : '⚡ Quick Log'}
+              {startingQuickLog ? '…' : 'Quick Log'}
             </button>
           )}
           <button
             onClick={() => setShowEdit(true)}
-            className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1 transition-colors"
+            className="border border-dram-border text-slate-300 hover:text-white rounded-lg px-3 py-2 text-sm transition-colors"
           >
             Edit
           </button>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="text-sm text-red-400 hover:text-red-300 border border-red-900/40 rounded-lg px-3 py-1 disabled:opacity-50 transition-colors"
+            className="border border-dram-border text-slate-300 hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-2 text-sm disabled:opacity-50 transition-colors"
           >
             {deleting ? '…' : 'Delete'}
           </button>

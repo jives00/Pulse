@@ -1363,7 +1363,7 @@ export default function WorkoutsPage() {
             onClick={() => setShowQuickLog(true)}
             className="border border-dram-accent text-dram-accent font-semibold px-4 py-2 rounded-lg text-sm hover:bg-dram-accent/10 transition"
           >
-            ⚡ Quick Log
+            Quick Log
           </button>
           <button
             onClick={() => routinesTabRef.current?.openCreate()}
