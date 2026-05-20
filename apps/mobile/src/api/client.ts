@@ -613,11 +613,83 @@ export async function updateProfile(token: string, data: Partial<UserProfile>): 
   await handle(res);
 }
 
-// Nutrition goals
+// Nutrition goals (wrapper for /user-goals endpoints)
 export interface NutritionGoals { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz?: number; }
 export async function saveNutritionGoals(token: string, data: NutritionGoals): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/goals`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
-  await handle(res);
+  // Fetch existing goals to get IDs if they exist
+  const res = await fetch(`${API_BASE}/api/user-goals`, { headers: headers(token) });
+  const allGoals = await handle<any[]>(res);
+
+  // Nutrition goals: map old format to new sourceKey format
+  const nutritionGoals = [
+    { sourceKey: 'calories', name: 'Calories', value: data.calories, unit: 'kcal' },
+    { sourceKey: 'carbs_g', name: 'Carbs', value: data.carbsG, unit: 'g' },
+    { sourceKey: 'protein_g', name: 'Protein', value: data.proteinG, unit: 'g' },
+    { sourceKey: 'fat_g', name: 'Fat', value: data.fatG, unit: 'g' },
+  ];
+
+  for (const goal of nutritionGoals) {
+    const existing = allGoals.find((g) => g.sourceKey === goal.sourceKey);
+    const payload = {
+      name: goal.name,
+      metricType: 'nutrition_daily_avg' as const,
+      sourceType: 'nutrition' as const,
+      sourceId: null,
+      sourceKey: goal.sourceKey,
+      targetValue: goal.value,
+      unit: goal.unit,
+      targetDate: null,
+    };
+
+    if (existing) {
+      // Update existing goal
+      const updateRes = await fetch(`${API_BASE}/api/user-goals/${existing.id}`, {
+        method: 'PUT',
+        headers: headers(token),
+        body: JSON.stringify({ targetValue: goal.value }),
+      });
+      await handle(updateRes);
+    } else {
+      // Create new goal
+      const createRes = await fetch(`${API_BASE}/api/user-goals`, {
+        method: 'POST',
+        headers: headers(token),
+        body: JSON.stringify(payload),
+      });
+      await handle(createRes);
+    }
+  }
+
+  // Handle water goal separately if provided
+  if (data.waterGoalOz != null) {
+    const existing = allGoals.find((g) => g.sourceKey === 'water_oz');
+    const waterPayload = {
+      name: 'Water',
+      metricType: 'nutrition_daily_avg' as const,
+      sourceType: 'nutrition' as const,
+      sourceId: null,
+      sourceKey: 'water_oz',
+      targetValue: data.waterGoalOz,
+      unit: 'oz',
+      targetDate: null,
+    };
+
+    if (existing) {
+      const updateRes = await fetch(`${API_BASE}/api/user-goals/${existing.id}`, {
+        method: 'PUT',
+        headers: headers(token),
+        body: JSON.stringify({ targetValue: data.waterGoalOz }),
+      });
+      await handle(updateRes);
+    } else {
+      const createRes = await fetch(`${API_BASE}/api/user-goals`, {
+        method: 'POST',
+        headers: headers(token),
+        body: JSON.stringify(waterPayload),
+      });
+      await handle(createRes);
+    }
+  }
 }
 
 // TDEE
@@ -627,14 +699,74 @@ export async function getTDEE(token: string, date?: string): Promise<TDEEResult>
   return handle<TDEEResult>(res);
 }
 
-// Exercise goals
+// Exercise goals (wrapper for /user-goals endpoints)
 export async function getExerciseGoals(token: string): Promise<ExerciseGoals> {
-  const res = await fetch(`${API_BASE}/api/goals/exercise`, { headers: headers(token) });
-  return handle<ExerciseGoals>(res);
+  const res = await fetch(`${API_BASE}/api/user-goals`, { headers: headers(token) });
+  const allGoals = await handle<any[]>(res);
+
+  // Extract exercise goals from user goals using sourceKey
+  const workoutGoal = allGoals.find((g) => g.sourceKey === 'workouts_per_week');
+  const volumeGoal = allGoals.find((g) => g.sourceKey === 'volume_lbs_per_week');
+  const minutesGoal = allGoals.find((g) => g.sourceKey === 'minutes_per_week');
+
+  return {
+    workoutsPerWeek: workoutGoal?.targetValue ?? null,
+    minutesPerWeek: minutesGoal?.targetValue ?? null,
+    volumeLbsPerWeek: volumeGoal?.targetValue ?? null,
+  };
 }
+
 export async function saveExerciseGoals(token: string, data: ExerciseGoals): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/goals/exercise`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
-  await handle(res);
+  const res = await fetch(`${API_BASE}/api/user-goals`, { headers: headers(token) });
+  const allGoals = await handle<any[]>(res);
+
+  // Exercise goals with sourceKey mapping
+  const exerciseGoals = [
+    { sourceKey: 'workouts_per_week', name: 'Workouts per week', metricType: 'exercise_weekly_sessions', value: data.workoutsPerWeek, unit: 'sessions' },
+    { sourceKey: 'minutes_per_week', name: 'Minutes per week', metricType: 'exercise_weekly_duration', value: data.minutesPerWeek, unit: 'minutes' },
+    { sourceKey: 'volume_lbs_per_week', name: 'Volume per week', metricType: 'exercise_weekly_volume', value: data.volumeLbsPerWeek, unit: 'lbs' },
+  ];
+
+  for (const goal of exerciseGoals) {
+    const existing = allGoals.find((g) => g.sourceKey === goal.sourceKey);
+
+    if (goal.value == null) {
+      // Delete if null
+      if (existing) {
+        const deleteRes = await fetch(`${API_BASE}/api/user-goals/${existing.id}`, { method: 'DELETE', headers: headers(token) });
+        await handle(deleteRes);
+      }
+    } else {
+      const payload = {
+        name: goal.name,
+        metricType: goal.metricType,
+        sourceType: 'exercise' as const,
+        sourceId: null,
+        sourceKey: goal.sourceKey,
+        targetValue: goal.value,
+        unit: goal.unit,
+        targetDate: null,
+      };
+
+      if (existing) {
+        // Update existing goal
+        const updateRes = await fetch(`${API_BASE}/api/user-goals/${existing.id}`, {
+          method: 'PUT',
+          headers: headers(token),
+          body: JSON.stringify({ targetValue: goal.value }),
+        });
+        await handle(updateRes);
+      } else {
+        // Create new goal
+        const createRes = await fetch(`${API_BASE}/api/user-goals`, {
+          method: 'POST',
+          headers: headers(token),
+          body: JSON.stringify(payload),
+        });
+        await handle(createRes);
+      }
+    }
+  }
 }
 
 // Measurement goals

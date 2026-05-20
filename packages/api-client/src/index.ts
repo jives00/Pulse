@@ -48,7 +48,7 @@ export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet
 export type { FoodLogHistoryDay, FoodLogHistoryEntry, FrequentFood } from './endpoints/log';
 export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 export { goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi } from './endpoints/calendar';
-export { userGoalsApi } from './endpoints/user-goals';
+export { userGoalsApi, goalsByCategory, findGoalByKey, findGoalByMetric, updateNutritionGoals, updateExerciseGoals } from './endpoints/user-goals';
 export type { UserGoal, UserGoalPayload, GoalCategory, GoalMetricType, GoalSourceType } from './endpoints/user-goals';
 export type { GoalCheckpoint, DayTypePreset, DailyNutritionOverride, MealSchedule, MealScheduleEvent, MealSlotType, MealRecurrenceType, NutritionSchedule, NutritionScheduleEvent } from './endpoints/calendar';
 

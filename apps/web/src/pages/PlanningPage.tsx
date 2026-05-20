@@ -165,251 +165,7 @@ function computeETAFromSlope(latestLbs: number, targetLbs: number, slopePerWeek:
 
 // ─── Section 1: Nutrition Targets ────────────────────────────────────────────
 
-function NutritionSection({ summary, onSaved }: { summary: GoalsSummary | null; onSaved: () => void }) {
-  const goals = summary?.nutrition.goals;
-  const actual = summary?.nutrition.actual;
-  const [editing, setEditing] = useState(false);
-  const [calories, setCalories] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
-  const [fat, setFat] = useState('');
-  const [water, setWater] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  function openEdit() {
-    setCalories(String(goals?.calories ?? ''));
-    setProtein(String(goals?.proteinG ?? ''));
-    setCarbs(String(goals?.carbsG ?? ''));
-    setFat(String(goals?.fatG ?? ''));
-    setWater(goals?.waterGoalOz != null ? String(Math.round(goals.waterGoalOz / GLASS_OZ)) : '');
-    setEditing(true);
-  }
-
-  async function handleSave() {
-    if (!calories || !protein || !carbs || !fat) return;
-    setSaving(true);
-    try {
-      await goalsApi.saveNutrition({
-        calories: Number(calories),
-        proteinG: Number(protein),
-        carbsG: Number(carbs),
-        fatG: Number(fat),
-        waterGoalOz: water !== '' ? Number(water) * GLASS_OZ : undefined,
-      });
-      setEditing(false);
-      onSaved();
-    } catch { /* ignore */ } finally { setSaving(false); }
-  }
-
-  const bars = [
-    { label: 'Calories', actual: actual?.calories ?? 0, goal: goals?.calories ?? null, unit: 'kcal', color: '#D4A843' },
-    { label: 'Protein',  actual: actual?.proteinG ?? 0, goal: goals?.proteinG ?? null, unit: 'g',    color: '#60a5fa' },
-    { label: 'Carbs',    actual: actual?.carbsG ?? 0,   goal: goals?.carbsG ?? null,   unit: 'g',    color: '#34d399' },
-    { label: 'Fat',      actual: actual?.fatG ?? 0,     goal: goals?.fatG ?? null,     unit: 'g',    color: '#fb923c' },
-  ];
-
-  return (
-    <div className="bg-dram-card border border-dram-border p-5 space-y-4">
-      <SectionHeader title="Daily Nutrition Targets">
-        {!editing && (
-          <button onClick={openEdit} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
-            Edit
-          </button>
-        )}
-      </SectionHeader>
-
-      {!editing ? (
-        <div className="space-y-3">
-          {bars.map(({ label, actual: a, goal, unit, color }) => (
-            <div key={label}>
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="text-sm text-slate-300">{label}</span>
-                <span className="text-sm text-slate-400">
-                  {Math.round(a)} {unit}{goal != null ? ` / ${goal} ${unit}` : ' — no target set'}
-                </span>
-              </div>
-              <ProgressBar actual={a} goal={goal} color={color} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ['Calories (kcal)', calories, setCalories],
-              ['Protein (g)',     protein,  setProtein],
-              ['Carbs (g)',       carbs,    setCarbs],
-              ['Fat (g)',         fat,      setFat],
-              ['Water (glasses)', water,    setWater],
-            ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
-              <div key={label}>
-                <label className="block text-sm text-slate-500 mb-1">{label}</label>
-                <input type="number" min="0" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={() => setEditing(false)} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-2">Cancel</button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !calories || !protein || !carbs || !fat}
-              className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Section 2: Exercise Targets ─────────────────────────────────────────────
-
-function ExerciseSection({ summary, exGoals, onSaved }: {
-  summary: GoalsSummary | null;
-  exGoals: ExerciseGoals | null;
-  onSaved: () => void;
-}) {
-  const actual = summary?.workouts.actual;
-  const [editing, setEditing] = useState(false);
-  const [workouts, setWorkouts] = useState('');
-  const [minutes, setMinutes] = useState('');
-  const [volume, setVolume] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  function openEdit() {
-    setWorkouts(exGoals?.workoutsPerWeek != null ? String(exGoals.workoutsPerWeek) : '');
-    setMinutes(exGoals?.minutesPerWeek != null ? String(exGoals.minutesPerWeek) : '');
-    setVolume(exGoals?.volumeLbsPerWeek != null ? String(exGoals.volumeLbsPerWeek) : '');
-    setEditing(true);
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await goalsApi.saveExercise({
-        workoutsPerWeek: workouts !== '' ? Number(workouts) : null,
-        minutesPerWeek: minutes !== '' ? Number(minutes) : null,
-        volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
-      });
-      setEditing(false);
-      onSaved();
-    } catch { /* ignore */ } finally { setSaving(false); }
-  }
-
-  const bars = [
-    { label: 'Workouts this week', actual: actual?.workoutCount ?? 0, goal: exGoals?.workoutsPerWeek ?? null, unit: '' },
-    { label: 'Minutes this week',  actual: actual?.totalMinutes ?? 0, goal: exGoals?.minutesPerWeek ?? null,  unit: ' min' },
-  ];
-
-  return (
-    <div className="bg-dram-card border border-dram-border p-5 space-y-4">
-      <SectionHeader title="Weekly Exercise Targets">
-        {!editing && (
-          <button onClick={openEdit} className="text-sm text-dram-accent hover:brightness-110 transition-colors">
-            Edit
-          </button>
-        )}
-      </SectionHeader>
-
-      {!editing ? (
-        <div className="space-y-3">
-          {bars.map(({ label, actual: a, goal, unit }) => (
-            <div key={label}>
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="text-sm text-slate-300">{label}</span>
-                <span className="text-sm text-slate-400">
-                  {Math.round(a)}{unit}{goal != null ? ` / ${goal}${unit}` : ' — no target set'}
-                </span>
-              </div>
-              <ProgressBar actual={a} goal={goal} color="#a78bfa" />
-            </div>
-          ))}
-          <div className="flex justify-between items-baseline pt-1">
-            <span className="text-sm text-slate-300">Volume target</span>
-            <span className="text-sm text-slate-400">
-              {exGoals?.volumeLbsPerWeek != null ? `${exGoals.volumeLbsPerWeek} lbs / week` : '— no target set'}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">Workouts / week</label>
-              <input type="number" min="0" value={workouts} onChange={(e) => setWorkouts(e.target.value)} className={inputCls} placeholder="e.g. 4" />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">Minutes / week</label>
-              <input type="number" min="0" value={minutes} onChange={(e) => setMinutes(e.target.value)} className={inputCls} placeholder="e.g. 180" />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">Volume / week (lbs)</label>
-              <input type="number" min="0" value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls} placeholder="e.g. 10000" />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={() => setEditing(false)} className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-2">Cancel</button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Section 3: Body Measurement Goals ───────────────────────────────────────
-
-function MeasurementGoalRow({
-  metric, goal, measurements, onEdit, onDelete,
-}: {
-  metric: string;
-  goal: MeasurementGoal;
-  measurements: BodyMeasurement[];
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const cfg = METRIC_CONFIG[metric];
-  if (!cfg) return null;
-
-  const sorted = measurements
-    .filter((m) => m.metric === metric)
-    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-  const latest = sorted[0];
-  const { status, projectedDate } = computeGoalPace(measurements, metric, goal, cfg.dir);
-
-  const displayVal = latest
-    ? (metric === 'weight' && latest.unit === 'kg' ? (latest.value * 2.20462).toFixed(1) : Number(latest.value).toFixed(1))
-    : null;
-
-  return (
-    <div className="flex items-center gap-3 py-3 border-b border-dram-border last:border-0">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-medium text-slate-200">{cfg.label}</span>
-          <PaceBadge status={status} />
-        </div>
-        <div className="text-sm text-slate-400">
-          {displayVal != null ? `${displayVal} ${cfg.unit} now` : 'No data'}
-          {' → '}<span className="text-slate-300">{goal.targetValue} {cfg.unit}</span>
-          {goal.targetDate && <span className="text-slate-500"> · by {new Date(goal.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
-          {projectedDate && status !== 'done' && <span className="text-slate-500"> · proj. {projectedDate}</span>}
-        </div>
-      </div>
-      <div className="flex gap-1">
-        <button onClick={onEdit} className="text-sm text-slate-400 hover:text-slate-200 px-2 py-1 transition-colors">Edit</button>
-        <button onClick={onDelete} className="text-sm text-slate-500 hover:text-red-400 px-2 py-1 transition-colors">✕</button>
-      </div>
-    </div>
-  );
-}
+// ─── Goal Editing Helper (for measurement goals in GoalsStatsBand) ─────────
 
 function GoalEditForm({
   metric, current, onSave, onCancel,
@@ -455,86 +211,6 @@ function GoalEditForm({
           {saving ? 'Saving…' : 'Save Goal'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function MeasurementGoalsSection({
-  goals, measurements, onReload,
-}: {
-  goals: Record<string, MeasurementGoal>;
-  measurements: BodyMeasurement[];
-  onReload: () => void;
-}) {
-  const [editingMetric, setEditingMetric] = useState<string | null>(null);
-  const [addingMetric, setAddingMetric] = useState<string | null>(null);
-  const activeMetrics = ALL_METRICS.filter((m) => goals[m]);
-  const availableToAdd = ALL_METRICS.filter((m) => !goals[m]);
-
-  async function handleSave(metric: string, data: { targetValue: number; unit: string; targetDate: string | null }) {
-    await measurementsApi.setGoal(metric, data);
-    setEditingMetric(null);
-    setAddingMetric(null);
-    onReload();
-  }
-
-  async function handleDelete(metric: string) {
-    await measurementsApi.deleteGoal(metric);
-    onReload();
-  }
-
-  return (
-    <div className="bg-dram-card border border-dram-border p-5">
-      <SectionHeader title="Body Measurement Goals" />
-
-      {activeMetrics.length === 0 && !addingMetric && (
-        <p className="text-sm text-slate-500 mb-4">No measurement goals set. Add one below to start tracking.</p>
-      )}
-
-      {activeMetrics.map((metric) => (
-        <div key={metric}>
-          {editingMetric === metric ? (
-            <GoalEditForm
-              metric={metric}
-              current={goals[metric]}
-              onSave={(data) => handleSave(metric, data)}
-              onCancel={() => setEditingMetric(null)}
-            />
-          ) : (
-            <MeasurementGoalRow
-              metric={metric}
-              goal={goals[metric]}
-              measurements={measurements}
-              onEdit={() => { setEditingMetric(metric); setAddingMetric(null); }}
-              onDelete={() => handleDelete(metric)}
-            />
-          )}
-        </div>
-      ))}
-
-      {addingMetric ? (
-        <GoalEditForm
-          metric={addingMetric}
-          current={null}
-          onSave={(data) => handleSave(addingMetric, data)}
-          onCancel={() => setAddingMetric(null)}
-        />
-      ) : availableToAdd.length > 0 ? (
-        <div className="mt-3 pt-3 border-t border-dram-border">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-slate-500">Add goal:</span>
-            {availableToAdd.map((m) => (
-              <button
-                key={m}
-                onClick={() => { setAddingMetric(m); setEditingMetric(null); }}
-                className="text-sm px-2 py-1 border border-dram-border rounded-full text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
-              >
-                + {METRIC_CONFIG[m].label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -920,10 +596,9 @@ function EditForm({ fields, onSave, onCancel, saving, disabled }: {
 }
 
 function GoalsStatsBand({
-  summary, exGoals, measurementGoals, measurements, userGoals, exercisesList, routinesList, onAddGoal, onSaved,
+  summary, measurementGoals, measurements, userGoals, exercisesList, routinesList, onAddGoal, onSaved,
 }: {
   summary: GoalsSummary | null;
-  exGoals: ExerciseGoals | null;
   measurementGoals: Record<string, MeasurementGoal>;
   measurements: BodyMeasurement[];
   userGoals: UserGoal[];
@@ -967,6 +642,7 @@ function GoalsStatsBand({
   const [editingMeasurement, setEditingMeasurement] = useState<string | null>(null);
 
   const nutGoals = summary?.nutrition.goals;
+  const exGoals = summary?.workouts.goals;
   const waterGlasses = nutGoals?.waterGoalOz != null ? Math.round(nutGoals.waterGoalOz / GLASS_OZ) : null;
 
   const BODY_METRICS = ['weight', 'waist', 'bicep'] as const;
@@ -2499,7 +2175,6 @@ function ProjectionsSection({
 export default function PlanningPage() {
   const navigate = useNavigate();
   const [summary,          setSummary]          = useState<GoalsSummary | null>(null);
-  const [exGoals,          setExGoals]          = useState<ExerciseGoals | null>(null);
   const [measurementGoals, setMeasurementGoals] = useState<Record<string, MeasurementGoal>>({});
   const [measurements,     setMeasurements]     = useState<BodyMeasurement[]>([]);
   const [schedules,        setSchedules]        = useState<WorkoutSchedule[]>([]);
@@ -2514,9 +2189,8 @@ export default function PlanningPage() {
 
   async function load() {
     try {
-      const [s, eg, mg, ms, scheds, upc, routines, exs, tmplts, ugs] = await Promise.all([
+      const [s, mg, ms, scheds, upc, routines, exs, tmplts, ugs] = await Promise.all([
         goalsApi.getSummary().catch(() => null),
-        goalsApi.getExercise().catch(() => null),
         measurementsApi.getGoals().catch(() => ({})),
         measurementsApi.getAll().catch(() => []),
         schedulesApi.getAll().catch(() => []),
@@ -2527,7 +2201,6 @@ export default function PlanningPage() {
         userGoalsApi.getAll().catch(() => []),
       ]);
       setSummary(s);
-      setExGoals(eg);
       setMeasurementGoals(mg as Record<string, MeasurementGoal>);
       setMeasurements(ms as BodyMeasurement[]);
       setSchedules(scheds as WorkoutSchedule[]);
@@ -2564,7 +2237,6 @@ export default function PlanningPage() {
             </div>
             <GoalsStatsBand
               summary={summary}
-              exGoals={exGoals}
               measurementGoals={measurementGoals}
               measurements={measurements}
               userGoals={userGoals}
@@ -2610,9 +2282,6 @@ export default function PlanningPage() {
           </div>
 
           <div className="p-6 space-y-5 max-w-2xl">
-          <NutritionSection summary={summary} onSaved={load} />
-          <ExerciseSection summary={summary} exGoals={exGoals} onSaved={load} />
-          <MeasurementGoalsSection goals={measurementGoals} measurements={measurements} onReload={load} />
           <div className="flex items-center gap-3">
             <div style={{ width: 14, height: 2, background: '#D4A843' }} />
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Projections</h2>

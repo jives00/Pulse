@@ -80,12 +80,13 @@ export default function AIAssistant() {
           fat_g: p.fatG ?? 0,
         });
       } else if (action.type === 'update_nutrition_goal') {
-        await saveNutritionGoals(token, {
+        const payload = {
           calories: p.calories ?? 0,
-          proteinG: p.proteinG ?? 0,
           carbsG: p.carbsG ?? 0,
+          proteinG: p.proteinG ?? 0,
           fatG: p.fatG ?? 0,
-        });
+        };
+        await saveNutritionGoals(token, payload);
       }
     } catch {
       setError('Action failed. Please try again.');

@@ -3,9 +3,11 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi, profileApi, routinesApi, GLASS_OZ, apiClient,
-  type DeleteScope, type TagDefinitions, type ExerciseGoals, type MeasurementGoal,
-  type UserProfile, type ActivityLevel, type RoutineSummary, type RoutineGoal,
+  authApi, tagsApi, goalsApi, measurementsApi, profileApi, routinesApi, userGoalsApi,
+  goalsByCategory, findGoalByKey, findGoalByMetric, updateNutritionGoals, updateExerciseGoals,
+  GLASS_OZ, apiClient,
+  type DeleteScope, type TagDefinitions, type MeasurementGoal,
+  type UserProfile, type ActivityLevel, type RoutineSummary, type RoutineGoal, type UserGoal,
 } from '@pulse/api-client';
 
 // ─── Shared primitives ────────────────────────────────────────
@@ -277,9 +279,9 @@ function GoalsTab() {
   const [waterGlasses, setWaterGlasses] = useState('');
 
   // Exercise goals
-  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [volume, setVolume] = useState('');
   const [workoutCount, setWorkoutCount] = useState('');
+  const [minutesPerWeek, setMinutesPerWeek] = useState('');
 
   // Per-routine goals
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
@@ -298,25 +300,37 @@ function GoalsTab() {
 
   useEffect(() => {
     Promise.all([
-      goalsApi.getSummary(),
-      goalsApi.getExercise(),
+      userGoalsApi.getAll(),
       measurementsApi.getGoals(),
       routinesApi.getAll(),
       routinesApi.getAllGoals(),
-    ]).then(([summary, ex, mGoalsData, rList, rGoals]) => {
-      const n = summary.nutrition.goals;
-      if (n) {
-        setCalories(String(n.calories ?? ''));
-        setCarbsG(String(n.carbsG ?? ''));
-        setProteinG(String(n.proteinG ?? ''));
-        setFatG(String(n.fatG ?? ''));
-        if (n.waterGoalOz != null) {
-          setWaterGlasses(String(Math.round(n.waterGoalOz / GLASS_OZ)));
-        }
+    ]).then(([allGoals, mGoalsData, rList, rGoals]) => {
+      // Extract nutrition goals from userGoalsApi
+      const { nutrition, exercise } = goalsByCategory(allGoals);
+      const calGoal = findGoalByKey(nutrition, 'calories');
+      const carbGoal = findGoalByKey(nutrition, 'carbs_g');
+      const proteinGoal = findGoalByKey(nutrition, 'protein_g');
+      const fatGoal = findGoalByKey(nutrition, 'fat_g');
+      const waterGoal = findGoalByKey(nutrition, 'water_oz');
+
+      setCalories(String(calGoal?.targetValue ?? ''));
+      setCarbsG(String(carbGoal?.targetValue ?? ''));
+      setProteinG(String(proteinGoal?.targetValue ?? ''));
+      setFatG(String(fatGoal?.targetValue ?? ''));
+      if (waterGoal?.targetValue != null) {
+        setWaterGlasses(String(Math.round(waterGoal.targetValue / GLASS_OZ)));
       }
-      setExGoals(ex);
-      setVolume(String(ex.volumeLbsPerWeek ?? ''));
-      setWorkoutCount(String(ex.workoutsPerWeek ?? ''));
+
+      // Extract exercise goals from userGoalsApi
+      const sessionsGoal = findGoalByMetric(exercise, 'exercise_weekly_sessions');
+      const durationGoal = findGoalByMetric(exercise, 'exercise_weekly_duration');
+      const volumeGoal = findGoalByMetric(exercise, 'exercise_weekly_volume');
+
+      setWorkoutCount(String(sessionsGoal?.targetValue ?? ''));
+      setMinutesPerWeek(String(durationGoal?.targetValue ?? ''));
+      setVolume(String(volumeGoal?.targetValue ?? ''));
+
+      // Load measurement goals
       setMGoals((prev) => {
         const updated = { ...prev };
         for (const key of DISPLAYED_METRICS) {
@@ -339,7 +353,7 @@ function GoalsTab() {
     try {
       await Promise.all([
         calories && carbsG && proteinG && fatG
-          ? goalsApi.saveNutrition({
+          ? updateNutritionGoals({
               calories: Number(calories),
               carbsG: Number(carbsG),
               proteinG: Number(proteinG),
@@ -347,9 +361,9 @@ function GoalsTab() {
               waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * GLASS_OZ : undefined,
             })
           : Promise.resolve(),
-        goalsApi.saveExercise({
+        updateExerciseGoals({
           workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
-          minutesPerWeek: exGoals?.minutesPerWeek ?? null,
+          minutesPerWeek: minutesPerWeek !== '' ? Number(minutesPerWeek) : null,
           volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
         }),
         ...DISPLAYED_METRICS.map((key) => {
@@ -407,6 +421,10 @@ function GoalsTab() {
           <div>
             <label className="block text-sm text-gray-400 mb-1">Workouts</label>
             <input type="number" min="0" value={workoutCount} onChange={(e) => setWorkoutCount(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Minutes</label>
+            <input type="number" min="0" value={minutesPerWeek} onChange={(e) => setMinutesPerWeek(e.target.value)} className={inputCls} placeholder="e.g. 300" />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">Volume (lbs)</label>

@@ -8,10 +8,15 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Goals system refactor** — Removed redundant old-style goal editing UI from PlanningPage and WorkoutsPage; SettingsPage migrated to new userGoalsApi for nutrition and exercise goal management; old goalsApi routes remain for backward compatibility with dashboard displays. `4b63709`
 - **Planning goals overhaul** — Goals section moved above calendar; redesigned as 4-column layout (Body Composition, Daily Nutrition, Weekly Nutrition, Weekly Exercise); clicking any stat row or goal name opens edit modal; empty system goal rows hidden; removed separate Edit buttons. `ae50402`
 - **Custom user-defined goals** — New goal system: name any goal, pick metric type (max weight, volume, reps, steps, distance, duration, sessions, body measurement, nutrition avg), choose source exercise or routine, set target value and optional date; goals appear on the matching card (body/nutrition/exercise). `ae50402`
 - **Weekly nutrition goals** — Weekly targets editable independently; default is daily × 7 (shown as "Based on daily × 7"); user can override; stored as nullable columns on user_goals table. `ae50402`
 - **Planning calendar improvements** — Larger font sizes throughout; gridlines added using `border-slate-600`; nutrition schedule recurrence (once/daily/days-of-week/etc.) added to calendar day modal Nutrition tab. `ae50402`
+
+### Mobile
+
+- **Goals system refactor** — Updated api/client.ts wrapper functions (getExerciseGoals, saveNutritionGoals, saveExerciseGoals) to use new /user-goals endpoints; nutrition goals split into 4 separate goal records (calories, carbs, protein, fat); all 6 mobile screens continue to work without changes. `4b63709`
 
 ### API
 

@@ -48,3 +48,94 @@ export const userGoalsApi = {
   delete: (id: number) =>
     apiClient.delete(`/user-goals/${id}`).then(() => {}),
 };
+
+// ─── Helper functions for goal splitting/merging ──────────────────────────────
+
+export function goalsByCategory(goals: UserGoal[]) {
+  return {
+    nutrition: goals.filter(g => g.category === 'nutrition'),
+    exercise: goals.filter(g => g.category === 'exercise'),
+    body: goals.filter(g => g.category === 'body'),
+  };
+}
+
+export function findGoalByKey(goals: UserGoal[], sourceKey: string): UserGoal | undefined {
+  return goals.find(g => g.sourceKey === sourceKey);
+}
+
+export function findGoalByMetric(goals: UserGoal[], metricType: GoalMetricType): UserGoal | undefined {
+  return goals.find(g => g.metricType === metricType);
+}
+
+export async function updateNutritionGoals(data: {
+  calories: number;
+  carbsG: number;
+  proteinG: number;
+  fatG: number;
+  waterGoalOz?: number;
+}): Promise<void> {
+  const existing = await userGoalsApi.getAll();
+  const nutrition = existing.filter(g => g.category === 'nutrition');
+
+  const updates = [
+    { sourceKey: 'calories', value: data.calories, unit: 'kcal', label: 'Calories' },
+    { sourceKey: 'carbs_g', value: data.carbsG, unit: 'g', label: 'Carbs' },
+    { sourceKey: 'protein_g', value: data.proteinG, unit: 'g', label: 'Protein' },
+    { sourceKey: 'fat_g', value: data.fatG, unit: 'g', label: 'Fat' },
+    ...(data.waterGoalOz ? [{ sourceKey: 'water_oz', value: data.waterGoalOz, unit: 'oz', label: 'Water' }] : []),
+  ];
+
+  for (const { sourceKey, value, unit, label } of updates) {
+    const goal = findGoalByKey(nutrition, sourceKey);
+    const payload: UserGoalPayload = {
+      name: `Daily ${label}`,
+      metricType: 'nutrition_daily_avg',
+      sourceType: 'nutrition',
+      sourceId: null,
+      sourceKey,
+      targetValue: value,
+      unit,
+      targetDate: null,
+    };
+    if (goal) {
+      await userGoalsApi.update(goal.id, payload);
+    } else {
+      await userGoalsApi.create(payload);
+    }
+  }
+}
+
+export async function updateExerciseGoals(data: {
+  workoutsPerWeek?: number | null;
+  minutesPerWeek?: number | null;
+  volumeLbsPerWeek?: number | null;
+}): Promise<void> {
+  const existing = await userGoalsApi.getAll();
+  const exercise = existing.filter(g => g.category === 'exercise');
+
+  const updates = [
+    { metricType: 'exercise_weekly_sessions' as GoalMetricType, value: data.workoutsPerWeek, unit: 'sessions' },
+    { metricType: 'exercise_weekly_duration' as GoalMetricType, value: data.minutesPerWeek, unit: 'minutes' },
+    { metricType: 'exercise_weekly_volume' as GoalMetricType, value: data.volumeLbsPerWeek, unit: 'lbs' },
+  ];
+
+  for (const { metricType, value, unit } of updates) {
+    if (value == null) continue;
+    const goal = findGoalByMetric(exercise, metricType);
+    const payload: UserGoalPayload = {
+      name: metricType.replace(/_/g, ' '),
+      metricType,
+      sourceType: 'exercise',
+      sourceId: null,
+      sourceKey: null,
+      targetValue: value,
+      unit,
+      targetDate: null,
+    };
+    if (goal) {
+      await userGoalsApi.update(goal.id, payload);
+    } else {
+      await userGoalsApi.create(payload);
+    }
+  }
+}
