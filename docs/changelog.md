@@ -4,6 +4,23 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 20, 2026
+
+### Web
+
+- **Planning goals overhaul** — Goals section moved above calendar; redesigned as 4-column layout (Body Composition, Daily Nutrition, Weekly Nutrition, Weekly Exercise); clicking any stat row or goal name opens edit modal; empty system goal rows hidden; removed separate Edit buttons. `ae50402`
+- **Custom user-defined goals** — New goal system: name any goal, pick metric type (max weight, volume, reps, steps, distance, duration, sessions, body measurement, nutrition avg), choose source exercise or routine, set target value and optional date; goals appear on the matching card (body/nutrition/exercise). `ae50402`
+- **Weekly nutrition goals** — Weekly targets editable independently; default is daily × 7 (shown as "Based on daily × 7"); user can override; stored as nullable columns on user_goals table. `ae50402`
+- **Planning calendar improvements** — Larger font sizes throughout; gridlines added using `border-slate-600`; nutrition schedule recurrence (once/daily/days-of-week/etc.) added to calendar day modal Nutrition tab. `ae50402`
+
+### API
+
+- **Custom goals route** — New `GET/POST/PUT/DELETE /api/user-goals` backed by `custom_goals` table; category auto-derived from metric type server-side; JOINs exercises and workout_routines to resolve source name. `ae50402`
+- **Nutrition schedules route** — New `GET/POST/PUT/DELETE /api/nutrition-schedules` with full recurrence expansion (`/upcoming?days=N`). `ae50402`
+- **Weekly nutrition PATCH** — `PATCH /api/goals/weekly` updates only weekly nutrition columns on the current user_goals row without creating a new row. `ae50402`
+- **Goals summary weekly fields** — `GET /api/goals/summary` now includes `weeklyCalories`, `weeklyProteinG`, `weeklyCarbsG`, `weeklyFatG`, `weeklyWaterGoalOz` inside `nutrition.goals`. `ae50402`
+- **Migrations 026–032** — Schedule exercise, goal checkpoints, day types + nutrition overrides, meal schedules, nutrition schedules, custom goals, weekly nutrition columns. `ae50402`
+
 ## May 19, 2026
 
 ### Web

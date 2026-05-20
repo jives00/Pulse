@@ -6,6 +6,8 @@ export interface WorkoutSchedule {
   id: number;
   routineId: number | null;
   routineName: string | null;
+  exerciseId: number | null;
+  exerciseName: string | null;
   label: string | null;
   isRestDay: boolean;
   recurrenceType: RecurrenceType;
@@ -21,6 +23,8 @@ export interface UpcomingSession {
   scheduleId: number;
   routineId: number | null;
   routineName: string | null;
+  exerciseId: number | null;
+  exerciseName: string | null;
   isRestDay: boolean;
   status: 'completed' | 'skipped' | 'rest' | 'scheduled';
 }
@@ -48,6 +52,7 @@ export const schedulesApi = {
 
   create: (data: {
     routineId?: number | null;
+    exerciseId?: number | null;
     label?: string;
     isRestDay?: boolean;
     recurrenceType: RecurrenceType;
@@ -58,6 +63,7 @@ export const schedulesApi = {
 
   update: (id: number, data: Partial<{
     routineId: number | null;
+    exerciseId: number | null;
     label: string | null;
     isRestDay: boolean;
     recurrenceType: RecurrenceType;

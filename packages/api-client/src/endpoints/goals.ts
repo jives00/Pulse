@@ -8,7 +8,11 @@ export interface GoalsSummary {
   weekStart: string;
   weekEnd: string;
   nutrition: {
-    goals: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz: number } | null;
+    goals: {
+      calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz: number;
+      weeklyCalories: number | null; weeklyProteinG: number | null; weeklyCarbsG: number | null;
+      weeklyFatG: number | null; weeklyWaterGoalOz: number | null;
+    } | null;
     actual: { calories: number; carbsG: number; proteinG: number; fatG: number };
   };
   workouts: {
@@ -56,6 +60,9 @@ export const goalsApi = {
 
   saveNutrition: (data: { calories: number; carbsG: number; proteinG: number; fatG: number; waterGoalOz?: number }) =>
     apiClient.post('/goals', data).then(() => {}),
+
+  saveWeeklyNutrition: (data: { weeklyCalories?: number | null; weeklyProteinG?: number | null; weeklyCarbsG?: number | null; weeklyFatG?: number | null; weeklyWaterGoalOz?: number | null }) =>
+    apiClient.patch('/goals/weekly', data).then((r) => r.data),
 
   getExercise: () =>
     apiClient.get<ExerciseGoals>('/goals/exercise').then((r) => r.data),

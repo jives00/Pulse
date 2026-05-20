@@ -19,6 +19,11 @@ function toGoals(row: RowDataPacket) {
     fiberG: row.fiber_g ?? undefined,
     sodiumMg: row.sodium_mg ?? undefined,
     waterGoalOz: row.water_goal_oz,
+    weeklyCalories:    row.weekly_calories     ?? null,
+    weeklyProteinG:    row.weekly_protein_g    != null ? Number(row.weekly_protein_g)    : null,
+    weeklyCarbsG:      row.weekly_carbs_g      != null ? Number(row.weekly_carbs_g)      : null,
+    weeklyFatG:        row.weekly_fat_g        != null ? Number(row.weekly_fat_g)        : null,
+    weeklyWaterGoalOz: row.weekly_water_goal_oz != null ? Number(row.weekly_water_goal_oz) : null,
     effectiveFrom: row.effective_from instanceof Date
       ? row.effective_from.toISOString().slice(0, 10)
       : String(row.effective_from),
@@ -54,14 +59,19 @@ router.get('/history', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { calories, carbsG, proteinG, fatG, fiberG, sodiumMg, waterGoalOz } = req.body;
+  const { calories, carbsG, proteinG, fatG, fiberG, sodiumMg, waterGoalOz,
+          weeklyCalories, weeklyProteinG, weeklyCarbsG, weeklyFatG, weeklyWaterGoalOz } = req.body;
   const today = localDateStr();
 
   try {
     await pool.execute(
-      `INSERT INTO user_goals (user_id, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_oz, effective_from)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalOz ?? 64, today]
+      `INSERT INTO user_goals
+         (user_id, calories, carbs_g, protein_g, fat_g, fiber_g, sodium_mg, water_goal_oz,
+          weekly_calories, weekly_protein_g, weekly_carbs_g, weekly_fat_g, weekly_water_goal_oz, effective_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, calories, carbsG, proteinG, fatG, fiberG ?? null, sodiumMg ?? null, waterGoalOz ?? 64,
+       weeklyCalories ?? null, weeklyProteinG ?? null, weeklyCarbsG ?? null, weeklyFatG ?? null, weeklyWaterGoalOz ?? null,
+       today]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
@@ -71,6 +81,31 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save goals' });
+  }
+});
+
+// PATCH /api/goals/weekly — update only weekly nutrition targets on the current row
+router.patch('/weekly', async (req, res) => {
+  const { weeklyCalories, weeklyProteinG, weeklyCarbsG, weeklyFatG, weeklyWaterGoalOz } = req.body;
+  const today = localDateStr();
+  try {
+    await pool.execute(
+      `UPDATE user_goals
+       SET weekly_calories=?, weekly_protein_g=?, weekly_carbs_g=?, weekly_fat_g=?, weekly_water_goal_oz=?
+       WHERE user_id=? AND effective_from <= ?
+       ORDER BY effective_from DESC, id DESC
+       LIMIT 1`,
+      [weeklyCalories ?? null, weeklyProteinG ?? null, weeklyCarbsG ?? null, weeklyFatG ?? null, weeklyWaterGoalOz ?? null,
+       req.userId, today]
+    );
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC, id DESC LIMIT 1',
+      [req.userId, today]
+    );
+    res.json(rows.length ? toGoals(rows[0]) : {});
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save weekly goals' });
   }
 });
 
@@ -133,6 +168,11 @@ router.get('/summary', async (req, res) => {
           proteinG: goals.protein_g,
           fatG: goals.fat_g,
           waterGoalOz: goals.water_goal_oz,
+          weeklyCalories:    goals.weekly_calories    ?? null,
+          weeklyProteinG:    goals.weekly_protein_g   != null ? Number(goals.weekly_protein_g)   : null,
+          weeklyCarbsG:      goals.weekly_carbs_g     != null ? Number(goals.weekly_carbs_g)     : null,
+          weeklyFatG:        goals.weekly_fat_g       != null ? Number(goals.weekly_fat_g)       : null,
+          weeklyWaterGoalOz: goals.weekly_water_goal_oz != null ? Number(goals.weekly_water_goal_oz) : null,
         } : null,
         actual: {
           calories: Number(nutrition.calories) || 0,

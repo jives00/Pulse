@@ -81,6 +81,8 @@ function formatSchedule(r: RowDataPacket) {
     id:                   r.id,
     routineId:            r.routine_id ?? null,
     routineName:          r.routine_name ?? null,
+    exerciseId:           r.exercise_id ?? null,
+    exerciseName:         r.exercise_name ?? null,
     label:                r.label ?? null,
     isRestDay:            Boolean(r.is_rest_day),
     recurrenceType:       r.recurrence_type,
@@ -93,9 +95,10 @@ function formatSchedule(r: RowDataPacket) {
 
 async function getScheduleRow(id: number, userId: number): Promise<RowDataPacket | null> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT ws.*, wr.name AS routine_name
+    `SELECT ws.*, wr.name AS routine_name, e.name AS exercise_name
      FROM workout_schedules ws
      LEFT JOIN workout_routines wr ON wr.id = ws.routine_id
+     LEFT JOIN exercises e ON e.id = ws.exercise_id
      WHERE ws.id = ? AND ws.user_id = ?`,
     [id, userId]
   );
@@ -106,9 +109,10 @@ async function getScheduleRow(id: number, userId: number): Promise<RowDataPacket
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT ws.*, wr.name AS routine_name
+      `SELECT ws.*, wr.name AS routine_name, e.name AS exercise_name
        FROM workout_schedules ws
        LEFT JOIN workout_routines wr ON wr.id = ws.routine_id
+       LEFT JOIN exercises e ON e.id = ws.exercise_id
        WHERE ws.user_id = ?
        ORDER BY ws.start_date ASC, ws.id ASC`,
       [req.userId]
@@ -131,9 +135,10 @@ router.get('/upcoming', async (req, res) => {
 
   try {
     const [schedRows] = await pool.query<RowDataPacket[]>(
-      `SELECT ws.*, wr.name AS routine_name
+      `SELECT ws.*, wr.name AS routine_name, e.name AS exercise_name
        FROM workout_schedules ws
        LEFT JOIN workout_routines wr ON wr.id = ws.routine_id
+       LEFT JOIN exercises e ON e.id = ws.exercise_id
        WHERE ws.user_id = ?
          AND ws.start_date <= ?
          AND (ws.end_date IS NULL OR ws.end_date >= ?)
@@ -201,12 +206,14 @@ router.get('/upcoming', async (req, res) => {
           }
 
           results.push({
-            date:        d,
-            dayLabel:    DOW_NAMES[getDow(cur)],
-            scheduleId:  sched.id,
-            routineId:   sched.routine_id ?? null,
-            routineName: sched.routine_name ?? null,
-            isRestDay:   Boolean(sched.is_rest_day),
+            date:         d,
+            dayLabel:     DOW_NAMES[getDow(cur)],
+            scheduleId:   sched.id,
+            routineId:    sched.routine_id ?? null,
+            routineName:  sched.routine_name ?? null,
+            exerciseId:   sched.exercise_id ?? null,
+            exerciseName: sched.exercise_name ?? null,
+            isRestDay:    Boolean(sched.is_rest_day),
             status,
           });
         }
@@ -225,7 +232,7 @@ router.get('/upcoming', async (req, res) => {
 
 // ─── POST /api/schedules ──────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { routineId, label, isRestDay, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
+  const { routineId, exerciseId, label, isRestDay, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
 
   if (!recurrenceType || !startDate) {
     res.status(400).json({ error: 'recurrenceType and startDate required' }); return;
@@ -238,11 +245,12 @@ router.post('/', async (req, res) => {
   try {
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO workout_schedules
-         (user_id, routine_id, label, is_rest_day, recurrence_type, recurrence_config, start_date, end_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, routine_id, exercise_id, label, is_rest_day, recurrence_type, recurrence_config, start_date, end_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.userId,
         routineId ?? null,
+        exerciseId ?? null,
         label ?? null,
         isRestDay ? 1 : 0,
         recurrenceType,
@@ -268,11 +276,12 @@ router.put('/:id', async (req, res) => {
   const row = await getScheduleRow(id, req.userId);
   if (!row) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { routineId, label, isRestDay, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
+  const { routineId, exerciseId, label, isRestDay, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
   const updates: string[] = [];
   const values: unknown[]  = [];
 
   if (routineId    !== undefined) { updates.push('routine_id=?');        values.push(routineId ?? null); }
+  if (exerciseId   !== undefined) { updates.push('exercise_id=?');       values.push(exerciseId ?? null); }
   if (label        !== undefined) { updates.push('label=?');             values.push(label ?? null); }
   if (isRestDay    !== undefined) { updates.push('is_rest_day=?');       values.push(isRestDay ? 1 : 0); }
   if (recurrenceType !== undefined) { updates.push('recurrence_type=?'); values.push(recurrenceType); }

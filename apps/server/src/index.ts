@@ -19,10 +19,15 @@ import workoutsRoutes      from './routes/workouts';
 import exercisesRoutes     from './routes/exercises';
 import measurementsRoutes  from './routes/measurements';
 import routinesRoutes      from './routes/routines';
-import schedulesRoutes     from './routes/schedules';
-import stepsRoutes         from './routes/steps';
-import aiAssistantRoutes   from './routes/ai-assistant';
-import mealPlanRoutes      from './routes/meal-plan';
+import schedulesRoutes         from './routes/schedules';
+import stepsRoutes             from './routes/steps';
+import aiAssistantRoutes       from './routes/ai-assistant';
+import mealPlanRoutes          from './routes/meal-plan';
+import goalCheckpointsRoutes   from './routes/goal-checkpoints';
+import dayTypesRoutes          from './routes/day-types';
+import mealSchedulesRoutes          from './routes/meal-schedules';
+import nutritionSchedulesRoutes     from './routes/nutrition-schedules';
+import userGoalsRoutes              from './routes/user-goals';
 
 const app = express();
 
@@ -62,8 +67,13 @@ app.use('/api/measurements',  requireAuth, measurementsRoutes);
 app.use('/api/routines',      requireAuth, routinesRoutes);
 app.use('/api/schedules',     requireAuth, schedulesRoutes);
 app.use('/api/steps',        requireAuth, stepsRoutes);
-app.use('/api/ai/assistant', requireAuth, aiAssistantRoutes);
-app.use('/api/meal-plan',    requireAuth, mealPlanRoutes);
+app.use('/api/ai/assistant',      requireAuth, aiAssistantRoutes);
+app.use('/api/meal-plan',         requireAuth, mealPlanRoutes);
+app.use('/api/goal-checkpoints',  requireAuth, goalCheckpointsRoutes);
+app.use('/api/day-types',         requireAuth, dayTypesRoutes);
+app.use('/api/meal-schedules',         requireAuth, mealSchedulesRoutes);
+app.use('/api/nutrition-schedules',    requireAuth, nutritionSchedulesRoutes);
+app.use('/api/user-goals',             requireAuth, userGoalsRoutes);
 
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);
