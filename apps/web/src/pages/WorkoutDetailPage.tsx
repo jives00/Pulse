@@ -1,8 +1,38 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, routinesApi, type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, routinesApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
+
+function longDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getYouTubeEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return `https://www.youtube.com/embed${u.pathname}`;
+    if (u.hostname.includes('youtube.com') && u.searchParams.get('v')) return `https://www.youtube.com/embed/${u.searchParams.get('v')}`;
+  } catch { /* invalid URL */ }
+  return null;
+}
+
+function MediaEmbed({ url }: { url: string }) {
+  const embedUrl = getYouTubeEmbedUrl(url);
+  if (embedUrl) {
+    return (
+      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+        <iframe
+          src={embedUrl}
+          className="absolute inset-0 w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+  return <img src={url} alt="Exercise demo" className="w-full object-contain max-h-64" />;
+}
 
 function kgToLbs(kg: number): number {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
@@ -120,7 +150,7 @@ function SetRow({
     }
   }
 
-  const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 text-center focus:outline-none focus:border-blue-500';
+  const inputCls = 'w-full bg-dram-bg border border-dram-border rounded px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-dram-accent';
   const rowCls = isActive && !set.completed ? 'opacity-60' : '';
 
   const fieldCount = [trackWeight, trackReps, trackDuration, trackDistance, trackSteps].filter(Boolean).length;
@@ -131,7 +161,7 @@ function SetRow({
 
   return (
     <div className={`grid gap-2 items-center py-1 transition-opacity ${rowCls}`} style={{ gridTemplateColumns }}>
-      <span className="text-sm text-slate-500 text-center">{set.setNumber}</span>
+      <span className="text-sm text-dram-muted text-center">{set.setNumber}</span>
       {trackWeight && (
         <input type="number" min="0" placeholder="lbs" value={weight}
           onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
@@ -158,7 +188,7 @@ function SetRow({
           className={`w-7 h-7 rounded border-2 flex items-center justify-center transition-colors shrink-0 mx-auto ${
             set.completed
               ? 'bg-green-600 border-green-600 text-white'
-              : 'border-slate-600 text-transparent hover:border-slate-400'
+              : 'border-dram-border text-transparent hover:border-dram-muted'
           }`}
           title={set.completed ? 'Mark incomplete' : 'Mark complete'}
         >
@@ -167,7 +197,7 @@ function SetRow({
       )}
       <button
         onClick={handleDelete}
-        className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none"
+        className="text-dram-muted hover:text-red-400 transition-colors text-base leading-none"
         title="Remove set"
       >
         ✕
@@ -258,21 +288,21 @@ function ExerciseBlock({
   })();
 
   return (
-    <div className="bg-slate-800 p-4">
+    <div className="bg-dram-card border border-dram-border p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <Link
             to={`/workouts/exercises/${we.exercise.id}`}
-            className="text-base font-medium text-slate-200 hover:text-blue-400 transition-colors"
+            className="text-base font-medium text-dram-accent hover:brightness-110 transition-colors"
           >
             {we.exercise.name}
           </Link>
-          <div className="text-sm text-slate-500">{we.exercise.category}</div>
-          {lastLabel && <div className="text-sm text-slate-500 mt-0.5">{lastLabel}</div>}
+          <div className="text-sm text-dram-muted">{we.exercise.category}</div>
+          {lastLabel && <div className="text-sm text-dram-muted mt-0.5">{lastLabel}</div>}
         </div>
         <button
           onClick={() => onRemove(we.id)}
-          className="text-slate-600 hover:text-red-400 transition-colors text-sm ml-2 shrink-0"
+          className="text-dram-muted hover:text-red-400 transition-colors text-sm ml-2 shrink-0"
           title="Remove exercise"
         >
           Remove
@@ -283,12 +313,12 @@ function ExerciseBlock({
         <div className="mb-2">
           <div className="grid gap-2 mb-1" style={{ gridTemplateColumns }}>
             <span />
-            {trackWeight   && <span className="text-sm text-slate-500 text-center">lbs</span>}
-            {trackReps     && <span className="text-sm text-slate-500 text-center">reps</span>}
-            {trackDuration && <span className="text-sm text-slate-500 text-center">time</span>}
-            {trackDistance && <span className="text-sm text-slate-500 text-center">dist</span>}
-            {trackSteps    && <span className="text-sm text-slate-500 text-center">steps</span>}
-            {isActive      && <span className="text-sm text-slate-500 text-center">✓</span>}
+            {trackWeight   && <span className="text-sm text-dram-muted text-center">lbs</span>}
+            {trackReps     && <span className="text-sm text-dram-muted text-center">reps</span>}
+            {trackDuration && <span className="text-sm text-dram-muted text-center">time</span>}
+            {trackDistance && <span className="text-sm text-dram-muted text-center">dist</span>}
+            {trackSteps    && <span className="text-sm text-dram-muted text-center">steps</span>}
+            {isActive      && <span className="text-sm text-dram-muted text-center">✓</span>}
             <span />
           </div>
           {sets.map((s) => (
@@ -309,11 +339,65 @@ function ExerciseBlock({
       <button
         onClick={handleAddSet}
         disabled={adding}
-        className="w-full text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors py-1.5 border border-dashed border-slate-700 rounded"
+        className="w-full text-sm text-dram-accent hover:brightness-110 disabled:opacity-50 transition-colors py-1.5 border border-dashed border-dram-border"
       >
         {adding ? 'Adding…' : '+ Add set'}
       </button>
     </div>
+  );
+}
+
+// ─── Stats band ──────────────────────────────────────────────────────────────
+
+function WorkoutStatsBand({
+  workout, elapsedSeconds, isActive, totalVolumeLbs, routineHistory,
+}: {
+  workout: WorkoutDetail;
+  elapsedSeconds: number;
+  isActive: boolean;
+  totalVolumeLbs: number;
+  routineHistory: WorkoutSummary[];
+}) {
+  const prevSessions = routineHistory.filter((w) => w.id !== workout.id);
+  const lastSession = prevSessions[0] ?? null;
+  const bestSession = prevSessions.reduce<WorkoutSummary | null>((best, w) => {
+    if (!best) return w;
+    return (w.totalVolumeKg ?? 0) > (best.totalVolumeKg ?? 0) ? w : best;
+  }, null);
+
+  const lastVolumeLbs = lastSession ? Math.round((lastSession.totalVolumeKg ?? 0) * KG_TO_LBS) : null;
+  const bestVolumeLbs = bestSession ? Math.round((bestSession.totalVolumeKg ?? 0) * KG_TO_LBS) : null;
+
+  const timerValue = isActive
+    ? formatElapsed(elapsedSeconds)
+    : workout.durationMinutes ? `${workout.durationMinutes} min` : '—';
+  const timerSub = isActive ? 'in progress' : (workout.durationMinutes ? 'duration' : undefined);
+
+  const tiles = [
+    { label: 'Timer',        value: timerValue, sub: timerSub },
+    { label: 'Volume',       value: totalVolumeLbs > 0 ? `${Math.round(totalVolumeLbs).toLocaleString()} lbs` : '—', sub: 'this session' },
+    { label: 'Last Session', value: lastVolumeLbs != null ? `${lastVolumeLbs.toLocaleString()} lbs` : '—', sub: lastSession ? longDate(lastSession.workoutDate) : undefined },
+    { label: 'Best Session', value: bestVolumeLbs != null ? `${bestVolumeLbs.toLocaleString()} lbs` : '—', sub: bestSession ? longDate(bestSession.workoutDate) : undefined },
+  ];
+
+  return (
+    <section className="flex-shrink-0 px-9 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="flex items-center gap-3 mb-4">
+        <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Overview</h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {tiles.map((t, i) => (
+          <div key={i} className="bg-dram-card border border-dram-border px-5 py-4">
+            <div className="mb-2">
+              <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#D4A843' }}>{t.label}</span>
+            </div>
+            <div className={`text-xl font-bold text-white ${i === 0 && isActive ? 'font-mono' : ''}`}>{t.value}</div>
+            {t.sub && <div className="text-sm text-dram-muted mt-1">{t.sub}</div>}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -372,12 +456,12 @@ function ExercisePicker({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-slate-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[80vh] flex flex-col"
+        className="bg-dram-card border border-dram-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-          <h2 className="text-base font-semibold text-slate-200">Add Exercise</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+          <h2 className="text-base font-semibold text-white">Add Exercise</h2>
+          <button onClick={onClose} className="text-dram-muted hover:text-white text-xl leading-none">×</button>
         </div>
 
         <div className="px-4 pb-2 space-y-2 shrink-0">
@@ -387,12 +471,12 @@ function ExercisePicker({
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+            className="w-full bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
           />
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setCategory('')}
-              className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${!category ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
+              className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${!category ? 'bg-dram-accent text-black font-semibold' : 'border border-dram-border text-dram-muted hover:text-white'}`}
             >
               All
             </button>
@@ -400,7 +484,7 @@ function ExercisePicker({
               <button
                 key={c}
                 onClick={() => setCategory(c === category ? '' : c)}
-                className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${category === c ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`}
+                className={`shrink-0 text-sm px-3 py-1 rounded-full transition-colors ${category === c ? 'bg-dram-accent text-black font-semibold' : 'border border-dram-border text-dram-muted hover:text-white'}`}
               >
                 {c}
               </button>
@@ -409,27 +493,27 @@ function ExercisePicker({
         </div>
 
         <div className="overflow-y-auto flex-1 px-2 pb-2">
-          {loading && <div className="text-center text-sm text-slate-500 py-6">Loading…</div>}
+          {loading && <div className="text-center text-sm text-dram-muted py-6">Loading…</div>}
           {!loading && filtered.map((ex) => (
             <button
               key={ex.id}
               onClick={() => onSelect(ex)}
-              className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-700 transition-colors"
+              className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-dram-border/50 transition-colors"
             >
-              <div className="text-base text-slate-200">{ex.name}</div>
-              <div className="text-sm text-slate-500">{ex.category} · {ex.exerciseType}</div>
+              <div className="text-base text-white">{ex.name}</div>
+              <div className="text-sm text-dram-muted">{ex.category} · {ex.exerciseType}</div>
             </button>
           ))}
           {!loading && filtered.length === 0 && (
-            <div className="text-center text-sm text-slate-500 py-6">No exercises found</div>
+            <div className="text-center text-sm text-dram-muted py-6">No exercises found</div>
           )}
         </div>
 
-        <div className="px-4 pb-4 pt-2 border-t border-slate-700 shrink-0">
+        <div className="px-4 pb-4 pt-2 border-t border-dram-border shrink-0">
           {!showCreate ? (
             <button
               onClick={() => setShowCreate(true)}
-              className="w-full text-sm text-blue-400 hover:text-blue-300 transition-colors py-2 border border-dashed border-slate-700 rounded-lg"
+              className="w-full text-sm text-dram-accent hover:brightness-110 transition-colors py-2 border border-dashed border-dram-border"
             >
               + Create custom exercise
             </button>
@@ -441,19 +525,19 @@ function ExercisePicker({
                 placeholder="Exercise name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
               />
               <input
                 type="text"
                 placeholder="Category (e.g. Chest, Legs)"
                 value={newCat}
                 onChange={(e) => setNewCat(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
               />
               <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
               >
                 <option value="weight">Weight</option>
                 <option value="bodyweight">Bodyweight</option>
@@ -463,14 +547,14 @@ function ExercisePicker({
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="flex-1 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                  className="flex-1 py-2 text-sm text-dram-muted hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={creating || !newName.trim() || !newCat.trim()}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
+                  className="flex-1 bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black text-sm font-semibold rounded-lg py-2 transition-colors"
                 >
                   {creating ? 'Creating…' : 'Create & Add'}
                 </button>
@@ -491,6 +575,7 @@ export default function WorkoutDetailPage() {
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [lastSetsByExercise, setLastSetsByExercise] = useState<Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>>>({});
+  const [routineHistory, setRoutineHistory] = useState<WorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -529,16 +614,21 @@ export default function WorkoutDetailPage() {
           setElapsedSeconds(initialElapsed);
           startInterval(initialElapsed);
         }
-        if (w.routineId && !w.completed) {
-          routinesApi.get(w.routineId).then((routine) => {
-            const map: Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>> = {};
-            for (const re of routine.exercises) {
-              if (re.lastPerformedSets && re.lastPerformedSets.length > 0) {
-                map[re.exercise.id] = re.lastPerformedSets;
+        if (w.routineId) {
+          workoutsApi.getAll({ limit: 50, routineId: w.routineId })
+            .then((history) => setRoutineHistory(history))
+            .catch(() => {});
+          if (!w.completed) {
+            routinesApi.get(w.routineId).then((routine) => {
+              const map: Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>> = {};
+              for (const re of routine.exercises) {
+                if (re.lastPerformedSets && re.lastPerformedSets.length > 0) {
+                  map[re.exercise.id] = re.lastPerformedSets;
+                }
               }
-            }
-            setLastSetsByExercise(map);
-          }).catch(() => {});
+              setLastSetsByExercise(map);
+            }).catch(() => {});
+          }
         }
       })
       .catch(() => navigate('/workouts'))
@@ -653,7 +743,7 @@ export default function WorkoutDetailPage() {
   }
 
   if (loading) {
-    return <div className="text-center text-sm text-slate-500 py-12">Loading…</div>;
+    return <div className="text-center text-sm text-dram-muted py-12">Loading…</div>;
   }
 
   if (!workout) return null;
@@ -674,7 +764,7 @@ export default function WorkoutDetailPage() {
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
+          className="text-dram-muted hover:text-white transition-colors mt-0.5 shrink-0"
         >
           ←
         </button>
@@ -688,12 +778,12 @@ export default function WorkoutDetailPage() {
               onBlur={saveHeader}
               onKeyDown={(e) => { if (e.key === 'Enter') saveHeader(); if (e.key === 'Escape') { setEditingName(false); setName(workout.name ?? ''); } }}
               placeholder="Workout name (optional)"
-              className="w-full bg-transparent text-xl font-semibold text-slate-200 focus:outline-none border-b border-slate-600"
+              className="w-full bg-transparent text-xl font-semibold text-white focus:outline-none border-b border-dram-border"
             />
           ) : (
             <button
               onClick={() => setEditingName(true)}
-              className="text-left text-xl font-semibold text-slate-200 hover:text-white transition-colors w-full truncate"
+              className="text-left text-xl font-semibold text-white hover:text-white transition-colors w-full truncate"
             >
               {workout.name ?? new Date(workout.workoutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </button>
@@ -707,37 +797,36 @@ export default function WorkoutDetailPage() {
                 onBlur={saveDate}
                 onKeyDown={(e) => { if (e.key === 'Enter') saveDate(); if (e.key === 'Escape') setEditingDate(false); }}
                 autoFocus
-                className="bg-slate-800 border border-blue-500 rounded px-2 py-0.5 text-sm text-slate-300 focus:outline-none"
+                className="bg-dram-bg border border-dram-accent rounded px-2 py-0.5 text-sm text-white focus:outline-none"
               />
             ) : (
               <button
                 onClick={() => { setDateInput(workout.workoutDate); setEditingDate(true); }}
-                className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+                className="text-sm text-dram-muted hover:text-white transition-colors"
               >
                 {new Date(workout.workoutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </button>
             )}
           </div>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="text-sm text-slate-500">
+            <span className="text-sm text-dram-muted">
               {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''} · {totalSets} set{totalSets !== 1 ? 's' : ''}
             </span>
             {isActive ? (
               <>
-                <span className="text-sm font-mono text-green-400">{formatElapsed(elapsedSeconds)}</span>
                 {totalVolumeLbs > 0 && (
-                  <span className="text-sm text-slate-400">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
+                  <span className="text-sm text-dram-muted">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
                 )}
               </>
             ) : (
               <>
                 {totalVolumeLbs > 0 && (
                   <>
-                    <span className="text-slate-600 text-sm">·</span>
-                    <span className="text-sm text-slate-400">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
+                    <span className="text-dram-muted text-sm">·</span>
+                    <span className="text-sm text-dram-muted">{Math.round(totalVolumeLbs).toLocaleString()} lbs</span>
                   </>
                 )}
-                <span className="text-slate-600 text-sm">·</span>
+                <span className="text-dram-muted text-sm">·</span>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
@@ -746,14 +835,14 @@ export default function WorkoutDetailPage() {
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
                     onBlur={saveHeader}
-                    className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-sm text-slate-300 text-center focus:outline-none focus:border-blue-500"
+                    className="w-14 bg-dram-bg border border-dram-border rounded px-2 py-0.5 text-sm text-white text-center focus:outline-none focus:border-dram-accent"
                   />
-                  <span className="text-sm text-slate-500">min</span>
+                  <span className="text-sm text-dram-muted">min</span>
                 </div>
                 {workout.caloriesBurned != null && (
                   <>
-                    <span className="text-slate-600 text-sm">·</span>
-                    <span className="text-sm text-slate-500">{workout.caloriesBurned.toLocaleString()} kcal</span>
+                    <span className="text-dram-muted text-sm">·</span>
+                    <span className="text-sm text-dram-muted">{workout.caloriesBurned.toLocaleString()} kcal</span>
                   </>
                 )}
               </>
@@ -764,21 +853,21 @@ export default function WorkoutDetailPage() {
           {isActive ? (
             <button
               onClick={handleFinish}
-              className="text-sm bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-lg transition-colors"
+              className="bg-dram-accent hover:brightness-110 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
             >
               Finish
             </button>
           ) : (
             <button
               onClick={handleStartTimer}
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-sm text-dram-accent hover:brightness-110 transition-colors"
             >
               Start Timer
             </button>
           )}
           <button
             onClick={handleDelete}
-            className="text-slate-600 hover:text-red-400 transition-colors text-sm"
+            className="border border-dram-border text-dram-muted hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-1.5 text-sm transition-colors"
             title="Delete workout"
           >
             Delete
@@ -786,28 +875,63 @@ export default function WorkoutDetailPage() {
         </div>
       </div>
 
+      {/* Stats band */}
+      <WorkoutStatsBand
+        workout={workout}
+        elapsedSeconds={elapsedSeconds}
+        isActive={isActive}
+        totalVolumeLbs={totalVolumeLbs}
+        routineHistory={routineHistory}
+      />
+
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl px-6 py-5 space-y-4">
+        <div className="px-9 py-5 space-y-4">
+
+          {/* Exercises header */}
+          <div className="flex items-center gap-3">
+            <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
+              Exercises ({workout.exercises.length})
+            </h2>
+          </div>
 
       {/* Exercises */}
       {workout.exercises.map((we) => (
-        <ExerciseBlock
-          key={we.id}
-          we={we}
-          workoutId={workout.id}
-          isActive={isActive}
-          lastSets={lastSetsByExercise[we.exercise.id] ?? null}
-          onRemove={handleRemoveExercise}
-          onSetsChanged={handleSetsChanged}
-        />
+        <div key={we.id} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <ExerciseBlock
+            we={we}
+            workoutId={workout.id}
+            isActive={isActive}
+            lastSets={lastSetsByExercise[we.exercise.id] ?? null}
+            onRemove={handleRemoveExercise}
+            onSetsChanged={handleSetsChanged}
+          />
+          <div className="bg-dram-card border border-dram-border p-4 flex items-center justify-center">
+            {we.exercise.mediaUrl && (
+              <div className="w-11/12">
+                <MediaEmbed url={we.exercise.mediaUrl} />
+              </div>
+            )}
+          </div>
+          <div className="bg-dram-card border border-dram-border p-4 overflow-y-auto">
+            {we.exercise.instructions ? (
+              <>
+                <div className="text-xs font-semibold uppercase tracking-wider text-dram-muted mb-3">Instructions</div>
+                <p className="text-sm text-white whitespace-pre-line leading-relaxed">{we.exercise.instructions}</p>
+              </>
+            ) : (
+              <div className="text-sm text-dram-muted">No instructions available</div>
+            )}
+          </div>
+        </div>
       ))}
 
       {/* Add exercise button */}
       <button
         onClick={() => setShowPicker(true)}
         disabled={addingExercise}
-        className="w-full py-3 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors border border-dashed border-slate-700 rounded-lg"
+        className="w-full py-3 text-sm text-dram-accent hover:brightness-110 disabled:opacity-50 transition-colors border border-dashed border-dram-border"
       >
         {addingExercise ? 'Adding…' : '+ Add Exercise'}
       </button>

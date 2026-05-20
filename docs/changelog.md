@@ -8,6 +8,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Active workout page retheme** — replaced all slate/blue Tailwind classes with dram design system tokens (dram-card, dram-border, dram-accent, dram-muted); Finish button now uses dram-accent gold matching other header buttons. `0114775`
+- **Workout stats band** — Overview band on active workout page shows Timer, Volume (live), Last Session volume + date, and Best Session volume + date; dates spelled out (e.g. "May 10"); fetches routine history on load. `0114775`
+- **Workout 3-column exercise layout** — each exercise row now has three columns: tracker (sets/inputs), how-to image/video (pulled from exercise mediaUrl, wrapped in dram-card), and instructions text; server now returns mediaUrl and instructions in workout detail response. `0114775`
+- **Exercises section header** — gold-rule + uppercase "Exercises (N)" header added above exercise list, aligned to px-9 matching the stats band. `0114775`
+- **Workouts page stat tile colors** — "Last 7 Days" and "Steps" headers standardized to dram accent gold; Steps card progress bar, input focus, Log button, and placeholder text updated to dram theme. `0114775`
+
 - **Routine detail redesign** — full match to exercise detail page style: dram theme throughout, Overview stats band (Sessions, Best Volume + date, Last Performed + day-of-week, Avg/Week), 3-column layout (left 2: Progress chart with Now/vs-30-days + History table, right 1: Exercises list), history rewritten as table view (Exercise | Sets | Max Weight | Avg Reps). `bf425b1`
 - **Exercise detail vs-30-days fixes** — font size matches Now (text-3xl), unit label added, spacing increased between Now and vs-30-days. `bf425b1`
 

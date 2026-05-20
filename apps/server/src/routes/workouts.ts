@@ -2,6 +2,13 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { estimateCaloriesBurned } from '../services/calorieEstimation';
+import { getPresignedGetUrl } from '../services/s3';
+
+async function resolveMediaUrl(stored: string | null): Promise<string | null> {
+  if (!stored) return null;
+  if (stored.startsWith('http')) return stored;
+  return await getPresignedGetUrl(stored);
+}
 
 const router = Router();
 
@@ -32,7 +39,7 @@ export async function getWorkoutDetail(workoutId: number) {
 
   const [exRows] = await pool.query<RowDataPacket[]>(
     `SELECT we.id AS we_id, we.sort_order, we.notes AS we_notes,
-            e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields
+            e.id AS ex_id, e.name, e.category, e.exercise_type, e.muscles_primary, e.muscles_secondary, e.is_custom, e.tracked_fields, e.media_url, e.instructions
      FROM workout_exercises we
      JOIN exercises e ON e.id = we.exercise_id
      WHERE we.workout_log_id = ?
@@ -58,6 +65,8 @@ export async function getWorkoutDetail(workoutId: number) {
         musclesSecondary: ex.muscles_secondary ?? [],
         isCustom: Boolean(ex.is_custom),
         trackedFields: (ex.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
+        mediaUrl: await resolveMediaUrl(ex.media_url ?? null),
+        instructions: ex.instructions ?? null,
       },
       sets: setRows.map((s) => ({
         id: s.id,

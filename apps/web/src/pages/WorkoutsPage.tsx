@@ -1263,7 +1263,7 @@ function WorkoutHeroBanner() {
             <div className="bg-dram-card border border-dram-border px-5 py-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#60a5fa' }}>Last 7 Days</span>
+                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Last 7 Days</span>
                 </div>
                 {trendPct !== null && (
                   <span className={`text-sm font-bold ${trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -1312,14 +1312,14 @@ function WorkoutHeroBanner() {
         {/* Steps */}
         <div className="bg-dram-card border border-dram-border px-5 py-4">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#34d399' }}>Steps</span>
+            <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>Steps</span>
           </div>
           <div className="flex items-baseline gap-1 mb-2">
             <span className="text-xl font-bold text-white">{stepsCount.toLocaleString()}</span>
-            <span className="text-sm text-slate-400">/ {STEPS_GOAL.toLocaleString()}</span>
+            <span className="text-sm text-dram-muted">/ {STEPS_GOAL.toLocaleString()}</span>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden bg-emerald-400/10 mb-2">
-            <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${stepsPct * 100}%` }} />
+          <div className="h-1.5 overflow-hidden bg-dram-border mb-2">
+            <div className="h-full bg-dram-accent transition-all duration-500" style={{ width: `${stepsPct * 100}%` }} />
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -1330,12 +1330,12 @@ function WorkoutHeroBanner() {
               value={stepsInput}
               onChange={(e) => setStepsInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSaveSteps()}
-              className="flex-1 min-w-0 bg-dram-bg border border-dram-border rounded px-2 py-1 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+              className="flex-1 min-w-0 bg-dram-bg border border-dram-border rounded px-2 py-1 text-sm text-white placeholder:text-dram-muted focus:outline-none focus:border-dram-accent"
             />
             <button
               onClick={handleSaveSteps}
               disabled={savingSteps || !stepsInput}
-              className="bg-emerald-500 hover:brightness-110 disabled:opacity-40 text-black text-sm font-semibold px-3 py-1 rounded transition-colors"
+              className="bg-dram-accent hover:brightness-110 disabled:opacity-40 text-black text-sm font-semibold px-3 py-1 rounded transition-colors"
             >
               {savingSteps ? '…' : 'Log'}
             </button>
