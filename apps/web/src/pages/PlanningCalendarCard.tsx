@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   schedulesApi, goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi,
+  foodsApi, recipesApi,
   GLASS_OZ,
   type UpcomingSession, type WorkoutSchedule, type RoutineSummary, type Exercise,
   type GoalCheckpoint, type DayTypePreset, type DailyNutritionOverride,
   type MealSchedule, type MealScheduleEvent, type MealSlotType, type MealRecurrenceType,
   type NutritionSchedule, type NutritionScheduleEvent,
-  type RecurrenceType,
+  type RecurrenceType, type Food, type Recipe,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -286,7 +287,32 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [mode, setMode]             = useState<'pick' | 'configure'>('pick');
+  const [foodTab, setFoodTab]       = useState<'food' | 'recipe' | 'custom'>('food');
+  const [search, setSearch]         = useState('');
+  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [recipeResults, setRecipeResults] = useState<Recipe[]>([]);
+  const [searching, setSearching]   = useState(false);
+
+  // Selected food
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedServingId, setSelectedServingId] = useState<number | null>(null);
+  const [quantity, setQuantity]     = useState('1');
+
+  // Selected recipe
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [recipeServings, setRecipeServings] = useState('1');
+
+  // Custom label
   const [label,      setLabel]      = useState('');
+
+  // Macros (editable)
+  const [calories,   setCalories]   = useState('');
+  const [protein,    setProtein]    = useState('');
+  const [carbs,      setCarbs]      = useState('');
+  const [fat,        setFat]        = useState('');
+
+  // Recurrence
   const [mealSlot,   setMealSlot]   = useState<MealSlotType | ''>('');
   const [recType,    setRecType]    = useState<AnyRecurrence>('once');
   const [dowDays,    setDowDays]    = useState<number[]>([]);
@@ -299,13 +325,91 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
   const [endDate,    setEndDate]    = useState('');
   const [saving,     setSaving]     = useState(false);
 
+  // Search foods/recipes
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!search.trim()) { setFoodResults([]); setRecipeResults([]); return; }
+      setSearching(true);
+      try {
+        if (foodTab === 'food') {
+          setFoodResults(await foodsApi.search(search, 20));
+        } else {
+          setRecipeResults(await recipesApi.getAll({ search, type: 'food', limit: 30 }));
+        }
+      } finally { setSearching(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, foodTab]);
+
+  // Set default serving and compute macros when food selected
+  useEffect(() => {
+    if (selectedFood && selectedServingId) {
+      const def = selectedFood.servingSizes.find(s => s.isDefault) ?? selectedFood.servingSizes[0];
+      setSelectedServingId(def?.id ?? null);
+      const ss = def;
+      const qty = Number(quantity) || 1;
+      const factor = (ss.grams * qty) / 100;
+      setCalories(String(Math.round(selectedFood.nutrition.calories * factor * 100) / 100));
+      setProtein(String(Math.round(selectedFood.nutrition.protein * factor * 100) / 100));
+      setCarbs(String(Math.round(selectedFood.nutrition.carbs * factor * 100) / 100));
+      setFat(String(Math.round(selectedFood.nutrition.fat * factor * 100) / 100));
+    }
+  }, [selectedFood]);
+
+  // Recompute macros when quantity changes
+  useEffect(() => {
+    if (selectedFood && selectedServingId && quantity) {
+      const ss = selectedFood.servingSizes.find(s => s.id === selectedServingId);
+      if (ss) {
+        const qty = Number(quantity) || 1;
+        const factor = (ss.grams * qty) / 100;
+        setCalories(String(Math.round(selectedFood.nutrition.calories * factor * 100) / 100));
+        setProtein(String(Math.round(selectedFood.nutrition.protein * factor * 100) / 100));
+        setCarbs(String(Math.round(selectedFood.nutrition.carbs * factor * 100) / 100));
+        setFat(String(Math.round(selectedFood.nutrition.fat * factor * 100) / 100));
+      }
+    }
+  }, [quantity, selectedServingId, selectedFood]);
+
+  // Compute macros for recipe when selected
+  useEffect(() => {
+    if (selectedRecipe && recipeServings) {
+      const totalServings = selectedRecipe.servings || 1;
+      const factor = Number(recipeServings) / totalServings;
+      setCalories(String(Math.round(Number(selectedRecipe.calories) * factor * 100) / 100));
+      setProtein(String(Math.round(Number(selectedRecipe.protein_g) * factor * 100) / 100));
+      setCarbs(String(Math.round(Number(selectedRecipe.carbs_g) * factor * 100) / 100));
+      setFat(String(Math.round(Number(selectedRecipe.fat_g) * factor * 100) / 100));
+    }
+  }, [selectedRecipe, recipeServings]);
+
   async function handleSave() {
-    if (!label.trim()) return;
     setSaving(true);
     try {
+      const foodId = foodTab === 'food' ? selectedFood?.id : null;
+      const servingSizeId = foodTab === 'food' ? selectedServingId : null;
+      const quantityNum = foodTab === 'food' ? Number(quantity) || 1 : null;
+      const recipeId = foodTab === 'recipe' ? selectedRecipe?.id : null;
+      const recipeServingsNum = foodTab === 'recipe' ? Number(recipeServings) || 1 : null;
+      const labelText = foodTab === 'custom' ? label.trim() : (selectedFood?.name || selectedRecipe?.name || label.trim());
+
+      const caloriesNum = calories.trim() ? Number(calories) : null;
+      const proteinNum = protein.trim() ? Number(protein) : null;
+      const carbsNum = carbs.trim() ? Number(carbs) : null;
+      const fatNum = fat.trim() ? Number(fat) : null;
+
       await mealSchedulesApi.create({
         mealSlot: mealSlot || null,
-        label: label.trim(),
+        label: labelText,
+        foodId,
+        servingSizeId,
+        quantity: quantityNum,
+        recipeId,
+        recipeServings: recipeServingsNum,
+        calories: caloriesNum,
+        proteinG: proteinNum,
+        carbsG: carbsNum,
+        fatG: fatNum,
         recurrenceType: recType as MealRecurrenceType,
         recurrenceConfig: buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday),
         startDate,
@@ -315,18 +419,143 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
     } catch { /* ignore */ } finally { setSaving(false); }
   }
 
+  if (mode === 'pick') {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          {(['food', 'recipe', 'custom'] as const).map(t => (
+            <button key={t}
+              onClick={() => { setFoodTab(t); setSearch(''); setSelectedFood(null); setSelectedRecipe(null); }}
+              className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                ${foodTab === t ? 'bg-dram-accent text-black' : 'bg-dram-border text-slate-300 hover:text-slate-100'}`}>
+              {t === 'food' ? 'Food' : t === 'recipe' ? 'Recipe' : 'Custom'}
+            </button>
+          ))}
+        </div>
+
+        {foodTab !== 'custom' && (
+          <>
+            <input
+              className={inputCls}
+              placeholder={foodTab === 'food' ? 'Search foods…' : 'Search recipes…'}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelectedFood(null); setSelectedRecipe(null); }}
+              autoFocus
+            />
+
+            {!selectedFood && !selectedRecipe && (
+              <div className="max-h-52 overflow-y-auto space-y-1">
+                {searching && <p className="text-xs text-slate-500 text-center py-3">Searching…</p>}
+                {!searching && !search.trim() && <p className="text-xs text-slate-500 text-center py-3">Type to search</p>}
+                {foodTab === 'food' && !searching && foodResults.map(f => {
+                  const def = f.servingSizes.find(s => s.isDefault) ?? f.servingSizes[0];
+                  const cal = def ? Math.round(f.nutrition.calories * def.grams / 100) : null;
+                  return (
+                    <button key={f.id} onClick={() => setSelectedFood(f)}
+                      className="w-full text-left px-3 py-2 rounded hover:bg-white/5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-200 truncate">{f.name}</p>
+                        {f.brand && <p className="text-xs text-slate-500 truncate">{f.brand}</p>}
+                      </div>
+                      {cal != null && <span className="text-xs text-slate-400 shrink-0">{cal} kcal</span>}
+                    </button>
+                  );
+                })}
+                {foodTab === 'recipe' && !searching && recipeResults.map(r => (
+                  <button key={r.id} onClick={() => setSelectedRecipe(r)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-white/5 flex items-center justify-between gap-2">
+                    <p className="text-sm text-slate-200 truncate">{r.name}</p>
+                    {r.calories != null && <span className="text-xs text-slate-400 shrink-0">{Math.round(Number(r.calories))} kcal</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedFood && (
+              <div className="space-y-3">
+                <button onClick={() => setSelectedFood(null)} className="text-xs text-dram-accent hover:opacity-75">← Back</button>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Serving</label>
+                  <select value={selectedServingId ?? ''} onChange={e => setSelectedServingId(Number(e.target.value))}
+                    className={inputCls}>
+                    {selectedFood.servingSizes.map(s => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Quantity</label>
+                  <input type="number" min="0.1" step="0.1" value={quantity} onChange={e => setQuantity(e.target.value)} className={inputCls} />
+                </div>
+                <button onClick={() => setMode('configure')} className="w-full bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110">
+                  Next
+                </button>
+              </div>
+            )}
+
+            {selectedRecipe && (
+              <div className="space-y-3">
+                <button onClick={() => setSelectedRecipe(null)} className="text-xs text-dram-accent hover:opacity-75">← Back</button>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Servings</label>
+                  <input type="number" min="0.1" step="0.1" value={recipeServings} onChange={e => setRecipeServings(e.target.value)} className={inputCls} />
+                </div>
+                <button onClick={() => setMode('configure')} className="w-full bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110">
+                  Next
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {foodTab === 'custom' && (
+          <>
+            <input type="text" value={label} onChange={e => setLabel(e.target.value)} className={inputCls} placeholder="e.g. Cheat meal, Fasting" autoFocus />
+            <button onClick={() => setMode('configure')} disabled={!label.trim()} className="w-full bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50">
+              Next
+            </button>
+          </>
+        )}
+
+        <button type="button" onClick={onClose} className="w-full text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-base text-slate-500 mb-1">Label</label>
-        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} placeholder="e.g. Cheat meal, Fasting, Meal prep" autoFocus />
-      </div>
+      <button onClick={() => setMode('pick')} className="text-xs text-dram-accent hover:opacity-75">← Change food</button>
 
       <div>
         <label className="block text-base text-slate-500 mb-1">Meal slot (optional)</label>
-        <select value={mealSlot} onChange={(e) => setMealSlot(e.target.value as MealSlotType | '')} className={inputCls}>
-          {MEAL_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        <select value={mealSlot} onChange={e => setMealSlot(e.target.value as MealSlotType | '')} className={inputCls}>
+          {MEAL_SLOTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
+      </div>
+
+      {/* Macros */}
+      <div>
+        <label className="block text-base text-slate-500 mb-2">Macros (editable)</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Calories</label>
+            <input type="number" min="0" step="0.1" value={calories} onChange={e => setCalories(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Protein (g)</label>
+            <input type="number" min="0" step="0.1" value={protein} onChange={e => setProtein(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Carbs (g)</label>
+            <input type="number" min="0" step="0.1" value={carbs} onChange={e => setCarbs(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Fat (g)</label>
+            <input type="number" min="0" step="0.1" value={fat} onChange={e => setFat(e.target.value)} className={inputCls} />
+          </div>
+        </div>
       </div>
 
       <RecurrenceFields
@@ -344,7 +573,7 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
 
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onClose} className="flex-1 text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">Cancel</button>
-        <button type="button" onClick={handleSave} disabled={saving || !label.trim()}
+        <button type="button" onClick={handleSave} disabled={saving}
           className="flex-[2] bg-dram-accent text-black text-base font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
         >{saving ? 'Saving…' : 'Add Meal Event'}</button>
       </div>
@@ -670,7 +899,7 @@ function DayModal({
                       </p>
                       {sch && <p className="text-base text-slate-500">{sch.recurrenceDescription}</p>}
                     </div>
-                    <span className={`text-base px-2 py-0.5 rounded-full font-medium ${ev.status === 'completed' ? 'bg-green-500/20 text-green-400' : ev.status === 'skipped' ? 'bg-red-500/20 text-red-400' : 'bg-dram-accent/20 text-dram-accent'}`}>
+                    <span className={`text-base px-2 py-0.5 rounded-full font-medium ${ev.status === 'completed' ? 'bg-green-500/20 text-green-400' : ev.status === 'skipped' ? 'bg-red-500/20 text-red-400' : 'text-dram-accent'}`}>
                       {ev.status}
                     </span>
                     {sch && (
@@ -841,78 +1070,7 @@ function DayModal({
   );
 }
 
-// ─── Calendar Grid ────────────────────────────────────────────────────────────
-
-function DayCell({
-  dateStr,
-  isToday,
-  isOutsideMonth,
-  workoutEvents,
-  mealEvents,
-  checkpoints,
-  hasOverride,
-  onClick,
-}: {
-  dateStr: string | null;
-  isToday: boolean;
-  isOutsideMonth: boolean;
-  workoutEvents: UpcomingSession[];
-  mealEvents: MealScheduleEvent[];
-  checkpoints: GoalCheckpoint[];
-  hasOverride: boolean;
-  onClick: () => void;
-}) {
-  if (!dateStr) {
-    return <div className="min-h-[70px] bg-dram-bg/20 border-r border-b border-slate-600" />;
-  }
-
-  const dayNum = Number(dateStr.slice(8));
-  const hasWorkout = workoutEvents.some((e) => !e.isRestDay);
-  const isRestDay  = workoutEvents.some((e) => e.isRestDay);
-  const hasMeal    = mealEvents.length > 0;
-  const hasGoal    = checkpoints.length > 0;
-
-  return (
-    <button
-      onClick={onClick}
-      className={`min-h-[70px] border-r border-b border-slate-600 p-1.5 text-left flex flex-col gap-1 transition-colors w-full
-        ${isToday ? 'bg-dram-accent/20' : 'bg-transparent hover:bg-dram-card/60'}
-        ${isOutsideMonth ? 'opacity-40' : ''}`}
-    >
-      <span className={`text-base font-medium leading-none ${isToday ? 'text-dram-accent' : 'text-slate-300'}`}>
-        {dayNum}
-      </span>
-
-      {/* Event dots */}
-      <div className="flex flex-wrap gap-0.5 mt-auto">
-        {hasWorkout && (
-          <span className="w-1.5 h-1.5 rounded-full bg-dram-accent" title="Workout" />
-        )}
-        {isRestDay && (
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-500" title="Rest day" />
-        )}
-        {hasMeal && (
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400" title="Meal event" />
-        )}
-        {hasGoal && (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Goal checkpoint" />
-        )}
-        {hasOverride && (
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-400" title="Custom nutrition" />
-        )}
-      </div>
-
-      {/* First event label (compact) */}
-      {(hasWorkout || isRestDay || hasMeal) && (
-        <span className="text-sm text-slate-300 leading-tight truncate w-full font-medium">
-          {isRestDay && !hasWorkout ? 'Rest' : (workoutEvents.find((e) => !e.isRestDay)?.exerciseName ?? workoutEvents.find((e) => !e.isRestDay)?.routineName ?? (hasMeal ? mealEvents[0].label : ''))}
-        </span>
-      )}
-    </button>
-  );
-}
-
-// ─── Main Calendar Card ───────────────────────────────────────────────────────
+// ─── Main Planning Board Card ─────────────────────────────────────────────────
 
 export default function PlanningCalendarCard({
   routinesList,
@@ -924,11 +1082,6 @@ export default function PlanningCalendarCard({
   const today = todayStr();
 
   // Calendar state
-  const [monthStart, setMonthStart] = useState(() => {
-    const d = new Date(today + 'T12:00:00');
-    d.setDate(1);
-    return localDateStr(d);
-  });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Data
@@ -948,7 +1101,7 @@ export default function PlanningCalendarCard({
       const [sessions, wScheds, mEvts, mScheds, cps, presets, nScheds, nSchedEvts] = await Promise.all([
         schedulesApi.getUpcoming(60).catch(() => []),
         schedulesApi.getAll().catch(() => []),
-        mealSchedulesApi.getUpcoming(60).catch(() => []),
+        mealSchedulesApi.getUpcoming(90).catch(() => []),
         mealSchedulesApi.getAll().catch(() => []),
         goalCheckpointsApi.getAll().catch(() => []),
         dayTypesApi.getPresets().catch(() => []),
@@ -964,7 +1117,7 @@ export default function PlanningCalendarCard({
       setNutritionSchedules(nScheds as NutritionSchedule[]);
       setNutritionScheduleEvents(nSchedEvts as NutritionScheduleEvent[]);
 
-      // Load one-time overrides for ±2 months
+      // Load nutrition overrides
       const from = addDays(today, -7);
       const to   = addDays(today, 60);
       const overrides = await dayTypesApi.getOverrides(from, to).catch(() => []);
@@ -974,35 +1127,14 @@ export default function PlanningCalendarCard({
 
   useEffect(() => { load(); }, [load]);
 
-  // Build calendar grid (full weeks covering the visible month + overflow)
-  const calendarDays = (() => {
-    const start = new Date(monthStart + 'T12:00:00');
-    // Find Monday of the week containing the 1st
-    const dow = start.getDay(); // 0=Sun
-    const mondayOffset = dow === 0 ? -6 : 1 - dow;
-    const gridStart = new Date(start);
-    gridStart.setDate(start.getDate() + mondayOffset);
-
-    // Show 5 weeks (35 days) always
-    const days: (string | null)[] = [];
-    for (let i = 0; i < 35; i++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
-      days.push(localDateStr(d));
+  // Build kanban board: yesterday, today, and next 5 days (7 days total)
+  const kanbanDays = (() => {
+    const days: string[] = [];
+    for (let i = -1; i <= 5; i++) {
+      days.push(addDays(today, i));
     }
     return days;
   })();
-
-  const monthYear = new Date(monthStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  function shiftMonth(delta: number) {
-    const d = new Date(monthStart + 'T12:00:00');
-    d.setMonth(d.getMonth() + delta);
-    d.setDate(1);
-    setMonthStart(localDateStr(d));
-  }
-
-  const currentMonth = monthStart.slice(0, 7);
 
   function getEventsForDate(date: string) {
     return {
@@ -1018,92 +1150,119 @@ export default function PlanningCalendarCard({
 
   return (
     <>
-      <div className="bg-dram-card border border-slate-600 overflow-hidden">
-        {/* Gold top bar */}
-        <div className="h-[3px] bg-dram-accent" />
+      <div className="bg-dram-card border border-slate-600 overflow-hidden flex flex-col">
+        <div className="p-5 flex-1 flex flex-col">
+          <h2 className="text-base font-semibold uppercase tracking-wider text-white mb-4">Planning Board</h2>
 
-        <div className="p-5">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div style={{ width: 14, height: 2, background: '#D4A843' }} />
-              <h2 className="text-base font-semibold uppercase tracking-wider text-white">Calendar</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => shiftMonth(-1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">‹</button>
-              <span className="text-base text-slate-300 min-w-[130px] text-center">{monthYear}</span>
-              <button onClick={() => shiftMonth(1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">›</button>
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div className="flex gap-4 mb-3 flex-wrap">
-            {[
-              { color: 'bg-dram-accent', label: 'Workout' },
-              { color: 'bg-slate-500',   label: 'Rest' },
-              { color: 'bg-blue-400',    label: 'Meal event' },
-              { color: 'bg-emerald-400', label: 'Goal checkpoint' },
-              { color: 'bg-purple-400',  label: 'Custom nutrition' },
-            ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${color}`} />
-                <span className="text-base text-slate-500">{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* DOW headers */}
-          <div className="grid grid-cols-7 border-b border-slate-600 mb-0">
-            {DOW.map((d) => (
-              <div key={d} className="text-base text-slate-500 text-center py-1">{d}</div>
-            ))}
-          </div>
-
-          {/* Calendar grid */}
           {loading ? (
-            <div className="h-[350px] flex items-center justify-center text-slate-500 text-base">Loading…</div>
+            <div className="flex items-center justify-center text-slate-500 text-base h-96">Loading…</div>
           ) : (
-            <div className="grid grid-cols-7 border-l border-t border-slate-600">
-              {calendarDays.map((dateStr, i) => {
-                if (!dateStr) return <DayCell key={i} dateStr={null} isToday={false} isOutsideMonth={false} workoutEvents={[]} mealEvents={[]} checkpoints={[]} hasOverride={false} onClick={() => {}} />;
+            <div className="flex gap-3 pb-4">
+              {kanbanDays.map((dateStr) => {
                 const { workoutEvents, mealEvents: me, checkpoints: cp, nutritionOverride, nutritionScheduleEvents: nse } = getEventsForDate(dateStr);
+                const date = new Date(dateStr + 'T12:00:00');
+                const dow = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const dayNum = date.getDate();
+                const isToday = dateStr === today;
+                const isYesterday = dateStr === addDays(today, -1);
+
                 return (
-                  <DayCell
+                  <div
                     key={dateStr}
-                    dateStr={dateStr}
-                    isToday={dateStr === today}
-                    isOutsideMonth={dateStr.slice(0, 7) !== currentMonth}
-                    workoutEvents={workoutEvents}
-                    mealEvents={me}
-                    checkpoints={cp}
-                    hasOverride={nutritionOverride != null || nse.length > 0}
-                    onClick={() => setSelectedDate(dateStr)}
-                  />
+                    className={`flex-1 min-h-[420px] rounded-lg border flex flex-col ${isToday ? 'border-dram-accent/50 bg-dram-accent/10' : 'border-slate-600 bg-dram-bg/50'}`}
+                  >
+                    {/* Header */}
+                    <div className="p-3 border-b border-slate-600 flex items-start justify-between gap-2">
+                      <button
+                        onClick={() => setSelectedDate(dateStr)}
+                        className="flex-1 hover:opacity-70 transition-opacity text-left"
+                      >
+                        <div className="text-xs text-slate-500 uppercase">{dow}</div>
+                        <div className={`text-lg font-semibold ${isToday ? 'text-dram-accent' : 'text-slate-300'}`}>
+                          {dayNum}{isYesterday && <span className="text-xs ml-1 text-slate-500">(yesterday)</span>}
+                          {isToday && <span className="text-xs ml-1 text-dram-accent">(today)</span>}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setSelectedDate(dateStr)}
+                        className="shrink-0 text-dram-accent hover:text-dram-accent/70 transition-colors text-xl leading-none"
+                        title="Add event"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+                      {/* Workouts */}
+                      {workoutEvents.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Workouts</div>
+                          <div className="space-y-1">
+                            {workoutEvents.map((e) => (
+                              <div key={e.scheduleId} className="text-xs text-dram-accent rounded px-2 py-1">
+                                {e.isRestDay ? 'Rest day' : (e.exerciseName ?? e.routineName ?? 'Workout')}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Meals */}
+                      {me.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Meals</div>
+                          <div className="space-y-1">
+                            {me.map((e) => (
+                              <div key={`${e.scheduleId}-${e.date}`} className="space-y-0.5">
+                                <div className="text-xs text-blue-400">{e.label}</div>
+                                {e.calories != null && (
+                                  <div className="text-[10px] text-slate-500">
+                                    {Math.round(e.calories)} kcal · {e.proteinG?.toFixed(0)}g P · {e.carbsG?.toFixed(0)}g C · {e.fatG?.toFixed(0)}g F
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Goal checkpoints */}
+                      {cp.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Goals</div>
+                          <div className="space-y-1">
+                            {cp.map((c) => (
+                              <div key={c.id} className="text-xs text-emerald-400 rounded px-2 py-1">
+                                {METRIC_CONFIG[c.metric]?.label ?? c.metric} → {c.targetValue} {c.unit}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Nutrition override */}
+                      {(nutritionOverride || nse.length > 0) && (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Nutrition</div>
+                          <div className="space-y-1">
+                            {nutritionOverride && (
+                              <div className="text-xs text-purple-400 rounded px-2 py-1">
+                                {nutritionOverride.dayTypeName ?? 'Custom targets'}
+                              </div>
+                            )}
+                            {nse.map((e) => (
+                              <div key={e.scheduleId} className="text-xs text-purple-400 rounded px-2 py-1">
+                                {e.dayTypeName ?? 'Custom targets'}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* Upcoming goal checkpoints list */}
-          {checkpoints.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-slate-600">
-              <p className="text-base font-semibold text-slate-500 uppercase tracking-wide mb-2">Goal Checkpoints</p>
-              <div className="space-y-1">
-                {checkpoints
-                  .filter((c) => c.targetDate >= today)
-                  .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
-                  .slice(0, 6)
-                  .map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-base">
-                      <span className="text-slate-300">
-                        {METRIC_CONFIG[c.metric]?.label ?? c.metric} → {c.targetValue} {c.unit}
-                        {c.notes && <span className="text-slate-500 ml-1">· {c.notes}</span>}
-                      </span>
-                      <span className="text-slate-500 ml-3 shrink-0">{fmtShortDate(c.targetDate)}</span>
-                    </div>
-                  ))
-                }
-              </div>
             </div>
           )}
         </div>

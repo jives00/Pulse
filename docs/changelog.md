@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Meal scheduling with food/recipe selection** — Planning board AddMealScheduleForm now allows selecting existing foods, recipes, or custom labels; macros auto-populate from nutrition database when food/recipe selected, can be manually edited before save; custom labels allow manual macro entry. `d78d1b8`
 - **Goals system refactor** — Removed redundant old-style goal editing UI from PlanningPage and WorkoutsPage; SettingsPage migrated to new userGoalsApi for nutrition and exercise goal management; old goalsApi routes remain for backward compatibility with dashboard displays. `4b63709`
 - **Planning goals overhaul** — Goals section moved above calendar; redesigned as 4-column layout (Body Composition, Daily Nutrition, Weekly Nutrition, Weekly Exercise); clicking any stat row or goal name opens edit modal; empty system goal rows hidden; removed separate Edit buttons. `ae50402`
 - **Custom user-defined goals** — New goal system: name any goal, pick metric type (max weight, volume, reps, steps, distance, duration, sessions, body measurement, nutrition avg), choose source exercise or routine, set target value and optional date; goals appear on the matching card (body/nutrition/exercise). `ae50402`
@@ -20,6 +21,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Meal schedules food/recipe support** — POST and PUT endpoints now accept foodId, servingSizeId, quantity, recipeId, recipeServings, and macro fields (calories, proteinG, carbsG, fatG); macros auto-computed from food/recipe data when not manually provided; migration 030 adds columns to meal_schedules table. `d78d1b8`
 - **Custom goals route** — New `GET/POST/PUT/DELETE /api/user-goals` backed by `custom_goals` table; category auto-derived from metric type server-side; JOINs exercises and workout_routines to resolve source name. `ae50402`
 - **Nutrition schedules route** — New `GET/POST/PUT/DELETE /api/nutrition-schedules` with full recurrence expansion (`/upcoming?days=N`). `ae50402`
 - **Weekly nutrition PATCH** — `PATCH /api/goals/weekly` updates only weekly nutrition columns on the current user_goals row without creating a new row. `ae50402`

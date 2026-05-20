@@ -37,6 +37,11 @@ export interface MealSchedule {
   id: number;
   mealSlot: MealSlotType | null;
   label: string;
+  foodId?: number | null;
+  servingSizeId?: number | null;
+  quantity?: number | null;
+  recipeId?: number | null;
+  recipeServings?: number | null;
   recurrenceType: MealRecurrenceType;
   recurrenceConfig: any;
   recurrenceDescription: string;
@@ -49,6 +54,10 @@ export interface MealScheduleEvent {
   scheduleId: number;
   mealSlot: MealSlotType | null;
   label: string;
+  calories?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
 }
 
 export const goalCheckpointsApi = {
@@ -126,9 +135,37 @@ export const mealSchedulesApi = {
     apiClient.get<MealSchedule[]>('/meal-schedules').then((r) => r.data),
   getUpcoming: (days = 30) =>
     apiClient.get<MealScheduleEvent[]>(`/meal-schedules/upcoming?days=${days}`).then((r) => r.data),
-  create: (data: { mealSlot?: MealSlotType | null; label: string; recurrenceType: MealRecurrenceType; recurrenceConfig: any; startDate: string; endDate?: string | null }) =>
+  create: (data: {
+    mealSlot?: MealSlotType | null;
+    label: string;
+    foodId?: number | null;
+    servingSizeId?: number | null;
+    quantity?: number | null;
+    recipeId?: number | null;
+    recipeServings?: number | null;
+    calories?: number | null;
+    proteinG?: number | null;
+    carbsG?: number | null;
+    fatG?: number | null;
+    recurrenceType: MealRecurrenceType;
+    recurrenceConfig: any;
+    startDate: string;
+    endDate?: string | null;
+  }) =>
     apiClient.post<MealSchedule>('/meal-schedules', data).then((r) => r.data),
-  update: (id: number, data: Partial<{ mealSlot: MealSlotType | null; label: string; recurrenceType: MealRecurrenceType; recurrenceConfig: any; startDate: string; endDate: string | null }>) =>
+  update: (id: number, data: Partial<{
+    mealSlot: MealSlotType | null;
+    label: string;
+    foodId: number | null;
+    servingSizeId: number | null;
+    quantity: number | null;
+    recipeId: number | null;
+    recipeServings: number | null;
+    recurrenceType: MealRecurrenceType;
+    recurrenceConfig: any;
+    startDate: string;
+    endDate: string | null;
+  }>) =>
     apiClient.put<MealSchedule>(`/meal-schedules/${id}`, data).then((r) => r.data),
   delete: (id: number) =>
     apiClient.delete(`/meal-schedules/${id}`).then(() => {}),

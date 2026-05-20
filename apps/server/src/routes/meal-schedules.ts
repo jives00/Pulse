@@ -69,7 +69,7 @@ function matchesRecurrence(type: string, cfg: any, date: Date, startDate: Date):
 
 function fmt(r: RowDataPacket) {
   const cfg = parseConfig(r.recurrence_config);
-  return {
+  const result: any = {
     id:                   r.id,
     mealSlot:             r.meal_slot ?? null,
     label:                r.label,
@@ -79,6 +79,34 @@ function fmt(r: RowDataPacket) {
     startDate:            dateStr(r.start_date),
     endDate:              r.end_date ? dateStr(r.end_date) : null,
   };
+
+  if (r.food_id) {
+    result.foodId = r.food_id;
+    result.servingSizeId = r.serving_size_id;
+    result.quantity = r.quantity;
+  }
+  if (r.recipe_id) {
+    result.recipeId = r.recipe_id;
+    result.recipeServings = r.recipe_servings;
+  }
+
+  return result;
+}
+
+function fmtEvent(r: RowDataPacket) {
+  const result: any = {
+    date:       r.date,
+    scheduleId: r.id,
+    mealSlot:   r.meal_slot ?? null,
+    label:      r.label,
+  };
+
+  if (r.calories != null)  result.calories  = r.calories;
+  if (r.protein_g != null) result.proteinG  = r.protein_g;
+  if (r.carbs_g != null)   result.carbsG    = r.carbs_g;
+  if (r.fat_g != null)     result.fatG      = r.fat_g;
+
+  return result;
 }
 
 // GET /api/meal-schedules
@@ -121,12 +149,17 @@ router.get('/upcoming', async (req, res) => {
       while (cur <= toDate) {
         if (endDate && cur > endDate) break;
         if (matchesRecurrence(sched.recurrence_type, cfg, cur, startDate)) {
-          results.push({
+          const eventData: any = {
             date:       cur.toISOString().slice(0, 10),
-            scheduleId: sched.id,
+            id:         sched.id,
             mealSlot:   sched.meal_slot ?? null,
             label:      sched.label,
-          });
+            calories:   sched.calories,
+            protein_g:  sched.protein_g,
+            carbs_g:    sched.carbs_g,
+            fat_g:      sched.fat_g,
+          };
+          results.push(fmtEvent(eventData));
         }
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
@@ -139,15 +172,60 @@ router.get('/upcoming', async (req, res) => {
 
 // POST /api/meal-schedules
 router.post('/', async (req, res) => {
-  const { mealSlot, label, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
+  const { mealSlot, label, foodId, servingSizeId, quantity, recipeId, recipeServings, calories: calFromReq, proteinG: protFromReq, carbsG: carbsFromReq, fatG: fatFromReq, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
   if (!label || !recurrenceType || !startDate) {
     res.status(400).json({ error: 'label, recurrenceType, startDate required' }); return;
   }
+
+  let calories: number | null = calFromReq || null;
+  let proteinG: number | null = protFromReq || null;
+  let carbsG: number | null = carbsFromReq || null;
+  let fatG: number | null = fatFromReq || null;
+
   try {
+    // Only compute macros if not manually provided
+    if (!calories) {
+      // Compute macros if food selected
+      if (foodId && servingSizeId && quantity) {
+        const [foodRows] = await pool.query<RowDataPacket[]>(
+          `SELECT f.calories_per100, f.protein_per100, f.carbs_per100, f.fat_per100,
+                  ss.grams FROM foods f
+           JOIN serving_sizes ss ON f.id = ss.food_id
+           WHERE f.id = ? AND ss.id = ?`,
+          [foodId, servingSizeId]
+        );
+        if (foodRows.length > 0) {
+          const food = foodRows[0];
+          const factor = (food.grams * quantity) / 100;
+          calories = Math.round(food.calories_per100 * factor * 100) / 100;
+          proteinG = Math.round(food.protein_per100 * factor * 100) / 100;
+          carbsG = Math.round(food.carbs_per100 * factor * 100) / 100;
+          fatG = Math.round(food.fat_per100 * factor * 100) / 100;
+        }
+      }
+
+      // Compute macros if recipe selected
+      if (recipeId && recipeServings) {
+        const [recipeRows] = await pool.query<RowDataPacket[]>(
+          'SELECT calories, protein_g, carbs_g, fat_g, servings FROM recipes WHERE id = ?',
+          [recipeId]
+        );
+        if (recipeRows.length > 0) {
+          const recipe = recipeRows[0];
+          const totalServings = recipe.servings || 1;
+          const factor = recipeServings / totalServings;
+          calories = Math.round(recipe.calories * factor * 100) / 100;
+          proteinG = Math.round(recipe.protein_g * factor * 100) / 100;
+          carbsG = Math.round(recipe.carbs_g * factor * 100) / 100;
+          fatG = Math.round(recipe.fat_g * factor * 100) / 100;
+        }
+      }
+    }
+
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO meal_schedules (user_id, meal_slot, label, recurrence_type, recurrence_config, start_date, end_date)
-       VALUES (?,?,?,?,?,?,?)`,
-      [req.userId, mealSlot ?? null, label, recurrenceType, JSON.stringify(recurrenceConfig ?? {}), startDate, endDate ?? null]
+      `INSERT INTO meal_schedules (user_id, meal_slot, label, food_id, serving_size_id, quantity, recipe_id, recipe_servings, calories, protein_g, carbs_g, fat_g, recurrence_type, recurrence_config, start_date, end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [req.userId, mealSlot ?? null, label, foodId ?? null, servingSizeId ?? null, quantity ?? null, recipeId ?? null, recipeServings ?? null, calories, proteinG, carbsG, fatG, recurrenceType, JSON.stringify(recurrenceConfig ?? {}), startDate, endDate ?? null]
     );
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM meal_schedules WHERE id=?', [result.insertId]);
     res.status(201).json(fmt((rows as RowDataPacket[])[0]));
@@ -157,7 +235,7 @@ router.post('/', async (req, res) => {
 // PUT /api/meal-schedules/:id
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { mealSlot, label, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
+  const { mealSlot, label, foodId, servingSizeId, quantity, recipeId, recipeServings, recurrenceType, recurrenceConfig, startDate, endDate } = req.body;
   const updates: string[] = [];
   const values: unknown[] = [];
 
@@ -167,10 +245,66 @@ router.put('/:id', async (req, res) => {
   if (recurrenceConfig !== undefined) { updates.push('recurrence_config=?'); values.push(JSON.stringify(recurrenceConfig)); }
   if (startDate      !== undefined) { updates.push('start_date=?');        values.push(startDate); }
   if (endDate        !== undefined) { updates.push('end_date=?');          values.push(endDate ?? null); }
+  if (foodId         !== undefined) { updates.push('food_id=?');           values.push(foodId ?? null); }
+  if (servingSizeId  !== undefined) { updates.push('serving_size_id=?');   values.push(servingSizeId ?? null); }
+  if (quantity       !== undefined) { updates.push('quantity=?');          values.push(quantity ?? null); }
+  if (recipeId       !== undefined) { updates.push('recipe_id=?');         values.push(recipeId ?? null); }
+  if (recipeServings !== undefined) { updates.push('recipe_servings=?');   values.push(recipeServings ?? null); }
 
   if (!updates.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
 
   try {
+    // Recompute macros if food/recipe data is being updated
+    if (foodId !== undefined || servingSizeId !== undefined || quantity !== undefined || recipeId !== undefined || recipeServings !== undefined) {
+      let calories: number | null = null;
+      let proteinG: number | null = null;
+      let carbsG: number | null = null;
+      let fatG: number | null = null;
+
+      const foodIdToUse = foodId !== undefined ? foodId : null;
+      const servingSizeIdToUse = servingSizeId !== undefined ? servingSizeId : null;
+      const quantityToUse = quantity !== undefined ? quantity : null;
+      const recipeIdToUse = recipeId !== undefined ? recipeId : null;
+      const recipeServingsToUse = recipeServings !== undefined ? recipeServings : null;
+
+      if (foodIdToUse && servingSizeIdToUse && quantityToUse) {
+        const [foodRows] = await pool.query<RowDataPacket[]>(
+          `SELECT f.nutrition_calories, f.nutrition_protein, f.nutrition_carbs, f.nutrition_fat,
+                  ss.grams FROM foods f
+           JOIN food_serving_sizes ss ON f.id = ss.food_id
+           WHERE f.id = ? AND ss.id = ?`,
+          [foodIdToUse, servingSizeIdToUse]
+        );
+        if (foodRows.length > 0) {
+          const food = foodRows[0];
+          const factor = (food.grams * quantityToUse) / 100;
+          calories = Math.round(food.nutrition_calories * factor * 100) / 100;
+          proteinG = Math.round(food.nutrition_protein * factor * 100) / 100;
+          carbsG = Math.round(food.nutrition_carbs * factor * 100) / 100;
+          fatG = Math.round(food.nutrition_fat * factor * 100) / 100;
+        }
+      }
+
+      if (recipeIdToUse && recipeServingsToUse) {
+        const [recipeRows] = await pool.query<RowDataPacket[]>(
+          'SELECT calories, protein_g, carbs_g, fat_g, servings FROM recipes WHERE id = ?',
+          [recipeIdToUse]
+        );
+        if (recipeRows.length > 0) {
+          const recipe = recipeRows[0];
+          const totalServings = recipe.servings || 1;
+          const factor = recipeServingsToUse / totalServings;
+          calories = Math.round(recipe.calories * factor * 100) / 100;
+          proteinG = Math.round(recipe.protein_g * factor * 100) / 100;
+          carbsG = Math.round(recipe.carbs_g * factor * 100) / 100;
+          fatG = Math.round(recipe.fat_g * factor * 100) / 100;
+        }
+      }
+
+      updates.push('calories=?', 'protein_g=?', 'carbs_g=?', 'fat_g=?');
+      values.push(calories, proteinG, carbsG, fatG);
+    }
+
     values.push(id, req.userId);
     await pool.query(`UPDATE meal_schedules SET ${updates.join(', ')} WHERE id=? AND user_id=?`, values);
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM meal_schedules WHERE id=? AND user_id=?', [id, req.userId]);

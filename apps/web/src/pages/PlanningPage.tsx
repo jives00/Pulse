@@ -533,7 +533,6 @@ const ACCENT = '#D4A843';
 function GoalCard({ title, onEdit, children }: { title: string; onEdit?: () => void; children: React.ReactNode }) {
   return (
     <div className="bg-dram-card border border-dram-border overflow-hidden flex flex-col">
-      <div className="h-[3px]" style={{ background: ACCENT }} />
       <div className="px-5 py-4 flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>{title}</span>
@@ -1657,6 +1656,11 @@ function MealPlanningSection({ onPlanChange }: { onPlanChange?: () => void }) {
             <button onClick={() => shiftWeek(1)} className="text-slate-400 hover:text-slate-200 w-6 text-center">›</button>
           </div>
         </SectionHeader>
+
+        {/* Deprecation warning */}
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-3">
+          <p className="text-xs text-yellow-600 font-medium">Meal planning will be removed soon. Use meal schedules in the planning board instead.</p>
+        </div>
 
         {/* Day strip */}
         <div className="flex gap-1">
