@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Food Log page header** — renamed "Today" to "Food Log" in the page header at /nutrition/today. `482a570`
 - **Active workout page retheme** — replaced all slate/blue Tailwind classes with dram design system tokens (dram-card, dram-border, dram-accent, dram-muted); Finish button now uses dram-accent gold matching other header buttons. `0114775`
 - **Workout stats band** — Overview band on active workout page shows Timer, Volume (live), Last Session volume + date, and Best Session volume + date; dates spelled out (e.g. "May 10"); fetches routine history on load. `0114775`
 - **Workout 3-column exercise layout** — each exercise row now has three columns: tracker (sets/inputs), how-to image/video (pulled from exercise mediaUrl, wrapped in dram-card), and instructions text; server now returns mediaUrl and instructions in workout detail response. `0114775`

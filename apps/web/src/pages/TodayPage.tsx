@@ -74,7 +74,7 @@ export default function TodayPage() {
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-slate-200">Today</h1>
+          <h1 className="text-xl font-semibold text-slate-200">Food Log</h1>
           <button
             onClick={() => setDate(offsetDate(currentDate, -1))}
             className="p-1 rounded text-slate-500 hover:text-slate-200 transition-colors"
