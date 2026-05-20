@@ -18,8 +18,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### API
 
 - **log DELETE clears made-date** — deleting a food log entry that references a recipe now also removes the linked `recipe_log` row, keeping the recipe card's made-date accurate. `2f53420`
+- **Exercise personal bests** — stats endpoint now returns workout name, date, and set details (weight × reps) for heaviest lift and best set volume. `e090c74`
 
 ### Web
+
+- **Exercise detail redesign** — PB band with 4 tiles (heaviest weight, est. 1RM, best set vol, muscles); bar chart with Stats/History as gold-bar section headers; metric chips and Now/vs-30-days stats inside chart card; right column has How-To and Instructions as headers with per-line instruction spacing; all hardcoded slate colors replaced with theme tokens. `e090c74`
 
 - **Food Log redesign** — Today page updated to match reference design: tabbed FoodSearchModal (Search / Add Recipe / Describe a Meal), Band-style section headers with gold accent line, NutritionSummaryCard with 2-column layout + large donut + glass water visualization, sharp-cornered meal cards, text-sm minimum font sizes, inline date nav in header, Copy from yesterday moved to Meals band. `fbbb525`
 - **Library category filter** — food category (All, Main Dishes, Breakfast, etc.) is now a dropdown chip in the filter bar alongside Favorites/Made/Tags, replacing the old tab row. `2f53420`

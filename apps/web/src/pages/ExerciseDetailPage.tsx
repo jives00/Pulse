@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, workoutsApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, computePlateau } from '@pulse/api-client';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { exercisesApi, workoutsApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate } from '@pulse/api-client';
 
 function kgToLbs(kg: number) {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
+}
+
+function longDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function fmtLbs(kg: number | null) {
@@ -17,7 +21,6 @@ const METRICS = [
   { key: 'heaviest_weight', label: 'Heaviest Weight' },
   { key: 'one_rep_max',     label: 'Est. 1RM' },
   { key: 'best_set_volume', label: 'Best Set Vol' },
-  { key: 'session_volume',  label: 'Session Vol' },
   { key: 'total_reps',      label: 'Total Reps' },
 ] as const;
 
@@ -25,132 +28,179 @@ type MetricKey = typeof METRICS[number]['key'];
 
 // ─── Personal best tiles ──────────────────────────────────────────────────────
 
-function PBTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+// ─── Chart tooltip ────────────────────────────────────────────────────────────
+
+function ExerciseChartTooltip({ active, payload, label, unit, metricLabel }: any) {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="bg-slate-800 p-3 flex flex-col gap-0.5">
-      <div className="text-sm text-slate-400">{label}</div>
-      <div className="text-base font-semibold text-slate-100">{value}</div>
-      {sub && <div className="text-sm text-slate-400">{sub}</div>}
+    <div className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm shadow-lg">
+      <p className="font-medium mb-0.5 text-dram-muted">{longDate(String(label))}</p>
+      <p className="text-white">{Number(payload[0]?.value).toFixed(1)} {unit} — {metricLabel}</p>
     </div>
   );
 }
 
 // ─── Summary tab ─────────────────────────────────────────────────────────────
 
-function SummaryTab({ stats, metric, onMetricChange, plateauDetected }: {
+function SummaryTab({ stats, metric, onMetricChange }: {
   stats: ExerciseStats;
   metric: MetricKey;
   onMetricChange: (m: MetricKey) => void;
-  plateauDetected: boolean;
 }) {
-  const pb = stats.personalBests;
-
   const chartData = stats.progressSeries.map((p) => ({
     date: p.date,
-    // For total_reps metric, value is already in reps (no kg conversion needed)
     value: metric === 'total_reps' ? p.value : kgToLbs(p.value),
   }));
 
   const selectedMetricLabel = METRICS.find((m) => m.key === metric)?.label ?? '';
   const yUnit = metric === 'total_reps' ? 'reps' : 'lbs';
 
+  // Now = most recent data point
+  const nowValue = chartData.length > 0 ? chartData[chartData.length - 1].value : null;
+
+  // vs 30 days ago = most recent entry on or before 30 days ago
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const ago30Entry = [...chartData].filter((p) => p.date <= cutoffStr).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const vs30Value = ago30Entry?.value ?? null;
+  const delta = nowValue != null && vs30Value != null ? nowValue - vs30Value : null;
+  const deltaPct = delta != null && vs30Value != null && vs30Value !== 0 ? (delta / vs30Value) * 100 : null;
+
   return (
-    <div className="space-y-4">
-      {/* Personal bests */}
-      <div className="grid grid-cols-2 gap-2">
-        <PBTile
-          label="Heaviest Weight"
-          value={fmtLbs(pb.heaviestWeightKg)}
-          sub={pb.heaviestWeightReps != null ? `@ ${pb.heaviestWeightReps} reps` : undefined}
-        />
-        <PBTile label="Est. 1 Rep Max" value={fmtLbs(pb.estimatedOneRepMaxKg)} />
-        <PBTile label="Best Set Volume" value={fmtLbs(pb.bestSetVolumeKg)} />
-        <PBTile label="Best Session Vol" value={fmtLbs(pb.bestSessionVolumeKg)} />
-      </div>
-
-      {/* Set records */}
-      {stats.setRecords.length > 0 && (
-        <div className="bg-slate-800 overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-700">
-            <span className="text-base font-medium text-slate-200">Set Records</span>
-          </div>
-          <div className="divide-y divide-slate-700/50">
-            <div className="grid grid-cols-2 px-3 py-1.5">
-              <span className="text-sm text-slate-400">Reps</span>
-              <span className="text-sm text-slate-400">Best Weight</span>
-            </div>
-            {stats.setRecords.map((r) => (
-              <div key={r.reps} className="grid grid-cols-2 px-3 py-1.5">
-                <span className="text-sm text-slate-200">{r.reps}</span>
-                <span className="text-sm text-slate-100">{fmtLbs(r.weightKg)}</span>
-              </div>
-            ))}
-          </div>
+    <div className="bg-dram-card border border-dram-border p-4 space-y-4">
+      {/* Chips + Now/vs30 row */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex gap-1.5 flex-wrap">
+          {METRICS.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => onMetricChange(m.key)}
+              className={`shrink-0 text-sm px-3 py-1.5 rounded-full transition-colors ${
+                metric === m.key ? 'bg-dram-accent text-black font-semibold' : 'border border-dram-border text-dram-muted hover:text-white'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
-      )}
-
-      {/* Metric selector */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-        {METRICS.map((m) => (
-          <button
-            key={m.key}
-            onClick={() => onMetricChange(m.key)}
-            className={`shrink-0 text-sm px-3 py-1.5 rounded-full transition-colors ${
-              metric === m.key ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
+        <div className="flex items-start gap-6 shrink-0">
+          {nowValue != null && (
+            <div className="text-left">
+              <div className="text-sm text-dram-muted uppercase tracking-wide mb-0.5">Now</div>
+              <div className="text-3xl font-bold text-white leading-none">
+                {Math.round(nowValue)}<span className="text-sm text-dram-muted ml-1 font-normal">{yUnit}</span>
+              </div>
+            </div>
+          )}
+          {vs30Value != null && delta != null && (
+            <div className="text-left">
+              <div className="text-sm text-dram-muted uppercase tracking-wide mb-0.5">vs 30 days ago</div>
+              <div className={`text-2xl font-bold leading-none ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {delta >= 0 ? '+' : ''}{Math.round(delta)}
+                {deltaPct != null && (
+                  <span className="text-sm font-normal opacity-70 ml-1">({deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(1)}%)</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Progress chart */}
+      {/* Bar chart */}
       {chartData.length > 0 ? (
-        <div className="bg-slate-800 p-3">
-          <div className="text-sm text-slate-400 mb-2">{selectedMetricLabel} over time</div>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+        <div className="pt-3">
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: '#cbd5e1' }}
+                tick={{ fontSize: 12, fill: 'rgb(var(--color-muted))' }}
                 tickFormatter={shortDate}
                 minTickGap={40}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: '#cbd5e1' }}
+                tick={{ fontSize: 12, fill: 'rgb(var(--color-muted))' }}
                 tickFormatter={(v) => `${Math.round(v)}`}
                 axisLine={false}
                 tickLine={false}
                 width={36}
               />
               <Tooltip
-                contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }}
-                labelFormatter={(l) => shortDate(String(l))}
-                formatter={(v: number) => [`${v.toFixed(1)} ${yUnit}`, selectedMetricLabel]}
+                cursor={false}
+                content={<ExerciseChartTooltip unit={yUnit} metricLabel={selectedMetricLabel} />}
               />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-            </LineChart>
+              <Bar dataKey="value" fill="rgb(var(--color-accent))" radius={[2, 2, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="text-center text-sm text-slate-500 py-6">No data yet</div>
-      )}
-      {plateauDetected && (
-        <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(250,204,21,0.3)', backgroundColor: 'rgba(250,204,21,0.06)' }}>
-          <div className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#facc15' }}>Plateau detected</div>
-          <div className="text-sm" style={{ color: 'rgba(250,204,21,0.75)' }}>No weight increase in 3 sessions — try adding a rep or increasing by 2.5 lbs</div>
-        </div>
+        <div className="text-center text-sm text-dram-muted py-6">No data yet</div>
       )}
     </div>
+  );
+}
+
+// ─── PB band ──────────────────────────────────────────────────────────────────
+
+function PBBand({ stats, exercise }: { stats: ExerciseStats | null; exercise: Exercise | null }) {
+  if (!stats) return null;
+  const pb = stats.personalBests;
+  const heaviestSub = pb.heaviestWeightWorkoutName ?? (pb.heaviestWeightDate ? longDate(pb.heaviestWeightDate) : undefined);
+  const setVolSub = (() => {
+    const parts: string[] = [];
+    if (pb.bestSetVolumeWeightKg != null && pb.bestSetVolumeReps != null)
+      parts.push(`${fmtLbs(pb.bestSetVolumeWeightKg)} × ${pb.bestSetVolumeReps}`);
+    if (pb.bestSetVolumeDate) parts.push(longDate(pb.bestSetVolumeDate));
+    return parts.length ? parts.join(' · ') : undefined;
+  })();
+  const tiles = [
+    { label: 'Heaviest Weight', value: fmtLbs(pb.heaviestWeightKg), sub: heaviestSub },
+    { label: 'Est. 1 Rep Max', value: fmtLbs(pb.estimatedOneRepMaxKg), sub: 'Epley formula' },
+    { label: 'Best Set Vol', value: fmtLbs(pb.bestSetVolumeKg), sub: setVolSub },
+  ];
+  const primary = Array.isArray(exercise?.musclesPrimary) ? exercise!.musclesPrimary : [];
+  const secondary = Array.isArray(exercise?.musclesSecondary) ? exercise!.musclesSecondary : [];
+  const hasMuscles = primary.length > 0 || secondary.length > 0;
+  return (
+    <section className="flex-shrink-0 px-9 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="flex items-center gap-3 mb-4">
+        <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Personal Bests</h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {tiles.map((t, i) => (
+          <div key={i} className="bg-dram-card border border-dram-border px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#D4A843' }}>{t.label}</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-bold text-white">{t.value}</span>
+            </div>
+            {t.sub && <div className="text-sm text-dram-muted mt-1">{t.sub}</div>}
+          </div>
+        ))}
+        {hasMuscles && (
+          <div className="bg-dram-card border border-dram-border px-5 py-4">
+            <div className="mb-2">
+              <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#D4A843' }}>Muscles</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {primary.map((m) => (
+                <span key={m} className="px-2 py-0.5 text-sm font-medium bg-blue-600/20 text-blue-300 rounded-full">{m}</span>
+              ))}
+              {primary.length > 0 && secondary.length > 0 && (
+                <span className="text-dram-muted/40 mx-0.5 select-none font-light text-lg leading-none">|</span>
+              )}
+              {secondary.map((m) => (
+                <span key={m} className="px-2 py-0.5 text-sm font-medium bg-dram-border/50 text-dram-muted rounded-full border border-dram-border">{m}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -178,50 +228,50 @@ function HistoryTab({ exerciseId }: { exerciseId: number }) {
   useEffect(() => { loadMore(0); }, [exerciseId]);
 
   if (!loading && entries.length === 0) {
-    return <div className="text-center text-sm text-slate-500 py-12">No history yet</div>;
+    return <div className="text-center text-sm text-dram-muted py-12">No history yet</div>;
   }
 
   return (
     <div className="space-y-3">
       {entries.map((entry, i) => (
-        <div key={`${entry.workoutId}-${i}`} className="bg-slate-800 overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-700">
-            <div className="text-base font-medium text-slate-200">{formatDate(entry.workoutDate)}</div>
+        <div key={`${entry.workoutId}-${i}`} className="bg-dram-card border border-dram-border overflow-hidden">
+          <div className="px-3 py-2 border-b border-dram-border">
+            <div className="text-base font-medium text-white">{formatDate(entry.workoutDate)}</div>
             {entry.workoutName && (
-              <div className="text-sm text-slate-400">{entry.workoutName}</div>
+              <div className="text-sm text-dram-muted">{entry.workoutName}</div>
             )}
           </div>
           <div className="px-3 py-2 space-y-1">
             {entry.sets.length > 0 ? (
               <>
-                <div className="grid grid-cols-3 text-sm text-slate-400 mb-1">
+                <div className="grid grid-cols-3 text-sm text-dram-muted mb-1">
                   <span>Set</span>
                   <span>Weight</span>
                   <span>Reps</span>
                 </div>
                 {entry.sets.map((s) => (
                   <div key={s.setNumber} className="grid grid-cols-3 text-sm">
-                    <span className="text-slate-400">{s.setNumber}</span>
-                    <span className="text-slate-200">
+                    <span className="text-dram-muted">{s.setNumber}</span>
+                    <span className="text-white">
                       {s.weightKg != null ? fmtLbs(s.weightKg) : s.durationSeconds != null ? `${s.durationSeconds}s` : '—'}
                     </span>
-                    <span className="text-slate-200">
+                    <span className="text-white">
                       {s.reps != null ? `${s.reps}` : s.distanceMeters != null ? `${s.distanceMeters}m` : '—'}
                     </span>
                   </div>
                 ))}
               </>
             ) : (
-              <div className="text-sm text-slate-500">No sets recorded</div>
+              <div className="text-sm text-dram-muted">No sets recorded</div>
             )}
           </div>
         </div>
       ))}
-      {loading && <div className="text-center text-sm text-slate-500 py-4">Loading…</div>}
+      {loading && <div className="text-center text-sm text-dram-muted py-4">Loading…</div>}
       {!loading && hasMore && (
         <button
           onClick={() => { const next = offset + 20; setOffset(next); loadMore(next); }}
-          className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          className="w-full py-2 text-sm text-dram-accent hover:brightness-110 transition-colors"
         >
           Load more
         </button>
@@ -276,16 +326,16 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
     <div className="space-y-4">
       {/* Demo media */}
       {exercise.mediaUrl && (
-        <div className="bg-slate-800 p-4">
-          <div className="text-sm text-slate-500 mb-3">Demo</div>
+        <div className="bg-dram-card border border-dram-border p-4">
+          <div className="text-sm text-dram-muted mb-3">Demo</div>
           <MediaEmbed url={exercise.mediaUrl} />
         </div>
       )}
 
       {/* Muscle diagram */}
       {exercise.muscleImageUrl && (
-        <div className="bg-slate-800 p-4">
-          <div className="text-sm text-slate-500 mb-3">Muscle Groups</div>
+        <div className="bg-dram-card border border-dram-border p-4">
+          <div className="text-sm text-dram-muted mb-3">Muscle Groups</div>
           <img
             src={exercise.muscleImageUrl}
             alt="Muscle groups"
@@ -295,9 +345,9 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       )}
 
       {/* Muscles */}
-      <div className="bg-slate-800 p-4 space-y-3">
+      <div className="bg-dram-card border border-dram-border p-4 space-y-3">
         <div>
-          <div className="text-sm text-slate-500 mb-1.5">Primary Muscles</div>
+          <div className="text-sm text-dram-muted mb-1.5">Primary Muscles</div>
           {primary.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {primary.map((m) => (
@@ -305,15 +355,15 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
               ))}
             </div>
           ) : (
-            <span className="text-sm text-slate-500">—</span>
+            <span className="text-sm text-dram-muted">—</span>
           )}
         </div>
         {secondary.length > 0 && (
           <div>
-            <div className="text-sm text-slate-500 mb-1.5">Secondary Muscles</div>
+            <div className="text-sm text-dram-muted mb-1.5">Secondary Muscles</div>
             <div className="flex flex-wrap gap-1.5">
               {secondary.map((m) => (
-                <span key={m} className="px-2.5 py-1 text-sm font-medium bg-slate-700 text-slate-400 rounded-full border border-slate-600">{m}</span>
+                <span key={m} className="px-2.5 py-1 text-sm font-medium bg-dram-border/50 text-dram-muted rounded-full border border-dram-border">{m}</span>
               ))}
             </div>
           </div>
@@ -321,12 +371,12 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       </div>
 
       {/* Instructions */}
-      <div className="bg-slate-800 p-4">
-        <div className="text-sm text-slate-500 mb-2">Instructions</div>
+      <div className="bg-dram-card border border-dram-border p-4">
+        <div className="text-sm text-dram-muted mb-2">Instructions</div>
         {exercise.instructions ? (
-          <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.instructions}</p>
+          <p className="text-sm text-white whitespace-pre-wrap leading-relaxed">{exercise.instructions}</p>
         ) : (
-          <div className="text-sm text-slate-500">No instructions available.</div>
+          <div className="text-sm text-dram-muted">No instructions available.</div>
         )}
       </div>
     </div>
@@ -845,7 +895,7 @@ function QuickSetRow({ set, index, workoutId, weId, trackedFields, onUpdated, on
     <div className={`grid gap-2 items-center text-sm ${saving ? 'opacity-60' : ''}`}
       style={{ gridTemplateColumns: `1.5rem ${colFlags.filter(Boolean).map(() => '1fr').join(' ')} 1.5rem` }}
     >
-      <span className="text-slate-500 text-center">{index + 1}</span>
+      <span className="text-dram-muted text-center">{index + 1}</span>
       {trackWeight && (
         <input type="number" min={0} step={2.5} placeholder="lbs" value={weight}
           onChange={(e) => setWeight(e.target.value)} onBlur={handleBlur} className={inputCls} />
@@ -866,7 +916,7 @@ function QuickSetRow({ set, index, workoutId, weId, trackedFields, onUpdated, on
         <input type="number" min={0} placeholder="steps" value={steps}
           onChange={(e) => setSteps(e.target.value)} onBlur={handleBlur} className={inputCls} />
       )}
-      <button onClick={handleDelete} className="text-slate-600 hover:text-red-400 transition-colors text-center leading-none">×</button>
+      <button onClick={handleDelete} className="text-dram-muted hover:text-red-400 transition-colors text-center leading-none">×</button>
     </div>
   );
 }
@@ -922,14 +972,14 @@ function QuickLogPanel({ exercise, lastSets, state, onSetsChange, onFinish, onDi
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-dram-accent uppercase tracking-wider">Quick Log</span>
-          <span className="text-sm text-slate-400">{state.sets.length} set{state.sets.length !== 1 ? 's' : ''}</span>
+          <span className="text-sm text-dram-muted">{state.sets.length} set{state.sets.length !== 1 ? 's' : ''}</span>
         </div>
-        <button onClick={onDiscard} className="text-sm text-slate-500 hover:text-red-400 transition-colors">Discard</button>
+        <button onClick={onDiscard} className="text-sm text-dram-muted hover:text-red-400 transition-colors">Discard</button>
       </div>
 
       {/* Last session reference */}
       {lastSets.length > 0 && (
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-dram-muted">
           Last session: {lastSets.slice(0, 3).map((s, i) => {
             const parts: string[] = [];
             if (s.weightKg != null) parts.push(fmtWeight(s.weightKg) + ' lbs');
@@ -945,7 +995,7 @@ function QuickLogPanel({ exercise, lastSets, state, onSetsChange, onFinish, onDi
 
       {/* Column headers */}
       {state.sets.length > 0 && (
-        <div className="grid gap-2 text-sm text-slate-500"
+        <div className="grid gap-2 text-sm text-dram-muted"
           style={{ gridTemplateColumns: `1.5rem ${colFlags.filter(Boolean).map(() => '1fr').join(' ')} 1.5rem` }}
         >
           <span />
@@ -979,7 +1029,7 @@ function QuickLogPanel({ exercise, lastSets, state, onSetsChange, onFinish, onDi
         <button
           onClick={handleAddSet}
           disabled={addingSet}
-          className="flex-1 border border-dram-border text-slate-300 hover:border-slate-500 hover:text-white text-sm py-1.5 rounded-lg transition-colors disabled:opacity-40"
+          className="flex-1 border border-dram-border text-dram-muted hover:border-dram-accent hover:text-white text-sm py-1.5 rounded-lg transition-colors disabled:opacity-40"
         >
           {addingSet ? '…' : '+ Add Set'}
         </button>
@@ -1010,7 +1060,6 @@ export default function ExerciseDetailPage() {
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
-  const [hwProgressSeries, setHwProgressSeries] = useState<Array<{ date: string; value: number }>>([]);
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -1029,13 +1078,7 @@ export default function ExerciseDetailPage() {
   const [name, setName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Inline notes editing
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notes, setNotes] = useState('');
-  const notesRef = useRef<HTMLTextAreaElement>(null);
-
   useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
-  useEffect(() => { if (editingNotes) notesRef.current?.focus(); }, [editingNotes]);
 
   useEffect(() => {
     if (!id) return;
@@ -1049,10 +1092,8 @@ export default function ExerciseDetailPage() {
       .then(([ex, st, cats, hist]) => {
         setExercise(ex);
         setStats(st);
-        setHwProgressSeries(st.progressSeries);
         setCategories(cats);
         setName(ex.name);
-        setNotes(ex.notes ?? '');
         setLastSessionEntry(hist[0] ?? null);
       })
       .catch(() => navigate('/workouts'))
@@ -1104,17 +1145,6 @@ export default function ExerciseDetailPage() {
     } catch { /* ignore */ }
   }
 
-  async function saveNotes() {
-    if (!exercise) return;
-    setEditingNotes(false);
-    const trimmed = notes.trim();
-    if (trimmed === (exercise.notes ?? '')) { setNotes(exercise.notes ?? ''); return; }
-    try {
-      const updated = await exercisesApi.update(exercise.id, { notes: trimmed || null });
-      setExercise(updated);
-    } catch { setNotes(exercise.notes ?? ''); }
-  }
-
   async function startQuickLog() {
     if (!exercise) return;
     setStartingQuickLog(true);
@@ -1148,7 +1178,6 @@ export default function ExerciseDetailPage() {
       setHistoryKey((k) => k + 1);
       const st = await exercisesApi.getStats(Number(id), metric);
       setStats(st);
-      if (metric === 'heaviest_weight') setHwProgressSeries(st.progressSeries);
     } catch { /* ignore */ } finally {
       setFinishingQuickLog(false);
     }
@@ -1162,7 +1191,7 @@ export default function ExerciseDetailPage() {
   }
 
   if (loading) {
-    return <div className="text-center text-sm text-slate-500 py-12">Loading…</div>;
+    return <div className="text-center text-sm text-dram-muted py-12">Loading…</div>;
   }
   if (!exercise) return null;
 
@@ -1170,7 +1199,7 @@ export default function ExerciseDetailPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-start gap-3">
-        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-300 transition-colors shrink-0 mt-1">←</button>
+        <button onClick={() => navigate(-1)} className="text-dram-muted hover:text-white transition-colors shrink-0 mt-1">←</button>
 
         <div className="flex-1 min-w-0">
           {/* Inline name */}
@@ -1182,10 +1211,10 @@ export default function ExerciseDetailPage() {
               onChange={(e) => setName(e.target.value)}
               onBlur={saveName}
               onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setName(exercise.name); } }}
-              className="w-full bg-transparent text-xl font-semibold text-slate-200 focus:outline-none border-b border-slate-600"
+              className="w-full bg-transparent text-xl font-semibold text-white focus:outline-none border-b border-dram-border"
             />
           ) : (
-            <button onClick={() => setEditingName(true)} className="text-left text-xl font-semibold text-slate-200 hover:text-white transition-colors w-full truncate">
+            <button onClick={() => setEditingName(true)} className="text-left text-xl font-semibold text-white hover:text-white transition-colors w-full truncate">
               {exercise.name}
             </button>
           )}
@@ -1195,7 +1224,7 @@ export default function ExerciseDetailPage() {
             <select
               value={exercise.exerciseType}
               onChange={(e) => saveExerciseType(e.target.value)}
-              className="text-sm bg-transparent text-dram-muted border-none focus:outline-none cursor-pointer hover:text-slate-200 transition-colors"
+              className="text-sm bg-transparent text-dram-muted border-none focus:outline-none cursor-pointer hover:text-white transition-colors"
             >
               {Object.entries(EXERCISE_TYPE_LABELS).map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
@@ -1232,33 +1261,14 @@ export default function ExerciseDetailPage() {
             }
             if (!primary && !secondary) return null;
             return (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-sm text-slate-400">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-sm text-dram-muted">
                 <span>Last session:</span>
                 {primary && <span>{primary}</span>}
-                {secondary && <><span className="text-slate-600">·</span><span>{secondary}</span></>}
+                {secondary && <><span className="opacity-40">·</span><span>{secondary}</span></>}
               </div>
             );
           })()}
 
-          {/* Inline notes */}
-          {editingNotes ? (
-            <textarea
-              ref={notesRef}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveNotes}
-              onKeyDown={(e) => { if (e.key === 'Escape') { setEditingNotes(false); setNotes(exercise.notes ?? ''); } }}
-              rows={2}
-              placeholder="Add notes…"
-              className="w-full mt-1 bg-transparent text-sm text-slate-300 focus:outline-none border-b border-slate-600 resize-none"
-            />
-          ) : (
-            <button onClick={() => setEditingNotes(true)} className="text-left text-sm mt-1 w-full transition-colors">
-              {notes
-                ? <span className="text-slate-400 hover:text-slate-200">{notes}</span>
-                : <span className="text-slate-600 hover:text-slate-400 italic">Add notes…</span>}
-            </button>
-          )}
         </div>
 
         {/* Action buttons */}
@@ -1274,38 +1284,28 @@ export default function ExerciseDetailPage() {
           )}
           <button
             onClick={() => setShowEdit(true)}
-            className="border border-dram-border text-slate-300 hover:text-white rounded-lg px-3 py-2 text-sm transition-colors"
+            className="border border-dram-border text-dram-muted hover:text-white rounded-lg px-3 py-2 text-sm transition-colors"
           >
             Edit
           </button>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="border border-dram-border text-slate-300 hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-2 text-sm disabled:opacity-50 transition-colors"
+            className="border border-dram-border text-dram-muted hover:text-red-400 hover:border-red-900/40 rounded-lg px-3 py-2 text-sm disabled:opacity-50 transition-colors"
           >
             {deleting ? '…' : 'Delete'}
           </button>
         </div>
       </div>
 
+      {/* PB band */}
+      <PBBand stats={stats} exercise={exercise} />
+
       {/* 2-column body */}
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-full">
-          {/* Left column — How To content */}
-          <div className="p-6 space-y-4 lg:border-r lg:border-dram-border lg:overflow-y-auto">
-            {/* Notes */}
-            {exercise.notes && (
-              <div className="bg-slate-800 px-4 py-3">
-                <div className="text-sm text-slate-500 mb-1">Notes</div>
-                <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{exercise.notes}</p>
-              </div>
-            )}
-
-            <HowToTab exercise={exercise} />
-          </div>
-
-          {/* Right column — Quick Log + Summary + History */}
-          <div className="p-6 space-y-6 lg:overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
+          {/* Left column (2/3) — Quick Log + Progress chart + History */}
+          <div className="lg:col-span-2 p-6 space-y-6 lg:border-r lg:border-dram-border lg:overflow-y-auto">
             {/* Quick log panel */}
             {quickLog && exercise && (
               <QuickLogPanel
@@ -1319,20 +1319,55 @@ export default function ExerciseDetailPage() {
               />
             )}
 
-            {/* Summary */}
-            <div>
-              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Summary</div>
+            {/* Stats header + chart */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Stats</h2>
+              </div>
               {stats
-                ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} plateauDetected={computePlateau(hwProgressSeries)} />
-                : <div className="text-center text-sm text-slate-500 py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
+                ? <SummaryTab stats={stats} metric={metric} onMetricChange={handleMetricChange} />
+                : <div className="text-center text-sm text-dram-muted py-8">{loadingStats ? 'Loading…' : 'No data yet'}</div>
               }
             </div>
 
-            {/* History */}
-            <div>
-              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">History</div>
+            {/* History header + list */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-white">History</h2>
+              </div>
               <HistoryTab key={historyKey} exerciseId={Number(id)} />
             </div>
+          </div>
+
+          {/* Right column (1/3) — how-to + instructions */}
+          <div className="p-6 space-y-6 lg:overflow-y-auto">
+            {/* How-to image / video */}
+            {exercise.mediaUrl && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-white">How-To</h3>
+                </div>
+                <MediaEmbed url={exercise.mediaUrl} />
+              </div>
+            )}
+
+            {/* Instructions */}
+            {exercise.instructions && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div style={{ width: 14, height: 2, background: '#D4A843' }} />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Instructions</h3>
+                </div>
+                <div className="space-y-3">
+                  {exercise.instructions.split('\n').filter((l) => l.trim()).map((line, i) => (
+                    <p key={i} className="text-base text-white leading-relaxed">{line}</p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

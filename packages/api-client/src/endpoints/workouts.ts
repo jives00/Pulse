@@ -158,10 +158,16 @@ export interface ExerciseStats {
   exerciseId: number;
   personalBests: {
     heaviestWeightKg: number | null;
-    heaviestWeightReps: number | null;
+    heaviestWeightWorkoutName: string | null;
+    heaviestWeightDate: string | null;
     estimatedOneRepMaxKg: number | null;
     bestSetVolumeKg: number | null;
+    bestSetVolumeReps: number | null;
+    bestSetVolumeWeightKg: number | null;
+    bestSetVolumeDate: string | null;
     bestSessionVolumeKg: number | null;
+    bestSessionVolumeWorkoutName: string | null;
+    bestSessionVolumeDate: string | null;
   };
   setRecords: Array<{ reps: number; weightKg: number }>;
   progressSeries: Array<{ date: string; value: number }>;
