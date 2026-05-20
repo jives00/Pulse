@@ -74,7 +74,7 @@ export default function TodayPage() {
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-dram-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-slate-200">Food Log</h1>
+          <h1 className="text-xl font-semibold text-slate-200">Today</h1>
           <button
             onClick={() => setDate(offsetDate(currentDate, -1))}
             className="p-1 rounded text-slate-500 hover:text-slate-200 transition-colors"
@@ -119,12 +119,6 @@ export default function TodayPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
                 <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 600, color: 'white' }}>Today</span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>Fuel + macros</span>
-                {goals && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: MUTED, marginLeft: 14 }}>
-                    {Math.round(totals.calories).toLocaleString()} / {goals.calories.toLocaleString()} kcal · {Math.round(totals.protein)}/{goals.proteinG}g protein
-                  </span>
-                )}
               </div>
               <NutritionSummaryCard
                 actual={{ calories: totals.calories, carbsG: totals.carbs, proteinG: totals.protein, fatG: totals.fat }}
@@ -140,7 +134,6 @@ export default function TodayPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
                 <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 600, color: 'white' }}>Meals</span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: '-.01em', color: 'white' }}>What you ate today</span>
                 <button
                   onClick={() => copyFromDate(offsetDate(currentDate, -1))}
                   className="border border-dram-border text-dram-muted hover:text-white hover:border-slate-400 transition-colors text-xs px-2.5 py-1"
