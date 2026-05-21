@@ -73,6 +73,7 @@ export async function getWorkoutDetail(workoutId: number) {
         setNumber: s.set_number,
         reps: s.reps ?? null,
         weightKg: s.weight_kg != null ? Number(s.weight_kg) : null,
+        additionalWeightKg: s.additional_weight_kg != null ? Number(s.additional_weight_kg) : null,
         durationSeconds: s.duration_seconds ?? null,
         distanceMeters: s.distance_meters != null ? Number(s.distance_meters) : null,
         steps: s.steps ?? null,
@@ -254,16 +255,19 @@ router.get('/', async (req, res) => {
               COALESCE(SUM(CASE
                 WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL THEN es.reps * es.weight_kg
                 WHEN es.reps IS NOT NULL AND (wr.routine_type = 'bodyweight' OR e.exercise_type = 'bodyweight')
-                  THEN es.reps * COALESCE(
-                    (SELECT bm.value / 2.20462
-                     FROM body_measurements bm
-                     WHERE bm.user_id = wl.user_id AND bm.metric = 'weight' AND bm.unit IN ('lbs','lb')
-                     ORDER BY bm.measured_at DESC, bm.id DESC LIMIT 1),
-                    (SELECT bm2.value
-                     FROM body_measurements bm2
-                     WHERE bm2.user_id = wl.user_id AND bm2.metric = 'weight' AND bm2.unit NOT IN ('lbs','lb')
-                     ORDER BY bm2.measured_at DESC, bm2.id DESC LIMIT 1),
-                    0
+                  THEN es.reps * (
+                    COALESCE(es.additional_weight_kg, 0) +
+                    COALESCE(
+                      (SELECT bm.value / 2.20462
+                       FROM body_measurements bm
+                       WHERE bm.user_id = wl.user_id AND bm.metric = 'weight' AND bm.unit IN ('lbs','lb')
+                       ORDER BY bm.measured_at DESC, bm.id DESC LIMIT 1),
+                      (SELECT bm2.value
+                       FROM body_measurements bm2
+                       WHERE bm2.user_id = wl.user_id AND bm2.metric = 'weight' AND bm2.unit NOT IN ('lbs','lb')
+                       ORDER BY bm2.measured_at DESC, bm2.id DESC LIMIT 1),
+                      0
+                    )
                   )
                 ELSE 0
               END), 0) AS total_volume_kg,
@@ -662,7 +666,7 @@ router.post('/:id/exercises/:weId/sets', async (req, res) => {
   if (!id || !weId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters, steps } = req.body;
+  const { reps, weightKg, additionalWeightKg, durationSeconds, distanceMeters, steps } = req.body;
 
   try {
     const [countRows] = await pool.query<RowDataPacket[]>(
@@ -671,15 +675,16 @@ router.post('/:id/exercises/:weId/sets', async (req, res) => {
     const setNumber = Number((countRows[0] as any).cnt) + 1;
 
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, steps)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [weId, setNumber, reps ?? null, weightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, steps ?? null]
+      `INSERT INTO exercise_sets (workout_exercise_id, set_number, reps, weight_kg, additional_weight_kg, duration_seconds, distance_meters, steps)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [weId, setNumber, reps ?? null, weightKg ?? null, additionalWeightKg ?? null, durationSeconds ?? null, distanceMeters ?? null, steps ?? null]
     );
     res.status(201).json({
       id: result.insertId,
       setNumber,
       reps: reps ?? null,
       weightKg: weightKg != null ? Number(weightKg) : null,
+      additionalWeightKg: additionalWeightKg != null ? Number(additionalWeightKg) : null,
       durationSeconds: durationSeconds ?? null,
       distanceMeters: distanceMeters != null ? Number(distanceMeters) : null,
       steps: steps ?? null,
@@ -699,16 +704,17 @@ router.put('/:id/exercises/:weId/sets/:setId', async (req, res) => {
   if (!id || !weId || !setId) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsWorkout(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { reps, weightKg, durationSeconds, distanceMeters, steps, completed } = req.body;
+  const { reps, weightKg, additionalWeightKg, durationSeconds, distanceMeters, steps, completed } = req.body;
 
   const setClauses: string[] = [];
   const values: (number | null | boolean)[] = [];
-  if ('reps' in req.body)            { setClauses.push('reps=?');              values.push(reps ?? null); }
-  if ('weightKg' in req.body)        { setClauses.push('weight_kg=?');         values.push(weightKg ?? null); }
-  if ('durationSeconds' in req.body) { setClauses.push('duration_seconds=?');  values.push(durationSeconds ?? null); }
-  if ('distanceMeters' in req.body)  { setClauses.push('distance_meters=?');   values.push(distanceMeters ?? null); }
-  if ('steps' in req.body)           { setClauses.push('steps=?');             values.push(steps ?? null); }
-  if ('completed' in req.body)       { setClauses.push('completed=?');         values.push(completed ? 1 : 0); }
+  if ('reps' in req.body)                  { setClauses.push('reps=?');                  values.push(reps ?? null); }
+  if ('weightKg' in req.body)              { setClauses.push('weight_kg=?');             values.push(weightKg ?? null); }
+  if ('additionalWeightKg' in req.body)    { setClauses.push('additional_weight_kg=?');  values.push(additionalWeightKg ?? null); }
+  if ('durationSeconds' in req.body)       { setClauses.push('duration_seconds=?');      values.push(durationSeconds ?? null); }
+  if ('distanceMeters' in req.body)        { setClauses.push('distance_meters=?');       values.push(distanceMeters ?? null); }
+  if ('steps' in req.body)                 { setClauses.push('steps=?');                 values.push(steps ?? null); }
+  if ('completed' in req.body)             { setClauses.push('completed=?');             values.push(completed ? 1 : 0); }
 
   if (setClauses.length === 0) { res.json({ success: true }); return; }
 

@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Additional weight on bodyweight exercises** — Bodyweight exercises (lunges, push-ups, etc.) now show a +lbs field in the set row; entered weight adds to body weight for volume calculation (e.g. 130 lb body + 20 lb vest = 150 lb × reps); fixes unit mismatch where 'lb' body weight entries were treated as kg, inflating volume. `10af3bd`
 - **Workout volume calculation fix** — Detail screen volume calculation now matches backend/API logic: checks weight_kg first, then uses bodyweight for bodyweight exercises; fixes discrepancy where detail showed different volumes than dashboard/history. `f92fb0e`
 - **Resistance exercise type** — New exercise type for reps-only movements (e.g. Deadbug) that don't use added weight or bodyweight volume; contributes 0 to total workout volume; available in exercise type picker and defaults to tracking reps only. `f92fb0e`
 - **Meal scheduling with food/recipe selection** — Planning board AddMealScheduleForm now allows selecting existing foods, recipes, or custom labels; macros auto-populate from nutrition database when food/recipe selected, can be manually edited before save; custom labels allow manual macro entry. `d78d1b8`
@@ -25,6 +26,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Additional weight on bodyweight exercises** — Migration 034 adds `additional_weight_kg` to `exercise_sets` and `routine_exercise_sets`; volume query adds carried weight to body weight for bodyweight sets; set endpoints accept `additionalWeightKg`. `10af3bd`
 - **Resistance exercise type** — New ENUM value added to exercises.exercise_type; migration 033 updates the column definition. `f92fb0e`
 - **Meal schedules food/recipe support** — POST and PUT endpoints now accept foodId, servingSizeId, quantity, recipeId, recipeServings, and macro fields (calories, proteinG, carbsG, fatG); macros auto-computed from food/recipe data when not manually provided; migration 030 adds columns to meal_schedules table. `d78d1b8`
 - **Custom goals route** — New `GET/POST/PUT/DELETE /api/user-goals` backed by `custom_goals` table; category auto-derived from metric type server-side; JOINs exercises and workout_routines to resolve source name. `ae50402`
