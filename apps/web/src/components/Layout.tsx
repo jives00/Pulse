@@ -5,7 +5,6 @@ import AIAssistant from './AIAssistant';
 const TOP_SECTIONS = [
   { prefix: '/dashboard',    label: 'Dashboard',    icon: '📊', exact: false },
   { prefix: '/dashboard-v4', label: 'Dashboard v4', icon: '✦',  exact: false },
-  { prefix: '/planning',     label: 'Planning',     icon: '🎯', exact: false },
   { prefix: '/food',         label: 'Recipes',      icon: '🍴', exact: false },
   { prefix: '/drinks',       label: 'Drinks',       icon: '🍸', exact: false },
   { prefix: '/nutrition',    label: 'Food Log',     icon: '🥗', exact: false },
