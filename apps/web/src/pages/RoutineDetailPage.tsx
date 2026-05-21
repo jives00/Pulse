@@ -209,6 +209,7 @@ function ProgressSection({ chartData, routineType }: {
 
 function HistorySection({ workouts, routineType }: { workouts: WorkoutSummary[]; routineType: RoutineType }) {
   const [limit, setLimit] = useState(10);
+  const navigate = useNavigate();
   const rt = routineType ?? 'strength';
 
   if (workouts.length === 0) {
@@ -235,7 +236,7 @@ function HistorySection({ workouts, routineType }: { workouts: WorkoutSummary[];
       {workouts.slice(0, limit).map((w) => {
         const metric = sessionMetric(w);
         return (
-          <div key={w.id} className="bg-dram-card border border-dram-border overflow-hidden">
+          <div key={w.id} className="bg-dram-card border border-dram-border overflow-hidden cursor-pointer hover:border-dram-accent/50 transition-colors" onClick={() => navigate(`/workouts/${w.id}`)}>
             {/* Session header */}
             <div className="px-3 py-2 border-b border-dram-border flex items-center justify-between">
               <div>

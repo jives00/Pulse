@@ -17,6 +17,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Custom user-defined goals** — New goal system: name any goal, pick metric type (max weight, volume, reps, steps, distance, duration, sessions, body measurement, nutrition avg), choose source exercise or routine, set target value and optional date; goals appear on the matching card (body/nutrition/exercise). `ae50402`
 - **Weekly nutrition goals** — Weekly targets editable independently; default is daily × 7 (shown as "Based on daily × 7"); user can override; stored as nullable columns on user_goals table. `ae50402`
 - **Planning calendar improvements** — Larger font sizes throughout; gridlines added using `border-slate-600`; nutrition schedule recurrence (once/daily/days-of-week/etc.) added to calendar day modal Nutrition tab. `ae50402`
+- **Routine history sessions clickable** — Clicking a workout session in the routine detail page history section now navigates to the full workout detail view for editing/reviewing; matches existing dashboard and history log behavior. `8f8b9e0`
 
 ### Mobile
 
