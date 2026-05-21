@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
 
+// ─── constants ───────────────────────────────────────────────────────────────
+
+const REST_SECONDS = 90;
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function longDate(dateStr: string): string {
@@ -66,10 +70,72 @@ function mmssToSeconds(val: string): number | null {
   return isNaN(n) ? null : n;
 }
 
+// ─── Rest timer ──────────────────────────────────────────────────────────────
+
+function playRestDing() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 1.5);
+    osc.onended = () => ctx.close();
+  } catch { /* AudioContext unavailable */ }
+}
+
+function RestTimer({ seconds, duration, onAdd, onSkip }: {
+  seconds: number;
+  duration: number;
+  onAdd: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pointer-events-none">
+      <div className="max-w-md mx-auto pointer-events-auto">
+        <div
+          className="border border-dram-accent/40 rounded-xl px-4 py-3 shadow-lg"
+          style={{ background: 'color-mix(in srgb, #D4A843 8%, #1a1a1a)' }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex-1">
+              <div className="text-xs text-dram-muted uppercase tracking-wider">Rest</div>
+              <div className="text-2xl font-bold text-white font-mono">{seconds}s</div>
+            </div>
+            <button
+              onClick={onAdd}
+              className="px-3 py-1.5 text-sm border border-dram-accent/50 text-dram-accent rounded-lg hover:bg-dram-accent/10 transition-colors"
+            >
+              +30s
+            </button>
+            <button
+              onClick={onSkip}
+              className="px-3 py-1.5 text-sm border border-dram-border text-dram-muted rounded-lg hover:text-white hover:border-dram-muted transition-colors"
+            >
+              Skip
+            </button>
+          </div>
+          <div className="h-1.5 bg-dram-border rounded-full overflow-hidden">
+            <div
+              className="h-full bg-dram-accent rounded-full transition-all duration-500"
+              style={{ width: `${(seconds / duration) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Set row ─────────────────────────────────────────────────────────────────
 
 function SetRow({
-  set, weId, workoutId, isActive, trackedFields, exerciseType, onUpdated, onDeleted,
+  set, weId, workoutId, isActive, trackedFields, exerciseType, onUpdated, onDeleted, onSetCompleted,
 }: {
   set: ExerciseSet;
   weId: number;
@@ -79,6 +145,7 @@ function SetRow({
   exerciseType: string;
   onUpdated: (s: ExerciseSet) => void;
   onDeleted: (id: number) => void;
+  onSetCompleted?: () => void;
 }) {
   const trackWeight      = trackedFields.includes('weight');
   const trackReps        = trackedFields.includes('reps');
@@ -142,6 +209,7 @@ function SetRow({
   async function handleToggleComplete() {
     const next = !set.completed;
     onUpdated({ ...set, completed: next });
+    if (next) onSetCompleted?.();
     try {
       await workoutsApi.updateSet(workoutId, weId, set.id, { completed: next });
     } catch {
@@ -221,7 +289,7 @@ function SetRow({
 // ─── Exercise block ──────────────────────────────────────────────────────────
 
 function ExerciseBlock({
-  we, workoutId, isActive, lastSets, onRemove, onSetsChanged,
+  we, workoutId, isActive, lastSets, onRemove, onSetsChanged, onSetCompleted,
 }: {
   we: WorkoutExercise;
   workoutId: number;
@@ -229,6 +297,7 @@ function ExerciseBlock({
   lastSets: Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }> | null;
   onRemove: (weId: number) => void;
   onSetsChanged: (weId: number, sets: ExerciseSet[]) => void;
+  onSetCompleted?: () => void;
 }) {
   const [sets, setSets] = useState<ExerciseSet[]>(we.sets);
   const [adding, setAdding] = useState(false);
@@ -347,6 +416,7 @@ function ExerciseBlock({
               exerciseType={we.exercise.exerciseType}
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
+              onSetCompleted={onSetCompleted}
             />
           ))}
         </div>
@@ -606,10 +676,16 @@ export default function WorkoutDetailPage() {
   const [dateInput, setDateInput] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Timer
+  // Workout timer
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Rest timer
+  const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
+  const [restDuration, setRestDuration] = useState(REST_SECONDS);
+  const restDurationRef = useRef(REST_SECONDS);
+  const [restSeconds, setRestSeconds] = useState(0);
 
   function startInterval(initialElapsed: number) {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -617,6 +693,30 @@ export default function WorkoutDetailPage() {
     intervalRef.current = setInterval(() => {
       setElapsedSeconds(initialElapsed + Math.floor((Date.now() - clientStart) / 1000));
     }, 1000);
+  }
+
+  useEffect(() => {
+    if (restStartedAt === null) return;
+    const duration = restDurationRef.current;
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+      setRestSeconds(remaining);
+      if (remaining === 0) {
+        setRestStartedAt(null);
+        playRestDing();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [restStartedAt]);
+
+  function startRest() {
+    restDurationRef.current = REST_SECONDS;
+    setRestDuration(REST_SECONDS);
+    setRestSeconds(REST_SECONDS);
+    setRestStartedAt(Date.now());
   }
 
   useEffect(() => {
@@ -946,6 +1046,7 @@ export default function WorkoutDetailPage() {
             lastSets={lastSetsByExercise[we.exercise.id] ?? null}
             onRemove={handleRemoveExercise}
             onSetsChanged={handleSetsChanged}
+            onSetCompleted={isActive ? startRest : undefined}
           />
           <div className="bg-dram-card border border-dram-border p-4 flex items-center justify-center">
             {we.exercise.mediaUrl && (
@@ -984,6 +1085,21 @@ export default function WorkoutDetailPage() {
       )}
         </div>
       </div>
+
+      {isActive && restSeconds > 0 && (
+        <RestTimer
+          seconds={restSeconds}
+          duration={restDuration}
+          onAdd={() => {
+            restDurationRef.current += 30;
+            setRestDuration((d) => d + 30);
+          }}
+          onSkip={() => {
+            setRestStartedAt(null);
+            setRestSeconds(0);
+          }}
+        />
+      )}
     </div>
   );
 }

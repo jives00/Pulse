@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **90s rest timer on workout tracking** — Marking a set complete during an active workout automatically starts a 90s countdown timer with a progress bar, displayed as a fixed banner at bottom; includes +30s and Skip buttons; plays a synthesized ding sound when timer expires; resets to fresh 90s if another set is marked complete during rest. `bfa5f48`
 - **Additional weight on bodyweight exercises** — Bodyweight exercises (lunges, push-ups, etc.) now show a +lbs field in the set row; entered weight adds to body weight for volume calculation (e.g. 130 lb body + 20 lb vest = 150 lb × reps); fixes unit mismatch where 'lb' body weight entries were treated as kg, inflating volume. `10af3bd`
 - **Workout volume calculation fix** — Detail screen volume calculation now matches backend/API logic: checks weight_kg first, then uses bodyweight for bodyweight exercises; fixes discrepancy where detail showed different volumes than dashboard/history. `f92fb0e`
 - **Resistance exercise type** — New exercise type for reps-only movements (e.g. Deadbug) that don't use added weight or bodyweight volume; contributes 0 to total workout volume; available in exercise type picker and defaults to tracking reps only. `f92fb0e`
