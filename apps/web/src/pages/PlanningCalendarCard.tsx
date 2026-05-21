@@ -1152,8 +1152,6 @@ export default function PlanningCalendarCard({
     <>
       <div className="bg-dram-card border border-slate-600 overflow-hidden flex flex-col">
         <div className="p-5 flex-1 flex flex-col">
-          <h2 className="text-base font-semibold uppercase tracking-wider text-white mb-4">Planning Board</h2>
-
           {loading ? (
             <div className="flex items-center justify-center text-slate-500 text-base h-96">Loading…</div>
           ) : (

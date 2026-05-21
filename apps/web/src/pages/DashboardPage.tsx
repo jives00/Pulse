@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi,
-  localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi,
+  localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
-  type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown,
-  type WeekBucket, type UpcomingSession,
+  type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
+  type WeekBucket, type UpcomingSession, type MealPlanWeek,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1174,9 +1174,248 @@ export default function DashboardPage() {
         </Panel>
       </Band>
 
+      {/* ── PROJECTIONS ───────────────────────────────────────────────────────── */}
+      <Band kicker="Projections" title="This week's outlook">
+        <ProjectionsSection
+          summary={summary}
+          measurements={measurements}
+          measurementGoals={measGoals}
+          upcoming={upcoming}
+          refreshKey={0}
+        />
+      </Band>
+
       <div style={{ padding: '24px 36px 60px' }} className="font-mono">
         <div style={{ height: 1, background: LINE_SOFT, marginBottom: 14 }} />
         <span style={{ fontSize: 10, color: MUTED2 }}>Pulse · Dashboard v4 preview · Phase 4a</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section: Projections ────────────────────────────────────────────────────
+// (Extracted from PlanningPage)
+
+function computeETAFromSlope(latestLbs: number, targetLbs: number, slopePerWeek: number): string | null {
+  if (Math.abs(slopePerWeek) < 0.001) return null;
+  const remaining = targetLbs - latestLbs;
+  if ((remaining < 0 && slopePerWeek < 0) || (remaining > 0 && slopePerWeek > 0)) {
+    const weeks = remaining / slopePerWeek;
+    const d = new Date();
+    d.setDate(d.getDate() + Math.round(weeks * 7));
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return null;
+}
+
+function ProjectionsSection({
+  summary,
+  measurements,
+  measurementGoals,
+  upcoming,
+  refreshKey,
+}: {
+  summary: GoalsSummary | null;
+  measurements: BodyMeasurement[];
+  measurementGoals: Record<string, MeasurementGoal>;
+  upcoming: UpcomingSession[];
+  refreshKey: number;
+}) {
+  const today = localDateStr();
+  const weekStart = getWeekStart(today);
+
+  const [weekPlan, setWeekPlan] = useState<MealPlanWeek | null>(null);
+  const [tdee,     setTdee]     = useState<TDEEResult | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [whatIfMode, setWhatIfMode] = useState(false);
+  const [whatIfCals, setWhatIfCals] = useState('');
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const [plan, tdeeResult] = await Promise.all([
+        mealPlanApi.getWeek(weekStart).catch(() => null),
+        goalsApi.getTDEE().catch(() => null),
+      ]);
+      setWeekPlan(plan);
+      setTdee(tdeeResult);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { fetchData(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tdeePDay = tdee?.available ? tdee.total : null;
+  const goals = summary?.nutrition.goals;
+
+  // Weekly planned totals from current meal plan
+  const plannedTotals = useMemo(() => {
+    if (!weekPlan) return null;
+    return weekPlan.days.reduce(
+      (acc, d) => ({
+        calories:     acc.calories     + d.totals.calories,
+        proteinG:     acc.proteinG     + d.totals.proteinG,
+        carbsG:       acc.carbsG       + d.totals.carbsG,
+        fatG:         acc.fatG         + d.totals.fatG,
+        daysWithData: acc.daysWithData + (d.totals.calories > 0 ? 1 : 0),
+      }),
+      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, daysWithData: 0 },
+    );
+  }, [weekPlan]);
+
+  // Scheduled workout sessions this week (non-rest)
+  const scheduledSessionCount = useMemo(() => {
+    const endOfWeek = new Date(weekStart + 'T12:00:00');
+    endOfWeek.setDate(endOfWeek.getDate() + 6);
+    const endStr = localDateStr(endOfWeek);
+    return upcoming.filter(s => !s.isRestDay && s.date >= weekStart && s.date <= endStr).length;
+  }, [upcoming, weekStart]);
+
+  // 14-day weight trend slope
+  const weightTrend = useMemo(() => {
+    const all = measurements
+      .filter(m => m.metric === 'weight')
+      .map(m => ({ date: m.measuredAt, lbs: m.unit === 'kg' ? m.value * 2.20462 : m.value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (all.length === 0) return null;
+    const latest = all[all.length - 1];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const recent = all.filter(m => new Date(m.date + 'T12:00:00') >= cutoff);
+    if (recent.length < 2) return { slopePerWeek: 0, latestLbs: latest.lbs };
+    const oldest = recent[0];
+    const newest = recent[recent.length - 1];
+    const days = (new Date(newest.date + 'T12:00:00').getTime() - new Date(oldest.date + 'T12:00:00').getTime()) / 86400000;
+    return { slopePerWeek: days > 0 ? ((newest.lbs - oldest.lbs) / days) * 7 : 0, latestLbs: latest.lbs };
+  }, [measurements]);
+
+  // Weight change rate implied by current meal plan vs TDEE
+  const mealPlanRate = useMemo(() => {
+    if (!tdeePDay || !plannedTotals || plannedTotals.daysWithData === 0) return null;
+    const avgDailyPlanned = plannedTotals.calories / plannedTotals.daysWithData;
+    const weeklyDeficit  = (tdeePDay - avgDailyPlanned) * 7;
+    const weeklyChange   = -weeklyDeficit / 3500;
+    return { avgDailyPlanned, weeklyDeficit, weeklyChange };
+  }, [tdeePDay, plannedTotals]);
+
+  // What-if rate
+  const whatIfCalNum = Number(whatIfCals) || 0;
+  const whatIfRate   = whatIfMode && tdeePDay && whatIfCalNum > 0
+    ? -((tdeePDay - whatIfCalNum) * 7) / 3500
+    : null;
+
+  const weightGoal = measurementGoals['weight'];
+  const dayBars    = weekPlan?.days.map(d => ({ label: d.dayLabel, calories: d.totals.calories })) ?? [];
+
+  function slopeLabel(s: number): string {
+    if (Math.abs(s) < 0.01) return 'Stable';
+    return `${s > 0 ? '+' : ''}${s.toFixed(2)} lbs/wk`;
+  }
+  function slopeColor(s: number): string {
+    if (Math.abs(s) < 0.01) return 'text-slate-400';
+    return s < 0 ? 'text-emerald-400' : 'text-amber-400';
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+      {/* Planned Macros */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
+          Planned Macros · This Week
+        </p>
+        {!plannedTotals || plannedTotals.daysWithData === 0 ? (
+          <p style={{ fontSize: 13, color: MUTED }}>No meals planned for this week yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 12, color: MUTED }}>{plannedTotals.daysWithData} of 7 days have meals planned</p>
+            {([
+              { label: 'Calories', val: plannedTotals.calories, goal: goals?.calories != null ? goals.calories * 7 : null, unit: 'kcal', color: '#D4A843' },
+              { label: 'Protein',  val: plannedTotals.proteinG, goal: goals?.proteinG != null ? goals.proteinG * 7 : null, unit: 'g', color: '#60a5fa' },
+              { label: 'Carbs',    val: plannedTotals.carbsG,   goal: goals?.carbsG   != null ? goals.carbsG * 7   : null, unit: 'g', color: '#34d399' },
+              { label: 'Fat',      val: plannedTotals.fatG,     goal: goals?.fatG     != null ? goals.fatG * 7     : null, unit: 'g', color: '#fb923c' },
+            ] as Array<{ label: string; val: number; goal: number | null; unit: string; color: string }>).map(({ label, val, goal: g, unit, color }) => (
+              <div key={label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: '#e2e8f0' }}>{label}</span>
+                  <span style={{ fontSize: 12, color: MUTED }}>
+                    {Math.round(val).toLocaleString()} {unit}
+                    {g != null ? ` / ${Math.round(g).toLocaleString()} ${unit}` : ''}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Weight Projection */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
+          Weight Projection
+        </p>
+        {!weightTrend ? (
+          <p style={{ fontSize: 12, color: MUTED }}>No weight measurements found.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: '#e2e8f0' }}>Current weight</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{weightTrend.latestLbs.toFixed(1)} lbs</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: '#e2e8f0' }}>14-day trend</span>
+              <span className={`text-sm font-medium ${slopeColor(weightTrend.slopePerWeek)}`}>{slopeLabel(weightTrend.slopePerWeek)}</span>
+            </div>
+            {weightGoal && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, color: MUTED }}>Goal</span>
+                  <span style={{ fontSize: 12, color: MUTED }}>{weightGoal.targetValue} lbs</span>
+                </div>
+                {weightTrend.slopePerWeek !== 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: MUTED }}>Projected ETA</span>
+                    <span style={{ fontSize: 12, color: MUTED }}>
+                      {computeETAFromSlope(weightTrend.latestLbs, weightGoal.targetValue, weightTrend.slopePerWeek) ?? '—'}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* TDEE & Meal Plan */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
+          Calorie Burn · This Week
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, color: '#e2e8f0' }}>Scheduled workouts</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{scheduledSessionCount}</span>
+          </div>
+          {scheduledSessionCount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: MUTED }}>Est. burn (~350 kcal/ea)</span>
+              <span style={{ fontSize: 12, color: MUTED }}>~{(scheduledSessionCount * 350).toLocaleString()} kcal</span>
+            </div>
+          )}
+          {tdeePDay != null && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: MUTED }}>TDEE (daily)</span>
+              <span style={{ fontSize: 12, color: MUTED }}>{Math.round(tdeePDay).toLocaleString()} kcal</span>
+            </div>
+          )}
+          {tdeePDay != null && mealPlanRate != null && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${LINE_SOFT}` }}>
+              <span style={{ fontSize: 12, color: '#e2e8f0' }}>Est. weekly {mealPlanRate.weeklyDeficit > 0 ? 'deficit' : 'surplus'}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: mealPlanRate.weeklyDeficit > 0 ? '#34d399' : '#fbbf24' }}>
+                {mealPlanRate.weeklyDeficit > 0 ? '−' : '+'}
+                {Math.abs(Math.round(mealPlanRate.weeklyDeficit)).toLocaleString()} kcal
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

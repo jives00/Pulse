@@ -4,6 +4,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 21, 2026
+
+### Web
+
+- **Planning page streamlined** — Removed Schedules section (WorkoutScheduleSection, MealPlanningSection) and moved Projections section to Dashboard v4; Planning Board now renders as section header above calendar card matching Goals header style; deleted unused modal functions (AddScheduleModal, EditScheduleModal, ImportProgramModal) and cleaned up imports/state variables. `a47f785`
+
 ## May 20, 2026
 
 ### Web
