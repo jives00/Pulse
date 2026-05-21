@@ -13,6 +13,7 @@ import {
   addWorkoutSet, updateWorkoutSet, deleteWorkoutSet,
   getExercises, getExerciseCategories, createCustomExercise,
   getRoutine,
+  getMeasurements,
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
 } from '../../../src/api/client';
 import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
@@ -120,12 +121,19 @@ async function showWorkoutNotification(
   workout: WorkoutDetail,
   elapsed: number,
   isPaused: boolean,
+  bodyWeightKg?: number,
 ) {
   const title = workout.routineName ?? 'Workout';
   const vol = workout.exercises.reduce((total, we) => {
     return total + we.sets.reduce((sum, set) => {
-      if (!set.completed || set.weightKg == null || set.reps == null) return sum;
-      return sum + set.weightKg * KG_TO_LBS * set.reps;
+      if (!set.completed || set.reps == null) return sum;
+      if (set.weightKg != null) {
+        return sum + set.weightKg * KG_TO_LBS * set.reps;
+      }
+      if (we.exercise.exerciseType === 'bodyweight' && bodyWeightKg) {
+        return sum + bodyWeightKg * KG_TO_LBS * set.reps;
+      }
+      return sum;
     }, 0);
   }, 0);
 
@@ -208,6 +216,7 @@ export default function WorkoutDetailScreen() {
   const [restDuration, setRestDuration] = useState(REST_SECONDS);
   const restDurationRef = useRef(REST_SECONDS);
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
+  const [bodyWeightKg, setBodyWeightKg] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<string | null>(null);
   const pausedAtRef = useRef<string | null>(null);
@@ -262,9 +271,23 @@ export default function WorkoutDetailScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getWorkout(token, workoutId);
+      const [data, measurements] = await Promise.all([
+        getWorkout(token, workoutId),
+        getMeasurements(token),
+      ]);
       setWorkout(data);
       workoutRef.current = data;
+
+      // Get most recent body weight for bodyweight volume calculation
+      const weightMeasurement = measurements
+        .filter((m) => m.metric === 'weight')
+        .sort((a, b) => new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime())[0];
+      if (weightMeasurement) {
+        const kg = weightMeasurement.unit === 'lbs'
+          ? weightMeasurement.value / 2.20462
+          : weightMeasurement.value;
+        setBodyWeightKg(kg);
+      }
       // Fetch routine to get lastPerformedSets for "beat your last" display
       if (data.routineId && !data.completed) {
         getRoutine(token, data.routineId).then((routine) => {
@@ -308,7 +331,7 @@ export default function WorkoutDetailScreen() {
           const raw = Math.floor((Date.now() - new Date(sa).getTime()) / 1000);
           const el = Math.max(0, raw - totalPaused);
           setElapsed(el);
-          showWorkoutNotification(data, el, isCurrentlyPaused).catch(() => {});
+          showWorkoutNotification(data, el, isCurrentlyPaused, bodyWeightKg ?? undefined).catch(() => {});
         }
       }
     } catch {
@@ -359,7 +382,7 @@ export default function WorkoutDetailScreen() {
       const newElapsed = Math.max(0, raw - totalPausedSecondsRef.current);
       setElapsed(newElapsed);
       if (workoutRef.current && !isPausedRef.current) {
-        showWorkoutNotification(workoutRef.current, newElapsed, false).catch(() => {});
+        showWorkoutNotification(workoutRef.current, newElapsed, false, bodyWeightKg ?? undefined).catch(() => {});
       }
     };
     tick();
@@ -395,7 +418,7 @@ export default function WorkoutDetailScreen() {
       await new Promise(r => setTimeout(r, 300));
       const Notifications = await getNotifications();
       await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
-      showWorkoutNotification(workoutRef.current, el, true).catch(() => {});
+      showWorkoutNotification(workoutRef.current, el, true, bodyWeightKg ?? undefined).catch(() => {});
     }
   }
 
@@ -410,7 +433,7 @@ export default function WorkoutDetailScreen() {
     if (workoutRef.current) {
       const Notifications = await getNotifications();
       await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
-      showWorkoutNotification(workoutRef.current, computeElapsed(), false).catch(() => {});
+      showWorkoutNotification(workoutRef.current, computeElapsed(), false, bodyWeightKg ?? undefined).catch(() => {});
     }
   }
 
@@ -506,7 +529,7 @@ export default function WorkoutDetailScreen() {
             e.id === we.id ? { ...e, sets: [...e.sets, set] } : e
           ),
         } : prev;
-        if (next) showWorkoutNotification(next, computeElapsed(), isPaused).catch(() => {});
+        if (next) showWorkoutNotification(next, computeElapsed(), isPaused, bodyWeightKg ?? undefined).catch(() => {});
         return next;
       });
     } catch { Alert.alert('Error', 'Could not add set.'); }
@@ -660,7 +683,7 @@ export default function WorkoutDetailScreen() {
           e.id === we.id ? { ...e, sets: e.sets.map((s) => s.id === set.id ? { ...s, completed: newCompleted } : s) } : e
         ),
       } : prev;
-      if (next) showWorkoutNotification(next, computeElapsed(), isPaused).catch(() => {});
+      if (next) showWorkoutNotification(next, computeElapsed(), isPaused, bodyWeightKg ?? undefined).catch(() => {});
       return next;
     });
     try {
@@ -676,11 +699,17 @@ export default function WorkoutDetailScreen() {
     }
   }
 
-  // Running volume: sum of weight_lbs × reps for completed sets
+  // Running volume: sum of weight_lbs × reps for completed sets (including bodyweight)
   const runningVolumeLbs = workout?.exercises.reduce((total, we) => {
     return total + we.sets.reduce((sum, set) => {
-      if (!set.completed || set.weightKg == null || set.reps == null) return sum;
-      return sum + kgToLbs(set.weightKg) * set.reps;
+      if (!set.completed || set.reps == null) return sum;
+      if (set.weightKg != null) {
+        return sum + kgToLbs(set.weightKg) * set.reps;
+      }
+      if (we.exercise.exerciseType === 'bodyweight' && bodyWeightKg) {
+        return sum + kgToLbs(bodyWeightKg) * set.reps;
+      }
+      return sum;
     }, 0);
   }, 0) ?? 0;
   const allSets = workout?.exercises.flatMap((we) => we.sets) ?? [];
@@ -1104,7 +1133,7 @@ export default function WorkoutDetailScreen() {
               <TextInput style={s.createInput} value={newExCategory} onChangeText={setNewExCategory} placeholder="e.g. Legs" placeholderTextColor={c.muted} />
               <Text style={s.createLabel}>Type</Text>
               <View style={s.typeRow}>
-                {['weight', 'bodyweight', 'cardio', 'duration'].map((t) => (
+                {['weight', 'bodyweight', 'cardio', 'duration', 'resistance'].map((t) => (
                   <TouchableOpacity
                     key={t}
                     style={[s.typeBtn, newExType === t && s.typeBtnActive]}

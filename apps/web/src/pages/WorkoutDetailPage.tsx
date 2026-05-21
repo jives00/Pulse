@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, routinesApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -543,6 +543,7 @@ function ExercisePicker({
                 <option value="bodyweight">Bodyweight</option>
                 <option value="cardio">Cardio</option>
                 <option value="duration">Duration</option>
+                <option value="resistance">Resistance</option>
               </select>
               <div className="flex gap-2">
                 <button
@@ -576,6 +577,7 @@ export default function WorkoutDetailPage() {
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [lastSetsByExercise, setLastSetsByExercise] = useState<Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>>>({});
   const [routineHistory, setRoutineHistory] = useState<WorkoutSummary[]>([]);
+  const [bodyWeightKg, setBodyWeightKg] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -603,11 +605,26 @@ export default function WorkoutDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    workoutsApi.get(Number(id))
-      .then((w) => {
+    Promise.all([
+      workoutsApi.get(Number(id)),
+      measurementsApi.getAll(),
+    ])
+      .then(([w, measurements]) => {
         setWorkout(w);
         setName(w.name ?? '');
         setDuration(w.durationMinutes != null ? String(w.durationMinutes) : '');
+
+        // Get most recent body weight for bodyweight volume calculation
+        const weightMeasurement = measurements
+          .filter((m) => m.metric === 'weight')
+          .sort((a, b) => new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime())[0];
+        if (weightMeasurement) {
+          const kg = weightMeasurement.unit === 'lbs'
+            ? weightMeasurement.value / 2.20462
+            : weightMeasurement.value;
+          setBodyWeightKg(kg);
+        }
+
         if (w.startedAt && !w.completed) {
           setStartedAt(w.startedAt);
           const initialElapsed = Math.max(0, Math.floor((Date.now() - new Date(w.startedAt).getTime()) / 1000));
@@ -752,9 +769,16 @@ export default function WorkoutDetailPage() {
   const totalSets = workout.exercises.reduce((sum, e) => sum + e.sets.length, 0);
   const totalVolumeLbs = workout.exercises.reduce((sum, we) =>
     sum + we.sets.reduce((s2, set) => {
-      if (set.completed && set.reps != null && set.weightKg != null) {
+      if (!set.completed || set.reps == null) return s2;
+
+      if (set.weightKg != null) {
         return s2 + set.reps * kgToLbs(set.weightKg);
       }
+
+      if (we.exercise.exerciseType === 'bodyweight' && bodyWeightKg) {
+        return s2 + set.reps * kgToLbs(bodyWeightKg);
+      }
+
       return s2;
     }, 0), 0);
 

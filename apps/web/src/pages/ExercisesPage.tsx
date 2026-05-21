@@ -4,7 +4,7 @@ import { exercisesApi, type Exercise } from '@pulse/api-client';
 import { useSettingsStore } from '../store/settings';
 import Spinner from '../components/Spinner';
 
-const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
+const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
 
 const TRACKED_FIELD_OPTIONS = [
   { key: 'reps',     label: 'Reps' },

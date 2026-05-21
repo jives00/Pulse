@@ -256,7 +256,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
 
 // ── Edit modal ────────────────────────────────────────────────────────────────
 
-const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
+const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
 
 const TRACKED_FIELD_OPTIONS = [
   { key: 'reps',     label: 'Reps' },
@@ -270,6 +270,7 @@ function defaultTrackedFieldsMobile(exerciseType: string): string[] {
     case 'cardio':     return ['duration', 'distance'];
     case 'duration':   return ['duration'];
     case 'bodyweight': return ['reps'];
+    case 'resistance': return ['reps'];
     default:           return ['reps', 'weight'];
   }
 }

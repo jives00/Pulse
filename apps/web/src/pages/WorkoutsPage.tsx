@@ -567,7 +567,7 @@ function PersonalBestsCard({ bests }: { bests: PersonalBests | null }) {
 
 // ─── Routines tab ────────────────────────────────────────────────────────────
 
-const EXERCISE_TYPES_TAB = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
+const EXERCISE_TYPES_TAB = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
 
 const TRACKED_FIELD_OPTIONS_TAB = [
   { key: 'reps',     label: 'Reps' },
