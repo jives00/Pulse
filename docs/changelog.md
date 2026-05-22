@@ -4,6 +4,13 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 22, 2026
+
+### Web
+
+- **Recovery score** — Dashboard recovery card now shows a real 0–100 score computed from acute load (last 3 days) vs chronic load (28-day avg workout minutes); color-coded high/medium/low badge, filled progress bar, and contextual hint; server route GET /api/recovery added; recoveryApi added to shared api-client. `d6cdd82`
+- **Dashboard section header polish** — Band component kicker restyled as h2 matching other page headers; gold line centering fixed; "What you fueled, lifted, and what's next" subtitle removed; Fuel Today panel meta text removed. `d6cdd82`
+
 ## May 21, 2026
 
 ### Web

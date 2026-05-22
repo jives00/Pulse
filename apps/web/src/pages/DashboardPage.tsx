@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi, assistantApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi, assistantApi, recoveryApi,
   localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type MealPlanWeek, type InsightPeriod,
+  type WeekBucket, type UpcomingSession, type MealPlanWeek, type InsightPeriod, type RecoveryData,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -79,13 +79,13 @@ function Spark({ values, projection, color = ACCENT, w = 300, h = 40, area = fal
 
 // ─── Band section header ──────────────────────────────────────────────────────
 
-function Band({ kicker, title, meta, children }: { kicker: string; title: string; meta?: string; children: React.ReactNode }) {
+function Band({ kicker, title, meta, children }: { kicker: string; title?: string; meta?: string; children: React.ReactNode }) {
   return (
     <section style={{ padding: '28px 36px 8px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 18 }}>
-        <div style={{ width: 18, height: 1, background: ACCENT, flexShrink: 0 }} />
-        <span className="micro" style={{ color: 'white' }}>{kicker}</span>
-        <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{title}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        <div style={{ width: 18, height: 1, background: ACCENT, flexShrink: 0, alignSelf: 'center' }} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">{kicker}</h2>
+        {title && <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{title}</span>}
         {meta && <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>{meta}</span>}
       </div>
       {children}
@@ -382,21 +382,24 @@ function ExerciseToday({ workout, allWorkouts, routinesList, navigate }: {
   );
 }
 
-// ─── Recovery (placeholder) ───────────────────────────────────────────────────
+// ─── Recovery ─────────────────────────────────────────────────────────────────
 
-function RecoveryCard() {
+const RECOVERY_COLOR: Record<string, string> = { high: COL_GOOD, medium: '#D4A843', low: COL_WARN };
+
+function RecoveryCard({ data }: { data: RecoveryData | null }) {
+  if (!data) return <div style={{ fontSize: 11, color: MUTED2 }}>Loading…</div>;
+  const color = RECOVERY_COLOR[data.level];
+  const pct = data.score / 100;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color: MUTED }}>—</span>
-        <span style={{ padding: '3px 9px', borderRadius: 99, background: LINE_SOFT, color: MUTED, fontSize: 10, fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>coming soon</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color }}>{data.score}</span>
+        <span style={{ padding: '3px 9px', borderRadius: 99, background: color + '22', color, fontSize: 10, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{data.level}</span>
       </div>
-      <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', marginBottom: 12, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '33%', background: `color-mix(in oklab, ${COL_WARN} 25%, transparent)` }} />
-        <div style={{ position: 'absolute', top: 0, left: '33%', height: '100%', width: '34%', background: `color-mix(in oklab, ${ACCENT} 25%, transparent)` }} />
-        <div style={{ position: 'absolute', top: 0, left: '67%', height: '100%', width: '33%', background: `color-mix(in oklab, ${COL_GOOD} 25%, transparent)` }} />
+      <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', marginBottom: 10, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pct * 100}%`, background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />
       </div>
-      <div style={{ fontSize: 11, color: MUTED2, lineHeight: 1.5 }}>Server-side load + rest signal — planned for Phase 5.</div>
+      <div style={{ fontSize: 11, color: MUTED2, lineHeight: 1.5 }}>{data.hint}</div>
     </div>
   );
 }
@@ -1025,6 +1028,7 @@ export default function DashboardPage() {
   const [upcoming,       setUpcoming]       = useState<UpcomingSession[]>([]);
   const [insight,        setInsight]        = useState<string | null>(null);
   const [insightPeriod,  setInsightPeriod]  = useState<InsightPeriod>('morning');
+  const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1040,7 +1044,8 @@ export default function DashboardPage() {
       goalsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),
       assistantApi.getInsight().catch(() => ({ text: '' })),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins]) => {
+      recoveryApi.get().catch(() => null),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1053,6 +1058,7 @@ export default function DashboardPage() {
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
       setUpcoming(upc as UpcomingSession[]);
       if (ins?.text) { setInsight(ins.text); setInsightPeriod(ins.period ?? 'morning'); }
+      if (rec) setRecovery(rec as RecoveryData);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1108,9 +1114,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── TODAY ─────────────────────────────────────────────────────────────── */}
-      <Band kicker="Today" title="What you fueled, lifted, and what's next">
+      <Band kicker="Today">
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: 14 }}>
-          <Panel title="Fuel today" meta={summary ? `${fmt(summary.nutrition.actual.calories)} of ${fmt(summary.nutrition.goals?.calories ?? 0)} kcal · ${Math.round(summary.nutrition.actual.proteinG)}/${summary.nutrition.goals?.proteinG ?? 0}g protein` : undefined}>
+          <Panel title="Fuel today">
             <FuelToday actual={summary?.nutrition.actual ?? null} goals={summary?.nutrition.goals ?? null} tdee={todayTDEE} />
           </Panel>
           <Panel title="Exercise today" meta={todayWorkout ? `${todayWorkout.durationMinutes ?? '—'} min · ${fmt(todayWorkout.totalVolumeKg * KG_TO_LBS)} lb` : 'Not logged'}>
@@ -1119,7 +1125,7 @@ export default function DashboardPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', gap: 14, marginTop: 14 }}>
           <Panel title="Recovery" meta="load + rest signal">
-            <RecoveryCard />
+            <RecoveryCard data={recovery} />
           </Panel>
           <Panel title="Upcoming workouts" meta="next 7 days">
             <UpcomingCard upcoming={upcoming} navigate={navigate} />

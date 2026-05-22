@@ -25,6 +25,8 @@ export { routinesApi }  from './endpoints/routines';
 export { schedulesApi } from './endpoints/schedules';
 export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, ProgramTemplateDay, RecurrenceType } from './endpoints/schedules';
 export { stepsApi } from './endpoints/steps';
+export { recoveryApi } from './endpoints/recovery';
+export type { RecoveryData, RecoveryLevel } from './endpoints/recovery';
 export type { StepsDay } from './endpoints/steps';
 export { mealPlanApi } from './endpoints/meal-plan';
 export type { MealPlanEntry, MealPlanDay, MealPlanWeek, MealPlanTemplate, AddFoodEntryPayload, AddRecipeEntryPayload, MealPlanEntryType, MealPlanDayTotals } from './endpoints/meal-plan';
