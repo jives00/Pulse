@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Dashboard Today section redesign** — Today band now contains Fuel Today, Exercise Today (with inline recovery strip), and Weekly Goal Progress; Upcoming and Personal Bests removed from Today; Exercise Today shows today's scheduled routine with per-exercise last-time reference data instead of last-session ghost; rest day and no-schedule states added; Net vs TDEE promoted to hero stat in Fuel Today; Remaining replaced by Calories In; macro % shows actual value when over 100% and highlights in warn color; Weekly Goal Progress (renamed from This Week) renders in a 3-column grid with vertical dividers, colored pill pace badges, taller bars, and wider pace tick; Goal Progress band now has FlagshipGoal full-width; font sizes bumped throughout for legibility. `66ff2e0`
 - **Recovery score** — Dashboard recovery card now shows a real 0–100 score computed from acute load (last 3 days) vs chronic load (28-day avg workout minutes); color-coded high/medium/low badge, filled progress bar, and contextual hint; server route GET /api/recovery added; recoveryApi added to shared api-client. `d6cdd82`
 - **Dashboard section header polish** — Band component kicker restyled as h2 matching other page headers; gold line centering fixed; "What you fueled, lifted, and what's next" subtitle removed; Fuel Today panel meta text removed. `d6cdd82`
 

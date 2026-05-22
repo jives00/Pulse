@@ -6,7 +6,7 @@ import {
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
-  type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
+  type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
   type WeekBucket, type UpcomingSession, type MealPlanWeek, type InsightPeriod, type RecoveryData,
 } from '@pulse/api-client';
 
@@ -159,23 +159,24 @@ function InsightBanner({ text, streak, date, period }: { text: string; streak: n
 // ─── Fuel Today ───────────────────────────────────────────────────────────────
 
 function MacroBlock({ label, val, goal }: { label: string; val: number; goal: number }) {
-  const pct = clamp(val / goal);
+  const pctRaw = goal > 0 ? val / goal : 0;
+  const pctClamped = clamp(pctRaw);
   const over = val > goal;
   return (
     <div style={{ flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span className="micro" style={{ fontSize: 9, color: MUTED }}>{label}</span>
-        <span className="font-mono" style={{ fontSize: 9, color: over ? COL_WARN : MUTED2 }}>{Math.round(pct * 100)}%</span>
+        <span className="micro" style={{ fontSize: 11, color: MUTED }}>{label}</span>
+        <span className="font-mono" style={{ fontSize: 11, color: over ? COL_WARN : MUTED2 }}>{Math.round(pctRaw * 100)}%</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-        <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>{val}</span>
-        <span style={{ fontSize: 11, color: MUTED }}>g</span>
-        <span className="font-mono" style={{ fontSize: 10, color: MUTED2, marginLeft: 'auto' }}>/ {goal}</span>
+        <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: over ? COL_WARN : 'white' }}>{val}</span>
+        <span style={{ fontSize: 12, color: MUTED }}>g</span>
+        <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>/ {goal}</span>
       </div>
       <div style={{ height: 5, background: LINE_SOFT, borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct * 100}%`, background: ACCENT }} />
+        <div style={{ height: '100%', width: `${pctClamped * 100}%`, background: over ? COL_WARN : ACCENT }} />
       </div>
-      <div className="font-mono" style={{ fontSize: 10, color: MUTED2, marginTop: 6 }}>
+      <div className="font-mono" style={{ fontSize: 11, color: over ? COL_WARN : MUTED2, marginTop: 6 }}>
         {over ? `+${val - goal}g over` : `${Math.max(0, goal - val)}g left`}
       </div>
     </div>
@@ -220,32 +221,31 @@ function FuelToday({ actual, goals, tdee }: {
 
       {/* Stats + macros */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-        <div style={{ display: 'flex', gap: 36, flexWrap: 'wrap' }}>
-          {calG > 0 && (
+        <div style={{ display: 'flex', gap: 36, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {tdeeVal > 0 && (
             <div>
-              <div className="micro" style={{ fontSize: 9, marginBottom: 6, color: MUTED }}>Remaining</div>
-              <div className="font-display" style={{ fontSize: 32, fontWeight: 600, color: ACCENT }}>
-                {remaining < 0 ? '+' : ''}{fmt(Math.abs(remaining))}
-                <span style={{ fontSize: 12, color: MUTED, marginLeft: 6, fontWeight: 400 }}>kcal</span>
+              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>Net vs TDEE</div>
+              <div className="font-display" style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: net < 0 ? COL_GOOD : COL_WARN }}>
+                {net > 0 ? '+' : ''}{fmt(net)}
+                <span style={{ fontSize: 13, color: MUTED, marginLeft: 7, fontWeight: 400 }}>{net < 0 ? 'deficit' : 'surplus'}</span>
               </div>
             </div>
           )}
           {tdeeVal > 0 && (
-            <>
-              <div>
-                <div className="micro" style={{ fontSize: 9, marginBottom: 6, color: MUTED }}>Net vs TDEE</div>
-                <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: net < 0 ? COL_GOOD : COL_WARN }}>
-                  {net > 0 ? '+' : ''}{fmt(net)}
-                  <span style={{ fontSize: 12, color: MUTED, marginLeft: 6, fontWeight: 400 }}>{net < 0 ? 'deficit' : 'surplus'}</span>
-                </div>
+            <div>
+              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>TDEE</div>
+              <div className="font-display" style={{ fontSize: 20, fontWeight: 500, color: MUTED }}>
+                {fmt(tdeeVal)}<span style={{ fontSize: 12, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
               </div>
-              <div>
-                <div className="micro" style={{ fontSize: 9, marginBottom: 6, color: MUTED }}>TDEE</div>
-                <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: 'white' }}>
-                  {fmt(tdeeVal)}<span style={{ fontSize: 12, color: MUTED, marginLeft: 6, fontWeight: 400 }}>kcal</span>
-                </div>
+            </div>
+          )}
+          {cal > 0 && (
+            <div>
+              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>Calories in</div>
+              <div className="font-display" style={{ fontSize: 20, fontWeight: 500, color: MUTED }}>
+                {fmt(cal)}<span style={{ fontSize: 12, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
               </div>
-            </>
+            </div>
           )}
         </div>
         <div style={{ height: 1, background: LINE_SOFT }} />
@@ -269,9 +269,9 @@ function StatsRow({ stats, muted }: { stats: [string, string, string][]; muted?:
     <div style={{ display: 'flex', marginBottom: 16 }}>
       {stats.map(([l, v, u], i) => (
         <div key={i} style={{ flex: 1, paddingLeft: i ? 16 : 0, borderLeft: i ? `1px solid ${LINE_SOFT}` : 'none' }}>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>{l}</div>
+          <div className="micro" style={{ fontSize: 11, marginBottom: 4, color: MUTED }}>{l}</div>
           <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: col }}>
-            {v}{u && <span style={{ fontSize: 11, color: MUTED, marginLeft: 3, fontWeight: 400 }}>{u}</span>}
+            {v}{u && <span style={{ fontSize: 12, color: MUTED, marginLeft: 3, fontWeight: 400 }}>{u}</span>}
           </div>
         </div>
       ))}
@@ -288,11 +288,11 @@ function LiftList({ exercises, muted }: {
     <div>
       {exercises.slice(0, 5).map((e, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-          <span style={{ fontSize: 12, color: col }}>{e.name}</span>
+          <span style={{ fontSize: 13, color: col }}>{e.name}</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-            <span className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{e.setCount} sets</span>
+            <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>{e.setCount} sets</span>
             {e.maxWeightKg != null && (
-              <span className="font-display" style={{ fontSize: 12, fontWeight: 600, color: col, minWidth: 70, textAlign: 'right' }}>
+              <span className="font-display" style={{ fontSize: 13, fontWeight: 600, color: col, minWidth: 70, textAlign: 'right' }}>
                 {Math.round(e.maxWeightKg * KG_TO_LBS)} lb{e.avgReps ? ` × ${Math.round(e.avgReps)}` : ''}
               </span>
             )}
@@ -303,83 +303,132 @@ function LiftList({ exercises, muted }: {
   );
 }
 
-function ExerciseToday({ workout, allWorkouts, routinesList, navigate }: {
+function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
   workout: WorkoutSummary | null;
   allWorkouts: WorkoutSummary[];
-  routinesList: RoutineSummary[];
+  upcoming: UpcomingSession[];
+  recovery: RecoveryData | null;
   navigate: (p: string) => void;
 }) {
-  if (!workout) {
-    const lastSession = allWorkouts.find(w => w.exerciseCount > 0) ?? null;
-    const nextRoutine = routinesList[0] ?? null;
+  const today = localDateStr();
+  const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
+
+  const todaySession = upcoming.find(s => s.date === today && s.status === 'scheduled' && !s.isRestDay) ?? null;
+  const isTodayRestDay = !todaySession && upcoming.some(s => s.date === today && s.isRestDay);
+
+  useEffect(() => {
+    if (!workout && todaySession?.routineId) {
+      routinesApi.get(todaySession.routineId).then(setRoutineDetail).catch(() => {});
+    }
+  }, [workout, todaySession?.routineId]);
+
+  const recoveryStrip = recovery ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 12, marginBottom: 14, borderBottom: `1px solid ${LINE_SOFT}` }}>
+      <span className="micro" style={{ fontSize: 11, color: MUTED }}>Recovery</span>
+      <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: RECOVERY_COLOR[recovery.level] }}>{recovery.score}</span>
+      <span style={{ padding: '2px 8px', borderRadius: 99, background: RECOVERY_COLOR[recovery.level] + '22', color: RECOVERY_COLOR[recovery.level], fontSize: 11, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{recovery.level}</span>
+      <span style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto', maxWidth: 160, textAlign: 'right' }}>{recovery.hint}</span>
+    </div>
+  ) : null;
+
+  if (workout) {
+    const highlights = computeHighlights(workout, allWorkouts);
     return (
       <div>
-        <div style={{ padding: '14px 16px', border: `1px dashed ${LINE}`, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-          <div style={{ width: 38, height: 38, borderRadius: '50%', background: `color-mix(in oklab, ${ACCENT} 12%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 3 L13 8 L4 13 Z" fill={ACCENT} /></svg>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>Nothing logged yet today</div>
-            {nextRoutine && <div className="font-mono" style={{ fontSize: 10, color: MUTED2, marginTop: 3 }}>{nextRoutine.name} up next</div>}
+        {recoveryStrip}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color: 'white' }}>{workout.routineName ?? workout.name ?? 'Workout'}</span>
+              {highlights[0] && <span className="font-mono" style={{ fontSize: 11, color: ACCENT }}>★ {highlights[0]}</span>}
+            </div>
+            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginTop: 5 }}>
+              {workout.durationMinutes} min
+            </div>
           </div>
           <button
-            onClick={() => navigate('/workouts')}
-            style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-          >
-            {nextRoutine ? `Start ${nextRoutine.name}` : 'Start workout'}
-          </button>
+            onClick={() => navigate(`/workouts/${workout.id}`)}
+            style={{ padding: '6px 13px', borderRadius: 6, border: `1px solid ${LINE}`, background: 'transparent', color: MUTED, fontSize: 11, cursor: 'pointer' }}
+          >Open</button>
         </div>
-        {lastSession && (
-          <>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 99, marginBottom: 14 }}>
-              <span className="font-mono" style={{ fontSize: 9, color: MUTED }}>
-                Last · {new Date(lastSession.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-            </div>
-            <div style={{ opacity: 0.75 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-                <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>{lastSession.routineName ?? lastSession.name ?? 'Workout'}</span>
-                <span className="font-mono" style={{ fontSize: 11, color: MUTED2 }}>{lastSession.durationMinutes} min</span>
-              </div>
-              <StatsRow muted stats={[
-                ['Volume', fmt(lastSession.totalVolumeKg * KG_TO_LBS), 'lb'],
-                ['Sets', String(lastSession.setCount), ''],
-                ['Burned', lastSession.caloriesBurned ? String(lastSession.caloriesBurned) : '—', lastSession.caloriesBurned ? 'kcal' : ''],
-              ]} />
-              <LiftList muted exercises={lastSession.exercises} />
-            </div>
-          </>
-        )}
+        <StatsRow stats={[
+          ['Volume', fmt(workout.totalVolumeKg * KG_TO_LBS), 'lb'],
+          ['Sets', String(workout.setCount), ''],
+          ['Burned', workout.caloriesBurned ? String(workout.caloriesBurned) : '—', workout.caloriesBurned ? 'kcal' : ''],
+        ]} />
+        <LiftList exercises={workout.exercises} />
       </div>
     );
   }
 
-  const highlights = computeHighlights(workout, allWorkouts);
+  if (isTodayRestDay) {
+    return (
+      <div>
+        {recoveryStrip}
+        <div style={{ fontSize: 13, color: MUTED2 }}>Rest day — take it easy.</div>
+      </div>
+    );
+  }
+
+  if (!todaySession) {
+    return (
+      <div>
+        {recoveryStrip}
+        <div style={{ fontSize: 13, color: MUTED2, marginBottom: 14 }}>No workout scheduled today.</div>
+        <button
+          onClick={() => navigate('/workouts')}
+          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >Start workout</button>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+      {recoveryStrip}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color: 'white' }}>{workout.routineName ?? workout.name ?? 'Workout'}</span>
-            {highlights[0] && <span className="font-mono" style={{ fontSize: 11, color: ACCENT }}>★ {highlights[0]}</span>}
-          </div>
-          <div className="font-mono" style={{ fontSize: 10, color: MUTED2, marginTop: 5 }}>
-            {workout.durationMinutes} min
-          </div>
+          <div className="micro" style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Scheduled today</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: 'white' }}>{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</div>
         </div>
         <button
-          onClick={() => navigate(`/workouts/${workout.id}`)}
-          style={{ padding: '6px 13px', borderRadius: 6, border: `1px solid ${LINE}`, background: 'transparent', color: MUTED, fontSize: 11, cursor: 'pointer' }}
-        >Open</button>
+          onClick={() => navigate('/workouts')}
+          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >Start</button>
       </div>
-      <StatsRow stats={[
-        ['Volume', fmt(workout.totalVolumeKg * KG_TO_LBS), 'lb'],
-        ['Sets', String(workout.setCount), ''],
-        ['Burned', workout.caloriesBurned ? String(workout.caloriesBurned) : '—', workout.caloriesBurned ? 'kcal' : ''],
-      ]} />
-      <LiftList exercises={workout.exercises} />
+      {routineDetail ? (
+        <div>
+          {routineDetail.exercises.slice(0, 5).map((re, i) => {
+            const last = re.lastPerformedSets;
+            const maxWeightKg = last?.reduce((m, s) => Math.max(m, s.weightKg ?? 0), 0) ?? 0;
+            const setCount = last?.length ?? re.templateSets.length;
+            const topReps = last?.find(s => s.weightKg === maxWeightKg)?.reps ?? null;
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
+                <span style={{ fontSize: 13, color: 'white' }}>{re.exercise.name}</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                  <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>{setCount} sets</span>
+                  {maxWeightKg > 0 && (
+                    <span className="font-display" style={{ fontSize: 13, fontWeight: 600, color: MUTED, minWidth: 70, textAlign: 'right' }}>
+                      {Math.round(maxWeightKg * KG_TO_LBS)} lb{topReps ? ` × ${topReps}` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {routineDetail.exercises.length > 5 && (
+            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, paddingTop: 8 }}>
+              +{routineDetail.exercises.length - 5} more
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: MUTED2 }}>Loading exercises…</div>
+      )}
     </div>
   );
+
 }
 
 // ─── Recovery ─────────────────────────────────────────────────────────────────
@@ -546,19 +595,23 @@ function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysIn }: {
   label: string; val: number; goal: number; fmtv: string; fmtg: string; daysIn: number;
 }) {
   const pct = clamp(val / goal);
+  const expected = goal * (daysIn / 7);
+  const paceStatus = pct >= 1 ? 'done' : val >= expected * 0.95 ? 'ahead' : val >= expected * 0.75 ? 'close' : 'behind';
+  const paceColor = paceStatus === 'done' || paceStatus === 'ahead' ? COL_GOOD : paceStatus === 'close' ? '#D4A843' : COL_WARN;
+  const paceLabel = paceStatus === 'done' ? 'Done' : paceStatus === 'ahead' ? 'On pace' : paceStatus === 'close' ? 'Close' : 'Behind';
   return (
-    <div style={{ padding: '11px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 7 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span className="micro" style={{ fontSize: 9, color: MUTED }}>{label}</span>
-          <span className="font-display" style={{ fontSize: 15, fontWeight: 600, color: 'white' }}>{fmtv}</span>
-          <span className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>/ {fmtg}</span>
-        </div>
-        <span className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{Math.round(pct * 100)}%</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span className="micro" style={{ fontSize: 11, color: MUTED }}>{label}</span>
+        <span style={{ padding: '2px 8px', borderRadius: 99, background: paceColor + '28', color: paceColor, fontSize: 11, fontWeight: 600, letterSpacing: '.02em' }}>{paceLabel}</span>
       </div>
-      <div style={{ position: 'relative', height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'visible' }}>
-        <div style={{ height: '100%', width: `${pct * 100}%`, background: ACCENT, opacity: 0.85 }} />
-        <div style={{ position: 'absolute', top: -2, bottom: -2, left: `${(daysIn / 7) * 100}%`, width: 1, background: 'white', opacity: 0.5 }} />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>{fmtv}</span>
+        <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>/ {fmtg}</span>
+      </div>
+      <div style={{ position: 'relative', height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'visible' }}>
+        <div style={{ height: '100%', width: `${pct * 100}%`, background: ACCENT, opacity: 0.85, borderRadius: 2 }} />
+        <div style={{ position: 'absolute', top: -6, bottom: -6, left: `calc(${(daysIn / 7) * 100}% - 1.5px)`, width: 3, background: 'rgba(255,255,255,0.75)', borderRadius: 1 }} />
       </div>
     </div>
   );
@@ -588,12 +641,12 @@ function ThisWeek({ summary, exGoals, thisWeekBucket, foodLogHistory, weekStart 
 
   if (!items.length) return <div style={{ fontSize: 13, color: MUTED2 }}>Set goals to track weekly progress.</div>;
   return (
-    <div>
-      {items.map((m, i) => <WeeklyProgressRow key={i} {...m} daysIn={daysIn} />)}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 10 }} className="font-mono">
-        <div style={{ width: 1, height: 8, background: 'white', opacity: 0.5 }} />
-        <span style={{ fontSize: 10, color: MUTED2 }}>expected pace by day {daysIn}</span>
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px 0' }}>
+      {items.map((m, i) => (
+        <div key={i} style={{ paddingLeft: i % 3 !== 0 ? 28 : 0, paddingRight: i % 3 !== 2 ? 28 : 0, borderLeft: i % 3 !== 0 ? `1px solid ${LINE_SOFT}` : 'none' }}>
+          <WeeklyProgressRow {...m} daysIn={daysIn} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -1043,7 +1096,7 @@ export default function DashboardPage() {
       routinesApi.getAll().catch(() => []),
       goalsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),
-      assistantApi.getInsight().catch(() => ({ text: '' })),
+      assistantApi.getInsight().catch(() => null),
       recoveryApi.get().catch(() => null),
     ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec]) => {
       setWorkouts(ws);
@@ -1119,33 +1172,22 @@ export default function DashboardPage() {
           <Panel title="Fuel today">
             <FuelToday actual={summary?.nutrition.actual ?? null} goals={summary?.nutrition.goals ?? null} tdee={todayTDEE} />
           </Panel>
-          <Panel title="Exercise today" meta={todayWorkout ? `${todayWorkout.durationMinutes ?? '—'} min · ${fmt(todayWorkout.totalVolumeKg * KG_TO_LBS)} lb` : 'Not logged'}>
-            <ExerciseToday workout={todayWorkout} allWorkouts={workouts} routinesList={routines} navigate={navigate} />
+          <Panel title="Exercise today" meta={todayWorkout ? `${todayWorkout.durationMinutes ?? '—'} min · ${fmt(todayWorkout.totalVolumeKg * KG_TO_LBS)} lb` : undefined}>
+            <ExerciseToday workout={todayWorkout} allWorkouts={workouts} upcoming={upcoming} recovery={recovery} navigate={navigate} />
           </Panel>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', gap: 14, marginTop: 14 }}>
-          <Panel title="Recovery" meta="load + rest signal">
-            <RecoveryCard data={recovery} />
-          </Panel>
-          <Panel title="Upcoming workouts" meta="next 7 days">
-            <UpcomingCard upcoming={upcoming} navigate={navigate} />
-          </Panel>
-          <Panel title="Personal bests" meta="all-time">
-            <PersonalBestsTable pb={personalBests} />
+        <div style={{ marginTop: 14 }}>
+          <Panel title="Weekly Goal Progress" meta={`day ${Math.min(7, Math.ceil((new Date(today + 'T00:00:00').getTime() - new Date(weekStart + 'T00:00:00').getTime()) / 86400000) + 1)} of 7`}>
+            <ThisWeek summary={summary} exGoals={exGoals} thisWeekBucket={thisWeekBucket} foodLogHistory={foodLogHistory} weekStart={weekStart} />
           </Panel>
         </div>
       </Band>
 
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
       <Band kicker="Goal progress" title="Pace toward targets at this rate">
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 14 }}>
-          <Panel title="Primary goal · Weight" meta={measGoals['weight'] ? `target ${measGoals['weight'].targetValue} lb` : undefined}>
-            <FlagshipGoal measurements={measurements} goal={measGoals['weight']} />
-          </Panel>
-          <Panel title="This week" meta={`day ${Math.min(7, Math.ceil((new Date(today + 'T00:00:00').getTime() - new Date(weekStart + 'T00:00:00').getTime()) / 86400000) + 1)} of 7`}>
-            <ThisWeek summary={summary} exGoals={exGoals} thisWeekBucket={thisWeekBucket} foodLogHistory={foodLogHistory} weekStart={weekStart} />
-          </Panel>
-        </div>
+        <Panel title="Primary goal · Weight" meta={measGoals['weight'] ? `target ${measGoals['weight'].targetValue} lb` : undefined}>
+          <FlagshipGoal measurements={measurements} goal={measGoals['weight']} />
+        </Panel>
         <div style={{ marginTop: 14 }}>
           <Panel title="Body composition · pace & projection" meta="past entries · projected 9wk">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
