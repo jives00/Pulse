@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi, assistantApi, recoveryApi,
-  localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights, shortDate,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, assistantApi, recoveryApi,
+  localDateStr, getWeekStart, buildWeeklyData, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
-  type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type MealPlanWeek, type InsightPeriod, type RecoveryData,
+  type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
+  type WeekBucket, type UpcomingSession, type InsightPeriod, type RecoveryData,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
       {(title || action) && (
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="micro" style={{ color: MUTED }}>{title}</span>
+            <span className="micro" style={{ color: MUTED, fontSize: 12 }}>{title}</span>
             {meta && <span className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{meta}</span>}
           </div>
           {action}
@@ -542,52 +542,6 @@ function PersonalBestsTable({ pb }: { pb: PersonalBests | null }) {
 
 // ─── Flagship goal (weight) ───────────────────────────────────────────────────
 
-function FlagshipGoal({ measurements, goal }: { measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined }) {
-  if (!goal) return <div style={{ fontSize: 13, color: MUTED2 }}>No weight goal set.</div>;
-  const sorted = measurements.filter(m => m.metric === 'weight').sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
-  if (!sorted.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No weight data yet.</div>;
-  const start = sorted[0];
-  const latest = sorted[sorted.length - 1];
-  const toVal = (m: BodyMeasurement) => m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-  const currentVal = toVal(latest);
-  const startVal   = toVal(start);
-  const targetVal  = goal.targetValue;
-  const pace = computeGoalPace(measurements, 'weight', goal, 'down');
-  const paceColor = pace.status === 'green' ? COL_GOOD : pace.status === 'done' ? ACCENT : pace.status === 'yellow' ? ACCENT : COL_WARN;
-  const paceLabel = pace.status === 'done' ? 'Goal reached' : pace.status === 'green' ? 'On track' : pace.status === 'yellow' ? 'Close' : 'Off pace';
-  const weeklyRate = sorted.length >= 2
-    ? ((toVal(sorted[sorted.length - 1]) - toVal(sorted[sorted.length - 2])) * 7 /
-       Math.max(1, (new Date(latest.measuredAt + 'T12:00:00').getTime() - new Date(sorted[sorted.length - 2].measuredAt + 'T12:00:00').getTime()) / 86400000)).toFixed(1)
-    : '—';
-
-  return (
-    <div>
-      <div className="micro" style={{ marginBottom: 10, color: MUTED }}>At this pace</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' as const, marginBottom: 14 }}>
-        <span className="font-display t-display" style={{ color: 'white' }}>
-          {fmt1(targetVal)}<span style={{ fontSize: 18, color: MUTED, marginLeft: 5, fontWeight: 400 }}>lb</span>
-        </span>
-        <span style={{ fontSize: 15, color: MUTED }}>by</span>
-        <span className="font-display" style={{ fontSize: 32, fontWeight: 600, color: ACCENT }}>{pace.projectedDate ?? 'TBD'}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: paceColor }} />
-          <span style={{ fontSize: 11, color: paceColor, fontWeight: 500 }}>{paceLabel}</span>
-        </div>
-        <span className="font-mono" style={{ fontSize: 11, color: MUTED2 }}>{weeklyRate} lb/wk</span>
-        <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>now {fmt1(currentVal)} lb</span>
-      </div>
-      <div style={{ position: 'relative', height: 20 }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 9, height: 2, background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', left: 0, top: 9, height: 2, width: `${pace.pct * 100}%`, background: paceColor }} />
-        <div style={{ position: 'absolute', left: `calc(${pace.pct * 100}% - 5px)`, top: 5, width: 10, height: 10, borderRadius: '50%', background: paceColor, border: `2px solid ${CARD}` }} />
-        <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)} lb · start</div>
-        <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(targetVal)} lb · goal</div>
-      </div>
-    </div>
-  );
-}
 
 // ─── This week ────────────────────────────────────────────────────────────────
 
@@ -651,88 +605,6 @@ function ThisWeek({ summary, exGoals, thisWeekBucket, foodLogHistory, weekStart 
   );
 }
 
-// ─── Body goal row (waist / bicep) ────────────────────────────────────────────
-
-function BodyGoalRow({ label, metric, unit, dir, measurements, goal }: {
-  label: string; metric: string; unit: string; dir: 'up' | 'down';
-  measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined;
-}) {
-  const sorted = measurements.filter(m => m.metric === metric).sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
-  if (!sorted.length) {
-    return (
-      <div style={{ padding: '16px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-        <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>{label}</div>
-        <div style={{ fontSize: 13, color: MUTED2 }}>No data yet</div>
-      </div>
-    );
-  }
-  const current = sorted[sorted.length - 1].value;
-  const startVal = sorted[0].value;
-  const targetVal = goal?.targetValue ?? (dir === 'down' ? current - 1 : current + 1);
-  const pace = goal ? computeGoalPace(measurements, metric, goal, dir) : null;
-  const paceColor = !pace ? MUTED : pace.status === 'done' ? ACCENT : pace.status === 'green' ? COL_GOOD : pace.status === 'yellow' ? ACCENT : COL_WARN;
-  const paceText = !pace ? '—' : pace.status === 'done' ? 'Done' : pace.status === 'green' ? 'Ahead' : pace.status === 'yellow' ? 'On track' : 'Behind';
-  const growing = targetVal > startVal;
-  const pct = !pace ? 0 : pace.pct;
-
-  // Build trend values from actual measurements
-  const trend = sorted.slice(-10).map(m => m.value);
-
-  // Simple linear projection (6 points)
-  let projection: number[] | undefined;
-  if (sorted.length >= 2) {
-    const n = sorted.length;
-    const t0 = new Date(sorted[0].measuredAt + 'T12:00:00').getTime();
-    const xs = sorted.map(m => (new Date(m.measuredAt + 'T12:00:00').getTime() - t0) / 86400000);
-    const ys = sorted.map(m => m.value);
-    const xMean = xs.reduce((a, b) => a + b, 0) / n;
-    const yMean = ys.reduce((a, b) => a + b, 0) / n;
-    const denom = xs.reduce((s, x) => s + (x - xMean) ** 2, 0);
-    const slope = denom > 0 ? xs.reduce((s, x, i) => s + (x - xMean) * (ys[i] - yMean), 0) / denom : 0;
-    const intercept = yMean - slope * xMean;
-    const lastX = xs[xs.length - 1];
-    projection = [6, 12, 18, 24, 30, 36, 42, 48, 54].map(dx => +(intercept + slope * (lastX + dx)).toFixed(2));
-  }
-
-  const allVals = [...trend, ...(projection ?? [])];
-  const minO = Math.min(...allVals) * 0.992;
-  const maxO = Math.max(...allVals) * 1.008;
-
-  return (
-    <div style={{ padding: '16px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>{label}</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>{fmt1(current)}</span>
-            <span style={{ fontSize: 11, color: MUTED }}>{unit}</span>
-            {goal && <span className="font-mono" style={{ fontSize: 10, color: MUTED2, marginLeft: 6 }}>→ {fmt1(targetVal)}</span>}
-          </div>
-        </div>
-        {goal && (
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: paceColor, fontWeight: 500 }}>{paceText}</div>
-            {pace?.projectedDate && <div className="font-mono" style={{ fontSize: 10, color: MUTED2, marginTop: 2 }}>ETA {pace.projectedDate}</div>}
-          </div>
-        )}
-      </div>
-      {goal && (
-        <div style={{ position: 'relative', height: 18, marginBottom: 8 }}>
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 2, background: 'rgba(255,255,255,0.06)' }} />
-          <div style={{ position: 'absolute', left: 0, top: 8, height: 2, width: `${pct * 100}%`, background: paceColor }} />
-          <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 4px)`, top: 5, width: 8, height: 8, borderRadius: '50%', background: paceColor, border: `2px solid ${CARD}` }} />
-          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)}</div>
-          <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(targetVal)}</div>
-        </div>
-      )}
-      <Spark values={trend} projection={projection} h={36} minO={minO} maxO={maxO} w={320} />
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 9, color: MUTED2 }}>
-        <span>past {sorted.length} entries</span>
-        {projection && <span>projected 9wk</span>}
-      </div>
-    </div>
-  );
-}
 
 // ─── Cal vs Burned (custom SVG chart) ────────────────────────────────────────
 
@@ -998,88 +870,6 @@ function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
 
 // ─── Weight trend (custom SVG chart) ─────────────────────────────────────────
 
-function WeightTrend({ measurements, goal }: { measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined }) {
-  const weights = measurements
-    .filter(m => m.metric === 'weight')
-    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
-    .slice(-30)
-    .map(m => ({ date: m.measuredAt, val: m.unit === 'kg' ? m.value * KG_TO_LBS : m.value }));
-
-  if (!weights.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No weight entries yet.</div>;
-
-  // 14-day slope projection
-  const last14 = weights.slice(-14).map(w => w.val);
-  const slope14 = last14.length >= 2 ? (last14[last14.length - 1] - last14[0]) / (last14.length - 1) : 0;
-  const projection = Array.from({ length: 30 }, (_, i) => +(weights[weights.length - 1].val + slope14 * (i + 1)).toFixed(1));
-
-  const vals = weights.map(w => w.val);
-  const first = vals[0], last = vals[vals.length - 1];
-  const delta = (last - first).toFixed(1);
-  const target = goal?.targetValue;
-  const allVals = [...vals, ...projection, target ?? 0].filter(Boolean);
-  const minV = Math.min(...allVals) * 0.992;
-  const maxV = Math.max(...allVals) * 1.008;
-
-  const w = 760, h = 180;
-  const total = weights.length + projection.length;
-  const X = (i: number) => (i / (total - 1)) * w;
-  const Y = (v: number) => h - ((v - minV) / (maxV - minV)) * (h - 20) - 10;
-
-  const linePath = vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
-  const aPath = `${linePath} L${X(vals.length - 1)},${h} L0,${h} Z`;
-  const projPath = [vals[vals.length - 1], ...projection].map((v, i) =>
-    `${i ? 'L' : 'M'}${X(vals.length - 1 + i).toFixed(1)},${Y(v).toFixed(1)}`
-  ).join('');
-  const lastDot = [X(vals.length - 1), Y(last)];
-  const projDot = [X(total - 1), Y(projection[projection.length - 1])];
-  const targetY = target ? Y(target) : null;
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 32, marginBottom: 14, flexWrap: 'wrap' as const }}>
-        <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Current</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>{fmt1(last)}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
-        </div>
-        <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Change</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: Number(delta) < 0 ? COL_GOOD : COL_WARN }}>{Number(delta) > 0 ? '+' : ''}{delta}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
-        </div>
-        <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Projected (30d)</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: ACCENT, opacity: 0.85 }}>{fmt1(projection[projection.length - 1])}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
-        </div>
-        {target && (
-          <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, textAlign: 'right', color: MUTED }}>Target</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED, textAlign: 'right' }}>{fmt1(target)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
-          </div>
-        )}
-      </div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ACCENT} stopOpacity="0.16" />
-            <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" x2={w} y1={h * g} y2={h * g} stroke={LINE_SOFT} strokeWidth="1" />)}
-        {targetY && <line x1="0" x2={w} y1={targetY} y2={targetY} stroke={MUTED} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />}
-        <path d={aPath} fill="url(#wg)" />
-        <path d={linePath} fill="none" stroke={ACCENT} strokeWidth="1.8" />
-        <path d={projPath} fill="none" stroke={ACCENT} strokeWidth="1.4" strokeDasharray="4 3" opacity="0.65" />
-        <line x1={X(vals.length - 1)} x2={X(vals.length - 1)} y1={0} y2={h} stroke={LINE} strokeWidth="1" strokeDasharray="2 2" opacity="0.7" />
-        <circle cx={lastDot[0]} cy={lastDot[1]} r="3" fill={ACCENT} />
-        <circle cx={projDot[0]} cy={projDot[1]} r="3" fill={ACCENT} opacity="0.6" />
-      </svg>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: MUTED2 }}>
-        <span>{weights[0].date} · {fmt1(first)} lb</span>
-        <span>today · {fmt1(last)} lb</span>
-        <span>30d out · {fmt1(projection[projection.length - 1])} lb</span>
-      </div>
-    </div>
-  );
-}
 
 // ─── Heatmap (12 weeks, volume-intensity) ─────────────────────────────────────
 
@@ -1321,6 +1111,629 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
   );
 }
 
+// ─── Goal Progress: shared helpers ───────────────────────────────────────────
+
+type GoalStatus = 'achieved' | 'ahead' | 'on_track' | 'behind' | 'no_data';
+
+const STATUS_CFG: Record<GoalStatus, { color: string; label: string }> = {
+  achieved: { color: COL_GOOD,  label: 'Achieved' },
+  ahead:    { color: COL_GOOD,  label: 'Ahead'    },
+  on_track: { color: '#D4A843', label: 'On track' },
+  behind:   { color: COL_WARN,  label: 'Behind'   },
+  no_data:  { color: MUTED,     label: '—'        },
+};
+
+function StatusChip({ status }: { status: GoalStatus }) {
+  const { color, label } = STATUS_CFG[status];
+  return (
+    <span style={{ padding: '2px 9px', borderRadius: 99, background: color + '28', color, fontSize: 11, fontWeight: 600, letterSpacing: '.02em' }}>
+      {label}
+    </span>
+  );
+}
+
+function deadlineStatus(etaDays: number | null, deadlineStr: string | null, achieved: boolean): GoalStatus {
+  if (achieved) return 'achieved';
+  if (etaDays == null || !deadlineStr) return 'no_data';
+  const deadlineDays = Math.ceil(
+    (new Date(deadlineStr + 'T12:00:00').getTime() - Date.now()) / 86400000
+  );
+  if (etaDays <= deadlineDays - 21) return 'ahead';
+  if (etaDays <= deadlineDays + 14) return 'on_track';
+  return 'behind';
+}
+
+function fmtETA(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function fmtISODate(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function normDateStr(isoStr: string): string {
+  return isoStr.slice(0, 10);
+}
+
+// ─── Goal Progress: Weight card ───────────────────────────────────────────────
+
+function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
+  measurements: BodyMeasurement[];
+  goal: MeasurementGoal | undefined;
+  foodLogHistory: FoodLogHistoryDay[];
+  tdee: TDEEBreakdown | null;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  const sorted = measurements
+    .filter(m => m.metric === 'weight')
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+    .map(m => ({ date: m.measuredAt, val: m.unit === 'kg' ? m.value * KG_TO_LBS : m.value }));
+
+  const target   = goal?.targetValue;
+  const deadline = goal?.targetDate ? normDateStr(goal.targetDate) : null;
+
+  if (!sorted.length) {
+    return (
+      <Panel title="Weight goal" meta={target ? `target ${fmt1(target)} lb` : undefined}>
+        <div style={{ fontSize: 13, color: MUTED2 }}>No weight entries yet.</div>
+      </Panel>
+    );
+  }
+
+  const current  = sorted[sorted.length - 1].val;
+  const startVal = sorted[0].val;
+  const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
+
+  // 28-day trend slope via linear regression (lbs/day)
+  const cutoff28Ms = todayMs - 28 * 86400000;
+  const recent28   = sorted.filter(m => new Date(m.date + 'T12:00:00').getTime() >= cutoff28Ms);
+  let trendLbsPerDay = 0;
+  if (recent28.length >= 2) {
+    const xs  = recent28.map(m => (new Date(m.date + 'T12:00:00').getTime() - cutoff28Ms) / 86400000);
+    const ys  = recent28.map(m => m.val);
+    const n   = xs.length;
+    const xM  = xs.reduce((a, b) => a + b, 0) / n;
+    const yM  = ys.reduce((a, b) => a + b, 0) / n;
+    const den = xs.reduce((s, x) => s + (x - xM) ** 2, 0);
+    trendLbsPerDay = den > 0 ? xs.reduce((s, x, i) => s + (x - xM) * (ys[i] - yM), 0) / den : 0;
+  }
+
+  // TDEE-based slope (lbs/day): net calories / 3500
+  let tdeeLbsPerDay: number | null = null;
+  if (tdee) {
+    const recentFood = foodLogHistory.slice(-14).filter(d => d.calories > 0);
+    if (recentFood.length > 0) {
+      const avgCal = recentFood.reduce((s, d) => s + d.calories, 0) / recentFood.length;
+      tdeeLbsPerDay = (avgCal - tdee.total) / 3500;
+    }
+  }
+
+  function etaDays(slopePerDay: number): number | null {
+    if (!target || Math.abs(slopePerDay) < 0.001) return null;
+    const d = (target - current) / slopePerDay;
+    return d > 0 ? Math.round(d) : null;
+  }
+
+  const trendEta   = etaDays(trendLbsPerDay);
+  const tdeeEta    = tdeeLbsPerDay != null ? etaDays(tdeeLbsPerDay) : null;
+  const isAchieved = target != null && current <= target;
+  const status = deadlineStatus(trendEta, deadline, isAchieved);
+
+  // Chart: 90-day window + 14-day projection
+  const chart90 = sorted.filter(m => new Date(m.date + 'T12:00:00').getTime() >= todayMs - 90 * 86400000);
+  const chartData = chart90.length > 0 ? chart90 : sorted.slice(-30); // fallback
+  const t0Ms  = new Date(chartData[0].date + 'T12:00:00').getTime();
+  const endMs = todayMs + 28 * 86400000;
+  const W = 760, H = 170;
+  const X = (ms: number) => ((ms - t0Ms) / (endMs - t0Ms)) * W;
+  const todayX = X(todayMs);
+
+  // Build 28-day projection arrays (daily points)
+  const trendPts = Array.from({ length: 29 }, (_, i) => ({
+    x: X(todayMs + i * 86400000),
+    y: current + trendLbsPerDay * i,
+  }));
+  const tdeePts = tdeeLbsPerDay != null
+    ? Array.from({ length: 29 }, (_, i) => ({
+        x: X(todayMs + i * 86400000),
+        y: current + tdeeLbsPerDay! * i,
+      }))
+    : null;
+
+  const allY = [
+    ...chartData.map(m => m.val),
+    ...trendPts.map(p => p.y),
+    ...(tdeePts ?? []).map(p => p.y),
+    target ?? 0,
+  ].filter(v => v > 0);
+  const minV = Math.min(...allY) * 0.994;
+  const maxV = Math.max(...allY) * 1.006;
+  const Y = (v: number) => H - ((v - minV) / (maxV - minV)) * (H - 20) - 10;
+
+  const histPath = chartData.map((m, i) =>
+    `${i ? 'L' : 'M'}${X(new Date(m.date + 'T12:00:00').getTime()).toFixed(1)},${Y(m.val).toFixed(1)}`
+  ).join('');
+  const aPath = `${histPath} L${todayX.toFixed(1)},${H} L${X(t0Ms).toFixed(1)},${H} Z`;
+  const trendPath = trendPts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
+  const tdeePath  = tdeePts ? tdeePts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${Y(p.y).toFixed(1)}`).join('') : null;
+  const targetY   = target != null ? Y(target) : null;
+
+  return (
+    <Panel title="Weight goal" meta={goal ? `${fmt1(target!)} lb by ${goal.targetDate ? fmtISODate(goal.targetDate) : '—'}` : undefined}>
+      {/* Status row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 12, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Current</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
+            {fmt1(current)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>lb</span>
+          </span>
+        </div>
+        {target != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
+            <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
+              {fmt1(target)}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>lb</span>
+            </span>
+          </div>
+        )}
+        {trendEta != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, color: ACCENT, marginBottom: 3 }}>ETA · trend</div>
+            <span className="font-mono" style={{ fontSize: 12, color: ACCENT }}>{fmtETA(trendEta)}</span>
+          </div>
+        )}
+        {tdeeEta != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, color: '#D4A843', marginBottom: 3 }}>ETA · TDEE pace</div>
+            <span className="font-mono" style={{ fontSize: 12, color: '#D4A843' }}>{fmtETA(tdeeEta)}</span>
+          </div>
+        )}
+        <div style={{ marginLeft: 'auto' }}>
+          <StatusChip status={status} />
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div style={{ position: 'relative' }}>
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ width: '100%', height: H, display: 'block', cursor: 'crosshair' }}
+          preserveAspectRatio="none"
+          onMouseMove={e => {
+            if (!svgRef.current) return;
+            const rect = svgRef.current.getBoundingClientRect();
+            const xRatio = (e.clientX - rect.left) / rect.width;
+            const hoverMs = t0Ms + xRatio * (endMs - t0Ms);
+            let closest = 0, minDist = Infinity;
+            chartData.forEach((m, i) => {
+              const dist = Math.abs(new Date(m.date + 'T12:00:00').getTime() - hoverMs);
+              if (dist < minDist) { minDist = dist; closest = i; }
+            });
+            setHoverIdx(closest);
+          }}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <defs>
+            <linearGradient id="wgc" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ACCENT} stopOpacity="0.14" />
+              <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75].map((g, i) => (
+            <line key={i} x1="0" x2={W} y1={H * g} y2={H * g} stroke={LINE_SOFT} strokeWidth="1" />
+          ))}
+          {targetY != null && (
+            <line x1="0" x2={W} y1={targetY} y2={targetY} stroke={MUTED} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+          )}
+          <path d={aPath} fill="url(#wgc)" />
+          <path d={histPath} fill="none" stroke={ACCENT} strokeWidth="1.8" />
+          <line x1={todayX.toFixed(1)} x2={todayX.toFixed(1)} y1="0" y2={H} stroke={LINE} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+          {tdeePath && (
+            <path d={tdeePath} fill="none" stroke="#f97316" strokeWidth="1.4" strokeDasharray="4 3" opacity="0.85" />
+          )}
+          <path d={trendPath} fill="none" stroke="#818cf8" strokeWidth="1.4" strokeDasharray="4 3" opacity="0.9" />
+          <circle cx={todayX.toFixed(1)} cy={Y(current).toFixed(1)} r="3" fill={ACCENT} />
+          {hoverIdx !== null && (() => {
+            const m = chartData[hoverIdx];
+            const hx = X(new Date(m.date + 'T12:00:00').getTime());
+            const hy = Y(m.val);
+            return (
+              <>
+                <line x1={hx.toFixed(1)} x2={hx.toFixed(1)} y1="0" y2={H} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <circle cx={hx.toFixed(1)} cy={hy.toFixed(1)} r="4" fill={ACCENT} stroke={CARD} strokeWidth="2" />
+              </>
+            );
+          })()}
+        </svg>
+        {hoverIdx !== null && (() => {
+          const m = chartData[hoverIdx];
+          const hx = X(new Date(m.date + 'T12:00:00').getTime());
+          const hy = Y(m.val);
+          const leftPct = (hx / W) * 100;
+          return (
+            <div style={{
+              position: 'absolute',
+              left: `clamp(0px, calc(${leftPct.toFixed(1)}% - 52px), calc(100% - 104px))`,
+              top: Math.max(0, hy - 46),
+              background: CARD, border: `1px solid ${LINE}`,
+              padding: '5px 10px', borderRadius: 4,
+              pointerEvents: 'none', zIndex: 10, minWidth: 104,
+            }}>
+              <div className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{m.date}</div>
+              <div className="font-display" style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                {fmt1(m.val)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 3 }}>lb</span>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Legend */}
+      <div className="font-mono" style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11, color: MUTED2, flexWrap: 'wrap' as const }}>
+        <span style={{ color: ACCENT }}>── actual</span>
+        <span style={{ color: '#818cf8' }}>╌╌ trend proj</span>
+        {tdeePath && <span style={{ color: '#f97316' }}>╌╌ TDEE proj</span>}
+        {targetY != null && <span>╌╌ target {fmt1(target!)} lb</span>}
+        <span style={{ marginLeft: 'auto' }}>{chartData.length} entries · 28d proj</span>
+      </div>
+    </Panel>
+  );
+}
+
+// ─── Goal Progress: Body measurement card (waist / bicep) ────────────────────
+
+function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
+  label: string; metric: string; unit: string; dir: 'up' | 'down';
+  measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined;
+}) {
+  const sorted = measurements
+    .filter(m => m.metric === metric)
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+    .map(m => ({ date: m.measuredAt, val: m.value }));
+
+  const target   = goal?.targetValue;
+  const deadline = goal?.targetDate ? normDateStr(goal.targetDate) : null;
+
+  if (!sorted.length) {
+    return (
+      <Panel title={`${label} goal`} meta={target ? `target ${fmt1(target)} ${unit}` : undefined}>
+        <div style={{ fontSize: 13, color: MUTED2 }}>No entries yet.</div>
+      </Panel>
+    );
+  }
+
+  const current  = sorted[sorted.length - 1].val;
+  const startVal = sorted[0].val;
+  const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
+  const t0Ms     = new Date(sorted[0].date + 'T12:00:00').getTime();
+
+  // Linear regression slope (units/day)
+  let slopePerDay = 0;
+  if (sorted.length >= 2) {
+    const n   = sorted.length;
+    const xs  = sorted.map(m => (new Date(m.date + 'T12:00:00').getTime() - t0Ms) / 86400000);
+    const ys  = sorted.map(m => m.val);
+    const xM  = xs.reduce((a, b) => a + b, 0) / n;
+    const yM  = ys.reduce((a, b) => a + b, 0) / n;
+    const den = xs.reduce((s, x) => s + (x - xM) ** 2, 0);
+    slopePerDay = den > 0 ? xs.reduce((s, x, i) => s + (x - xM) * (ys[i] - yM), 0) / den : 0;
+  }
+
+  let etaDaysVal: number | null = null;
+  if (target != null && Math.abs(slopePerDay) > 0.0001) {
+    const d = (target - current) / slopePerDay;
+    etaDaysVal = d > 0 ? Math.round(d) : null;
+  }
+
+  const isAchieved = target != null && (dir === 'down' ? current <= target : current >= target);
+  const status     = deadlineStatus(etaDaysVal, deadline, isAchieved);
+  const { color: statusCol } = STATUS_CFG[status];
+
+  const pct = target != null
+    ? clamp(dir === 'down'
+        ? (startVal - current) / Math.max(0.001, startVal - target)
+        : (current - startVal) / Math.max(0.001, target - startVal))
+    : 0;
+
+  // Chart
+  const endMs  = todayMs + 30 * 86400000;
+  const W = 760, H = 130;
+  const X = (ms: number) => ((ms - t0Ms) / (endMs - t0Ms)) * W;
+  const todayX = X(todayMs);
+
+  const projPts = Array.from({ length: 31 }, (_, i) => ({
+    x: X(todayMs + i * 86400000),
+    y: current + slopePerDay * i,
+  }));
+
+  const allY = [...sorted.map(m => m.val), ...projPts.map(p => p.y), target ?? 0].filter(Boolean);
+  const minV = Math.min(...allY) * 0.994;
+  const maxV = Math.max(...allY) * 1.006;
+  const Y = (v: number) => H - ((v - minV) / (maxV - minV)) * (H - 16) - 8;
+
+  const histPath = sorted.map((m, i) =>
+    `${i ? 'L' : 'M'}${X(new Date(m.date + 'T12:00:00').getTime()).toFixed(1)},${Y(m.val).toFixed(1)}`
+  ).join('');
+  const projPath = projPts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
+  const targetY  = target != null ? Y(target) : null;
+
+  return (
+    <Panel title={`${label} goal`} meta={goal ? `${fmt1(target!)} ${unit} by ${goal.targetDate ? fmtISODate(goal.targetDate) : '—'}` : undefined}>
+      {/* Status row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 12, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Current</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
+            {fmt1(current)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{unit}</span>
+          </span>
+        </div>
+        {target != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
+            <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
+              {fmt1(target)}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>{unit}</span>
+            </span>
+          </div>
+        )}
+        {etaDaysVal != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>ETA</div>
+            <span className="font-mono" style={{ fontSize: 12, color: 'white' }}>{fmtETA(etaDaysVal)}</span>
+          </div>
+        )}
+        <div style={{ marginLeft: 'auto' }}>
+          <StatusChip status={status} />
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {target != null && (
+        <div style={{ position: 'relative', height: 18, marginBottom: 10 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 2, background: LINE_SOFT }} />
+          <div style={{ position: 'absolute', left: 0, top: 8, height: 2, width: `${pct * 100}%`, background: statusCol }} />
+          <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 4px)`, top: 5, width: 8, height: 8, borderRadius: '50%', background: statusCol, border: `2px solid ${CARD}` }} />
+          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)}</div>
+          <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(target)}</div>
+        </div>
+      )}
+
+      {/* Chart */}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+        {targetY != null && (
+          <line x1="0" x2={W} y1={targetY} y2={targetY} stroke={MUTED} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+        )}
+        <path d={histPath} fill="none" stroke={ACCENT} strokeWidth="1.8" />
+        <line x1={todayX.toFixed(1)} x2={todayX.toFixed(1)} y1="0" y2={H} stroke={LINE} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+        <path d={projPath} fill="none" stroke={ACCENT} strokeWidth="1.4" strokeDasharray="4 3" opacity="0.65" />
+        <circle cx={todayX.toFixed(1)} cy={Y(current).toFixed(1)} r="3" fill={ACCENT} />
+      </svg>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 9, color: MUTED2 }}>
+        <span>{sorted[0].date}</span>
+        <span>{sorted.length} entries · 30d proj</span>
+      </div>
+    </Panel>
+  );
+}
+
+// ─── Goal Progress: Weekly volume card ───────────────────────────────────────
+
+function VolumeGoalCard({ weeklyData, exGoals }: {
+  weeklyData: WeekBucket[];
+  exGoals: ExerciseGoals | null;
+}) {
+  const target = exGoals?.volumeLbsPerWeek ?? null;
+
+  if (!target) {
+    return (
+      <Panel title="Weekly volume">
+        <div style={{ fontSize: 13, color: MUTED2 }}>No volume goal set.</div>
+      </Panel>
+    );
+  }
+
+  const thisWeek = weeklyData[weeklyData.length - 1];
+  const completed = weeklyData.slice(0, -1); // exclude current week
+  const avg4 = completed.length > 0
+    ? Math.round(completed.slice(-4).reduce((s, w) => s + w.volumeLbs, 0) / Math.min(4, completed.length))
+    : 0;
+
+  // Streak: consecutive completed weeks (newest → oldest)
+  let streak = 0;
+  for (let i = completed.length - 1; i >= 0; i--) {
+    if (completed[i].volumeLbs >= target) streak++;
+    else break;
+  }
+
+  // On-track: pace = current volume / (fraction of week elapsed)
+  const dayOfWeek = ((new Date().getDay() + 6) % 7) + 1; // Mon=1 … Sun=7
+  const weekFrac  = dayOfWeek / 7;
+  const pace      = weekFrac > 0 ? thisWeek.volumeLbs / weekFrac : 0;
+  let status: GoalStatus;
+  if (thisWeek.volumeLbs >= target) {
+    status = 'achieved';
+  } else if (pace >= target * 0.9) {
+    status = 'on_track';
+  } else {
+    status = 'behind';
+  }
+
+  // Bar chart
+  const W = 760, H = 130;
+  const n   = weeklyData.length;
+  const barW  = (W / n) * 0.72;
+  const barGap = (W / n) * 0.28;
+  const maxV  = Math.max(...weeklyData.map(b => b.volumeLbs), target) * 1.05;
+  const barH  = (v: number) => Math.max((v / maxV) * (H - 18), 1);
+  const barX  = (i: number) => i * (W / n) + barGap / 2;
+  const barY  = (v: number) => H - 10 - barH(v);
+  const targetLineY = H - 10 - barH(target);
+
+  return (
+    <Panel title="Weekly volume goal" meta={`${(target / 1000).toFixed(0)}k lb/wk target`}>
+      {/* Status row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 14, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>This week</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
+            {fmt(thisWeek.volumeLbs)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>lb</span>
+          </span>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>4-wk avg</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
+            {fmt(avg4)}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>lb</span>
+          </span>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Streak</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: streak > 0 ? COL_GOOD : MUTED }}>
+            {streak}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>wks</span>
+          </span>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <StatusChip status={status} />
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+        <line x1="0" x2={W} y1={targetLineY} y2={targetLineY} stroke={MUTED} strokeWidth="1" strokeDasharray="4 3" opacity="0.5" />
+        {weeklyData.map((b, i) => {
+          const isThis  = i === n - 1;
+          const hitGoal = b.volumeLbs >= target;
+          const fill    = isThis ? ACCENT : hitGoal ? COL_GOOD + 'bb' : MUTED + '44';
+          return (
+            <rect
+              key={i}
+              x={barX(i).toFixed(1)}
+              y={barY(b.volumeLbs).toFixed(1)}
+              width={barW.toFixed(1)}
+              height={barH(b.volumeLbs).toFixed(1)}
+              fill={fill}
+              rx="1"
+            />
+          );
+        })}
+      </svg>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 9, color: MUTED2 }}>
+        <span>{weeklyData[0].label}</span>
+        <span>this week</span>
+      </div>
+    </Panel>
+  );
+}
+
+// ─── Goal Progress: Workout frequency card ────────────────────────────────────
+
+function WorkoutFreqCard({ routines, routineGoals, workouts }: {
+  routines: RoutineSummary[];
+  routineGoals: RoutineGoal[];
+  workouts: WorkoutSummary[];
+}) {
+  // Deduplicate by routineId, keep highest id (most recent insert), filter to frequency goals only (≤7)
+  const deduped: Record<number, RoutineGoal> = {};
+  for (const rg of routineGoals.filter(rg => rg.targetPerWeek <= 7 && rg.targetPerWeek > 0)) {
+    if (!deduped[rg.routineId] || rg.id > deduped[rg.routineId].id) deduped[rg.routineId] = rg;
+  }
+  const goals = Object.values(deduped);
+
+  if (!goals.length) {
+    return (
+      <Panel title="Workout frequency">
+        <div style={{ fontSize: 13, color: MUTED2 }}>No per-routine frequency goals set.</div>
+      </Panel>
+    );
+  }
+
+  // Build 8 week-start strings (oldest → newest)
+  const today = localDateStr();
+  const weeks: string[] = [];
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - i * 7);
+    weeks.push(getWeekStart(localDateStr(d)));
+  }
+  const thisWeek = weeks[weeks.length - 1];
+
+  function weekEnd(ws: string): string {
+    const d = new Date(ws + 'T12:00:00');
+    d.setDate(d.getDate() + 6);
+    return localDateStr(d);
+  }
+
+  function countForRoutineWeek(routineId: number, ws: string): number {
+    const we = weekEnd(ws);
+    return workouts.filter(w => w.routineId === routineId && w.workoutDate >= ws && w.workoutDate <= we).length;
+  }
+
+  function routineName(id: number): string {
+    return routines.find(r => r.id === id)?.name ?? `Routine ${id}`;
+  }
+
+  // Overall status: all routines hit target this week?
+  const allDone = goals.every(rg => countForRoutineWeek(rg.routineId, thisWeek) >= rg.targetPerWeek);
+  const overallStatus: GoalStatus = allDone ? 'achieved' : 'on_track';
+
+  return (
+    <Panel title="Workout frequency" meta={`${goals.length} routine${goals.length !== 1 ? 's' : ''} · weekly targets`}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <StatusChip status={overallStatus} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {goals.map(rg => {
+          const name      = routineName(rg.routineId);
+          const thisCount = countForRoutineWeek(rg.routineId, thisWeek);
+          const hit       = thisCount >= rg.targetPerWeek;
+          return (
+            <div key={rg.routineId}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'white', fontWeight: 500 }}>{name}</span>
+                <span style={{ fontSize: 11, color: hit ? COL_GOOD : MUTED2, fontFamily: 'var(--font-mono)' }}>
+                  {thisCount}/{rg.targetPerWeek} this week
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {weeks.map(ws => {
+                  const count   = countForRoutineWeek(rg.routineId, ws);
+                  const isHit   = count >= rg.targetPerWeek;
+                  const isThis  = ws === thisWeek;
+                  return (
+                    <div
+                      key={ws}
+                      title={`${ws}: ${count}/${rg.targetPerWeek}`}
+                      style={{
+                        flex: 1, height: 22, borderRadius: 3,
+                        background: isHit
+                          ? isThis ? ACCENT : COL_GOOD + 'aa'
+                          : LINE_SOFT,
+                        border: isThis ? `1px solid ${ACCENT}55` : 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {isHit && (
+                        <span style={{ fontSize: 8, color: isThis ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)' }}>✓</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 9, color: MUTED2 }}>
+        <span>8 weeks ago</span>
+        <span>this week</span>
+      </div>
+    </Panel>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1344,6 +1757,7 @@ export default function DashboardPage() {
   const [insight,        setInsight]        = useState<string | null>(null);
   const [insightPeriod,  setInsightPeriod]  = useState<InsightPeriod>('morning');
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
+  const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1360,7 +1774,8 @@ export default function DashboardPage() {
       schedulesApi.getUpcoming(7).catch(() => []),
       assistantApi.getInsight().catch(() => null),
       recoveryApi.get().catch(() => null),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec]) => {
+      routinesApi.getAllGoals().catch(() => []),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec, rg]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1374,6 +1789,7 @@ export default function DashboardPage() {
       setUpcoming(upc as UpcomingSession[]);
       if (ins?.text) { setInsight(ins.text); setInsightPeriod(ins.period ?? 'morning'); }
       if (rec) setRecovery(rec as RecoveryData);
+      if (rg) setRoutineGoals(rg as RoutineGoal[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1466,22 +1882,13 @@ export default function DashboardPage() {
       </Band>
 
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
-      <Band kicker="Goal progress" title="Pace toward targets at this rate">
-        <Panel title="Primary goal · Weight" meta={measGoals['weight'] ? `target ${measGoals['weight'].targetValue} lb` : undefined}>
-          <FlagshipGoal measurements={measurements} goal={measGoals['weight']} />
-        </Panel>
-        <div style={{ marginTop: 14 }}>
-          <Panel title="Weight · 30d trend + 30d projection" meta="14-day pace">
-            <WeightTrend measurements={measurements} goal={measGoals['weight']} />
-          </Panel>
-        </div>
-        <div style={{ marginTop: 14 }}>
-          <Panel title="Body composition · pace & projection" meta="past entries · projected 9wk">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
-              <BodyGoalRow label="Waist" metric="waist" unit="in" dir="down" measurements={measurements} goal={measGoals['waist']} />
-              <BodyGoalRow label="Bicep" metric="bicep" unit="in" dir="up"   measurements={measurements} goal={measGoals['bicep']} />
-            </div>
-          </Panel>
+      <Band kicker="Goal progress">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <WeightGoalCard measurements={measurements} goal={measGoals['weight']} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
+          <VolumeGoalCard weeklyData={weeklyData} exGoals={exGoals} />
+          <BodyMeasGoalCard label="Waist" metric="waist" unit="in" dir="down" measurements={measurements} goal={measGoals['waist']} />
+          <BodyMeasGoalCard label="Bicep" metric="bicep" unit="in" dir="up" measurements={measurements} goal={measGoals['bicep']} />
+          <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
         </div>
       </Band>
 
@@ -1492,248 +1899,9 @@ export default function DashboardPage() {
         </Panel>
       </Band>
 
-      {/* ── PROJECTIONS ───────────────────────────────────────────────────────── */}
-      <Band kicker="Projections" title="This week's outlook">
-        <ProjectionsSection
-          summary={summary}
-          measurements={measurements}
-          measurementGoals={measGoals}
-          upcoming={upcoming}
-          refreshKey={0}
-        />
-      </Band>
-
       <div style={{ padding: '24px 36px 60px' }} className="font-mono">
         <div style={{ height: 1, background: LINE_SOFT, marginBottom: 14 }} />
         <span style={{ fontSize: 10, color: MUTED2 }}>Pulse · Dashboard v4 preview · Phase 4a</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Section: Projections ────────────────────────────────────────────────────
-// (Extracted from PlanningPage)
-
-function computeETAFromSlope(latestLbs: number, targetLbs: number, slopePerWeek: number): string | null {
-  if (Math.abs(slopePerWeek) < 0.001) return null;
-  const remaining = targetLbs - latestLbs;
-  if ((remaining < 0 && slopePerWeek < 0) || (remaining > 0 && slopePerWeek > 0)) {
-    const weeks = remaining / slopePerWeek;
-    const d = new Date();
-    d.setDate(d.getDate() + Math.round(weeks * 7));
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-  return null;
-}
-
-function ProjectionsSection({
-  summary,
-  measurements,
-  measurementGoals,
-  upcoming,
-  refreshKey,
-}: {
-  summary: GoalsSummary | null;
-  measurements: BodyMeasurement[];
-  measurementGoals: Record<string, MeasurementGoal>;
-  upcoming: UpcomingSession[];
-  refreshKey: number;
-}) {
-  const today = localDateStr();
-  const weekStart = getWeekStart(today);
-
-  const [weekPlan, setWeekPlan] = useState<MealPlanWeek | null>(null);
-  const [tdee,     setTdee]     = useState<TDEEResult | null>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [whatIfMode, setWhatIfMode] = useState(false);
-  const [whatIfCals, setWhatIfCals] = useState('');
-
-  async function fetchData() {
-    setLoading(true);
-    try {
-      const [plan, tdeeResult] = await Promise.all([
-        mealPlanApi.getWeek(weekStart).catch(() => null),
-        goalsApi.getTDEE().catch(() => null),
-      ]);
-      setWeekPlan(plan);
-      setTdee(tdeeResult);
-    } finally { setLoading(false); }
-  }
-
-  useEffect(() => { fetchData(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const tdeePDay = tdee?.available ? tdee.total : null;
-  const goals = summary?.nutrition.goals;
-
-  // Weekly planned totals from current meal plan
-  const plannedTotals = useMemo(() => {
-    if (!weekPlan) return null;
-    return weekPlan.days.reduce(
-      (acc, d) => ({
-        calories:     acc.calories     + d.totals.calories,
-        proteinG:     acc.proteinG     + d.totals.proteinG,
-        carbsG:       acc.carbsG       + d.totals.carbsG,
-        fatG:         acc.fatG         + d.totals.fatG,
-        daysWithData: acc.daysWithData + (d.totals.calories > 0 ? 1 : 0),
-      }),
-      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, daysWithData: 0 },
-    );
-  }, [weekPlan]);
-
-  // Scheduled workout sessions this week (non-rest)
-  const scheduledSessionCount = useMemo(() => {
-    const endOfWeek = new Date(weekStart + 'T12:00:00');
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    const endStr = localDateStr(endOfWeek);
-    return upcoming.filter(s => !s.isRestDay && s.date >= weekStart && s.date <= endStr).length;
-  }, [upcoming, weekStart]);
-
-  // 14-day weight trend slope
-  const weightTrend = useMemo(() => {
-    const all = measurements
-      .filter(m => m.metric === 'weight')
-      .map(m => ({ date: m.measuredAt, lbs: m.unit === 'kg' ? m.value * 2.20462 : m.value }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (all.length === 0) return null;
-    const latest = all[all.length - 1];
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 14);
-    const recent = all.filter(m => new Date(m.date + 'T12:00:00') >= cutoff);
-    if (recent.length < 2) return { slopePerWeek: 0, latestLbs: latest.lbs };
-    const oldest = recent[0];
-    const newest = recent[recent.length - 1];
-    const days = (new Date(newest.date + 'T12:00:00').getTime() - new Date(oldest.date + 'T12:00:00').getTime()) / 86400000;
-    return { slopePerWeek: days > 0 ? ((newest.lbs - oldest.lbs) / days) * 7 : 0, latestLbs: latest.lbs };
-  }, [measurements]);
-
-  // Weight change rate implied by current meal plan vs TDEE
-  const mealPlanRate = useMemo(() => {
-    if (!tdeePDay || !plannedTotals || plannedTotals.daysWithData === 0) return null;
-    const avgDailyPlanned = plannedTotals.calories / plannedTotals.daysWithData;
-    const weeklyDeficit  = (tdeePDay - avgDailyPlanned) * 7;
-    const weeklyChange   = -weeklyDeficit / 3500;
-    return { avgDailyPlanned, weeklyDeficit, weeklyChange };
-  }, [tdeePDay, plannedTotals]);
-
-  // What-if rate
-  const whatIfCalNum = Number(whatIfCals) || 0;
-  const whatIfRate   = whatIfMode && tdeePDay && whatIfCalNum > 0
-    ? -((tdeePDay - whatIfCalNum) * 7) / 3500
-    : null;
-
-  const weightGoal = measurementGoals['weight'];
-  const dayBars    = weekPlan?.days.map(d => ({ label: d.dayLabel, calories: d.totals.calories })) ?? [];
-
-  function slopeLabel(s: number): string {
-    if (Math.abs(s) < 0.01) return 'Stable';
-    return `${s > 0 ? '+' : ''}${s.toFixed(2)} lbs/wk`;
-  }
-  function slopeColor(s: number): string {
-    if (Math.abs(s) < 0.01) return 'text-slate-400';
-    return s < 0 ? 'text-emerald-400' : 'text-amber-400';
-  }
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
-      {/* Planned Macros */}
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
-          Planned Macros · This Week
-        </p>
-        {!plannedTotals || plannedTotals.daysWithData === 0 ? (
-          <p style={{ fontSize: 13, color: MUTED }}>No meals planned for this week yet.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: 12, color: MUTED }}>{plannedTotals.daysWithData} of 7 days have meals planned</p>
-            {([
-              { label: 'Calories', val: plannedTotals.calories, goal: goals?.calories != null ? goals.calories * 7 : null, unit: 'kcal', color: '#D4A843' },
-              { label: 'Protein',  val: plannedTotals.proteinG, goal: goals?.proteinG != null ? goals.proteinG * 7 : null, unit: 'g', color: '#60a5fa' },
-              { label: 'Carbs',    val: plannedTotals.carbsG,   goal: goals?.carbsG   != null ? goals.carbsG * 7   : null, unit: 'g', color: '#34d399' },
-              { label: 'Fat',      val: plannedTotals.fatG,     goal: goals?.fatG     != null ? goals.fatG * 7     : null, unit: 'g', color: '#fb923c' },
-            ] as Array<{ label: string; val: number; goal: number | null; unit: string; color: string }>).map(({ label, val, goal: g, unit, color }) => (
-              <div key={label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, color: '#e2e8f0' }}>{label}</span>
-                  <span style={{ fontSize: 12, color: MUTED }}>
-                    {Math.round(val).toLocaleString()} {unit}
-                    {g != null ? ` / ${Math.round(g).toLocaleString()} ${unit}` : ''}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Weight Projection */}
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
-          Weight Projection
-        </p>
-        {!weightTrend ? (
-          <p style={{ fontSize: 12, color: MUTED }}>No weight measurements found.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#e2e8f0' }}>Current weight</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{weightTrend.latestLbs.toFixed(1)} lbs</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#e2e8f0' }}>14-day trend</span>
-              <span className={`text-sm font-medium ${slopeColor(weightTrend.slopePerWeek)}`}>{slopeLabel(weightTrend.slopePerWeek)}</span>
-            </div>
-            {weightGoal && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, color: MUTED }}>Goal</span>
-                  <span style={{ fontSize: 12, color: MUTED }}>{weightGoal.targetValue} lbs</span>
-                </div>
-                {weightTrend.slopePerWeek !== 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 12, color: MUTED }}>Projected ETA</span>
-                    <span style={{ fontSize: 12, color: MUTED }}>
-                      {computeETAFromSlope(weightTrend.latestLbs, weightGoal.targetValue, weightTrend.slopePerWeek) ?? '—'}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* TDEE & Meal Plan */}
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: MUTED, marginBottom: 12 }}>
-          Calorie Burn · This Week
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, color: '#e2e8f0' }}>Scheduled workouts</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{scheduledSessionCount}</span>
-          </div>
-          {scheduledSessionCount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: MUTED }}>Est. burn (~350 kcal/ea)</span>
-              <span style={{ fontSize: 12, color: MUTED }}>~{(scheduledSessionCount * 350).toLocaleString()} kcal</span>
-            </div>
-          )}
-          {tdeePDay != null && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: MUTED }}>TDEE (daily)</span>
-              <span style={{ fontSize: 12, color: MUTED }}>{Math.round(tdeePDay).toLocaleString()} kcal</span>
-            </div>
-          )}
-          {tdeePDay != null && mealPlanRate != null && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${LINE_SOFT}` }}>
-              <span style={{ fontSize: 12, color: '#e2e8f0' }}>Est. weekly {mealPlanRate.weeklyDeficit > 0 ? 'deficit' : 'surplus'}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: mealPlanRate.weeklyDeficit > 0 ? '#34d399' : '#fbbf24' }}>
-                {mealPlanRate.weeklyDeficit > 0 ? '−' : '+'}
-                {Math.abs(Math.round(mealPlanRate.weeklyDeficit)).toLocaleString()} kcal
-              </span>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
