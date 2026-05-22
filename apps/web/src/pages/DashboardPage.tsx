@@ -162,6 +162,8 @@ function MacroBlock({ label, val, goal }: { label: string; val: number; goal: nu
   const pctRaw = goal > 0 ? val / goal : 0;
   const pctClamped = clamp(pctRaw);
   const over = val > goal;
+  const nearGoal = goal > 0 && pctRaw >= 0.95 && pctRaw <= 1.05;
+  const barColor = nearGoal ? COL_GOOD : ACCENT;
   return (
     <div style={{ flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -174,7 +176,7 @@ function MacroBlock({ label, val, goal }: { label: string; val: number; goal: nu
         <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>/ {goal}</span>
       </div>
       <div style={{ height: 5, background: LINE_SOFT, borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pctClamped * 100}%`, background: over ? COL_WARN : ACCENT }} />
+        <div style={{ height: '100%', width: `${pctClamped * 100}%`, background: barColor }} />
       </div>
       <div className="font-mono" style={{ fontSize: 11, color: over ? COL_WARN : MUTED2, marginTop: 6 }}>
         {over ? `+${val - goal}g over` : `${Math.max(0, goal - val)}g left`}
@@ -203,7 +205,7 @@ function FuelToday({ actual, goals, tdee }: {
   const net = cal - tdeeVal;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 36, alignItems: 'center' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 36, alignItems: 'center', paddingTop: 12 }}>
       {/* Ring */}
       <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
@@ -327,7 +329,7 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
       <span className="micro" style={{ fontSize: 11, color: MUTED }}>Recovery</span>
       <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: RECOVERY_COLOR[recovery.level] }}>{recovery.score}</span>
       <span style={{ padding: '2px 8px', borderRadius: 99, background: RECOVERY_COLOR[recovery.level] + '22', color: RECOVERY_COLOR[recovery.level], fontSize: 11, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{recovery.level}</span>
-      <span style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto', maxWidth: 160, textAlign: 'right' }}>{recovery.hint}</span>
+      <span style={{ fontSize: 13, color: MUTED2, marginLeft: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{recovery.hint}</span>
     </div>
   ) : null;
 
@@ -336,20 +338,15 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
     return (
       <div>
         {recoveryStrip}
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color: 'white' }}>{workout.routineName ?? workout.name ?? 'Workout'}</span>
-              {highlights[0] && <span className="font-mono" style={{ fontSize: 11, color: ACCENT }}>★ {highlights[0]}</span>}
-            </div>
-            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginTop: 5 }}>
-              {workout.durationMinutes} min
-            </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <span
+              className="font-display"
+              style={{ fontSize: 26, fontWeight: 600, color: 'white', cursor: 'pointer', textDecoration: 'none' }}
+              onClick={() => navigate(`/workouts/${workout.id}`)}
+            >{workout.routineName ?? workout.name ?? 'Workout'}</span>
+            {highlights[0] && <span className="font-mono" style={{ fontSize: 11, color: ACCENT }}>★ {highlights[0]}</span>}
           </div>
-          <button
-            onClick={() => navigate(`/workouts/${workout.id}`)}
-            style={{ padding: '6px 13px', borderRadius: 6, border: `1px solid ${LINE}`, background: 'transparent', color: MUTED, fontSize: 11, cursor: 'pointer' }}
-          >Open</button>
         </div>
         <StatsRow stats={[
           ['Volume', fmt(workout.totalVolumeKg * KG_TO_LBS), 'lb'],
@@ -1793,7 +1790,7 @@ export default function DashboardPage() {
           <Panel title="Fuel today">
             <FuelToday actual={summary?.nutrition.actual ?? null} goals={summary?.nutrition.goals ?? null} tdee={todayTDEE} />
           </Panel>
-          <Panel title="Exercise today" meta={todayWorkout ? `${todayWorkout.durationMinutes ?? '—'} min · ${fmt(todayWorkout.totalVolumeKg * KG_TO_LBS)} lb` : undefined}>
+          <Panel title="Exercise today">
             <ExerciseToday workout={todayWorkout} allWorkouts={workouts} upcoming={upcoming} recovery={recovery} navigate={navigate} />
           </Panel>
         </div>

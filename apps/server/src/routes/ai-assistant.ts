@@ -153,7 +153,7 @@ router.get('/insight', async (req: Request, res: Response) => {
 
     const cached = insightCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return res.json({ text: cached.insight });
+      return res.json({ text: cached.insight, period });
     }
 
     // Fetch goals (used by all periods)
