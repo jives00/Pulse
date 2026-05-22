@@ -1,7 +1,15 @@
 import { Router, Request, Response } from 'express';
+import { pool } from '../config/database';
+import { requireAuth } from '../middleware/auth';
+import type { RowDataPacket } from 'mysql2/promise';
 import { runConversation } from '../services/aiProvider';
 
 const router = Router();
+router.use(requireAuth);
+
+// Simple in-memory cache: key = "userId:YYYY-MM-DD", value = insight text
+const insightCache = new Map<string, { insight: string; timestamp: number }>();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -116,6 +124,142 @@ Only include the "action" field when the user has explicitly confirmed they want
 
 Keep responses concise and helpful. You are a fitness and nutrition expert.`;
 }
+
+// ── GET /insight ──────────────────────────────────────────────────────────────
+
+type InsightPeriod = 'morning' | 'afternoon' | 'evening';
+
+function getInsightPeriod(hour: number): InsightPeriod {
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'evening';
+}
+
+router.get('/insight', async (req: Request, res: Response) => {
+  try {
+    const clientHour = parseInt(req.query.hour as string, 10);
+    const hour = Number.isFinite(clientHour) ? clientHour : new Date().getHours();
+    const period = getInsightPeriod(hour);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().slice(0, 10);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+    const cacheKey = `${req.userId}:${todayStr}:${period}`;
+
+    const cached = insightCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return res.json({ text: cached.insight });
+    }
+
+    // Fetch goals (used by all periods)
+    const [goalRows] = await pool.query<RowDataPacket[]>(
+      `SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
+      [req.userId, todayStr]
+    );
+    const goals = goalRows[0] ?? { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 65 };
+
+    let prompt: string;
+
+    if (period === 'morning') {
+      // Yesterday recap
+      const [foodRows] = await pool.query<RowDataPacket[]>(
+        `SELECT
+          COALESCE(SUM(f.calories_per100 * ss.grams * fl.quantity / 100), 0) as cal,
+          COALESCE(SUM(f.protein_per100 * ss.grams * fl.quantity / 100), 0) as prot,
+          COALESCE(SUM(f.carbs_per100 * ss.grams * fl.quantity / 100), 0) as carbs,
+          COALESCE(SUM(f.fat_per100 * ss.grams * fl.quantity / 100), 0) as fat
+         FROM food_log fl
+         JOIN foods f ON f.id = fl.food_id
+         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+         WHERE fl.user_id = ? AND fl.log_date = ?`,
+        [req.userId, yesterdayStr]
+      );
+      const [workoutRows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) as workout_count, COALESCE(SUM(duration_minutes), 0) as total_minutes
+         FROM workout_logs WHERE user_id = ? AND DATE(workout_date) = ?`,
+        [req.userId, yesterdayStr]
+      );
+      const n = foodRows[0] ?? { cal: 0, prot: 0, carbs: 0, fat: 0 };
+      const w = workoutRows[0] ?? { workout_count: 0, total_minutes: 0 };
+
+      prompt = `Write ONE encouraging sentence recapping yesterday's health. Start with "Yesterday".
+
+Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
+Nutrition actual: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein (${Math.round(n.cal - goals.calories > 0 ? n.cal - goals.calories : goals.calories - n.cal)} kcal ${n.cal > goals.calories ? 'over' : 'under'})
+Workouts: ${w.workout_count} session(s), ${w.total_minutes} min total
+
+Rules: ONE sentence, under 18 words, mention "yesterday", positive tone, highlight biggest win or gap. No numbers unless key.
+Respond with ONLY the sentence.`;
+
+    } else {
+      // Today's progress (afternoon or evening)
+      const [foodRows] = await pool.query<RowDataPacket[]>(
+        `SELECT
+          COALESCE(SUM(f.calories_per100 * ss.grams * fl.quantity / 100), 0) as cal,
+          COALESCE(SUM(f.protein_per100 * ss.grams * fl.quantity / 100), 0) as prot,
+          COALESCE(SUM(f.carbs_per100 * ss.grams * fl.quantity / 100), 0) as carbs,
+          COALESCE(SUM(f.fat_per100 * ss.grams * fl.quantity / 100), 0) as fat
+         FROM food_log fl
+         JOIN foods f ON f.id = fl.food_id
+         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+         WHERE fl.user_id = ? AND fl.log_date = ?`,
+        [req.userId, todayStr]
+      );
+      const [workoutRows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) as workout_count, COALESCE(SUM(duration_minutes), 0) as total_minutes
+         FROM workout_logs WHERE user_id = ? AND DATE(workout_date) = ?`,
+        [req.userId, todayStr]
+      );
+      const n = foodRows[0] ?? { cal: 0, prot: 0, carbs: 0, fat: 0 };
+      const w = workoutRows[0] ?? { workout_count: 0, total_minutes: 0 };
+
+      const calRemaining = Math.round(goals.calories - n.cal);
+      const protRemaining = Math.round(goals.protein_g - n.prot);
+
+      if (period === 'afternoon') {
+        prompt = `Write ONE motivating sentence about today's progress so far. Start with "Today".
+
+Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
+Logged so far today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein
+Remaining: ${calRemaining > 0 ? calRemaining + ' kcal' : 'calorie goal hit'}, ${protRemaining > 0 ? protRemaining + 'g protein' : 'protein goal hit'}
+Workout today: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none yet'}
+
+Rules: ONE sentence, under 18 words, mention "today", focus on what's still achievable, actionable and positive. No numbers unless key.
+Respond with ONLY the sentence.`;
+      } else {
+        prompt = `Write ONE sentence summarizing today and looking ahead to tomorrow. Start with "Today".
+
+Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
+Actual today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein
+Workouts: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none'}
+
+Rules: ONE sentence, under 18 words, mention "today", wrap up the day positively and set up tomorrow. No numbers unless key.
+Respond with ONLY the sentence.`;
+      }
+    }
+
+    const insight = await runConversation({
+      model: 'haiku',
+      systemPrompt: 'You are a health coach providing brief, time-aware daily insights. Be concise and motivating.',
+      history: [],
+      userMessage: prompt,
+      maxTokens: 128,
+    });
+
+    const text = insight.trim();
+    insightCache.set(cacheKey, { insight: text, timestamp: Date.now() });
+
+    res.json({ text, period });
+  } catch (err) {
+    console.error('[ai-insight] Error:', err);
+    return res.status(500).json({ error: 'Could not generate insight' });
+  }
+});
 
 // ── POST / ────────────────────────────────────────────────────────────────────
 

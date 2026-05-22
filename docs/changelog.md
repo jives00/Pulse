@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Time-aware AI daily insight** — Dashboard insight banner generates a personalized 1-sentence insight using Claude Haiku; morning shows yesterday's recap, afternoon shows today's progress so far, evening wraps up the day; client sends local hour to server so period is correct regardless of UTC offset; cached per user per period slot; banner label updates to Yesterday / Today so far / Today. `527dbc8`
 - **Goals system unified** — Settings Goals tab now writes to legacy goalsApi (user_goals/exercise_goals tables) instead of custom_goals, fixing disconnect where edits didn't flow to dashboard displays; planning board calendar moved to new Planning tab in Settings; custom user-defined goals (bench press 200 lbs, etc.) moved to Settings Goals section. `a53df41`
 - **Planning page streamlined** — Removed Schedules section (WorkoutScheduleSection, MealPlanningSection) and moved Projections section to Dashboard v4; Planning Board now renders as section header above calendar card matching Goals header style; deleted unused modal functions (AddScheduleModal, EditScheduleModal, ImportProgramModal) and cleaned up imports/state variables. `a47f785`
 

@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi, assistantApi,
   localDateStr, getWeekStart, buildWeeklyData, computeGoalPace, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type MealPlanWeek,
+  type WeekBucket, type UpcomingSession, type MealPlanWeek, type InsightPeriod,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -120,30 +120,37 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
 
 // ─── AI Insight banner ────────────────────────────────────────────────────────
 
-function InsightBanner({ text, streak, date }: { text: string; streak: number; date: string }) {
+const INSIGHT_LABELS: Record<InsightPeriod, string> = {
+  morning:   'Yesterday',
+  afternoon: 'Today so far',
+  evening:   'Today',
+};
+
+function InsightBanner({ text, streak, date, period }: { text: string; streak: number; date: string; period: InsightPeriod }) {
+  const label = INSIGHT_LABELS[period];
   return (
     <div style={{
       background: CARD, border: `1px solid ${LINE}`, borderLeft: `2px solid ${ACCENT}`,
-      padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 22, marginBottom: 0,
+      padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 22, marginBottom: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 0.5 L8.2 5 L13 6.5 L8.2 8 L7 12.5 L5.8 8 L1 6.5 L5.8 5 Z" fill={ACCENT} />
-        </svg>
-        <span className="micro" style={{ color: ACCENT }}>Daily Insight</span>
-      </div>
-      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'white', flex: 1 }}>{text}</p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderLeft: `1px solid ${LINE}`, paddingLeft: 22 }}>
-        <div style={{ textAlign: 'right' }}>
-          <div className="font-mono" style={{ fontSize: 10, color: MUTED2, letterSpacing: '.1em', marginBottom: 2 }}>{date}</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <svg width="10" height="13" viewBox="0 0 14 17" fill="none">
-              <path d="M7 0.5 C8.5 3.5 13 5 13 9.5 C13 13 10.5 16 7 16 C3.5 16 1 13 1 9.5 C1 6.5 3 5.5 4 3 C4.5 5 5.5 5.5 7 0.5Z" fill={ACCENT} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="font-mono" style={{ fontSize: 12, color: MUTED2, letterSpacing: '.1em', marginBottom: 5 }}>{date}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M7 0.5 L8.2 5 L13 6.5 L8.2 8 L7 12.5 L5.8 8 L1 6.5 L5.8 5 Z" fill={ACCENT} />
             </svg>
-            <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{streak}</span>
-            <span className="micro" style={{ fontSize: 9, color: MUTED2 }}>day streak</span>
+            <span className="micro" style={{ color: ACCENT, whiteSpace: 'nowrap' }}>{label}</span>
           </div>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'white', paddingLeft: 6 }}>{text}</p>
         </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
+        <svg width="10" height="13" viewBox="0 0 14 17" fill="none">
+          <path d="M7 0.5 C8.5 3.5 13 5 13 9.5 C13 13 10.5 16 7 16 C3.5 16 1 13 1 9.5 C1 6.5 3 5.5 4 3 C4.5 5 5.5 5.5 7 0.5Z" fill={ACCENT} />
+        </svg>
+        <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{streak}</span>
+        <span className="micro" style={{ fontSize: 9, color: MUTED2 }}>day streak</span>
       </div>
     </div>
   );
@@ -1016,6 +1023,8 @@ export default function DashboardPage() {
   const [routines,       setRoutines]       = useState<RoutineSummary[]>([]);
   const [todayTDEE,      setTodayTDEE]      = useState<TDEEBreakdown | null>(null);
   const [upcoming,       setUpcoming]       = useState<UpcomingSession[]>([]);
+  const [insight,        setInsight]        = useState<string | null>(null);
+  const [insightPeriod,  setInsightPeriod]  = useState<InsightPeriod>('morning');
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1030,7 +1039,8 @@ export default function DashboardPage() {
       routinesApi.getAll().catch(() => []),
       goalsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc]) => {
+      assistantApi.getInsight().catch(() => ({ text: '' })),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1042,6 +1052,7 @@ export default function DashboardPage() {
       const t = tdee as import('@pulse/api-client').TDEEResult | null;
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
       setUpcoming(upc as UpcomingSession[]);
+      if (ins?.text) { setInsight(ins.text); setInsightPeriod(ins.period ?? 'morning'); }
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1072,35 +1083,27 @@ export default function DashboardPage() {
     <div style={{ flex: 1, minWidth: 0, background: BG, height: '100%', overflowY: 'auto' }}>
 
       {/* Topbar */}
-      <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '24px 36px 18px', borderBottom: `1px solid ${LINE_SOFT}` }}>
-        <div>
-          <div className="font-mono" style={{ fontSize: 10, color: MUTED2, letterSpacing: '.18em', textTransform: 'uppercase', marginBottom: 4 }}>{dateStr}</div>
-          <h1 className="font-display" style={{ margin: 0, fontSize: 30, fontWeight: 600, color: 'white' }}>
-            {greeting}.{' '}
-            <span style={{ fontSize: 18, color: MUTED, fontWeight: 400 }}>
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', background: `color-mix(in oklab, ${ACCENT} 15%, transparent)`, color: ACCENT, padding: '2px 8px', borderRadius: 4, letterSpacing: '.08em', fontWeight: 500 }}>PREVIEW</span>
-            </span>
-          </h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="flex-shrink-0 px-6 pt-5 pb-3 border-b border-dram-border flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
+        <div className="flex items-center gap-2">
           <button onClick={() => navigate('/nutrition/today')}
-            style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${LINE}`, background: 'transparent', color: MUTED, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-ui)' }}>
-            <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1 V13 M1 7 H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-            Log meal
+            className="border border-dram-accent text-dram-accent font-semibold px-4 py-2 rounded-lg text-sm hover:bg-dram-accent/10 transition">
+            + Log
           </button>
           <button onClick={() => navigate('/workouts')}
-            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>
-            {todayWorkout ? 'Open workout' : 'Start workout'}
+            className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition">
+            + Train
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Insight banner */}
       <div style={{ padding: '18px 36px 0' }}>
         <InsightBanner
-          text="Track daily to unlock AI insights — the daily insight card requires the /api/ai/insight server endpoint (Phase 4 server work)."
+          text={insight || 'Track daily to unlock personalized AI insights about your health habits and progress.'}
           streak={streak}
           date={dateStr}
+          period={insightPeriod}
         />
       </div>
 

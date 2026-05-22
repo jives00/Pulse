@@ -39,11 +39,21 @@ export interface AssistantResponse {
   action?: AssistantAction;
 }
 
+export type InsightPeriod = 'morning' | 'afternoon' | 'evening';
+
+export interface DailyInsight {
+  text: string;
+  period: InsightPeriod;
+}
+
 export const assistantApi = {
   send: (
     history: ConversationMessage[],
     message: string,
     context?: AssistantScreenContext
   ): Promise<AssistantResponse> =>
-    apiClient.post('/ai/assistant', { history, message, context }),
+    apiClient.post<AssistantResponse>('/ai/assistant', { history, message, context }).then((r) => r.data),
+
+  getInsight: (): Promise<DailyInsight> =>
+    apiClient.get<DailyInsight>('/ai/assistant/insight', { params: { hour: new Date().getHours() } }).then((r) => r.data),
 };
