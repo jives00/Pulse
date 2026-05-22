@@ -161,6 +161,10 @@ function SetRow({
   const [distance, setDistance]       = useState(String(set.distanceMeters ?? ''));
   const [steps, setSteps]             = useState(String((set as any).steps ?? ''));
   const [saving, setSaving]           = useState(false);
+  // Track completed via ref so handleBlur always reads the current value even when
+  // the click-to-blur/click-to-check event sequence fires before React re-renders.
+  const completedRef = useRef(set.completed);
+  useEffect(() => { completedRef.current = set.completed; }, [set.completed]);
 
   async function handleBlur() {
     if (saving) return;
@@ -191,9 +195,10 @@ function SetRow({
         durationSeconds: newDurSeconds,
         distanceMeters: newDistMeters,
         steps: newSteps,
-        completed: set.completed,
+        // Use ref so a concurrent toggle (blur fires before click handler) isn't overwritten
+        completed: completedRef.current,
       });
-      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, additionalWeightKg: newAddlWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters, steps: newSteps } as any);
+      onUpdated({ ...set, reps: newReps, weightKg: newWeightKg, additionalWeightKg: newAddlWeightKg, durationSeconds: newDurSeconds, distanceMeters: newDistMeters, steps: newSteps, completed: completedRef.current } as any);
     } catch {
       setReps(String(set.reps ?? ''));
       setWeight(fmtWeight(set.weightKg));
@@ -208,11 +213,13 @@ function SetRow({
 
   async function handleToggleComplete() {
     const next = !set.completed;
+    completedRef.current = next;
     onUpdated({ ...set, completed: next });
     if (next) onSetCompleted?.();
     try {
       await workoutsApi.updateSet(workoutId, weId, set.id, { completed: next });
     } catch {
+      completedRef.current = set.completed;
       onUpdated({ ...set, completed: !next });
     }
   }
