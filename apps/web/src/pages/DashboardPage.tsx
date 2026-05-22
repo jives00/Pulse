@@ -1722,7 +1722,7 @@ export default function DashboardPage() {
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
       setPersonalBests(pb);
-      setFoodLogHistory(fl as FoodLogHistoryDay[]);
+      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
       setRoutines(rl as RoutineSummary[]);
       const t = tdee as import('@pulse/api-client').TDEEResult | null;
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
