@@ -1391,6 +1391,9 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   label: string; metric: string; unit: string; dir: 'up' | 'down';
   measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
   const sorted = measurements
     .filter(m => m.metric === metric)
     .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
@@ -1408,7 +1411,6 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   }
 
   const current  = sorted[sorted.length - 1].val;
-  const startVal = sorted[0].val;
   const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
   const t0Ms     = new Date(sorted[0].date + 'T12:00:00').getTime();
 
@@ -1432,17 +1434,10 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
 
   const isAchieved = target != null && (dir === 'down' ? current <= target : current >= target);
   const status     = deadlineStatus(etaDaysVal, deadline, isAchieved);
-  const { color: statusCol } = STATUS_CFG[status];
 
-  const pct = target != null
-    ? clamp(dir === 'down'
-        ? (startVal - current) / Math.max(0.001, startVal - target)
-        : (current - startVal) / Math.max(0.001, target - startVal))
-    : 0;
-
-  // Chart
+  // Chart: all history + 30-day projection
   const endMs  = todayMs + 30 * 86400000;
-  const W = 760, H = 130;
+  const W = 760, H = 170;
   const X = (ms: number) => ((ms - t0Ms) / (endMs - t0Ms)) * W;
   const todayX = X(todayMs);
 
@@ -1454,13 +1449,15 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   const allY = [...sorted.map(m => m.val), ...projPts.map(p => p.y), target ?? 0].filter(Boolean);
   const minV = Math.min(...allY) * 0.994;
   const maxV = Math.max(...allY) * 1.006;
-  const Y = (v: number) => H - ((v - minV) / (maxV - minV)) * (H - 16) - 8;
+  const Y = (v: number) => H - ((v - minV) / (maxV - minV)) * (H - 20) - 10;
 
   const histPath = sorted.map((m, i) =>
     `${i ? 'L' : 'M'}${X(new Date(m.date + 'T12:00:00').getTime()).toFixed(1)},${Y(m.val).toFixed(1)}`
   ).join('');
+  const aPath    = `${histPath} L${todayX.toFixed(1)},${H} L${X(t0Ms).toFixed(1)},${H} Z`;
   const projPath = projPts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
   const targetY  = target != null ? Y(target) : null;
+  const gradId   = `bmgc-${metric}`;
 
   return (
     <Panel title={`${label} goal`} meta={goal ? `${fmt1(target!)} ${unit} by ${goal.targetDate ? fmtISODate(goal.targetDate) : '—'}` : undefined}>
@@ -1482,8 +1479,8 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
         )}
         {etaDaysVal != null && (
           <div>
-            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>ETA</div>
-            <span className="font-mono" style={{ fontSize: 12, color: 'white' }}>{fmtETA(etaDaysVal)}</span>
+            <div className="micro" style={{ fontSize: 9, color: ACCENT, marginBottom: 3 }}>ETA · trend</div>
+            <span className="font-mono" style={{ fontSize: 12, color: ACCENT }}>{fmtETA(etaDaysVal)}</span>
           </div>
         )}
         <div style={{ marginLeft: 'auto' }}>
@@ -1491,143 +1488,89 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
         </div>
       </div>
 
-      {/* Progress bar */}
-      {target != null && (
-        <div style={{ position: 'relative', height: 18, marginBottom: 10 }}>
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 2, background: LINE_SOFT }} />
-          <div style={{ position: 'absolute', left: 0, top: 8, height: 2, width: `${pct * 100}%`, background: statusCol }} />
-          <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 4px)`, top: 5, width: 8, height: 8, borderRadius: '50%', background: statusCol, border: `2px solid ${CARD}` }} />
-          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)}</div>
-          <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(target)}</div>
-        </div>
-      )}
-
       {/* Chart */}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
-        {targetY != null && (
-          <line x1="0" x2={W} y1={targetY} y2={targetY} stroke={MUTED} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-        )}
-        <path d={histPath} fill="none" stroke={ACCENT} strokeWidth="1.8" />
-        <line x1={todayX.toFixed(1)} x2={todayX.toFixed(1)} y1="0" y2={H} stroke={LINE} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
-        <path d={projPath} fill="none" stroke={ACCENT} strokeWidth="1.4" strokeDasharray="4 3" opacity="0.65" />
-        <circle cx={todayX.toFixed(1)} cy={Y(current).toFixed(1)} r="3" fill={ACCENT} />
-      </svg>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 9, color: MUTED2 }}>
-        <span>{sorted[0].date}</span>
-        <span>{sorted.length} entries · 30d proj</span>
-      </div>
-    </Panel>
-  );
-}
-
-// ─── Goal Progress: Weekly volume card ───────────────────────────────────────
-
-function VolumeGoalCard({ weeklyData, exGoals }: {
-  weeklyData: WeekBucket[];
-  exGoals: ExerciseGoals | null;
-}) {
-  const target = exGoals?.volumeLbsPerWeek ?? null;
-
-  if (!target) {
-    return (
-      <Panel title="Weekly volume">
-        <div style={{ fontSize: 13, color: MUTED2 }}>No volume goal set.</div>
-      </Panel>
-    );
-  }
-
-  const thisWeek = weeklyData[weeklyData.length - 1];
-  const completed = weeklyData.slice(0, -1); // exclude current week
-  const avg4 = completed.length > 0
-    ? Math.round(completed.slice(-4).reduce((s, w) => s + w.volumeLbs, 0) / Math.min(4, completed.length))
-    : 0;
-
-  // Streak: consecutive completed weeks (newest → oldest)
-  let streak = 0;
-  for (let i = completed.length - 1; i >= 0; i--) {
-    if (completed[i].volumeLbs >= target) streak++;
-    else break;
-  }
-
-  // On-track: pace = current volume / (fraction of week elapsed)
-  const dayOfWeek = ((new Date().getDay() + 6) % 7) + 1; // Mon=1 … Sun=7
-  const weekFrac  = dayOfWeek / 7;
-  const pace      = weekFrac > 0 ? thisWeek.volumeLbs / weekFrac : 0;
-  let status: GoalStatus;
-  if (thisWeek.volumeLbs >= target) {
-    status = 'achieved';
-  } else if (pace >= target * 0.9) {
-    status = 'on_track';
-  } else {
-    status = 'behind';
-  }
-
-  // Bar chart
-  const W = 760, H = 130;
-  const n   = weeklyData.length;
-  const barW  = (W / n) * 0.72;
-  const barGap = (W / n) * 0.28;
-  const maxV  = Math.max(...weeklyData.map(b => b.volumeLbs), target) * 1.05;
-  const barH  = (v: number) => Math.max((v / maxV) * (H - 18), 1);
-  const barX  = (i: number) => i * (W / n) + barGap / 2;
-  const barY  = (v: number) => H - 10 - barH(v);
-  const targetLineY = H - 10 - barH(target);
-
-  return (
-    <Panel title="Weekly volume goal" meta={`${(target / 1000).toFixed(0)}k lb/wk target`}>
-      {/* Status row */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 14, flexWrap: 'wrap' as const }}>
-        <div>
-          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>This week</div>
-          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
-            {fmt(thisWeek.volumeLbs)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>lb</span>
-          </span>
-        </div>
-        <div>
-          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>4-wk avg</div>
-          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
-            {fmt(avg4)}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>lb</span>
-          </span>
-        </div>
-        <div>
-          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Streak</div>
-          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: streak > 0 ? COL_GOOD : MUTED }}>
-            {streak}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>wks</span>
-          </span>
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <StatusChip status={status} />
-        </div>
-      </div>
-
-      {/* Bar chart */}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
-        <line x1="0" x2={W} y1={targetLineY} y2={targetLineY} stroke={MUTED} strokeWidth="1" strokeDasharray="4 3" opacity="0.5" />
-        {weeklyData.map((b, i) => {
-          const isThis  = i === n - 1;
-          const hitGoal = b.volumeLbs >= target;
-          const fill    = isThis ? ACCENT : hitGoal ? COL_GOOD + 'bb' : MUTED + '44';
+      <div style={{ position: 'relative' }}>
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ width: '100%', height: H, display: 'block', cursor: 'crosshair' }}
+          preserveAspectRatio="none"
+          onMouseMove={e => {
+            if (!svgRef.current) return;
+            const rect = svgRef.current.getBoundingClientRect();
+            const xRatio = (e.clientX - rect.left) / rect.width;
+            const hoverMs = t0Ms + xRatio * (endMs - t0Ms);
+            let closest = 0, minDist = Infinity;
+            sorted.forEach((m, i) => {
+              const dist = Math.abs(new Date(m.date + 'T12:00:00').getTime() - hoverMs);
+              if (dist < minDist) { minDist = dist; closest = i; }
+            });
+            setHoverIdx(closest);
+          }}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ACCENT} stopOpacity="0.14" />
+              <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75].map((g, i) => (
+            <line key={i} x1="0" x2={W} y1={H * g} y2={H * g} stroke={LINE_SOFT} strokeWidth="1" />
+          ))}
+          {targetY != null && (
+            <line x1="0" x2={W} y1={targetY} y2={targetY} stroke={MUTED} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+          )}
+          <path d={aPath} fill={`url(#${gradId})`} />
+          <path d={histPath} fill="none" stroke={ACCENT} strokeWidth="1.8" />
+          <line x1={todayX.toFixed(1)} x2={todayX.toFixed(1)} y1="0" y2={H} stroke={LINE} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+          <path d={projPath} fill="none" stroke="#818cf8" strokeWidth="1.4" strokeDasharray="4 3" opacity="0.9" />
+          <circle cx={todayX.toFixed(1)} cy={Y(current).toFixed(1)} r="3" fill={ACCENT} />
+          {hoverIdx !== null && (() => {
+            const m = sorted[hoverIdx];
+            const hx = X(new Date(m.date + 'T12:00:00').getTime());
+            const hy = Y(m.val);
+            return (
+              <>
+                <line x1={hx.toFixed(1)} x2={hx.toFixed(1)} y1="0" y2={H} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <circle cx={hx.toFixed(1)} cy={hy.toFixed(1)} r="4" fill={ACCENT} stroke={CARD} strokeWidth="2" />
+              </>
+            );
+          })()}
+        </svg>
+        {hoverIdx !== null && (() => {
+          const m = sorted[hoverIdx];
+          const hx = X(new Date(m.date + 'T12:00:00').getTime());
+          const hy = Y(m.val);
+          const leftPct = (hx / W) * 100;
           return (
-            <rect
-              key={i}
-              x={barX(i).toFixed(1)}
-              y={barY(b.volumeLbs).toFixed(1)}
-              width={barW.toFixed(1)}
-              height={barH(b.volumeLbs).toFixed(1)}
-              fill={fill}
-              rx="1"
-            />
+            <div style={{
+              position: 'absolute',
+              left: `clamp(0px, calc(${leftPct.toFixed(1)}% - 52px), calc(100% - 104px))`,
+              top: Math.max(0, hy - 46),
+              background: CARD, border: `1px solid ${LINE}`,
+              padding: '5px 10px', borderRadius: 4,
+              pointerEvents: 'none', zIndex: 10, minWidth: 104,
+            }}>
+              <div className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{m.date}</div>
+              <div className="font-display" style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                {fmt1(m.val)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 3 }}>{unit}</span>
+              </div>
+            </div>
           );
-        })}
-      </svg>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 9, color: MUTED2 }}>
-        <span>{weeklyData[0].label}</span>
-        <span>this week</span>
+        })()}
+      </div>
+
+      {/* Legend */}
+      <div className="font-mono" style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11, color: MUTED2, flexWrap: 'wrap' as const }}>
+        <span style={{ color: ACCENT }}>── actual</span>
+        <span style={{ color: '#818cf8' }}>╌╌ trend proj</span>
+        {targetY != null && <span>╌╌ target {fmt1(target!)} {unit}</span>}
+        <span style={{ marginLeft: 'auto' }}>{sorted.length} entries · 30d proj</span>
       </div>
     </Panel>
   );
 }
-
 // ─── Goal Progress: Workout frequency card ────────────────────────────────────
 
 function WorkoutFreqCard({ routines, routineGoals, workouts }: {
@@ -1885,7 +1828,6 @@ export default function DashboardPage() {
       <Band kicker="Goal progress">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <WeightGoalCard measurements={measurements} goal={measGoals['weight']} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
-          <VolumeGoalCard weeklyData={weeklyData} exGoals={exGoals} />
           <BodyMeasGoalCard label="Waist" metric="waist" unit="in" dir="down" measurements={measurements} goal={measGoals['waist']} />
           <BodyMeasGoalCard label="Bicep" metric="bicep" unit="in" dir="up" measurements={measurements} goal={measGoals['bicep']} />
           <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
