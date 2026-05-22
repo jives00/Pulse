@@ -130,7 +130,7 @@ Keep responses concise and helpful. You are a fitness and nutrition expert.`;
 type InsightPeriod = 'morning' | 'afternoon' | 'evening';
 
 function getInsightPeriod(hour: number): InsightPeriod {
-  if (hour < 12) return 'morning';
+  if (hour < 11) return 'morning';
   if (hour < 17) return 'afternoon';
   return 'evening';
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, mealPlanApi, assistantApi, recoveryApi,
@@ -721,8 +721,8 @@ function BodyGoalRow({ label, metric, unit, dir, measurements, goal }: {
           <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 2, background: 'rgba(255,255,255,0.06)' }} />
           <div style={{ position: 'absolute', left: 0, top: 8, height: 2, width: `${pct * 100}%`, background: paceColor }} />
           <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 4px)`, top: 5, width: 8, height: 8, borderRadius: '50%', background: paceColor, border: `2px solid ${CARD}` }} />
-          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 8, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)}</div>
-          <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 8, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(targetVal)}</div>
+          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(startVal)}</div>
+          <div style={{ position: 'absolute', right: 0, top: 0, fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)' }}>{fmt1(targetVal)}</div>
         </div>
       )}
       <Spark values={trend} projection={projection} h={36} minO={minO} maxO={maxO} w={320} />
@@ -736,22 +736,31 @@ function BodyGoalRow({ label, metric, unit, dir, measurements, goal }: {
 
 // ─── Cal vs Burned (custom SVG chart) ────────────────────────────────────────
 
-function CalVsBurned({ foodLogHistory, workouts, calG }: {
-  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; calG: number;
+function CalVsBurned({ foodLogHistory, workouts, todayTDEE }: {
+  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null;
 }) {
-  const burnedByDate: Record<string, number> = {};
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const exerciseByDate: Record<string, number> = {};
   for (const w of workouts) {
-    if (w.caloriesBurned) burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+    if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
   const series = foodLogHistory.slice(-30)
-    .map(d => ({ cal: Math.round(d.calories), tdee: burnedByDate[d.date] ?? 0, label: d.date.slice(5) }))
+    .map(d => {
+      const tef = Math.round(d.calories * 0.1);
+      const ex = exerciseByDate[d.date] ?? 0;
+      const tdee = baseline != null ? baseline + tef + ex : 0;
+      return { cal: Math.round(d.calories), tdee, label: d.date.slice(5), date: d.date };
+    })
     .filter(d => d.cal > 0 || d.tdee > 0);
 
   if (!series.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No nutrition data in the last 30 days.</div>;
 
   const cals  = series.map(d => d.cal);
   const tdees = series.map(d => d.tdee);
-  const allVals = [...cals, ...tdees.filter(Boolean), calG].filter(Boolean);
+  const allVals = [...cals, ...tdees.filter(Boolean)].filter(Boolean);
   const min = Math.min(...allVals) * 0.92;
   const max = Math.max(...allVals) * 1.05;
   const w = 760, h = 180, pad = 10;
@@ -764,11 +773,24 @@ function CalVsBurned({ foodLogHistory, workouts, calG }: {
     }).join('');
   }
 
+  function xOf(i: number) { return (i / (series.length - 1)) * w; }
+  function yOf(v: number) { return h - ((v - min) / (max - min)) * (h - pad * 2) - pad; }
+
   const consumedAvg = Math.round(cals.reduce((a, b) => a + b, 0) / cals.length);
   const burnedFiltered = tdees.filter(Boolean);
   const burnedAvg = burnedFiltered.length ? Math.round(burnedFiltered.reduce((a, b) => a + b, 0) / burnedFiltered.length) : 0;
   const deficit = consumedAvg - burnedAvg;
-  const goalLineY = calG > 0 ? h - ((calG - min) / (max - min)) * (h - pad * 2) - pad : null;
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    setHoverIdx(Math.max(0, Math.min(series.length - 1, Math.round(xRatio * (series.length - 1)))));
+  }
+
+  const hovered = hoverIdx !== null ? series[hoverIdx] : null;
+  const hoverXPct = hoverIdx !== null ? (hoverIdx / (series.length - 1)) * 100 : 0;
+  const tooltipLeft = `clamp(0px, calc(${hoverXPct.toFixed(1)}% - 70px), calc(100% - 140px))`;
 
   return (
     <div>
@@ -785,36 +807,190 @@ function CalVsBurned({ foodLogHistory, workouts, calG }: {
         )}
         {burnedAvg > 0 && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Daily net</div>
+            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Avg daily net</div>
             <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: deficit < 0 ? COL_GOOD : COL_WARN }}>{deficit > 0 ? '+' : ''}{fmt(deficit)}</div>
           </div>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, alignSelf: 'flex-end' }}>
-          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: MUTED2 }}>
+          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: MUTED2 }}>
             <div style={{ width: 14, height: 2, background: ACCENT }} />Consumed
           </div>
           {burnedAvg > 0 && (
-            <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: MUTED2 }}>
+            <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: MUTED2 }}>
               <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={MUTED} strokeWidth="1.5" strokeDasharray="2 2" /></svg>Burned
             </div>
           )}
         </div>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="cvbg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ACCENT} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" x2={w} y1={h * g} y2={h * g} stroke={LINE_SOFT} strokeWidth="1" />)}
-        {goalLineY != null && <line x1="0" x2={w} y1={goalLineY} y2={goalLineY} stroke={ACCENT} strokeWidth="1" strokeDasharray="3 2" opacity="0.5" />}
-        <path d={`${pathFor(cals)} L${w},${h} L0,${h} Z`} fill="url(#cvbg)" />
-        {burnedAvg > 0 && <path d={pathFor(tdees)} fill="none" stroke={MUTED} strokeWidth="1.4" strokeDasharray="2 3" opacity="0.7" />}
-        <path d={pathFor(cals)} fill="none" stroke={ACCENT} strokeWidth="1.8" />
-      </svg>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: MUTED2 }}>
+      <div style={{ position: 'relative' }}>
+        <svg ref={svgRef} viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: h, display: 'block', cursor: 'crosshair' }}
+          preserveAspectRatio="none"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <defs>
+            <linearGradient id="cvbg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ACCENT} stopOpacity="0.18" />
+              <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" x2={w} y1={h * g} y2={h * g} stroke={LINE_SOFT} strokeWidth="1" />)}
+          <path d={`${pathFor(cals)} L${w},${h} L0,${h} Z`} fill="url(#cvbg)" />
+          {burnedAvg > 0 && <path d={pathFor(tdees)} fill="none" stroke={MUTED} strokeWidth="1.4" strokeDasharray="2 3" opacity="0.7" />}
+          <path d={pathFor(cals)} fill="none" stroke={ACCENT} strokeWidth="1.8" />
+          {hoverIdx !== null && hovered && (
+            <>
+              <line x1={xOf(hoverIdx)} x2={xOf(hoverIdx)} y1={0} y2={h} stroke={LINE} strokeWidth="1" strokeDasharray="3 2" opacity="0.8" />
+              <circle cx={xOf(hoverIdx)} cy={yOf(hovered.cal)} r="3.5" fill={ACCENT} />
+              {hovered.tdee > 0 && <circle cx={xOf(hoverIdx)} cy={yOf(hovered.tdee)} r="3" fill={MUTED} />}
+            </>
+          )}
+        </svg>
+        {hovered && (
+          <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 140, zIndex: 10 }}>
+            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+              {new Date(hovered.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <span style={{ fontSize: 13, color: MUTED }}>Consumed</span>
+                <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(hovered.cal)}</span>
+              </div>
+              {hovered.tdee > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                  <span style={{ fontSize: 13, color: MUTED }}>TDEE</span>
+                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{fmt(hovered.tdee)}</span>
+                </div>
+              )}
+              {hovered.tdee > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${LINE_SOFT}`, paddingTop: 4, marginTop: 2 }}>
+                  <span style={{ fontSize: 13, color: MUTED }}>Net</span>
+                  <span className="font-mono" style={{ fontSize: 13, fontWeight: 600, color: hovered.cal - hovered.tdee < 0 ? COL_GOOD : COL_WARN }}>
+                    {hovered.cal - hovered.tdee > 0 ? '+' : ''}{fmt(hovered.cal - hovered.tdee)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
         <span>30 days ago</span><span>today</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Exercise volume week-over-week bar chart ─────────────────────────────────
+
+function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const weeks = weeklyData.slice(-12);
+  const hasData = weeks.some(w => w.volumeLbs > 0);
+  if (!hasData) return <div style={{ fontSize: 13, color: MUTED2 }}>No workout volume data yet.</div>;
+
+  const maxVol = Math.max(...weeks.map(w => w.volumeLbs), 1);
+  const currentWeek = weeks[weeks.length - 1];
+  const prevWeeks = weeks.slice(0, -1).filter(w => w.volumeLbs > 0);
+  const avgVol = prevWeeks.length ? Math.round(prevWeeks.reduce((s, w) => s + w.volumeLbs, 0) / prevWeeks.length) : 0;
+  const bestVol = Math.max(...weeks.map(w => w.volumeLbs));
+  const delta = avgVol > 0 ? Math.round(currentWeek.volumeLbs - avgVol) : null;
+
+  const chartW = 760, chartH = 180, barGap = 4, topPad = 20;
+  const barW = (chartW - barGap * (weeks.length - 1)) / weeks.length;
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    setHoverIdx(Math.max(0, Math.min(weeks.length - 1, Math.floor(xRatio * weeks.length))));
+  }
+
+  const hovered = hoverIdx !== null ? weeks[hoverIdx] : null;
+  const hoverXPct = hoverIdx !== null ? ((hoverIdx + 0.5) / weeks.length) * 100 : 0;
+  const tooltipLeft = `clamp(0px, calc(${hoverXPct.toFixed(1)}% - 70px), calc(100% - 140px))`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>This week</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>
+            {fmt(Math.round(currentWeek.volumeLbs))}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span>
+          </div>
+        </div>
+        {avgVol > 0 && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Avg / week</div>
+            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
+              {fmt(avgVol)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
+            </div>
+          </div>
+        )}
+        {delta !== null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>vs avg</div>
+            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: delta >= 0 ? COL_GOOD : COL_WARN }}>
+              {delta > 0 ? '+' : ''}{fmt(delta)}
+            </div>
+          </div>
+        )}
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Best week</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
+            {fmt(Math.round(bestVol))}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 'auto', paddingTop: 14, position: 'relative' }}>
+        <svg ref={svgRef} viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: '100%', height: chartH, display: 'block', cursor: 'crosshair' }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          {[0.25, 0.5, 0.75, 1].map((g, i) => (
+            <line key={i} x1="0" x2={chartW} y1={chartH - g * (chartH - topPad)} y2={chartH - g * (chartH - topPad)} stroke={LINE_SOFT} strokeWidth="1" />
+          ))}
+          {weeks.map((wk, i) => {
+            const barH = wk.volumeLbs > 0 ? Math.max(3, (wk.volumeLbs / maxVol) * (chartH - topPad)) : 0;
+            const x = i * (barW + barGap);
+            const isCurrent = i === weeks.length - 1;
+            const isBest = wk.volumeLbs === bestVol && wk.volumeLbs > 0;
+            const isHovered = i === hoverIdx;
+            const fill = isCurrent ? ACCENT
+              : isHovered ? `color-mix(in oklab, ${ACCENT} 70%, ${CARD})`
+              : isBest ? `color-mix(in oklab, ${ACCENT} 55%, ${CARD})`
+              : `color-mix(in oklab, ${ACCENT} 28%, ${CARD})`;
+            return <rect key={i} x={x} y={chartH - barH} width={barW} height={barH} fill={fill} rx="2" />;
+          })}
+        </svg>
+        {hovered && (
+          <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 140, zIndex: 10 }}>
+            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+              Week of {hovered.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <span style={{ fontSize: 13, color: MUTED }}>Volume</span>
+                <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(Math.round(hovered.volumeLbs))} lb</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <span style={{ fontSize: 13, color: MUTED }}>Workouts</span>
+                <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{hovered.workouts}</span>
+              </div>
+              {hovered.minutes > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                  <span style={{ fontSize: 13, color: MUTED }}>Time</span>
+                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{hovered.minutes} min</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
+          <span>12 weeks ago</span><span>this week</span>
+        </div>
       </div>
     </div>
   );
@@ -863,20 +1039,20 @@ function WeightTrend({ measurements, goal }: { measurements: BodyMeasurement[]; 
       <div style={{ display: 'flex', gap: 32, marginBottom: 14, flexWrap: 'wrap' as const }}>
         <div>
           <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Current</div>
-          <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: 'white' }}>{fmt1(last)}<span style={{ fontSize: 12, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>{fmt1(last)}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
         </div>
         <div>
           <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Change</div>
-          <div className="font-mono" style={{ fontSize: 18, fontWeight: 600, color: Number(delta) < 0 ? COL_GOOD : COL_WARN }}>{Number(delta) > 0 ? '+' : ''}{delta} lb</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: Number(delta) < 0 ? COL_GOOD : COL_WARN }}>{Number(delta) > 0 ? '+' : ''}{delta}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
         </div>
         <div>
           <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Projected (30d)</div>
-          <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: ACCENT, opacity: 0.85 }}>{fmt1(projection[projection.length - 1])}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: ACCENT, opacity: 0.85 }}>{fmt1(projection[projection.length - 1])}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
         </div>
         {target && (
           <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
             <div className="micro" style={{ fontSize: 9, marginBottom: 4, textAlign: 'right', color: MUTED }}>Target</div>
-            <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: MUTED, textAlign: 'right' }}>{fmt1(target)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
+            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED, textAlign: 'right' }}>{fmt1(target)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span></div>
           </div>
         )}
       </div>
@@ -908,6 +1084,8 @@ function WeightTrend({ measurements, goal }: { measurements: BodyMeasurement[]; 
 // ─── Heatmap (12 weeks, volume-intensity) ─────────────────────────────────────
 
 function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
+  const [hoveredCell, setHoveredCell] = useState<{ date: string; vol: number; wi: number; di: number } | null>(null);
+
   const today = new Date();
   const monday = new Date(today);
   monday.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // this week's Monday
@@ -938,26 +1116,60 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
   };
   const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
+  const tooltipLeft = hoveredCell ? `clamp(0px, calc(${((hoveredCell.wi + 0.5) / weeks.length * 100).toFixed(1)}% - 70px), calc(100% - 140px))` : '0';
+  const tooltipTop = hoveredCell ? `${hoveredCell.di * 23}px` : '0';
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 5 }}>
+      <div style={{ position: 'relative', display: 'flex', gap: 5 }} onMouseLeave={() => setHoveredCell(null)}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginRight: 6 }}>
           {days.map((d, i) => (
-            <div key={i} className="font-mono" style={{ fontSize: 9, color: MUTED2, height: 18, lineHeight: '18px' }}>{d}</div>
+            <div key={i} className="font-mono" style={{ fontSize: 11, color: MUTED2, height: 18, lineHeight: '18px' }}>{d}</div>
           ))}
         </div>
         <div style={{ flex: 1, display: 'flex', gap: 5 }}>
           {weeks.map((wk, wi) => (
             <div key={wi} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
               {wk.map((cell, di) => (
-                <div key={di} title={cell.vol ? `${fmt(cell.vol)} lb · ${cell.date}` : 'rest'}
-                  style={{ height: 18, background: cellColor(cell.vol), borderRadius: 2 }} />
+                <div key={di}
+                  style={{ height: 18, background: cellColor(cell.vol), borderRadius: 2, cursor: cell.vol ? 'pointer' : 'default' }}
+                  onMouseEnter={() => setHoveredCell({ ...cell, wi, di })}
+                />
               ))}
             </div>
           ))}
         </div>
+        {hoveredCell && (() => {
+          const dayWorkouts = workouts.filter(w => w.workoutDate === hoveredCell.date);
+          return (
+            <div style={{ position: 'absolute', left: tooltipLeft, top: tooltipTop, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 10 }}>
+              <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+                {new Date(hoveredCell.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </div>
+              {hoveredCell.vol > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                    <span style={{ fontSize: 13, color: MUTED }}>Volume</span>
+                    <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(Math.round(hoveredCell.vol))} lb</span>
+                  </div>
+                  {dayWorkouts.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${LINE_SOFT}`, paddingTop: 4, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {dayWorkouts.map(w => (
+                        <div key={w.id} style={{ fontSize: 13, color: MUTED }}>
+                          {w.routineName ?? w.exercises.map(e => e.name).join(', ') ?? 'Workout'}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: MUTED2 }}>Rest day</div>
+              )}
+            </div>
+          );
+        })()}
       </div>
-      <div className="font-mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 9, color: MUTED2 }}>
+      <div className="font-mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: MUTED2 }}>
         <span>12 weeks ago</span>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span>less</span>
@@ -974,52 +1186,102 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
 
 // ─── Weekly averages table ─────────────────────────────────────────────────────
 
-function WeeklyAvgTable({ weeklyData, foodLogHistory, measurements }: {
-  weeklyData: WeekBucket[]; foodLogHistory: FoodLogHistoryDay[]; measurements: BodyMeasurement[];
+function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
+  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null;
 }) {
-  const weightByDate: Record<string, number> = {};
-  for (const m of measurements) {
-    if (m.metric === 'weight') {
-      const val = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-      if (!weightByDate[m.measuredAt] || weightByDate[m.measuredAt] < val) weightByDate[m.measuredAt] = val;
+  const now = new Date();
+  const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
+
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const ws = getWeekStart(localDateStr(d));
+    const weekDate = new Date(ws + 'T12:00:00');
+    weeks.push({
+      weekStart: ws,
+      label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      calories: 0, protein: 0, carbs: 0, fat: 0, tdee: null, net: null,
+      isCurrentWeek: ws === getWeekStart(localDateStr()),
+      days: 0,
+    });
+  }
+
+  const exerciseByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+  }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+
+  for (const day of foodLogHistory) {
+    const ws = getWeekStart(day.date);
+    const week = weeks.find(wk => wk.weekStart === ws);
+    if (!week) continue;
+    week.calories += day.calories;
+    week.protein += day.protein;
+    week.carbs += day.entries.reduce((s, e) => s + e.carbsG, 0);
+    week.fat += day.entries.reduce((s, e) => s + e.fatG, 0);
+    week.days++;
+    if (baseline != null) {
+      const dayTef = Math.round(day.calories * 0.1);
+      const dayEx = exerciseByDate[day.date] ?? 0;
+      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx;
     }
   }
 
-  const recent = weeklyData.slice(-5).map((wk, i) => {
-    const isCurrent = i === weeklyData.slice(-5).length - 1;
-    const weekEnd = new Date(wk.weekStart + 'T00:00:00');
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    const weekEndStr = localDateStr(weekEnd);
-    const days = foodLogHistory.filter(d => d.date >= wk.weekStart && d.date <= weekEndStr);
-    const avgCal = days.length ? Math.round(days.reduce((s, d) => s + d.calories, 0) / 7) : 0;
-    const avgProt = days.length ? Math.round(days.reduce((s, d) => s + d.protein, 0) / 7) : 0;
-    const wDays = Object.keys(weightByDate).filter(d => d >= wk.weekStart && d <= weekEndStr);
-    const avgWeight = wDays.length ? (wDays.reduce((s, d) => s + weightByDate[d], 0) / wDays.length).toFixed(1) : '—';
-    return { ...wk, avgCal, avgProt, avgWeight, isCurrent };
-  });
+  for (const week of weeks) {
+    if (week.days > 0) {
+      week.calories = Math.round(week.calories / week.days);
+      week.protein = Math.round(week.protein / week.days);
+      week.carbs = Math.round(week.carbs / week.days);
+      week.fat = Math.round(week.fat / week.days);
+      if (week.tdee != null) {
+        week.tdee = Math.round(week.tdee / week.days);
+        week.net = week.calories - week.tdee;
+      }
+    }
+  }
+
+  const displayWeeks = [...weeks].reverse().filter(w => w.days > 0 || w.isCurrentWeek).slice(0, 5);
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+  const hdStyle: React.CSSProperties = { fontSize: 11, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right' as const, paddingBottom: 6, paddingLeft: 12 };
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 56px 60px 50px', gap: 8, padding: '6px 0', color: MUTED2 }} className="font-mono">
-        <span className="micro" style={{ fontSize: 9, color: MUTED2 }}>Week</span>
-        <span className="micro" style={{ fontSize: 9, color: MUTED2, textAlign: 'right' }}>Cal/d</span>
-        <span className="micro" style={{ fontSize: 9, color: MUTED2, textAlign: 'right' }}>Prot/d</span>
-        <span className="micro" style={{ fontSize: 9, color: MUTED2, textAlign: 'right' }}>Weight</span>
-        <span className="micro" style={{ fontSize: 9, color: MUTED2, textAlign: 'right' }}>Wkts</span>
-      </div>
-      {recent.map((wk, i) => (
-        <div key={i} className="font-mono" style={{ display: 'grid', gridTemplateColumns: '1fr 70px 56px 60px 50px', gap: 8, padding: '10px 0', borderTop: `1px solid ${LINE_SOFT}`, fontSize: 12, color: wk.isCurrent ? 'white' : MUTED, alignItems: 'baseline' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {wk.isCurrent && <span style={{ width: 5, height: 5, borderRadius: '50%', background: ACCENT }} />}
-            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11 }}>{wk.isCurrent ? 'This week' : wk.label}</span>
-          </span>
-          <span style={{ textAlign: 'right' }}>{wk.avgCal > 0 ? fmt(wk.avgCal) : '—'}</span>
-          <span style={{ textAlign: 'right', color: MUTED2 }}>{wk.avgProt > 0 ? `${wk.avgProt}g` : '—'}</span>
-          <span style={{ textAlign: 'right' }}>{wk.avgWeight}</span>
-          <span style={{ textAlign: 'right', color: ACCENT }}>{wk.workouts > 0 ? wk.workouts : '—'}</span>
-        </div>
-      ))}
-    </div>
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ borderBottom: `1px solid ${LINE_SOFT}` }}>
+          <th style={{ ...hdStyle, textAlign: 'left', paddingLeft: 0 }}>Week of</th>
+          <th style={hdStyle}>Calories</th>
+          <th style={hdStyle}>Protein</th>
+          <th style={hdStyle}>Carbs</th>
+          <th style={hdStyle}>Fat</th>
+          {todayTDEE && <th style={hdStyle}>TDEE</th>}
+          {todayTDEE && <th style={hdStyle}>Net</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {displayWeeks.map(week => (
+          <tr key={week.weekStart} style={{ borderBottom: `1px solid ${LINE_SOFT}`, background: week.isCurrentWeek ? 'rgba(212,168,67,0.04)' : undefined }}>
+            <td style={{ padding: '10px 0', fontSize: 13, color: week.isCurrentWeek ? 'white' : MUTED, fontFamily: 'var(--font-ui)', whiteSpace: 'nowrap' }}>
+              {week.label}{week.isCurrentWeek && <span style={{ marginLeft: 8, color: ACCENT, fontWeight: 600 }}>current</span>}
+            </td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: week.isCurrentWeek ? 'white' : MUTED }}>{week.days > 0 ? fmtNum(week.calories) : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#D4A843' }}>{week.days > 0 ? week.protein : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#7C9ECB' }}>{week.days > 0 ? week.carbs : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#C5896E' }}>{week.days > 0 ? week.fat : <span style={{ color: MUTED2 }}>—</span>}</td>
+            {todayTDEE && <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: MUTED2 }}>{week.tdee != null && week.days > 0 ? fmtNum(week.tdee) : '—'}</td>}
+            {todayTDEE && (
+              <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                {week.net != null && week.days > 0 ? (
+                  <span style={{ color: week.net < 0 ? '#86AA80' : week.net > 300 ? '#C5896E' : MUTED }}>
+                    {week.net > 0 ? '+' : ''}{fmtNum(week.net)}
+                  </span>
+                ) : <span style={{ color: MUTED2 }}>—</span>}
+              </td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -1183,37 +1445,42 @@ export default function DashboardPage() {
         </div>
       </Band>
 
+      {/* ── TRENDS ────────────────────────────────────────────────────────────── */}
+      <Band kicker="Trends">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <Panel title="Calories · consumed vs burned">
+            <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} />
+          </Panel>
+          <Panel title="Exercise volume · week over week">
+            <VolumeByWeek weeklyData={weeklyData} />
+          </Panel>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, marginTop: 14 }}>
+          <Panel title="Exercise volume · 12-week heatmap">
+            <Heatmap workouts={workouts} />
+          </Panel>
+          <Panel title="Weekly averages">
+            <WeeklyAvgTable foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} />
+          </Panel>
+        </div>
+      </Band>
+
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
       <Band kicker="Goal progress" title="Pace toward targets at this rate">
         <Panel title="Primary goal · Weight" meta={measGoals['weight'] ? `target ${measGoals['weight'].targetValue} lb` : undefined}>
           <FlagshipGoal measurements={measurements} goal={measGoals['weight']} />
         </Panel>
         <div style={{ marginTop: 14 }}>
+          <Panel title="Weight · 30d trend + 30d projection" meta="14-day pace">
+            <WeightTrend measurements={measurements} goal={measGoals['weight']} />
+          </Panel>
+        </div>
+        <div style={{ marginTop: 14 }}>
           <Panel title="Body composition · pace & projection" meta="past entries · projected 9wk">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
               <BodyGoalRow label="Waist" metric="waist" unit="in" dir="down" measurements={measurements} goal={measGoals['waist']} />
               <BodyGoalRow label="Bicep" metric="bicep" unit="in" dir="up"   measurements={measurements} goal={measGoals['bicep']} />
             </div>
-          </Panel>
-        </div>
-      </Band>
-
-      {/* ── TRENDS ────────────────────────────────────────────────────────────── */}
-      <Band kicker="Trends" title="30-day signals, weight projection, training load">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <Panel title="Calories · consumed vs burned" meta="last 30 days">
-            <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} calG={summary?.nutrition.goals?.calories ?? 0} />
-          </Panel>
-          <Panel title="Weight · 30d trend + 30d projection" meta="14-day pace">
-            <WeightTrend measurements={measurements} goal={measGoals['weight']} />
-          </Panel>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14, marginTop: 14 }}>
-          <Panel title="Exercise volume · 12-week heatmap" meta="darker = heavier session">
-            <Heatmap workouts={workouts} />
-          </Panel>
-          <Panel title="Weekly averages" meta="last 5 weeks">
-            <WeeklyAvgTable weeklyData={weeklyData} foodLogHistory={foodLogHistory} measurements={measurements} />
           </Panel>
         </div>
       </Band>
