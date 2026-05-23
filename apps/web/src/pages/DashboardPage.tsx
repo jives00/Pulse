@@ -1075,32 +1075,95 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
 // ─── Recent sessions table ─────────────────────────────────────────────────────
 
 function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; navigate: (p: string) => void }) {
-  const rows = workouts.slice(0, 8);
+  const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
+  const rows = completed.slice(0, 10);
   if (!rows.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No sessions yet.</div>;
-  const cols = '60px 1fr 80px 44px 64px 52px 1fr';
-  const hdStyle = { fontSize: 9, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase' as const };
+  const cols = '60px 1fr 140px 120px 1fr 70px';
+  const hdStyle = { fontSize: 12, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase' as const };
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '6px 0', color: MUTED2 }}>
-        {['Date', 'Session', 'Volume', 'Sets', 'Burn', 'Min', 'Highlight'].map(h => <span key={h} style={hdStyle}>{h}</span>)}
+      <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '6px 0 8px', borderBottom: `1px solid ${LINE_SOFT}` }}>
+        {['Date', 'Session', 'Metric', 'Calories', 'Highlight', 'vs Prior'].map((h, i) =>
+          i === 2
+            ? <div key={h} style={{ ...hdStyle, textAlign: 'right', paddingRight: 20 }}>{h}</div>
+            : <span key={h} style={{ ...hdStyle, paddingLeft: i === 3 || i === 4 ? 20 : 0 }}>{h}</span>
+        )}
       </div>
-      {rows.map((s, i) => {
-        const highlight = computeHighlights(s, workouts)[0] ?? null;
+      {rows.map((s) => {
+        const highlights = computeHighlights(s, completed);
+        const volLbs = Math.round((s.totalVolumeKg ?? 0) * KG_TO_LBS);
+        const rt = s.routineType ?? (volLbs > 0 ? 'strength' : s.totalSteps ? 'steps' : 'cardio_duration');
+        const totalSecs = s.totalDurationSeconds ?? s.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+
+        let primaryVal: number | null = null;
+        let primaryUnit = 'lbs';
+        if (rt === 'steps') {
+          primaryVal = s.totalSteps != null && totalSecs > 0 ? Math.round(s.totalSteps / (totalSecs / 60)) : null;
+          primaryUnit = 'stairs/min';
+        } else if (rt === 'cardio_distance') {
+          const distMiles = s.totalDistanceMeters ? s.totalDistanceMeters / 1609.34 : null;
+          primaryVal = distMiles && s.durationMinutes ? Number((distMiles / s.durationMinutes).toFixed(2)) : null;
+          primaryUnit = 'mi/min';
+        } else if (rt === 'cardio_duration') {
+          primaryVal = totalSecs ? Math.round(totalSecs / 60) : (s.durationMinutes ?? null);
+          primaryUnit = 'min';
+        } else {
+          primaryVal = volLbs > 0 ? volLbs : null;
+        }
+
+        const prior = completed.find(x => x.id !== s.id && x.routineId != null && x.routineId === s.routineId && x.workoutDate < s.workoutDate);
+        let priorVal: number | null = null;
+        if (prior) {
+          const priorVolLbs = Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS);
+          const priorSecs = prior.totalDurationSeconds ?? prior.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+          if (rt === 'steps') {
+            priorVal = prior.totalSteps != null && priorSecs > 0 ? Math.round(prior.totalSteps / (priorSecs / 60)) : null;
+          } else if (rt === 'cardio_distance') {
+            const priorMiles = prior.totalDistanceMeters ? prior.totalDistanceMeters / 1609.34 : null;
+            priorVal = priorMiles && prior.durationMinutes ? Number((priorMiles / prior.durationMinutes).toFixed(2)) : null;
+          } else if (rt === 'cardio_duration') {
+            priorVal = priorSecs ? Math.round(priorSecs / 60) : (prior.durationMinutes ?? null);
+          } else {
+            priorVal = priorVolLbs > 0 ? priorVolLbs : null;
+          }
+        }
+
+        const delta = priorVal != null && primaryVal != null ? primaryVal - priorVal : null;
+        const deltaPct = delta != null && priorVal && priorVal > 0 ? (delta / priorVal * 100) : null;
+
         return (
           <div key={s.id} onClick={() => navigate(`/workouts/${s.id}`)}
             style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '12px 0', borderTop: `1px solid ${LINE_SOFT}`, alignItems: 'baseline', cursor: 'pointer' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
-            <span className="font-mono" style={{ fontSize: 11, color: MUTED2 }}>
+            <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>
               {new Date(s.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
-            <span style={{ fontSize: 13, color: 'white' }}>{s.routineName ?? s.name ?? 'Workout'}</span>
-            <span className="font-mono" style={{ fontSize: 12, color: 'white', textAlign: 'right' }}>{s.totalVolumeKg > 0 ? fmt(s.totalVolumeKg * KG_TO_LBS) : '—'}</span>
-            <span className="font-mono" style={{ fontSize: 11, color: MUTED, textAlign: 'right' }}>{s.setCount}</span>
-            <span className="font-mono" style={{ fontSize: 11, color: MUTED, textAlign: 'right' }}>{s.caloriesBurned ?? '—'}</span>
-            <span className="font-mono" style={{ fontSize: 11, color: MUTED, textAlign: 'right' }}>{s.durationMinutes ?? '—'}</span>
-            <span style={{ fontSize: 11, color: highlight ? ACCENT : MUTED2 }}>{highlight ? `★ ${highlight}` : '—'}</span>
+            <span style={{ fontSize: 14, color: 'white' }}>
+              {s.routineName ?? s.name ?? (s.exercises.length > 0 ? s.exercises.map(e => e.name).join(', ') : 'Workout')}
+            </span>
+            <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'white', whiteSpace: 'nowrap', textAlign: 'right', paddingRight: 20 }}>
+              {primaryVal != null ? <>{primaryUnit === 'lbs' ? fmtNum(primaryVal) : primaryVal}<span style={{ color: MUTED2 }}> {primaryUnit}</span></> : <span style={{ color: MUTED2 }}>—</span>}
+            </div>
+            <span className="font-mono" style={{ fontSize: 13, color: MUTED, paddingLeft: 20, whiteSpace: 'nowrap' }}>
+              {s.caloriesBurned ? <>{fmtNum(s.caloriesBurned)}<span style={{ color: MUTED2 }}> kcal</span></> : <span style={{ color: MUTED2 }}>—</span>}
+            </span>
+            <span style={{ fontSize: 13, color: highlights.length ? ACCENT : MUTED2, paddingLeft: 20 }}>
+              {highlights.length ? highlights.map((h, i) => <span key={i} style={{ display: 'block' }}>★ {h}</span>) : '—'}
+            </span>
+            <span className="font-mono" style={{ fontSize: 13, fontWeight: 600 }}>
+              {deltaPct != null ? (
+                <span style={{ color: delta! >= 0 ? '#86AA80' : '#C5896E' }}>
+                  {delta! >= 0 ? '▲' : '▼'}{Math.abs(Math.round(deltaPct))}%
+                </span>
+              ) : prior === undefined && s.routineId ? (
+                <span style={{ color: MUTED2 }}>first</span>
+              ) : (
+                <span style={{ color: MUTED2 }}>—</span>
+              )}
+            </span>
           </div>
         );
       })}
@@ -1832,8 +1895,8 @@ export default function DashboardPage() {
       </Band>
 
       {/* ── SESSIONS ──────────────────────────────────────────────────────────── */}
-      <Band kicker="Sessions" title="Recent workouts logged">
-        <Panel title="Recent sessions" meta={`${workouts.length} total`}>
+      <Band kicker="Sessions">
+        <Panel>
           <RecentSessions workouts={workouts} navigate={navigate} />
         </Panel>
       </Band>
