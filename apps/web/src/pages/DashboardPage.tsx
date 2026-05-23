@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, assistantApi, recoveryApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, assistantApi, recoveryApi, waterApi,
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type InsightPeriod, type RecoveryData,
+  type WeekBucket, type UpcomingSession, type InsightPeriod, type RecoveryData, type WaterDay,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -152,6 +152,50 @@ function InsightBanner({ text, streak, date, period }: { text: string; streak: n
         <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{streak}</span>
         <span className="micro" style={{ fontSize: 9, color: MUTED2 }}>day streak</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Today Snapshot ──────────────────────────────────────────────────────────
+
+function TodaySnapshot({ workout, nutrition, water }: {
+  workout: WorkoutSummary | null;
+  nutrition: GoalsSummary['nutrition']['actual'] | null;
+  water: WaterDay | null;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const volLbs       = Math.round((workout?.totalVolumeKg ?? 0) * KG_TO_LBS);
+  const workoutLabel = workout?.routineName ?? workout?.name ?? 'Workout';
+  const glasses      = water ? Math.round(water.totalOz / 8) : 0;
+  const hasWorkout   = workout != null && workout.exerciseCount > 0;
+  const hasNutrition = (nutrition?.calories ?? 0) > 0;
+
+  const lines: string[] = ["Today's stats:"];
+  if (hasWorkout) {
+    const vol = volLbs > 0 ? ` — total volume of ${volLbs.toLocaleString()} lbs` : ' completed';
+    lines.push(`- ${workoutLabel}${vol}`);
+  }
+  if (hasNutrition) {
+    lines.push(`- Calories: ${fmt(nutrition!.calories)}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
+  }
+  if (glasses > 0) lines.push(`- Water: ${glasses} glasses`);
+
+  const text = lines.join('\n');
+
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
+
+  return (
+    <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
+      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
+      <button onClick={copy} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+        {copied ? 'copied' : 'copy'}
+      </button>
     </div>
   );
 }
@@ -1768,6 +1812,7 @@ export default function DashboardPage() {
   const [insightPeriod,  setInsightPeriod]  = useState<InsightPeriod>('morning');
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
   const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
+  const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1785,7 +1830,8 @@ export default function DashboardPage() {
       assistantApi.getInsight().catch(() => null),
       recoveryApi.get().catch(() => null),
       routinesApi.getAllGoals().catch(() => []),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec, rg]) => {
+      waterApi.getDay(today).catch(() => null),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec, rg, wd]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1800,6 +1846,7 @@ export default function DashboardPage() {
       if (ins?.text) { setInsight(ins.text); setInsightPeriod(ins.period ?? 'morning'); }
       if (rec) setRecovery(rec as RecoveryData);
       if (rg) setRoutineGoals(rg as RoutineGoal[]);
+      if (wd) setTodayWater(wd as WaterDay);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1906,6 +1953,15 @@ export default function DashboardPage() {
         <Panel>
           <RecentSessions workouts={workouts} navigate={navigate} />
         </Panel>
+      </Band>
+
+      {/* ── TODAY'S BLURB ─────────────────────────────────────────────────────── */}
+      <Band kicker="Today's Blurb">
+        <TodaySnapshot
+          workout={todayWorkout}
+          nutrition={summary?.nutrition.actual ?? null}
+          water={todayWater}
+        />
       </Band>
 
       <div style={{ padding: '24px 36px 60px' }} className="font-mono">
