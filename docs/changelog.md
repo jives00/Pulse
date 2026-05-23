@@ -4,6 +4,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 23, 2026
+
+### Web
+
+- **Dashboard Goal Progress polish** — Rest day text in Exercise Today bumped from 13 to 18px; TDEE projection in Weight Goal card now stable (TEF computed from 30-day avg calories instead of today's food log, so days with no food logged yet no longer collapse the projection to flat); Waist/Bicep goal regression limited to last 90 days so historical steep declines no longer skew the current-pace projection. `76e1546`
+
 ## May 22, 2026
 
 ### Web

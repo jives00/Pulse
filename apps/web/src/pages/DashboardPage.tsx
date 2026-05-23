@@ -362,7 +362,7 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
     return (
       <div>
         {recoveryStrip}
-        <div style={{ fontSize: 13, color: MUTED2 }}>Rest day — take it easy.</div>
+        <div style={{ fontSize: 18, fontWeight: 500, color: MUTED }}>Rest day — take it easy.</div>
       </div>
     );
   }
@@ -1263,12 +1263,15 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
   }
 
   // TDEE-based slope (lbs/day): net calories / 3500
+  // TEF (10% of intake) is computed from avgCal instead of tdee.tef so that days with
+  // no food logged yet (tef = 0) don't collapse the projection to a flat line.
   let tdeeLbsPerDay: number | null = null;
   if (tdee) {
-    const recentFood = foodLogHistory.slice(-14).filter(d => d.calories > 0);
+    const recentFood = foodLogHistory.slice(-30).filter(d => d.calories > 0);
     if (recentFood.length > 0) {
       const avgCal = recentFood.reduce((s, d) => s + d.calories, 0) / recentFood.length;
-      tdeeLbsPerDay = (avgCal - tdee.total) / 3500;
+      const tdeeAtAvg = tdee.bmr + tdee.neat + tdee.exercise + avgCal * 0.1;
+      tdeeLbsPerDay = (avgCal - tdeeAtAvg) / 3500;
     }
   }
 
@@ -1474,12 +1477,16 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
   const t0Ms     = new Date(sorted[0].date + 'T12:00:00').getTime();
 
-  // Linear regression slope (units/day)
+  // Linear regression slope using last 90 days so old history doesn't skew the projection
+  const cutoff90Ms = todayMs - 90 * 86400000;
+  const recentForSlope = sorted.filter(m => new Date(m.date + 'T12:00:00').getTime() >= cutoff90Ms);
+  const regrData = recentForSlope.length >= 2 ? recentForSlope : sorted;
   let slopePerDay = 0;
-  if (sorted.length >= 2) {
-    const n   = sorted.length;
-    const xs  = sorted.map(m => (new Date(m.date + 'T12:00:00').getTime() - t0Ms) / 86400000);
-    const ys  = sorted.map(m => m.val);
+  if (regrData.length >= 2) {
+    const sliceT0 = new Date(regrData[0].date + 'T12:00:00').getTime();
+    const n   = regrData.length;
+    const xs  = regrData.map(m => (new Date(m.date + 'T12:00:00').getTime() - sliceT0) / 86400000);
+    const ys  = regrData.map(m => m.val);
     const xM  = xs.reduce((a, b) => a + b, 0) / n;
     const yM  = ys.reduce((a, b) => a + b, 0) / n;
     const den = xs.reduce((s, x) => s + (x - xM) ** 2, 0);
