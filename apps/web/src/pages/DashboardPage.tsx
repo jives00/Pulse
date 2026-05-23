@@ -1966,7 +1966,7 @@ export default function DashboardPage() {
 
       <div style={{ padding: '24px 36px 60px' }} className="font-mono">
         <div style={{ height: 1, background: LINE_SOFT, marginBottom: 14 }} />
-        <span style={{ fontSize: 10, color: MUTED2 }}>Pulse · Dashboard v4 preview · Phase 4a</span>
+        <span style={{ fontSize: 10, color: MUTED2 }}>Pulse · Dashboard</span>
       </div>
     </div>
   );

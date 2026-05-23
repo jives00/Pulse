@@ -10,6 +10,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **Dashboard Goal Progress polish** — Rest day text in Exercise Today bumped from 13 to 18px; TDEE projection in Weight Goal card now stable (TEF computed from 30-day avg calories instead of today's food log, so days with no food logged yet no longer collapse the projection to flat); Waist/Bicep goal regression limited to last 90 days so historical steep declines no longer skew the current-pace projection. `76e1546`
 - **Dashboard Today's Blurb** — New section at the bottom of the dashboard renders today's workout, nutrition, and water as a plain-text blurb (matching the format: workout name + volume, calories + macros, water glasses) with a copy-to-clipboard button. `8acd5bf`
+- **Dashboard v4 promoted to primary** — `/dashboard` now serves the v4 page; old WorkoutsDashboardPage retired; "Dashboard v4" nav entry removed; "v4 preview" footer label cleaned up; bundle ~88KB smaller. `908cd18`
 
 ## May 22, 2026
 

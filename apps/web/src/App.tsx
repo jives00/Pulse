@@ -11,7 +11,6 @@ import TodayPage from './pages/TodayPage';
 import NutritionHistoryPage from './pages/NutritionHistoryPage';
 import FoodsPage from './pages/FoodsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
-import WorkoutsDashboardPage from './pages/WorkoutsDashboardPage';
 import DashboardPage from './pages/DashboardPage';
 import WorkoutDetailPage from './pages/WorkoutDetailPage';
 import ExerciseDetailPage from './pages/ExerciseDetailPage';
@@ -58,8 +57,7 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
 
           {/* Dashboard */}
-          <Route path="dashboard" element={<WorkoutsDashboardPage />} />
-          <Route path="dashboard-v4" element={<DashboardPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
 
           {/* Food */}
           <Route path="food" element={<Library />} />
