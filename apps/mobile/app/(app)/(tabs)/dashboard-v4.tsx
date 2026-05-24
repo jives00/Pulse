@@ -133,7 +133,7 @@ function ProgressBar({ label, actual, goal, unit, c }: {
   const pct = Math.min(pctRaw, 1);
   const over = goal != null && goal > 0 && actual > goal;
   const nearGoal = goal != null && goal > 0 && pctRaw >= 0.95 && pctRaw <= 1.05 && !over;
-  const barColor = over ? COL_WARN : nearGoal ? COL_GOOD : COL_GOLD;
+  const barColor = nearGoal ? COL_GOOD : COL_GOLD;
   const valueColor = over ? COL_WARN : c.text;
   return (
     <View style={{ gap: 4 }}>
@@ -329,7 +329,7 @@ export default function DashboardV4Screen() {
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
       setNutritionSummary(ns);
-      setFoodLogHistory(fl as FoodLogHistoryDay[]);
+      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
       setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
@@ -1099,10 +1099,6 @@ export default function DashboardV4Screen() {
                       <Text style={{ fontSize: 22, fontWeight: '700', color: delta >= 0 ? COL_GOOD : COL_WARN, fontVariant: ['tabular-nums'] }}>{delta > 0 ? '+' : ''}{delta.toLocaleString()}</Text>
                     </View>
                   )}
-                  <View>
-                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Best week</Text>
-                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{Math.round(bestVol).toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
-                  </View>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 4 }}>
                   {weeks12.map((wk, i) => {
@@ -1220,11 +1216,94 @@ export default function DashboardV4Screen() {
         </>)}
 
         {/* ══ SESSIONS tab ══ */}
-        {activeTab === 'sessions' && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-            <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Sessions — coming soon</Text>
-          </View>
-        )}
+        {/* ══ SESSIONS tab ══ */}
+        {activeTab === 'sessions' && (() => {
+          const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
+          const rows = completed.slice(0, 10);
+          if (!rows.length) return (
+            <View style={s.card}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No sessions yet.</Text>
+            </View>
+          );
+          const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+          return (
+            <View style={s.card}>
+              <CardHeader title="Recent sessions" meta="last 10" c={c} />
+              {rows.map((session, idx) => {
+                const highlights = computeHighlights(session, completed);
+                const volLbs = Math.round((session.totalVolumeKg ?? 0) * KG_TO_LBS);
+                const rt = session.routineType ?? (volLbs > 0 ? 'strength' : session.totalSteps ? 'steps' : 'cardio_duration');
+                const totalSecs = session.totalDurationSeconds ?? session.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+
+                let primaryVal: number | null = null;
+                let primaryUnit = 'lbs';
+                if (rt === 'steps') {
+                  primaryVal = session.totalSteps != null && totalSecs > 0 ? Math.round(session.totalSteps / (totalSecs / 60)) : null;
+                  primaryUnit = 'stairs/min';
+                } else if (rt === 'cardio_distance') {
+                  const distMiles = session.totalDistanceMeters ? session.totalDistanceMeters / 1609.34 : null;
+                  primaryVal = distMiles && session.durationMinutes ? Number((distMiles / session.durationMinutes).toFixed(2)) : null;
+                  primaryUnit = 'mi/min';
+                } else if (rt === 'cardio_duration') {
+                  primaryVal = totalSecs ? Math.round(totalSecs / 60) : (session.durationMinutes ?? null);
+                  primaryUnit = 'min';
+                } else {
+                  primaryVal = volLbs > 0 ? volLbs : null;
+                }
+
+                const prior = completed.find((x) => x.id !== session.id && x.routineId != null && x.routineId === session.routineId && x.workoutDate < session.workoutDate);
+                let priorVal: number | null = null;
+                if (prior) {
+                  const priorVolLbs = Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS);
+                  const priorSecs = prior.totalDurationSeconds ?? prior.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+                  if (rt === 'steps') {
+                    priorVal = prior.totalSteps != null && priorSecs > 0 ? Math.round(prior.totalSteps / (priorSecs / 60)) : null;
+                  } else if (rt === 'cardio_distance') {
+                    const priorMiles = prior.totalDistanceMeters ? prior.totalDistanceMeters / 1609.34 : null;
+                    priorVal = priorMiles && prior.durationMinutes ? Number((priorMiles / prior.durationMinutes).toFixed(2)) : null;
+                  } else if (rt === 'cardio_duration') {
+                    priorVal = priorSecs ? Math.round(priorSecs / 60) : (prior.durationMinutes ?? null);
+                  } else {
+                    priorVal = priorVolLbs > 0 ? priorVolLbs : null;
+                  }
+                }
+
+                const delta = priorVal != null && primaryVal != null ? primaryVal - priorVal : null;
+                const deltaPct = delta != null && priorVal && priorVal > 0 ? (delta / priorVal * 100) : null;
+                const sessionName = session.routineName ?? session.name ?? (session.exercises.length > 0 ? session.exercises.map((e) => e.name).join(', ') : 'Workout');
+                const dateLabel = new Date(session.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                const secondaryParts: string[] = [];
+                if (primaryVal != null) secondaryParts.push(primaryUnit === 'lbs' ? `${fmtNum(primaryVal)} lb` : `${primaryVal} ${primaryUnit}`);
+                if (session.caloriesBurned) secondaryParts.push(`${fmtNum(session.caloriesBurned)} kcal`);
+
+                return (
+                  <View key={session.id} style={{ paddingVertical: 10, borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+                    {/* Line 1: date · name · vs prior */}
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                      <Text style={{ fontSize: 11, color: c.muted, fontVariant: ['tabular-nums'], width: 42 }}>{dateLabel}</Text>
+                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: c.text }} numberOfLines={1}>{sessionName}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: deltaPct != null ? (delta! >= 0 ? '#86AA80' : '#C5896E') : c.muted }}>
+                        {deltaPct != null
+                          ? `${delta! >= 0 ? '▲' : '▼'}${Math.abs(Math.round(deltaPct))}%`
+                          : prior === undefined && session.routineId ? 'first' : '—'}
+                      </Text>
+                    </View>
+                    {/* Line 2: metric · calories · highlights */}
+                    <View style={{ flexDirection: 'row', marginTop: 3, marginLeft: 48, gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {secondaryParts.length > 0 && (
+                        <Text style={{ fontSize: 12, color: c.muted, fontVariant: ['tabular-nums'] }}>{secondaryParts.join(' · ')}</Text>
+                      )}
+                      {highlights.map((h, i) => (
+                        <Text key={i} style={{ fontSize: 12, color: COL_GOLD }}>★ {h}</Text>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         <View style={{ height: 24 }} />
       </ScrollView>
