@@ -1,4 +1,4 @@
-import { useCallback, useEffect, memo, useRef, useState } from 'react';
+import { useCallback, useEffect, memo, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal,
   Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity,
@@ -38,6 +38,13 @@ function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
   return _secondsToMMSS(sec);
 }
+function longDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function dayOfWeek(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+}
+
 function mmssToSeconds(val: string): number | null {
   const trimmed = val.trim();
   if (!trimmed) return null;
@@ -51,68 +58,38 @@ function mmssToSeconds(val: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-// ── Volume line chart (pure RN, no SVG lib) ───────────────────────────────────
+// ── Volume bar chart (pure RN, no SVG lib) ────────────────────────────────────
 
 const CHART_H = 80;
-const DOT_R = 3;
+const BAR_GAP = 2;
 
-function VolumeLineChart({ data, c }: { data: { date: string; volumeLbs: number }[]; c: Colors }) {
+function VolumeBarChart({ data, c }: { data: { date: string; volumeLbs: number }[]; c: Colors }) {
   const { width } = useWindowDimensions();
   const chartWidth = width - 56; // 14 padding each side + 14 card padding each side
   if (data.length === 0) return null;
 
   const maxVal = Math.max(...data.map((d) => d.volumeLbs), 1);
-  const pts = data.map((entry, i) => {
-    const x = data.length > 1 ? (i / (data.length - 1)) * chartWidth : chartWidth / 2;
-    const y = CHART_H - DOT_R - Math.max((entry.volumeLbs / maxVal) * (CHART_H - DOT_R * 2), 0);
-    return { x, y, val: entry.volumeLbs, date: entry.date };
-  });
-  const lastPt = pts[pts.length - 1];
+  const barWidth = Math.max(2, (chartWidth - BAR_GAP * (data.length - 1)) / data.length);
 
   return (
     <View>
-      <View style={{ height: CHART_H, width: chartWidth, position: 'relative' }}>
-        {/* Lines between dots */}
-        {pts.map((pt, i) => {
-          if (i === pts.length - 1) return null;
-          const next = pts[i + 1];
-          const dx = next.x - pt.x;
-          const dy = next.y - pt.y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      <View style={{ height: CHART_H, width: chartWidth, flexDirection: 'row', alignItems: 'flex-end', gap: BAR_GAP }}>
+        {data.map((entry, i) => {
+          const barH = Math.max(2, (entry.volumeLbs / maxVal) * CHART_H);
+          const isLast = i === data.length - 1;
           return (
             <View
-              key={data[i].date + '_line'}
+              key={entry.date}
               style={{
-                position: 'absolute',
-                left: pt.x,
-                top: pt.y - 0.75,
-                width: len,
-                height: 1.5,
-                backgroundColor: '#3b82f688',
-                transformOrigin: 'left center',
-                transform: [{ rotate: `${angle}deg` }],
+                width: barWidth,
+                height: barH,
+                backgroundColor: isLast ? c.accent : c.accent + '88',
+                borderRadius: 2,
               }}
             />
           );
         })}
-        {/* Dots */}
-        {pts.map((pt, i) => (
-          <View
-            key={data[i].date + '_dot'}
-            style={{
-              position: 'absolute',
-              left: pt.x - DOT_R,
-              top: pt.y - DOT_R,
-              width: DOT_R * 2,
-              height: DOT_R * 2,
-              borderRadius: DOT_R,
-              backgroundColor: i === pts.length - 1 ? '#3b82f6' : '#3b82f699',
-            }}
-          />
-        ))}
       </View>
-      {/* X-axis labels: first and last */}
       {data.length >= 2 && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
           <Text style={{ fontSize: 9, color: '#94a3b8' }}>{shortDate(data[0].date)}</Text>
@@ -277,6 +254,18 @@ export default function RoutineDetailScreen() {
   const [name, setName] = useState('');
   const nameInputRef = useRef<TextInput>(null);
 
+  const chartData = useMemo(() => {
+    if (!routine || volumeHistory.length === 0) return [];
+    const rt = routine.routineType ?? 'strength';
+    return volumeHistory.map((h) => {
+      let value = h.volumeLbs;
+      if (rt === 'steps') value = (h.workout as any).totalSteps ?? 0;
+      else if (rt === 'cardio_distance') value = Math.round(((h.workout as any).totalDistanceMeters ?? 0) / 1609.34 * 10) / 10;
+      else if (rt === 'cardio_duration') value = Math.round(((h.workout as any).totalDurationSeconds ?? 0) / 60);
+      return { date: h.date, volumeLbs: value };
+    }).filter((d) => d.volumeLbs > 0);
+  }, [routine, volumeHistory]);
+
   useEffect(() => {
     if (!id) return;
     getRoutine(token, routineId)
@@ -439,33 +428,106 @@ export default function RoutineDetailScreen() {
             <Text style={s.startBtnText}>{starting ? 'Starting…' : 'Start Routine'}</Text>
           </TouchableOpacity>
 
-          {/* Volume history chart */}
+          {/* Overview */}
           {volumeHistory.length > 0 && (() => {
             const rt = routine.routineType ?? 'strength';
-            const chartData = volumeHistory.map((h) => {
-              let value = h.volumeLbs;
-              if (rt === 'steps') value = (h.workout as any).totalSteps ?? 0;
-              else if (rt === 'cardio_distance') value = Math.round(((h.workout as any).totalDistanceMeters ?? 0) / 1609.34 * 10) / 10;
-              else if (rt === 'cardio_duration') value = Math.round(((h.workout as any).totalDurationSeconds ?? 0) / 60);
-              return { date: h.date, volumeLbs: value };
-            }).filter((d) => d.volumeLbs > 0);
             const unitLabel = rt === 'steps' ? 'steps' : rt === 'cardio_distance' ? 'mi' : rt === 'cardio_duration' ? 'min' : 'lbs';
-            const latest = chartData[chartData.length - 1];
-            if (chartData.length === 0) return null;
+            const bestLabel = rt === 'cardio_distance' ? 'Best Distance' : rt === 'cardio_duration' ? 'Best Duration' : rt === 'steps' ? 'Best Steps' : 'Best Volume';
+
+            let bestValue = 0;
+            let bestDate: string | null = null;
+            for (const d of chartData) {
+              if (d.volumeLbs > bestValue) { bestValue = d.volumeLbs; bestDate = d.date; }
+            }
+            const bestFormatted = bestValue === 0 ? '—'
+              : rt === 'steps' ? bestValue.toLocaleString() + ' steps'
+              : rt === 'cardio_distance' ? bestValue.toFixed(1) + ' mi'
+              : rt === 'cardio_duration' ? Math.round(bestValue) + ' min'
+              : Math.round(bestValue).toLocaleString() + ' lbs';
+
+            const lastDate = volumeHistory[volumeHistory.length - 1]?.date ?? null;
+            const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 56);
+            const recentCount = volumeHistory.filter((h) => h.date >= cutoff.toISOString().split('T')[0]).length;
+            const avgPerWeek = recentCount > 0 ? (recentCount / 8).toFixed(1) + '×' : '—';
+
+            const tiles = [
+              { label: 'Sessions', value: String(volumeHistory.length), sub: 'all time' },
+              { label: bestLabel, value: bestFormatted, sub: bestDate ? longDate(bestDate) : undefined },
+              { label: 'Last Performed', value: lastDate ? longDate(lastDate) : '—', sub: lastDate ? dayOfWeek(lastDate) : undefined },
+              { label: 'Avg / Week', value: avgPerWeek, sub: 'last 8 weeks' },
+            ];
+
             return (
-              <View style={s.card}>
-                <Text style={s.cardTitle}>Per session ({unitLabel})</Text>
-                <VolumeLineChart data={chartData} c={c} />
-                {latest && (
-                  <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'right', marginTop: 2 }}>
-                    Latest: {latest.volumeLbs.toLocaleString()} {unitLabel}
-                  </Text>
-                )}
-              </View>
+              <>
+                <View style={s.sectionHeader}>
+                  <View style={s.sectionLine} />
+                  <Text style={s.sectionTitle}>Overview</Text>
+                </View>
+                <View style={s.overviewGrid}>
+                  {tiles.map((tile) => (
+                    <View key={tile.label} style={s.overviewTile}>
+                      <Text style={s.overviewTileLabel}>{tile.label}</Text>
+                      <Text style={s.overviewTileValue}>{tile.value}</Text>
+                      {tile.sub && <Text style={s.overviewTileSub}>{tile.sub}</Text>}
+                    </View>
+                  ))}
+                </View>
+              </>
             );
           })()}
 
-          {/* Exercise blocks */}
+          {/* Progress */}
+          {chartData.length > 0 && (() => {
+            const rt = routine.routineType ?? 'strength';
+            const unitLabel = rt === 'steps' ? 'steps' : rt === 'cardio_distance' ? 'mi' : rt === 'cardio_duration' ? 'min' : 'lbs';
+            const nowValue = chartData[chartData.length - 1].volumeLbs;
+            const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
+            const cutoff30Str = cutoff30.toISOString().split('T')[0];
+            const ago30 = [...chartData].filter((d) => d.date <= cutoff30Str).sort((a, b) => b.date.localeCompare(a.date))[0];
+            const delta = ago30 ? nowValue - ago30.volumeLbs : null;
+            const deltaPct = delta != null && ago30 && ago30.volumeLbs !== 0 ? (delta / ago30.volumeLbs) * 100 : null;
+            const fmtVal = (v: number) => rt === 'cardio_distance' ? v.toFixed(1) : Math.round(v).toLocaleString();
+
+            return (
+              <>
+                <View style={s.sectionHeader}>
+                  <View style={s.sectionLine} />
+                  <Text style={s.sectionTitle}>Progress</Text>
+                </View>
+                <View style={s.card}>
+                  <View style={{ flexDirection: 'row', gap: 24, marginBottom: 8 }}>
+                    <View>
+                      <Text style={s.statRowLabel}>Now</Text>
+                      <Text style={s.statRowValue}>
+                        {fmtVal(nowValue)}<Text style={s.statRowUnit}> {unitLabel}</Text>
+                      </Text>
+                    </View>
+                    {delta != null && (
+                      <View>
+                        <Text style={s.statRowLabel}>vs 30 days ago</Text>
+                        <Text style={[s.statRowValue, { color: delta >= 0 ? '#4ade80' : '#f87171' }]}>
+                          {delta >= 0 ? '+' : ''}{fmtVal(delta)}<Text style={[s.statRowUnit, { color: delta >= 0 ? '#4ade80' : '#f87171' }]}> {unitLabel}</Text>
+                          {deltaPct != null && (
+                            <Text style={[s.statRowUnit, { color: delta >= 0 ? '#4ade80' : '#f87171' }]}>
+                              {' '}({deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(1)}%)
+                            </Text>
+                          )}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <VolumeBarChart data={chartData} c={c} />
+                </View>
+              </>
+            );
+          })()}
+
+          {/* Exercises */}
+          <View style={s.sectionHeader}>
+            <View style={s.sectionLine} />
+            <Text style={s.sectionTitle}>Exercises ({routine.exercises.length})</Text>
+          </View>
+
           {routine.exercises.map((re, idx) => (
             <RoutineExerciseBlock
               key={re.id}
@@ -546,5 +608,16 @@ function makeStyles(c: Colors) {
     cardTitle: { fontSize: fontSize.sm, fontWeight: '600', color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
     addExBtn: { borderWidth: 1, borderStyle: 'dashed', borderColor: c.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     addExBtnText: { fontSize: fontSize.sm, color: c.accent },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    sectionLine: { width: 14, height: 2, backgroundColor: c.accent },
+    sectionTitle: { fontSize: fontSize.sm, fontWeight: '700', color: c.text, textTransform: 'uppercase', letterSpacing: 0.8 },
+    overviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    overviewTile: { flex: 1, minWidth: '45%', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 12 },
+    overviewTileLabel: { fontSize: fontSize.sm, fontWeight: '600', color: c.accent, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    overviewTileValue: { fontSize: fontSize.lg, fontWeight: '700', color: c.text },
+    overviewTileSub: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
+    statRowLabel: { fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+    statRowValue: { fontSize: 22, fontWeight: '700', color: c.text },
+    statRowUnit: { fontSize: fontSize.sm, fontWeight: '400', color: c.muted },
   });
 }

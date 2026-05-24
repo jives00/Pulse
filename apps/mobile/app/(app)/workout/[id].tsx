@@ -728,6 +728,15 @@ export default function WorkoutDetailScreen() {
       : `${Math.round(runningVolumeLbs)}`
     : '—';
 
+  const lastSessionVolumeLbs = Object.values(lastSetsByExercise).reduce((total, sets) => {
+    return total + sets.reduce((sum, s) => {
+      if (s.weightKg != null && s.reps != null) return sum + kgToLbs(s.weightKg) * s.reps;
+      return sum;
+    }, 0);
+  }, 0);
+  const vsLastDelta = lastSessionVolumeLbs > 0 ? runningVolumeLbs - lastSessionVolumeLbs : null;
+  const vsLastPct = vsLastDelta != null ? (vsLastDelta / lastSessionVolumeLbs) * 100 : null;
+
   const filteredEx = allExercises.filter((e) => {
     const matchSearch = !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase());
     const matchCat = !exCategory || e.category === exCategory;
@@ -781,6 +790,18 @@ export default function WorkoutDetailScreen() {
 
         <ProgressBar progress={overallPct} c={c} color={c.accent} height={3} />
       </View>
+
+      {!workout?.completed && lastSessionVolumeLbs > 0 && (
+        <View style={s.lastSessionBar}>
+          <Text style={s.lastSessionBarLabel}>Last session</Text>
+          <Text style={s.lastSessionBarValue}>{Math.round(lastSessionVolumeLbs).toLocaleString()} lbs</Text>
+          {vsLastPct != null && (
+            <Text style={[s.lastSessionBarDelta, { color: vsLastDelta! >= 0 ? SUCCESS : '#f87171' }]}>
+              {vsLastDelta! >= 0 ? '▲' : '▼'} {Math.abs(vsLastPct).toFixed(0)}%
+            </Text>
+          )}
+        </View>
+      )}
 
       {restSeconds > 0 && (
         <RestTimer
@@ -1227,6 +1248,10 @@ function makeStyles(c: Colors) {
   cancelSessionText: { fontSize: fontSize.sm, color: c.muted },
   finishBtnDisabled: { opacity: 0.5 },
   finishBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
+  lastSessionBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
+  lastSessionBarLabel: { fontSize: 13, color: c.muted },
+  lastSessionBarValue: { fontSize: 13, fontWeight: '700', color: c.text, flex: 1 },
+  lastSessionBarDelta: { fontSize: 13, fontWeight: '700' },
   scroll: { flex: 1 },
   scrollContent: { padding: 12, gap: 10 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 4 },

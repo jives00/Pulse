@@ -8,6 +8,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Routine detail overview + progress** — Added Overview stat band (Sessions, Best Volume/Distance/Duration/Steps, Last Performed, Avg/Week) and Progress section (bar chart replacing line chart, Now value, vs-30-days-ago delta with color and %) above the exercise list on the routine detail screen. `2c9523f`
+- **Active workout last-session bar** — Sub-bar below the workout header shows last session's total volume and a live colored delta % (▲/▼) comparing current running volume against that target; only visible on active workouts where prior session data exists. `2c9523f`
 - **Planning tab redesigned** — Settings now includes a Planning tab with a 14-day agenda view (vertical list, colored event dots per category) replacing the horizontal card strip; single "Add to schedule" button opens a DayModal with a day-picker strip defaulting to today; DayModal contains Workout, Meals, Goals, and Nutrition tabs; workout add supports routine/exercise/rest day with once-or-recurring; meal add supports food search, recipe search, or custom label; goal checkpoints support metric dropdown, target, date, and notes; nutrition add supports macros and water in glasses; Day Type Presets and Import Program features removed. `71bf8e3`
 
 ## May 23, 2026
@@ -186,6 +188,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **New color schemes** — added Midnight, Tide, and Graphite themes alongside existing Blue, Slate, Sand. `f708cab`
 - **Font size minimum** — replaced all `text-xs` (11px) with `text-sm` (14px) across 23 files; bumped `--t-xs` CSS variable from 11px to 13px. `af2f36d`
 - **Cleanup** — deleted unused `MacroBar` and `NutritionHistoryCharts` components. `e0d7d39`
+- **Planning page** — new `/planning` route in the sidebar centralizes all goal management: nutrition targets, weekly exercise targets with volume, and body measurement goals with pace badges and projected dates. Inline goal editors removed from Today and Dashboard pages. `8de0807`
 
 ### API
 
@@ -201,18 +204,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Rest timer stays accurate when backgrounded** — replaced interval-based countdown with a start-timestamp approach; timer now resyncs from `Date.now()` on each tick. `d876ece`
 - **Rest timer ding at zero** — haptic + audio alert fires when rest expires; requires EAS build (graceful no-op in Expo Go). `d876ece`
 - **Routine: import last session** — exercises with no template sets now show an "Import as template sets" button that copies last-performed weights/reps as editable template rows. `d876ece`
-
-### Mobile
-
 - **New color schemes** — Midnight, Tide, and Graphite added to settings color picker. `f708cab`
 - **Nav bar redesign** — replaced emoji icons with Ionicons, added Planning tab, renamed labels (Home/Plan/Log/Train/Recipes), fixed More button alignment and styling. `d1598f5`
 - **Metro config** — added explicit `extraNodeModules` mapping for `@pulse/theme` to fix workspace resolution. `d1598f5`
 - **Font size minimum** — replaced all `fontSize.xs` and hardcoded sub-13 sizes across all screens; chart/heatmap labels floored at 11. `af2f36d`
 - **Plan tab** — fully implemented: nutrition goals with inline editing, exercise targets (workouts/minutes/volume) with progress bars, and body measurement goals with pace tracking and add/edit/delete. `8de0807`
 
-### Web
-
-- **Planning page** — new `/planning` route in the sidebar centralizes all goal management: nutrition targets, weekly exercise targets with volume, and body measurement goals with pace badges and projected dates. Inline goal editors removed from Today and Dashboard pages. `8de0807`
 
 ## May 14, 2026
 
