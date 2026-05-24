@@ -52,6 +52,7 @@ import type {
   TDEEResult,
   ExerciseGoals,
   DailyHistoryEntry,
+  DeleteScope,
 } from '../../../../packages/api-client/src/index';
 import { buildRecipeParams } from '../../../../packages/api-client/src/index';
 import { API_BASE } from './config';
@@ -66,7 +67,7 @@ export type {
   RecipeSearchResult, PersonalBests, BodyMeasurement, MeasurementGoal,
   WaterHistoryDay, WaterHistory, FoodLogHistoryEntry, FoodLogHistoryDay,
   UserProfile, ActivityLevel, TDEEBreakdown, TDEEUnavailable, TDEEResult,
-  ExerciseGoals, DailyHistoryEntry,
+  ExerciseGoals, DailyHistoryEntry, DeleteScope,
 };
 
 function headers(token: string) {
@@ -958,6 +959,7 @@ export async function getUpcomingSchedule(token: string, days = 14): Promise<Upc
 }
 export async function createSchedule(token: string, data: {
   routineId?: number | null;
+  exerciseId?: number | null;
   label?: string;
   isRestDay?: boolean;
   recurrenceType: RecurrenceType;
@@ -1073,6 +1075,138 @@ export async function sendAssistantMessage(
     body: JSON.stringify(payload),
   });
   return handle<AssistantResponse>(res);
+}
+
+// ─── User Goals CRUD ────────────────────────────────────────────────────────────
+export type {
+  UserGoal, UserGoalPayload, GoalMetricType, GoalSourceType, GoalCategory,
+} from '../../../../packages/api-client/src/endpoints/user-goals';
+
+export async function getUserGoals(token: string): Promise<import('../../../../packages/api-client/src/endpoints/user-goals').UserGoal[]> {
+  const res = await fetch(`${API_BASE}/api/user-goals`, { headers: headers(token) });
+  return handle(res);
+}
+export async function createUserGoal(token: string, data: import('../../../../packages/api-client/src/endpoints/user-goals').UserGoalPayload): Promise<import('../../../../packages/api-client/src/endpoints/user-goals').UserGoal> {
+  const res = await fetch(`${API_BASE}/api/user-goals`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function updateUserGoal(token: string, id: number, data: Partial<import('../../../../packages/api-client/src/endpoints/user-goals').UserGoalPayload>): Promise<import('../../../../packages/api-client/src/endpoints/user-goals').UserGoal> {
+  const res = await fetch(`${API_BASE}/api/user-goals/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteUserGoal(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/user-goals/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// ─── Weekly nutrition goals ──────────────────────────────────────────────────
+export async function saveWeeklyNutritionGoals(token: string, data: {
+  weeklyCalories?: number | null;
+  weeklyProteinG?: number | null;
+  weeklyCarbsG?: number | null;
+  weeklyFatG?: number | null;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/goals/weekly`, { method: 'PATCH', headers: headers(token), body: JSON.stringify(data) });
+  await handle(res);
+}
+
+// ─── Routine goals ───────────────────────────────────────────────────────────
+export type { RoutineGoal } from '../../../../packages/api-client/src/endpoints/routines';
+export async function setRoutineGoal(token: string, routineId: number, targetPerWeek: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/goal`, { method: 'PUT', headers: headers(token), body: JSON.stringify({ targetPerWeek }) });
+  await handle(res);
+}
+export async function deleteRoutineGoal(token: string, routineId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/routines/${routineId}/goal`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// ─── Goal checkpoints ────────────────────────────────────────────────────────
+export type { GoalCheckpoint } from '../../../../packages/api-client/src/endpoints/calendar';
+export async function getGoalCheckpoints(token: string): Promise<import('../../../../packages/api-client/src/endpoints/calendar').GoalCheckpoint[]> {
+  const res = await fetch(`${API_BASE}/api/goal-checkpoints`, { headers: headers(token) });
+  return handle(res);
+}
+export async function createGoalCheckpoint(token: string, data: Omit<import('../../../../packages/api-client/src/endpoints/calendar').GoalCheckpoint, 'id'>): Promise<import('../../../../packages/api-client/src/endpoints/calendar').GoalCheckpoint> {
+  const res = await fetch(`${API_BASE}/api/goal-checkpoints`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function updateGoalCheckpoint(token: string, id: number, data: Omit<import('../../../../packages/api-client/src/endpoints/calendar').GoalCheckpoint, 'id'>): Promise<import('../../../../packages/api-client/src/endpoints/calendar').GoalCheckpoint> {
+  const res = await fetch(`${API_BASE}/api/goal-checkpoints/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteGoalCheckpoint(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/goal-checkpoints/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// ─── Day type presets + overrides ───────────────────────────────────────────
+export type { DayTypePreset, DailyNutritionOverride } from '../../../../packages/api-client/src/endpoints/calendar';
+export async function getDayTypePresets(token: string): Promise<import('../../../../packages/api-client/src/endpoints/calendar').DayTypePreset[]> {
+  const res = await fetch(`${API_BASE}/api/day-types/presets`, { headers: headers(token) });
+  return handle(res);
+}
+export async function createDayTypePreset(token: string, data: Omit<import('../../../../packages/api-client/src/endpoints/calendar').DayTypePreset, 'id'>): Promise<import('../../../../packages/api-client/src/endpoints/calendar').DayTypePreset> {
+  const res = await fetch(`${API_BASE}/api/day-types/presets`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function updateDayTypePreset(token: string, id: number, data: Omit<import('../../../../packages/api-client/src/endpoints/calendar').DayTypePreset, 'id'>): Promise<import('../../../../packages/api-client/src/endpoints/calendar').DayTypePreset> {
+  const res = await fetch(`${API_BASE}/api/day-types/presets/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteDayTypePreset(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/day-types/presets/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+export async function getDailyNutritionOverrides(token: string, from: string, to: string): Promise<import('../../../../packages/api-client/src/endpoints/calendar').DailyNutritionOverride[]> {
+  const res = await fetch(`${API_BASE}/api/day-types/overrides?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { headers: headers(token) });
+  return handle(res);
+}
+export async function upsertDailyNutritionOverride(token: string, date: string, data: Omit<import('../../../../packages/api-client/src/endpoints/calendar').DailyNutritionOverride, 'date' | 'dayTypeName'>): Promise<import('../../../../packages/api-client/src/endpoints/calendar').DailyNutritionOverride> {
+  const res = await fetch(`${API_BASE}/api/day-types/overrides/${date}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteDailyNutritionOverride(token: string, date: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/day-types/overrides/${date}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// ─── Meal schedules (recurring) ──────────────────────────────────────────────
+export type { MealSchedule, MealRecurrenceType, MealScheduleEvent } from '../../../../packages/api-client/src/endpoints/calendar';
+export async function getMealSchedules(token: string): Promise<import('../../../../packages/api-client/src/endpoints/calendar').MealSchedule[]> {
+  const res = await fetch(`${API_BASE}/api/meal-schedules`, { headers: headers(token) });
+  return handle(res);
+}
+export async function getMealScheduleUpcoming(token: string, days = 30): Promise<import('../../../../packages/api-client/src/endpoints/calendar').MealScheduleEvent[]> {
+  const res = await fetch(`${API_BASE}/api/meal-schedules/upcoming?days=${days}`, { headers: headers(token) });
+  return handle(res);
+}
+export async function createMealSchedule(token: string, data: any): Promise<import('../../../../packages/api-client/src/endpoints/calendar').MealSchedule> {
+  const res = await fetch(`${API_BASE}/api/meal-schedules`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteMealSchedule(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/meal-schedules/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
+}
+
+// ─── Nutrition schedules (recurring) ────────────────────────────────────────
+export type { NutritionSchedule, NutritionScheduleEvent } from '../../../../packages/api-client/src/endpoints/calendar';
+export async function getNutritionSchedules(token: string): Promise<import('../../../../packages/api-client/src/endpoints/calendar').NutritionSchedule[]> {
+  const res = await fetch(`${API_BASE}/api/nutrition-schedules`, { headers: headers(token) });
+  return handle(res);
+}
+export async function getNutritionScheduleUpcoming(token: string, days = 60): Promise<import('../../../../packages/api-client/src/endpoints/calendar').NutritionScheduleEvent[]> {
+  const res = await fetch(`${API_BASE}/api/nutrition-schedules/upcoming?days=${days}`, { headers: headers(token) });
+  return handle(res);
+}
+export async function createNutritionSchedule(token: string, data: any): Promise<import('../../../../packages/api-client/src/endpoints/calendar').NutritionSchedule> {
+  const res = await fetch(`${API_BASE}/api/nutrition-schedules`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function deleteNutritionSchedule(token: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/nutrition-schedules/${id}`, { method: 'DELETE', headers: headers(token) });
+  await handle(res);
 }
 
 export async function logModifiedRecipe(

@@ -7,12 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   changeUsername, changePassword, deleteData, type DeleteScope,
-  saveNutritionGoals, getExerciseGoals, saveExerciseGoals, type ExerciseGoals,
-  getMeasurementGoals, setMeasurementGoal,
-  getGoalsSummary,
   getTagDefinitions, saveTagDefinitions, type TagDefinitions,
   getProfile, updateProfile, type ActivityLevel, type UserProfile,
 } from '../../../src/api/client';
+import SettingsPlanningTab from '../../../src/components/SettingsPlanningTab';
+import { GoalsTabContent } from './goals';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
@@ -124,174 +123,6 @@ function OptionsTab() {
           ))}
         </View>
       </View>
-    </ScrollView>
-  );
-}
-
-// ── Goals tab ─────────────────────────────────────────────────────────────────
-
-const DISPLAYED_METRICS = [
-  { key: 'weight', label: 'Weight', unit: 'lbs' },
-  { key: 'waist',  label: 'Waist',  unit: 'in'  },
-  { key: 'bicep',  label: 'Bicep',  unit: 'in'  },
-] as const;
-
-function GoalsTab() {
-  const c = useColors();
-  const s = makeStyles(c);
-  const token = useAuthStore((s) => s.token)!;
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
-
-  // Nutrition
-  const [calories, setCalories] = useState('');
-  const [carbsG, setCarbsG] = useState('');
-  const [proteinG, setProteinG] = useState('');
-  const [fatG, setFatG] = useState('');
-  const [waterGlasses, setWaterGlasses] = useState('');
-
-  // Exercise
-  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
-  const [workoutCount, setWorkoutCount] = useState('');
-  const [volume, setVolume] = useState('');
-
-  // Measurements
-  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
-    const init: Record<string, { value: string; date: string }> = {};
-    for (const m of DISPLAYED_METRICS) init[m.key] = { value: '', date: '' };
-    return init;
-  });
-
-  useEffect(() => {
-    Promise.all([
-      getGoalsSummary(token),
-      getExerciseGoals(token),
-      getMeasurementGoals(token),
-    ]).then(([summary, ex, mGoalsData]) => {
-      const n = summary.nutrition.goals;
-      if (n) {
-        setCalories(String(n.calories ?? ''));
-        setCarbsG(String(n.carbsG ?? ''));
-        setProteinG(String(n.proteinG ?? ''));
-        setFatG(String(n.fatG ?? ''));
-        setWaterGlasses(n.waterGoalOz != null ? String(Math.round(n.waterGoalOz / 8)) : '');
-      }
-      setExGoals(ex);
-      setWorkoutCount(String(ex.workoutsPerWeek ?? ''));
-      setVolume(String(ex.volumeLbsPerWeek ?? ''));
-      setMGoals((prev) => {
-        const updated = { ...prev };
-        for (const { key } of DISPLAYED_METRICS) {
-          const g = (mGoalsData as any)[key];
-          updated[key] = { value: g ? String(g.targetValue) : '', date: g?.targetDate ?? '' };
-        }
-        return updated;
-      });
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  async function handleSave() {
-    setSaving(true);
-    setMsg('');
-    try {
-      const tasks: Promise<any>[] = [];
-      if (calories && carbsG && proteinG && fatG) {
-        tasks.push(saveNutritionGoals(token, {
-          calories: Number(calories), carbsG: Number(carbsG),
-          proteinG: Number(proteinG), fatG: Number(fatG),
-          waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * 8 : undefined,
-        }));
-      }
-      tasks.push(saveExerciseGoals(token, {
-        workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
-        minutesPerWeek: exGoals?.minutesPerWeek ?? null,
-        volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
-      }));
-      for (const { key, unit } of DISPLAYED_METRICS) {
-        const { value, date } = mGoals[key];
-        if (value) tasks.push(setMeasurementGoal(token, key, { targetValue: Number(value), unit, targetDate: date || null }));
-      }
-      await Promise.all(tasks);
-      setMsg('Goals saved.');
-      setTimeout(() => setMsg(''), 3000);
-    } catch {
-      setMsg('Failed to save goals.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
-
-  return (
-    <ScrollView contentContainerStyle={s.tabScroll}>
-      <SectionHeader title="Nutrition (daily)" />
-      <View style={s.card}>
-        <View style={s.twoCol}>
-          {([
-            ['Calories (kcal)', calories, setCalories],
-            ['Carbs (g)',       carbsG,   setCarbsG  ],
-            ['Protein (g)',     proteinG, setProteinG],
-            ['Fat (g)',         fatG,     setFatG    ],
-            ['Water (glasses)', waterGlasses, setWaterGlasses],
-          ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
-            <Field key={label} label={label}>
-              <TextInput
-                style={s.input}
-                value={val}
-                onChangeText={setter}
-                keyboardType="numeric"
-                placeholderTextColor={c.muted}
-              />
-            </Field>
-          ))}
-        </View>
-      </View>
-
-      <SectionHeader title="Workouts (per week)" />
-      <View style={s.card}>
-        <View style={s.twoCol}>
-          <Field label="Workouts">
-            <TextInput style={s.input} value={workoutCount} onChangeText={setWorkoutCount} keyboardType="numeric" placeholderTextColor={c.muted} />
-          </Field>
-          <Field label="Volume (lbs)">
-            <TextInput style={s.input} value={volume} onChangeText={setVolume} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={c.muted} />
-          </Field>
-        </View>
-      </View>
-
-      <SectionHeader title="Body Measurements" />
-      <View style={s.card}>
-        {DISPLAYED_METRICS.map(({ key, label, unit }) => (
-          <View key={key} style={s.measureRow}>
-            <Text style={s.measureLabel}>{label} <Text style={s.measureUnit}>({unit})</Text></Text>
-            <View style={s.twoCol}>
-              <Field label="Target">
-                <TextInput
-                  style={s.input}
-                  value={mGoals[key].value}
-                  onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: v } }))}
-                  keyboardType="decimal-pad"
-                  placeholderTextColor={c.muted}
-                />
-              </Field>
-              <Field label="By date (YYYY-MM-DD)">
-                <TextInput
-                  style={s.input}
-                  value={mGoals[key].date}
-                  onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: v } }))}
-                  placeholder="2026-12-31"
-                  placeholderTextColor={c.muted}
-                />
-              </Field>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {msg ? <Text style={msg.includes('saved') ? s.msgSuccess : s.msgError}>{msg}</Text> : null}
-      <SaveBtn onPress={handleSave} saving={saving} label="Save Goals" />
     </ScrollView>
   );
 }
@@ -649,8 +480,8 @@ function DeleteTab() {
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
-type Tab = 'options' | 'tags' | 'goals' | 'user' | 'delete';
-const SETTINGS_TABS_ORDER = ['options', 'tags', 'goals', 'user', 'delete'] as const;
+type Tab = 'options' | 'tags' | 'goals' | 'planning' | 'user' | 'delete';
+const SETTINGS_TABS_ORDER = ['options', 'tags', 'goals', 'planning', 'user', 'delete'] as const;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -658,7 +489,7 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
-  const swipe = useSwipeNav(5, SETTINGS_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav(6, SETTINGS_TABS_ORDER, tab, setTab);
 
   return (
     <SafeAreaView style={s.container} {...swipe.panHandlers}>
@@ -671,11 +502,12 @@ export default function SettingsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
         {([
-          { id: 'options', label: 'Options' },
-          { id: 'tags',    label: 'Tags'    },
-          { id: 'goals',   label: 'Goals'   },
-          { id: 'user',    label: 'User'    },
-          { id: 'delete',  label: 'Delete'  },
+          { id: 'options',  label: 'Options'  },
+          { id: 'tags',     label: 'Tags'     },
+          { id: 'goals',    label: 'Goals'    },
+          { id: 'planning', label: 'Planning' },
+          { id: 'user',     label: 'User'     },
+          { id: 'delete',   label: 'Delete'   },
         ] as { id: Tab; label: string }[]).map(({ id, label }) => (
           <TouchableOpacity key={id} style={[s.tabBtn, tab === id && s.tabBtnActive]} onPress={() => setTab(id)}>
             <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
@@ -683,11 +515,12 @@ export default function SettingsScreen() {
         ))}
       </ScrollView>
 
-      {tab === 'options' && <OptionsTab />}
-      {tab === 'tags'    && <TagsTab />}
-      {tab === 'goals'   && <GoalsTab />}
-      {tab === 'user'    && <UserTab />}
-      {tab === 'delete'  && <DeleteTab />}
+      {tab === 'options'  && <OptionsTab />}
+      {tab === 'tags'     && <TagsTab />}
+      {tab === 'goals'    && <GoalsTabContent />}
+      {tab === 'planning' && <SettingsPlanningTab />}
+      {tab === 'user'     && <UserTab />}
+      {tab === 'delete'   && <DeleteTab />}
     </SafeAreaView>
   );
 }

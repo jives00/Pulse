@@ -4,6 +4,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 24, 2026
+
+### Mobile
+
+- **Planning tab redesigned** — Settings now includes a Planning tab with a 14-day agenda view (vertical list, colored event dots per category) replacing the horizontal card strip; single "Add to schedule" button opens a DayModal with a day-picker strip defaulting to today; DayModal contains Workout, Meals, Goals, and Nutrition tabs; workout add supports routine/exercise/rest day with once-or-recurring; meal add supports food search, recipe search, or custom label; goal checkpoints support metric dropdown, target, date, and notes; nutrition add supports macros and water in glasses; Day Type Presets and Import Program features removed. `71bf8e3`
+
 ## May 23, 2026
 
 ### Web

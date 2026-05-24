@@ -156,10 +156,7 @@ export default function TabsLayout() {
         name="dashboard"
         options={{ title: 'Home', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} /> }}
       />
-      <Tabs.Screen
-        name="planning"
-        options={{ title: 'Plan', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} /> }}
-      />
+      <Tabs.Screen name="planning" options={{ href: null }} />
       <Tabs.Screen
         name="nutrition"
         options={{ title: 'Log', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={22} color={color} /> }}
