@@ -8,6 +8,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Dashboard promoted to primary** — `dashboard-v4.tsx` content moved to `dashboard.tsx`; old dashboard and v4 file removed; `_layout.tsx` cleaned up. Settings color scheme selector now scrolls horizontally. Recipe filter chips reduced in size (padding/font) so all fit on one line. `7904528`
+
 - **Sessions tab** — Two-line row layout per session preserving all web columns: date + session name + vs-prior delta (▲/▼%) on line 1; metric value + calories + highlights on line 2. `a30c70e`
 - **Food log sort fix** — `foodLogHistory` now sorted ascending on load so `slice(-14)`/`slice(-30)` correctly target the most-recent days (server returns newest-first). `a30c70e`
 - **Macro bar color fix** — Fuel Today macro bar stays gold when over goal; only the value number turns warn, matching web behavior. Exercise volume week-over-week Best week stat removed. `a30c70e`

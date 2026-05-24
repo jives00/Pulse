@@ -79,8 +79,8 @@ function OptionsTab() {
   return (
     <ScrollView contentContainerStyle={s.tabScroll}>
       <SectionHeader title="Color Scheme" />
-      <View style={s.card}>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+      <View style={[s.card, { paddingHorizontal: 0 }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 12, paddingHorizontal: 14 }}>
           {COLOR_SCHEMES.map(({ value, label, preview }) => (
             <TouchableOpacity
               key={value}
@@ -91,7 +91,7 @@ function OptionsTab() {
               <Text style={[s.schemeLabel, colorScheme === value && { color: c.accent, fontWeight: '700' }]}>{label}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       <SectionHeader title="Default Sort (Recipes)" />

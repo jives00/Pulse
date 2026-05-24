@@ -1,391 +1,160 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput,
+  ActivityIndicator, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, RefreshControl, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
-import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  getWorkouts, getExerciseGoals, getMeasurements, getMeasurementGoals, getPersonalBests,
-  getGoalsSummary, getWaterHistory, getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, addWater, addMeasurement,
-  type WorkoutSummary, type ExerciseGoals, type BodyMeasurement, type MeasurementGoal,
-  type PersonalBests, type GoalsSummary, type WaterHistory, type FoodLogHistoryDay,
-  type DailyHistoryEntry, type RoutineSummary, type TDEEBreakdown,
+  getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
+  getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
+  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine,
+  type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
+  type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
+  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail,
 } from '../../../src/api/client';
 import {
-  KG_TO_LBS, SATURATION_DAYS,
-  localDateStr, getWeekStart, shortDate,
-  buildWeeklyData, computeGoalPace, computeCreatineSaturation,
-  computeWeekDelta, computeWeekStreak, computeHighlights, WEEK_STREAK_MILESTONES,
-  type WeekBucket, type PaceStatus,
+  KG_TO_LBS, localDateStr, getWeekStart,
+  computeHighlights, buildWeeklyData,
+  type WeekBucket,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
-const GLASS_OZ = 8;
-const BOTTLE_OZ = 20;
-
-// ── Color palette constants ───────────────────────────────────────────────────
+// ── Color constants ───────────────────────────────────────────────────────────
 const COL_GOLD    = '#D4A843';
-const COL_PROTEIN = '#60a5fa';
-const COL_CARBS   = '#34d399';
-const COL_FAT     = '#facc15';
-const COL_WATER   = '#38bdf8';
-const COL_WEIGHT  = '#a78bfa';
 const COL_CAL     = '#fb923c';
 const COL_TDEE    = '#94a3b8';
-const COL_VOL     = '#a78bfa';
+const COL_WEIGHT  = '#a78bfa';
+const COL_GOOD    = '#7BB389';
+const COL_WARN    = '#C9714F';
 
-// ── Metric configs ────────────────────────────────────────────────────────────
-const METRIC_CONFIG: Record<string, { label: string; unit: string; color: string; dir: 'up' | 'down' }> = {
-  weight:      { label: 'Weight',      unit: 'lbs', color: COL_WEIGHT, dir: 'down' },
-  waist:       { label: 'Waist',       unit: 'in',  color: COL_PROTEIN, dir: 'down' },
-  bicep:       { label: 'Bicep',       unit: 'in',  color: COL_CARBS,  dir: 'up'   },
-  bmi:         { label: 'BMI',         unit: '',    color: COL_GOLD,   dir: 'down' },
-  body_fat:    { label: 'Body Fat',    unit: '%',   color: COL_FAT,    dir: 'down' },
-  muscle_mass: { label: 'Muscle Mass', unit: 'lbs', color: '#86AA80',  dir: 'up'   },
-};
-const NORTH_STAR_METRICS = ['weight', 'waist', 'bicep'];
-const BODY_COMP_METRICS  = ['weight', 'bmi', 'body_fat', 'muscle_mass'];
 
-const PACE_COLORS: Record<PaceStatus, string> = { green: '#34d399', yellow: '#facc15', red: '#f87171', done: '#34d399' };
-const PACE_LABELS: Record<PaceStatus, string> = { green: 'On pace', yellow: 'Slightly behind', red: 'Behind', done: 'Done!' };
+const TABS = ['today', 'goals', 'trends', 'sessions'] as const;
+type Tab = typeof TABS[number];
 
-// ── Tab structure ─────────────────────────────────────────────────────────────
-const DASHBOARD_TABS = ['nutrition', 'exercise', 'goals'] as const;
-type DashboardTab = typeof DASHBOARD_TABS[number];
+type RecoveryData = { level: 'high' | 'medium' | 'low'; score: number; hint: string };
 
-// ── Pure-RN calorie ring ──────────────────────────────────────────────────────
-// Two rotating blades, each a r×size rectangle inside a half-width clip container.
-// Each blade is inside a size×size pivot wrapper whose center aligns with the
-// circle center. Rotating the pivot sweeps the blade's visible area as an arc.
-//
-// The rectangle corners that extend outside the circle are hidden by:
-//   - The inner mask (covers the hollow center)
-//   - A card-colored border ring layered on top (covers the outer corners)
-//
-// Right clipper (left:r, w:r): pivot at left:-r → pivot center at x=0 in clipper = circle center.
-//   Blade inside pivot at left:r (right half of pivot). rot: -180→0 as pct 0→50%.
-// Left clipper (left:0, w:r): pivot at left:0 → pivot center at x=r in clipper = circle center.
-//   Blade inside pivot at left:0 (left half of pivot). rot: 0→-180 as pct 50→100%.
-//   (Negative rotation so the blade sweeps counter-clockwise into the left side.)
+// ── Calorie ring (pure RN pie technique) ─────────────────────────────────────
 function CalorieRing({ pct, color, size = 100, c }: { pct: number; color: string; size?: number; c: Colors }) {
-  const clampedPct = Math.min(Math.max(pct, 0), 1);
-  const degrees = clampedPct * 360;
-  const sw = 10;
-  const r = size / 2;
-
-  // Classic RN pie technique:
-  // Each half-clipper is overflow:hidden, width=r, height=size.
-  // Inside it a full-size (size×size) pivot rotates around the circle center.
-  // The pivot contains a solid-color rectangle covering its own right half — this is the "blade".
-  // As the pivot rotates, the blade sweeps the arc. The outer ring + inner mask convert it to a ring.
-  //
-  // Right clipper (left=r): blade starts hidden (-180deg) and sweeps to 0deg at 50%.
-  // Left clipper (left=0): blade starts hidden (0deg) and sweeps to -180deg from 50–100%.
-  //
-  // Pivot rotation is around its own center (r, r) which equals the circle center.
-  // The blade is a rect: top:0, left:r (right half of pivot), width:r, height:size.
-
-  const rot1 = degrees <= 180 ? degrees - 180 : 0;
-  const rot2 = degrees > 180 ? -(360 - degrees) : 0;
-
+  const clamped = Math.min(Math.max(pct, 0), 1);
+  const deg = clamped * 360;
+  const sw = 10; const r = size / 2;
+  const rot1 = deg <= 180 ? deg - 180 : 0;
+  const rot2 = deg > 180 ? -(360 - deg) : 0;
   return (
     <View style={{ width: size, height: size, borderRadius: r, overflow: 'hidden' }}>
-      {/* Track ring */}
-      <View style={{
-        position: 'absolute', width: size, height: size,
-        borderRadius: r, borderWidth: sw, borderColor: 'rgba(255,255,255,0.08)',
-      }} />
-
-      {/* Right clipper: reveals 0–180° */}
+      <View style={{ position: 'absolute', width: size, height: size, borderRadius: r, borderWidth: sw, borderColor: 'rgba(255,255,255,0.08)' }} />
       <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, overflow: 'hidden' }}>
         <View style={{ position: 'absolute', top: 0, left: -r, width: size, height: size, transform: [{ rotate: `${rot1}deg` }] }}>
           <View style={{ position: 'absolute', top: 0, left: r, width: r, height: size, backgroundColor: color }} />
         </View>
       </View>
-
-      {/* Left clipper: reveals 180–360°, only mounted past 50% */}
-      {degrees > 180 && (
+      {deg > 180 && (
         <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, overflow: 'hidden' }}>
           <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, transform: [{ rotate: `${rot2}deg` }] }}>
             <View style={{ position: 'absolute', top: 0, left: 0, width: r, height: size, backgroundColor: color }} />
           </View>
         </View>
       )}
-
-      {/* Inner mask: punches out center to create the ring stroke */}
-      <View style={{
-        position: 'absolute', top: sw + 1, left: sw + 1,
-        width: size - sw * 2 - 2, height: size - sw * 2 - 2,
-        borderRadius: (size - sw * 2 - 2) / 2,
-        backgroundColor: c.card,
-      }} />
-
-      {/* Center label */}
+      <View style={{ position: 'absolute', top: sw + 1, left: sw + 1, width: size - sw * 2 - 2, height: size - sw * 2 - 2, borderRadius: (size - sw * 2 - 2) / 2, backgroundColor: c.card }} />
       <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>
-          {Math.round(clampedPct * 100)}%
-        </Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}>{Math.round(clamped * 100)}%</Text>
       </View>
     </View>
   );
 }
 
-// ── Mini line chart (pure RN) ─────────────────────────────────────────────────
+// ── Mini line chart with optional projection tail ─────────────────────────────
 const CHART_H = 56;
 const DOT_R = 2.5;
 
-function MiniLineChart({ data, color, goalLine, maxOverride, minOverride }: {
-  data: number[]; color: string; goalLine?: number | null; maxOverride?: number; minOverride?: number;
+function MiniLineChart({ data, projection, projection2, color, projectionColor, projection2Color, goalLine, maxOverride, minOverride }: {
+  data: number[]; projection?: number[]; projection2?: number[]; color: string; projectionColor?: string; projection2Color?: string; goalLine?: number | null; maxOverride?: number; minOverride?: number;
 }) {
+  const projColor = projectionColor ?? '#818cf8';
+  const proj2Color = projection2Color ?? '#f97316';
   const { width: screenWidth } = useWindowDimensions();
   const chartWidth = screenWidth - 56;
-  const maxVal = maxOverride ?? Math.max(...data, goalLine ?? 0, 1);
+  const allVals = [...data, ...(projection ?? []), ...(projection2 ?? [])];
+  const maxVal = maxOverride ?? Math.max(...allVals, goalLine ?? 0, 1);
   const minVal = minOverride ?? 0;
   const range = maxVal - minVal || 1;
+  const total = data.length + Math.max((projection?.length ?? 0), (projection2?.length ?? 0));
   if (data.length < 2) return <View style={{ height: CHART_H }} />;
 
-  const pts = data.map((val, i) => ({
-    x: (i / (data.length - 1)) * chartWidth,
-    y: CHART_H - DOT_R - Math.max(((val - minVal) / range) * (CHART_H - DOT_R * 2), 0),
-    val,
-  }));
+  const X = (i: number) => (i / (total - 1)) * chartWidth;
+  const Y = (v: number) => CHART_H - DOT_R - Math.max(((v - minVal) / range) * (CHART_H - DOT_R * 2), 0);
 
-  const goalY = goalLine != null
-    ? CHART_H - DOT_R - Math.max(((goalLine - minVal) / range) * (CHART_H - DOT_R * 2), 0)
-    : null;
+  const actualPts = data.map((v, i) => ({ x: X(i), y: Y(v), v }));
+  const projPts  = (projection  ?? []).map((v, i) => ({ x: X(data.length - 1 + i + 1), y: Y(v), v }));
+  const proj2Pts = (projection2 ?? []).map((v, i) => ({ x: X(data.length - 1 + i + 1), y: Y(v), v }));
+
+  const goalY = goalLine != null ? Y(goalLine) : null;
+
+  function renderSegments(pts: { x: number; y: number }[], col: string) {
+    return pts.map((pt, i) => {
+      if (i === pts.length - 1) return null;
+      const next = pts[i + 1];
+      const dx = next.x - pt.x; const dy = next.y - pt.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      return (
+        <View key={i} style={{ position: 'absolute', left: pt.x, top: pt.y - 0.75, width: len, height: 1.5, backgroundColor: col, transformOrigin: 'left center', transform: [{ rotate: `${angle}deg` }] }} />
+      );
+    });
+  }
 
   return (
     <View style={{ height: CHART_H, width: chartWidth, position: 'relative' }}>
-      {goalY != null && (
-        <View style={{ position: 'absolute', left: 0, top: goalY - 0.5, width: chartWidth, height: 1, borderStyle: 'dashed', borderTopWidth: 1, borderColor: `${color}44` }} />
-      )}
-      {pts.map((pt, i) => {
-        if (i === pts.length - 1) return null;
-        const next = pts[i + 1];
-        const dx = next.x - pt.x; const dy = next.y - pt.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        return (
-          <View key={i + '_l'} style={{
-            position: 'absolute', left: pt.x, top: pt.y - 0.75, width: len, height: 1.5,
-            backgroundColor: `${color}99`, transformOrigin: 'left center',
-            transform: [{ rotate: `${angle}deg` }],
-          }} />
-        );
-      })}
-      {pts.map((pt, i) => {
-        if (pt.val === 0 && i !== pts.length - 1) return null;
-        return (
-          <View key={i + '_d'} style={{
-            position: 'absolute', left: pt.x - DOT_R, top: pt.y - DOT_R,
-            width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R,
-            backgroundColor: i === pts.length - 1 ? color : `${color}88`,
-          }} />
-        );
-      })}
-    </View>
-  );
-}
-
-// ── 7-bar day-of-week chart for current week ──────────────────────────────────
-function DayVolumeBars({ workouts, volumeGoal, routineGoals, c }: {
-  workouts: WorkoutSummary[];
-  volumeGoal: number | null;
-  routineGoals: Record<number, number>;
-  c: Colors;
-}) {
-  const { width: screenWidth } = useWindowDimensions();
-  const today = localDateStr();
-  const weekStart = getWeekStart(today);
-
-  const days: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(weekStart + 'T12:00:00');
-    d.setDate(d.getDate() + i);
-    days.push(localDateStr(d));
-  }
-
-  const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
-  // Normalize bar heights same as web: strength = volumeLbs/volumeGoal, non-strength = sessions/targetPerWeek
-  const pctByDate: Record<string, number> = {};
-  for (const d of days) {
-    const dayWorkouts = workouts.filter((w) => w.workoutDate === d);
-    if (dayWorkouts.length === 0) { pctByDate[d] = 0; continue; }
-    const hasStrength = dayWorkouts.some((w) => !w.routineType || w.routineType === 'strength' || w.routineType === 'bodyweight');
-    if (hasStrength) {
-      const volLbs = dayWorkouts.reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
-      pctByDate[d] = volumeGoal ? volLbs / volumeGoal : volLbs / 10000;
-    } else {
-      pctByDate[d] = dayWorkouts
-        .filter((w) => w.routineType && w.routineType !== 'strength' && w.routineType !== 'bodyweight')
-        .reduce((sum, w) => {
-          const target = w.routineId ? (routineGoals[w.routineId] ?? null) : null;
-          return sum + 1 / (target ?? 3);
-        }, 0);
-    }
-  }
-
-  const maxPct = Math.max(...days.map((d) => pctByDate[d]), 0.01);
-  const BAR_H = 40;
-  const availW = screenWidth - 56;
-  const barW = Math.floor((availW - 6 * 4) / 7);
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 20 }}>
-      {days.map((d, i) => {
-        const pct = pctByDate[d];
-        const isToday = d === today;
-        const barH = pct > 0 ? Math.max((pct / maxPct) * BAR_H, 4) : 2;
-        const barColor = isToday ? COL_GOLD : pct > 0 ? `${COL_GOLD}99` : 'rgba(255,255,255,0.08)';
-        return (
-          <View key={d} style={{ width: barW, alignItems: 'center', gap: 4 }}>
-            <View style={{ height: BAR_H, justifyContent: 'flex-end' }}>
-              <View style={{ width: barW, height: barH, borderRadius: 3, backgroundColor: barColor }} />
-            </View>
-            <Text style={{ fontSize: 11, color: isToday ? COL_GOLD : c.muted, fontWeight: isToday ? '700' : '400' }}>
-              {DAY_LABELS[i]}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// ── Routine heatmap ───────────────────────────────────────────────────────────
-function RoutineHeatmap({ workouts, routinesList, c }: {
-  workouts: WorkoutSummary[]; routinesList: RoutineSummary[]; c: Colors;
-}) {
-  const { width: screenWidth } = useWindowDimensions();
-  const WEEKS = 13;
-  const now = new Date();
-  const weeks = Array.from({ length: WEEKS }, (_, i) => {
-    const d = new Date(now); d.setDate(d.getDate() - (WEEKS - 1 - i) * 7);
-    return getWeekStart(localDateStr(d));
-  });
-
-  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
-
-  function getCellValue(w: WorkoutSummary, rid: number): number {
-    const rt = routineById[rid]?.routineType ?? 'strength';
-    if (rt === 'steps') return (w as any).totalSteps ?? 0;
-    if (rt === 'cardio_distance') return ((w as any).totalDistanceMeters ?? 0) / 1609.34;
-    if (rt === 'cardio_duration') return ((w as any).totalDurationSeconds ?? 0) / 60;
-    return (w.totalVolumeKg ?? 0) * KG_TO_LBS;
-  }
-
-  const routineValues: Record<number, Record<string, number>> = {};
-  for (const w of workouts) {
-    if (!w.routineId) continue;
-    const rid = w.routineId;
-    const val = getCellValue(w, rid);
-    if (val <= 0) continue;
-    const ws = getWeekStart(w.workoutDate);
-    if (!routineValues[rid]) routineValues[rid] = {};
-    routineValues[rid][ws] = (routineValues[rid][ws] ?? 0) + val;
-  }
-
-  const relevantIds = Object.keys(routineValues)
-    .map(Number)
-    .filter((rid) => weeks.some((ws) => (routineValues[rid][ws] ?? 0) > 0));
-
-  if (relevantIds.length === 0) {
-    return <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No routine data in last 13 weeks</Text>;
-  }
-
-  const globalMax = Math.max(...relevantIds.flatMap((rid) => Object.values(routineValues[rid])), 1);
-  relevantIds.sort((a, b) => (routineById[a]?.name ?? '').localeCompare(routineById[b]?.name ?? ''));
-
-  const nameColW = 90;
-  const cellGap = 2;
-  const totalCellSpace = screenWidth - 56 - nameColW - cellGap;
-  const cellW = Math.max(Math.floor((totalCellSpace - (WEEKS - 1) * cellGap) / WEEKS), 14);
-  const cellH = 16;
-
-  function goldCell(vol: number) {
-    if (vol <= 0) return 'rgba(255,255,255,0.05)';
-    const opacity = 0.12 + (vol / globalMax) * 0.88;
-    const r = Math.round(212 * opacity + 30 * (1 - opacity));
-    const g = Math.round(168 * opacity + 30 * (1 - opacity));
-    const b = Math.round(67  * opacity + 30 * (1 - opacity));
-    return `rgb(${r},${g},${b})`;
-  }
-
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ width: nameColW }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', gap: cellGap }}>
-            {weeks.map((ws, i) => (
-              i % 3 === 0 ? (
-                <View key={ws} style={{ width: cellW, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: c.muted }}>{shortDate(ws)}</Text>
-                </View>
-              ) : <View key={ws} style={{ width: cellW }} />
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-      {relevantIds.map((rid) => (
-        <View key={rid} style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: nameColW }}>
-            <Text style={{ fontSize: fontSize.sm, color: c.text }} numberOfLines={1}>{routineById[rid]?.name ?? `Routine ${rid}`}</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', gap: cellGap }}>
-              {weeks.map((ws) => {
-                const val = routineValues[rid][ws] ?? 0;
-                return <View key={ws} style={{ width: cellW, height: cellH, borderRadius: 3, backgroundColor: goldCell(val) }} />;
-              })}
-            </View>
-          </ScrollView>
-        </View>
+      {goalY != null && <View style={{ position: 'absolute', left: 0, top: goalY - 0.5, width: chartWidth, height: 1, borderStyle: 'dashed', borderTopWidth: 1, borderColor: `${color}44` }} />}
+      {renderSegments(actualPts, `${color}99`)}
+      {projPts.length > 0 && renderSegments([actualPts.at(-1)!, ...projPts], `${projColor}99`)}
+      {actualPts.map((pt, i) => (
+        <View key={i} style={{ position: 'absolute', left: pt.x - DOT_R, top: pt.y - DOT_R, width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: i === actualPts.length - 1 ? color : `${color}88` }} />
       ))}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-        <Text style={{ fontSize: 11, color: c.muted }}>Less</Text>
-        <View style={{ flexDirection: 'row', gap: 3 }}>
-          {[0.12, 0.35, 0.55, 0.75, 1.0].map((t) => {
-            const r = Math.round(212 * t + 30 * (1 - t));
-            const g = Math.round(168 * t + 30 * (1 - t));
-            const b = Math.round(67  * t + 30 * (1 - t));
-            return <View key={t} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `rgb(${r},${g},${b})` }} />;
-          })}
-        </View>
-        <Text style={{ fontSize: 11, color: c.muted }}>More activity</Text>
-      </View>
+      {projPts.map((pt, i) => (
+        <View key={`p${i}`} style={{ position: 'absolute', left: pt.x - DOT_R, top: pt.y - DOT_R, width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: `${projColor}66` }} />
+      ))}
+      {proj2Pts.length > 0 && renderSegments([actualPts.at(-1)!, ...proj2Pts], `${proj2Color}99`)}
+      {proj2Pts.map((pt, i) => (
+        <View key={`p2${i}`} style={{ position: 'absolute', left: pt.x - DOT_R, top: pt.y - DOT_R, width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: `${proj2Color}66` }} />
+      ))}
     </View>
   );
 }
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ label, actual, goal, unit, color, c }: {
-  label: string; actual: number; goal: number | null; unit: string; color: string; c: Colors;
+function ProgressBar({ label, actual, goal, unit, c }: {
+  label: string; actual: number; goal: number | null; unit: string; c: Colors;
 }) {
-  const pct = goal && goal > 0 ? Math.min(actual / goal, 1) : 0;
+  const pctRaw = goal && goal > 0 ? actual / goal : 0;
+  const pct = Math.min(pctRaw, 1);
+  const over = goal != null && goal > 0 && actual > goal;
+  const nearGoal = goal != null && goal > 0 && pctRaw >= 0.95 && pctRaw <= 1.05 && !over;
+  const barColor = nearGoal ? COL_GOOD : COL_GOLD;
+  const valueColor = over ? COL_WARN : c.text;
   return (
     <View style={{ gap: 4 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{label}</Text>
-        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: valueColor, fontVariant: ['tabular-nums'] }}>
           {actual.toLocaleString()}{unit}
           {goal != null ? <Text style={{ color: c.muted, fontWeight: '400' }}> / {goal.toLocaleString()}{unit}</Text> : null}
         </Text>
       </View>
       <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-        <View style={{ height: '100%', width: `${pct * 100}%` as any, borderRadius: 3, backgroundColor: color }} />
+        <View style={{ height: '100%', width: `${pct * 100}%` as any, borderRadius: 3, backgroundColor: barColor }} />
       </View>
+      {over && goal != null && (
+        <Text style={{ fontSize: 11, color: COL_WARN }}>+{(actual - goal).toLocaleString()}{unit} over</Text>
+      )}
     </View>
   );
 }
 
-// ── Gold-accent card header ───────────────────────────────────────────────────
+// ── Card header ───────────────────────────────────────────────────────────────
 function CardHeader({ title, meta, c }: { title: string; meta?: string; c: Colors }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -398,134 +167,141 @@ function CardHeader({ title, meta, c }: { title: string; meta?: string; c: Color
   );
 }
 
-// ── Workout highlight ─────────────────────────────────────────────────────────
-function computeHighlight(w: WorkoutSummary, allWorkouts: WorkoutSummary[]): string[] {
-  return computeHighlights(w, allWorkouts);
+// ── Weekly progress row ───────────────────────────────────────────────────────
+function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysElapsed, c }: {
+  label: string; val: number; goal: number; fmtv: string; fmtg: string; daysElapsed: number; c: Colors;
+}) {
+  const pct = Math.min(val / goal, 1);
+  const expected = goal * (daysElapsed / 7);
+  const paceStatus: 'done' | 'ahead' | 'close' | 'behind' = pct >= 1 ? 'done' : val >= expected * 0.95 ? 'ahead' : val >= expected * 0.75 ? 'close' : 'behind';
+  const paceColor = paceStatus === 'done' || paceStatus === 'ahead' ? COL_GOOD : paceStatus === 'close' ? COL_GOLD : COL_WARN;
+  const paceLabel = paceStatus === 'done' ? 'Done' : paceStatus === 'ahead' ? 'On pace' : paceStatus === 'close' ? 'Close' : 'Behind';
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+        <View style={{ borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '28' }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: paceColor }}>{paceLabel}</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{fmtv}</Text>
+        <Text style={{ fontSize: fontSize.sm, color: c.muted, fontVariant: ['tabular-nums'] }}>/ {fmtg}</Text>
+      </View>
+      <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'visible' }}>
+        <View style={{ height: '100%', width: `${pct * 100}%` as any, borderRadius: 3, backgroundColor: COL_GOLD, opacity: 0.85 }} />
+        <View style={{ position: 'absolute', top: -4, bottom: -4, left: `${(daysElapsed / 7) * 100}%` as any, width: 2, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 1 }} />
+      </View>
+    </View>
+  );
 }
 
-// ── Weekly averages computation ───────────────────────────────────────────────
-function buildWeeklyAverages(
-  foodLogHistory: FoodLogHistoryDay[],
-  workouts: WorkoutSummary[],
-  todayTDEE: TDEEBreakdown | null,
-  numWeeks = 8,
-) {
+// ── Goal progress helpers ─────────────────────────────────────────────────────
+type GoalStatus = 'achieved' | 'ahead' | 'on_track' | 'behind' | 'no_data';
+const GOAL_STATUS_CFG: Record<GoalStatus, { color: string; label: string }> = {
+  achieved: { color: COL_GOOD,   label: 'Achieved' },
+  ahead:    { color: COL_GOOD,   label: 'Ahead'    },
+  on_track: { color: COL_GOLD,   label: 'On track' },
+  behind:   { color: COL_WARN,   label: 'Behind'   },
+  no_data:  { color: '#94a3b8',  label: '—'        },
+};
+function deadlineStatus(etaDays: number | null, deadlineStr: string | null, achieved: boolean): GoalStatus {
+  if (achieved) return 'achieved';
+  if (etaDays == null || !deadlineStr) return 'no_data';
+  const deadlineDays = Math.ceil((new Date(deadlineStr + 'T12:00:00').getTime() - Date.now()) / 86400000);
+  if (etaDays <= deadlineDays - 21) return 'ahead';
+  if (etaDays <= deadlineDays + 14) return 'on_track';
+  return 'behind';
+}
+function fmtETA(days: number): string {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function linReg(xs: number[], ys: number[]): number {
+  const n = xs.length; if (n < 2) return 0;
+  const xM = xs.reduce((a, b) => a + b, 0) / n;
+  const yM = ys.reduce((a, b) => a + b, 0) / n;
+  const den = xs.reduce((s, x) => s + (x - xM) ** 2, 0);
+  return den > 0 ? xs.reduce((s, x, i) => s + (x - xM) * (ys[i] - yM), 0) / den : 0;
+}
+function GoalStatusChip({ status }: { status: GoalStatus }) {
+  const { color, label } = GOAL_STATUS_CFG[status];
+  return (
+    <View style={{ flexShrink: 0, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: color + '28' }}>
+      <Text style={{ fontSize: 11, fontWeight: '600', color, letterSpacing: 0.3 }}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Routine heatmap ───────────────────────────────────────────────────────────
+// ── Weekly averages helper ────────────────────────────────────────────────────
+function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: WorkoutSummary[], todayTDEE: TDEEBreakdown | null) {
   const now = new Date();
-  const weeks: {
-    weekStart: string; label: string;
-    calories: number; protein: number; carbs: number; fat: number;
-    tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number;
-  }[] = [];
-
-  for (let i = numWeeks - 1; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i * 7);
-    const ws = getWeekStart(localDateStr(d));
-    const weekDate = new Date(ws + 'T12:00:00');
-    weeks.push({
-      weekStart: ws,
-      label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      calories: 0, protein: 0, carbs: 0, fat: 0, tdee: null, net: null,
-      isCurrentWeek: ws === getWeekStart(localDateStr()),
-      days: 0,
-    });
-  }
-
   const exerciseByDate: Record<string, number> = {};
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
   const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
-
+  const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i * 7);
+    const ws = getWeekStart(localDateStr(d));
+    const weekDate = new Date(ws + 'T12:00:00');
+    weeks.push({ weekStart: ws, label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), calories: 0, protein: 0, carbs: 0, fat: 0, tdee: null, net: null, isCurrentWeek: ws === getWeekStart(localDateStr()), days: 0 });
+  }
   for (const day of foodLogHistory) {
     const ws = getWeekStart(day.date);
     const week = weeks.find((wk) => wk.weekStart === ws);
     if (!week) continue;
     week.calories += day.calories;
-    week.protein  += day.protein;
-    week.carbs    += day.entries.reduce((s, e) => s + e.carbsG, 0);
-    week.fat      += day.entries.reduce((s, e) => s + e.fatG, 0);
+    week.protein += day.protein;
+    week.carbs += day.entries.reduce((s, e) => s + e.carbsG, 0);
+    week.fat += day.entries.reduce((s, e) => s + e.fatG, 0);
     week.days++;
     if (baseline != null) {
-      const dayTef = Math.round(day.calories * 0.1);
-      const dayEx  = exerciseByDate[day.date] ?? 0;
-      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx;
+      const tef = Math.round(day.calories * 0.1);
+      const ex = exerciseByDate[day.date] ?? 0;
+      week.tdee = (week.tdee ?? 0) + baseline + tef + ex;
     }
   }
-
   for (const week of weeks) {
     if (week.days > 0) {
       week.calories = Math.round(week.calories / week.days);
       week.protein  = Math.round(week.protein  / week.days);
       week.carbs    = Math.round(week.carbs    / week.days);
       week.fat      = Math.round(week.fat      / week.days);
-      if (week.tdee != null) {
-        week.tdee = Math.round(week.tdee / week.days);
-        week.net  = week.calories - week.tdee;
-      }
+      if (week.tdee != null) { week.tdee = Math.round(week.tdee / week.days); week.net = week.calories - week.tdee; }
     }
   }
-
-  return [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek);
+  return [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek).slice(0, 5);
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
-export default function DashboardScreen() {
+export default function DashboardV4Screen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
   const s = makeStyles(c);
-  const seg = makeSegStyles(c);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('nutrition');
-  const swipe = useSwipeNav(0, DASHBOARD_TABS, activeTab, setActiveTab);
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>('today');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Data state
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
   const [measGoals, setMeasGoals] = useState<Record<string, MeasurementGoal>>({});
-  const [personalBests, setPersonalBests] = useState<PersonalBests | null>(null);
   const [nutritionSummary, setNutritionSummary] = useState<GoalsSummary | null>(null);
-  const [waterHistory, setWaterHistory] = useState<WaterHistory | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
-  const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
-  const [waterBonusOz, setWaterBonusOz] = useState(0);
-
-  // Add measurement modal
-  const [measModalVisible, setMeasModalVisible] = useState(false);
-  const [measModalMetric, setMeasModalMetric] = useState<string>('weight');
-  const [measModalValue, setMeasModalValue] = useState('');
-  const [measModalDate, setMeasModalDate] = useState('');
-  const [measModalSaving, setMeasModalSaving] = useState(false);
-
-  function openMeasModal(metric: string) {
-    setMeasModalMetric(metric);
-    setMeasModalValue('');
-    const today = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    setMeasModalDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
-    setMeasModalSaving(false);
-    setMeasModalVisible(true);
-  }
-
-  async function submitMeasurement() {
-    const val = parseFloat(measModalValue);
-    if (isNaN(val) || val <= 0) { Alert.alert('Invalid value', 'Please enter a valid number.'); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(measModalDate)) { Alert.alert('Invalid date', 'Please enter a date in YYYY-MM-DD format.'); return; }
-    setMeasModalSaving(true);
-    try {
-      const unit = measModalMetric === 'weight' ? 'lbs' : 'in';
-      const newMeas = await addMeasurement(token, { metric: measModalMetric, value: val, unit, measuredAt: measModalDate });
-      setMeasurements((prev) => [...prev, newMeas]);
-      setMeasModalVisible(false);
-    } catch {
-      Alert.alert('Error', 'Failed to save measurement.');
-    } finally {
-      setMeasModalSaving(false);
-    }
-  }
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [recovery,  setRecovery]  = useState<RecoveryData | null>(null);
+  const [upcoming,  setUpcoming]  = useState<UpcomingSession[]>([]);
+  const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
+  const [routineGoals, setRoutineGoals] = useState<{ routineId: number; targetPerWeek: number }[]>([]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -533,167 +309,145 @@ export default function DashboardScreen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-
-      const [ws, eg, ms, mg, pb, ns, wh, fl, dh, rl, tdee, rg] = await Promise.all([
+      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
         getMeasurementGoals(token).catch(() => ({})),
-        getPersonalBests(token).catch(() => null),
         getGoalsSummary(token).catch(() => null),
-        getWaterHistory(token, start, end).catch(() => null),
         getFoodLogHistory(token, { limit: 90 }).catch(() => []),
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
         getTDEE(token).catch(() => null),
+        getAiInsight(token).catch(() => null),
+        getRecovery(token).catch(() => null),
+        getUpcomingSchedule(token, 7).catch(() => []),
         getRoutineGoals(token).catch(() => []),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
       setMeasGoals(mg as Record<string, MeasurementGoal>);
-      setPersonalBests(pb);
       setNutritionSummary(ns);
-      setWaterHistory(wh);
-      setFoodLogHistory(fl as FoodLogHistoryDay[]);
+      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
-      setTodayTDEE(tdee && (tdee as any).available ? tdee : null);
-      setRoutineGoals(Object.fromEntries((rg as { routineId: number; targetPerWeek: number }[]).map((g) => [g.routineId, g.targetPerWeek])));
-      setWaterBonusOz(0);
+      setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
+      setAiInsight(insight?.text ?? null);
+      setRecovery(rec);
+      setUpcoming(upc as UpcomingSession[]);
+      setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData(true).finally(() => setRefreshing(false));
   }, [loadData]);
 
+  // Load routine detail when there's a scheduled session but no workout today
+  const _todayStr = localDateStr();
+  const _todayWorkoutId = workouts.find((w) => w.workoutDate === _todayStr)?.id ?? null;
+  const _todayScheduledRoutineId = !_todayWorkoutId ? (upcoming.find((s) => s.date === _todayStr && s.status === 'scheduled' && !s.isRestDay)?.routineId ?? null) : null;
+  useEffect(() => {
+    if (_todayScheduledRoutineId) {
+      setRoutineDetail(null);
+      getRoutine(token, _todayScheduledRoutineId).then(setRoutineDetail).catch(() => {});
+    } else {
+      setRoutineDetail(null);
+    }
+  }, [_todayWorkoutId, _todayScheduledRoutineId, token]);
+
   // ── Derived: today ────────────────────────────────────────────────────────
   const todayStr = localDateStr();
   const currentWeekStart = getWeekStart(todayStr);
 
-  const caloriesGoal    = nutritionSummary?.nutrition.goals?.calories ?? null;
+  const caloriesGoal     = nutritionSummary?.nutrition.goals?.calories ?? null;
   const caloriesConsumed = Math.round(nutritionSummary?.nutrition.actual.calories ?? 0);
-  const proteinGoal     = nutritionSummary?.nutrition.goals?.proteinG ?? null;
-  const proteinConsumed = Math.round(nutritionSummary?.nutrition.actual.proteinG ?? 0);
-  const carbsGoal       = nutritionSummary?.nutrition.goals?.carbsG ?? null;
-  const carbsConsumed   = Math.round(nutritionSummary?.nutrition.actual.carbsG ?? 0);
-  const fatGoal         = nutritionSummary?.nutrition.goals?.fatG ?? null;
-  const fatConsumed     = Math.round(nutritionSummary?.nutrition.actual.fatG ?? 0);
+  const proteinGoal      = nutritionSummary?.nutrition.goals?.proteinG ?? null;
+  const proteinConsumed  = Math.round(nutritionSummary?.nutrition.actual.proteinG ?? 0);
+  const carbsGoal        = nutritionSummary?.nutrition.goals?.carbsG ?? null;
+  const carbsConsumed    = Math.round(nutritionSummary?.nutrition.actual.carbsG ?? 0);
+  const fatGoal          = nutritionSummary?.nutrition.goals?.fatG ?? null;
+  const fatConsumed      = Math.round(nutritionSummary?.nutrition.actual.fatG ?? 0);
 
-  const workoutBurnedToday = workouts
-    .filter((w) => w.workoutDate === todayStr)
-    .reduce((sum, w) => sum + (w.caloriesBurned ?? 0), 0);
+  const workoutBurnedToday = workouts.filter((w) => w.workoutDate === todayStr).reduce((s, w) => s + (w.caloriesBurned ?? 0), 0);
   const burnedToday = todayTDEE ? todayTDEE.total : workoutBurnedToday;
 
-  const waterOzToday   = (waterHistory?.days.find((d) => d.date === todayStr)?.totalOz ?? 0) + waterBonusOz;
-  const waterGoalOz    = waterHistory?.goalOz ?? 64;
-  const waterGlasses   = Math.round(waterOzToday / GLASS_OZ * 10) / 10;
-  const waterGoalGlasses = Math.round(waterGoalOz / GLASS_OZ);
-
-  async function handleAddWater(oz: number) {
-    setWaterBonusOz((prev) => prev + oz);
-    try { await addWater(token, todayStr, oz); } catch { setWaterBonusOz((prev) => prev - oz); }
-  }
-
-  // ── Derived: this week ────────────────────────────────────────────────────
-  const weeklyData = buildWeeklyData(workouts);
-  const weekVolumeLbs = Math.round(weeklyData[weeklyData.length - 1]?.volumeLbs ?? 0);
-  const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
-  const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).length;
-  const weekWorkoutGoal = exGoals?.workoutsPerWeek ?? null;
-  const weekDelta = computeWeekDelta(weeklyData);
-  const weekStreak = computeWeekStreak(workouts);
-  const streakIsMilestone = WEEK_STREAK_MILESTONES.includes(weekStreak);
-
-  // ── Derived: 30-day charts ────────────────────────────────────────────────
-  const days30 = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (29 - i));
-    return localDateStr(d);
-  });
-  const historyByDate = Object.fromEntries(dailyHistory.map((d) => [d.date, d]));
-  const waterByDate   = Object.fromEntries((waterHistory?.days ?? []).map((d) => [d.date, d.totalOz]));
-  const burnedByDate: Record<string, number> = {};
-  for (const w of workouts) {
-    if (w.caloriesBurned) burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
-  }
-  const calSeries     = days30.map((d) => historyByDate[d]?.calories ?? 0);
-  const proteinSeries = days30.map((d) => historyByDate[d]?.proteinG ?? 0);
-  const tdeeSeries    = todayTDEE
-    ? days30.map((d) => {
-        const cals = historyByDate[d]?.calories ?? 0;
-        const exercise = burnedByDate[d] ?? 0;
-        if (cals === 0 && exercise === 0) return 0;
-        return (todayTDEE.bmr + todayTDEE.neat) + Math.round(cals * 0.1) + exercise;
-      })
-    : null;
-  const burnedSeries = tdeeSeries ?? days30.map((d) => burnedByDate[d] ?? 0);
-  const hasBurned    = burnedSeries.some((v) => v > 0);
-
-  // Weight series
-  const weightMeasurements = measurements
-    .filter((m) => m.metric === 'weight')
-    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
-  const weightByDate: Record<string, number> = {};
-  for (const m of weightMeasurements) {
-    weightByDate[m.measuredAt] = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-  }
-  let lastWeightVal: number | null = null;
-  const weightSeries: number[] = days30.map((d) => {
-    if (weightByDate[d] != null) lastWeightVal = weightByDate[d];
-    return lastWeightVal ?? 0;
-  });
-  const hasWeight = weightSeries.some((v) => v > 0);
-  const weightGoalRaw = measGoals['weight'];
-  const weightGoalLbs = weightGoalRaw
-    ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue)
-    : null;
-  const allWeightVals = [...weightSeries.filter(Boolean), ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
-  const weightMin = allWeightVals.length ? Math.min(...allWeightVals) * 0.98 : 0;
-  const weightMax = allWeightVals.length ? Math.max(...allWeightVals) * 1.02 : 1;
-
-  // Body comp: 30-days-ago cutoff for deltas
-  const thirtyDaysAgo = (() => {
-    const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() - 30); return localDateStr(d);
-  })();
-
-  // Creatine
-  const creatineData = computeCreatineSaturation(foodLogHistory);
-
-  // Weekly averages
-  const weeklyAverages = buildWeeklyAverages(foodLogHistory, workouts, todayTDEE);
-
+  // Exercise Today
+  const todayWorkouts = workouts.filter((w) => w.workoutDate === todayStr);
+  const todayWorkout = todayWorkouts[0] ?? null;
+  const lastWorkout = workouts.filter((w) => w.workoutDate < todayStr).sort((a, b) => b.workoutDate.localeCompare(a.workoutDate))[0] ?? null;
   const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
 
-  // Personal bests helpers
-  const fmtPbDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtDuration = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return m > 0 ? `${m}m ${s}s` : `${s}s`;
-  };
+  // This week
+  const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).length;
+  const weekWorkoutGoal = exGoals?.workoutsPerWeek ?? null;
+  const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(currentWeekStart + 'T12:00:00'); d.setDate(d.getDate() + i); return localDateStr(d);
+  });
+  const weekCalories = weekDays.reduce((s, d) => s + (foodByDate[d]?.calories ?? 0), 0);
+  const weekProtein  = weekDays.reduce((s, d) => s + (foodByDate[d]?.protein ?? 0), 0);
+  const weekCalGoal  = caloriesGoal ? caloriesGoal * 7 : null;
+  const weekProtGoal = proteinGoal  ? proteinGoal  * 7 : null;
+  const daysIn = weekDays.filter((d) => d <= todayStr && foodByDate[d]?.calories).length;
+  const daysElapsed = Math.min(7, Math.max(1, Math.ceil((new Date(todayStr + 'T00:00:00').getTime() - new Date(currentWeekStart + 'T00:00:00').getTime()) / 86400000) + 1));
+  const weekVolumeLbs = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
+  const todaySession = upcoming.find((s) => s.date === todayStr && s.status === 'scheduled' && !s.isRestDay) ?? null;
+  const isTodayRestDay = !todaySession && upcoming.some((s) => s.date === todayStr && s.isRestDay);
 
-  // Recent workouts (last 8)
-  const recentWorkouts = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate)).slice(0, 8);
+  // ── Derived: 30-day charts ────────────────────────────────────────────────
+  const days30 = Array.from({ length: 30 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (29 - i)); return localDateStr(d); });
+  const historyByDate = Object.fromEntries(dailyHistory.map((d) => [d.date, d]));
+  const burnedByDate: Record<string, number> = {};
+  for (const w of workouts) { if (w.caloriesBurned) burnedByDate[w.workoutDate] = (burnedByDate[w.workoutDate] ?? 0) + w.caloriesBurned; }
+  const calSeries  = days30.map((d) => historyByDate[d]?.calories ?? 0);
+  const tdeeSeries = todayTDEE ? days30.map((d) => { const cal = historyByDate[d]?.calories ?? 0; const ex = burnedByDate[d] ?? 0; if (!cal && !ex) return 0; return (todayTDEE.bmr + todayTDEE.neat) + Math.round(cal * 0.1) + ex; }) : null;
+  const burnedSeries = tdeeSeries ?? days30.map((d) => burnedByDate[d] ?? 0);
+  const hasBurned = burnedSeries.some((v) => v > 0);
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // Weight + projection
+  const weightByDate: Record<string, number> = {};
+  for (const m of measurements.filter((m) => m.metric === 'weight')) weightByDate[m.measuredAt] = m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
+  let last: number | null = null;
+  const weightSeries = days30.map((d) => { if (weightByDate[d] != null) last = weightByDate[d]; return last ?? 0; });
+  const hasWeight = weightSeries.some((v) => v > 0);
+  const weightGoalRaw = measGoals['weight'];
+  const weightGoalLbs = weightGoalRaw ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue) : null;
+  const allW = [...weightSeries.filter(Boolean), ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
+  const weightMin = allW.length ? Math.min(...allW) * 0.98 : 0;
+  const weightMax = allW.length ? Math.max(...allW) * 1.02 : 1;
+
+  // Weekly averages & volume buckets
+  const weeklyAverages = buildWeeklyAverages(foodLogHistory, workouts, todayTDEE);
+  const weeklyData: WeekBucket[] = buildWeeklyData(workouts);
+
   if (loading) return <ActivityIndicator style={{ marginTop: 60 }} color={COL_GOLD} />;
 
+  function workoutName(w: WorkoutSummary) {
+    return w.routineId ? (routineById[w.routineId]?.name ?? w.name ?? 'Workout') : (w.name ?? 'Free workout');
+  }
+  function daysAgoLabel(dateStr: string) {
+    const diff = Math.round((new Date(todayStr + 'T12:00:00').getTime() - new Date(dateStr + 'T12:00:00').getTime()) / 86400000);
+    return diff === 1 ? '1d ago' : `${diff}d ago`;
+  }
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']} {...swipe.panHandlers}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']}>
+      {/* Header */}
       <View style={s.pageHeader}>
         <Text style={s.pageTitle}>Dashboard</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={seg.scroll} contentContainerStyle={seg.row}>
-        {DASHBOARD_TABS.map((t) => (
-          <TouchableOpacity key={t} style={[seg.btn, activeTab === t && seg.btnActive]} onPress={() => setActiveTab(t)}>
-            <Text style={[seg.label, activeTab === t && seg.labelActive]}>
-              {t === 'nutrition' ? 'Nutrition' : t === 'exercise' ? 'Exercise' : 'Goals'}
+      {/* Tab bar */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.segScroll} contentContainerStyle={s.segRow}>
+        {TABS.map((t) => (
+          <TouchableOpacity key={t} style={[s.segBtn, activeTab === t && s.segBtnActive]} onPress={() => setActiveTab(t)}>
+            <Text style={[s.segLabel, activeTab === t && s.segLabelActive]}>
+              {t === 'today' ? 'Today' : t === 'goals' ? 'Goals' : t === 'trends' ? 'Trends' : 'Sessions'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -704,598 +458,872 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}
       >
 
-        {/* ══ Nutrition tab ══ */}
-        {activeTab === 'nutrition' && (<>
+        {/* ══ TODAY tab ══ */}
+        {activeTab === 'today' && (<>
 
-        {/* ── Fuel Today ── */}
-        <View style={s.card}>
-          <CardHeader title="Fuel Today" c={c} />
-
-          {/* Calorie ring + macros row */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ alignItems: 'center', gap: 6 }}>
-              <CalorieRing pct={caloriesGoal ? caloriesConsumed / caloriesGoal : 0} color={COL_CAL} size={84} c={c} />
-              <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>
-                <Text style={{ fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{caloriesConsumed.toLocaleString()}</Text>
-                {caloriesGoal ? <Text style={{ color: c.muted }}>/{caloriesGoal.toLocaleString()} kcal</Text> : ' kcal'}
-              </Text>
+          {/* AI Insight */}
+          {aiInsight ? (
+            <View style={s.card}>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                <Text style={{ fontSize: 13, color: COL_GOLD }}>✦</Text>
+                <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.text, lineHeight: 20 }}>{aiInsight}</Text>
+              </View>
             </View>
-            <View style={{ flex: 1, gap: 8 }}>
-              <ProgressBar label="Protein" actual={proteinConsumed} goal={proteinGoal} unit="g" color={COL_PROTEIN} c={c} />
-              <ProgressBar label="Carbs"   actual={carbsConsumed}   goal={carbsGoal}   unit="g" color={COL_CARBS}   c={c} />
-              <ProgressBar label="Fat"     actual={fatConsumed}     goal={fatGoal}     unit="g" color={COL_FAT}     c={c} />
-            </View>
-          </View>
+          ) : null}
 
-          {/* Net vs TDEE */}
-          {burnedToday > 0 && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Burned <Text style={{ color: '#f87171', fontWeight: '600' }}>{burnedToday.toLocaleString()} kcal</Text></Text>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
-                Net <Text style={{ fontWeight: '600', color: caloriesGoal && (caloriesConsumed - burnedToday) > caloriesGoal ? '#f87171' : c.text, fontVariant: ['tabular-nums'] }}>
-                  {(caloriesConsumed - burnedToday).toLocaleString()} kcal
+          {/* Fuel Today */}
+          <View style={s.card}>
+            <CardHeader title="Fuel Today" c={c} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ alignItems: 'center', gap: 6 }}>
+                <CalorieRing pct={caloriesGoal ? caloriesConsumed / caloriesGoal : 0} color={COL_GOLD} size={84} c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>
+                  <Text style={{ fontWeight: '700', color: caloriesGoal && caloriesConsumed > caloriesGoal ? COL_WARN : c.text }}>{caloriesConsumed.toLocaleString()}</Text>
+                  {caloriesGoal ? `/${caloriesGoal.toLocaleString()} kcal` : ' kcal'}
                 </Text>
-                <Text style={{ color: c.muted }}>{caloriesConsumed < burnedToday ? '  In deficit' : '  In surplus'}</Text>
-              </Text>
+              </View>
+              <View style={{ flex: 1, gap: 8 }}>
+                <ProgressBar label="Protein" actual={proteinConsumed} goal={proteinGoal} unit="g" c={c} />
+                <ProgressBar label="Carbs"   actual={carbsConsumed}   goal={carbsGoal}   unit="g" c={c} />
+                <ProgressBar label="Fat"     actual={fatConsumed}     goal={fatGoal}     unit="g" c={c} />
+              </View>
             </View>
-          )}
-
-          {/* Water glasses */}
-          <View style={{ gap: 6, marginTop: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
-                Water <Text style={{ fontWeight: '700', color: COL_WATER, fontVariant: ['tabular-nums'] }}>{waterGlasses}</Text>/<Text style={{ fontVariant: ['tabular-nums'] }}>{waterGoalGlasses}</Text> glasses
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-              {Array.from({ length: waterGoalGlasses }, (_, i) => (
-                <View key={i} style={{
-                  width: 16, height: 22, borderRadius: 3,
-                  backgroundColor: i < waterGlasses ? COL_WATER : 'rgba(255,255,255,0.08)',
-                  borderWidth: 1,
-                  borderColor: i < waterGlasses ? COL_WATER : 'rgba(255,255,255,0.15)',
-                }} />
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={{ flex: 1, borderWidth: 1, borderColor: COL_WATER, borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
-                onPress={() => handleAddWater(GLASS_OZ)}
-              >
-                <Text style={{ fontSize: fontSize.sm, color: COL_WATER, fontWeight: '600' }}>+ 1 glass</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, borderWidth: 1, borderColor: COL_WATER + '88', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
-                onPress={() => handleAddWater(BOTTLE_OZ)}
-              >
-                <Text style={{ fontSize: fontSize.sm, color: COL_WATER + 'BB', fontWeight: '600' }}>+ Bottle (20 oz)</Text>
-              </TouchableOpacity>
-            </View>
+            {burnedToday > 0 && (
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Burned <Text style={{ color: '#f87171', fontWeight: '600' }}>{burnedToday.toLocaleString()} kcal</Text></Text>
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Net <Text style={{ fontWeight: '600', color: c.text }}>{(caloriesConsumed - burnedToday).toLocaleString()} kcal</Text></Text>
+              </View>
+            )}
           </View>
-        </View>
 
-        {/* ── Calories vs TDEE / Protein (30-day charts) ── */}
-        <View style={s.card}>
-          <CardHeader title="Last 30 Days" c={c} />
+          {/* Exercise Today */}
+          <View style={s.card}>
+            {/* Recovery strip */}
+            {recovery && (
+              <View style={{ paddingBottom: 10, marginBottom: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border, gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Recovery</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: recovery.level === 'high' ? COL_GOOD : recovery.level === 'medium' ? COL_GOLD : COL_WARN }}>{recovery.score}</Text>
+                  <View style={{ borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: (recovery.level === 'high' ? COL_GOOD : recovery.level === 'medium' ? COL_GOLD : COL_WARN) + '22' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: recovery.level === 'high' ? COL_GOOD : recovery.level === 'medium' ? COL_GOLD : COL_WARN, textTransform: 'uppercase' }}>{recovery.level}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 12, color: c.muted }}>{recovery.hint}</Text>
+              </View>
+            )}
 
-          <View style={{ gap: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: fontSize.sm, color: COL_CAL, fontWeight: '600' }}>Calories</Text>
-              {hasBurned && <Text style={{ fontSize: 11, color: c.muted }}>— {tdeeSeries ? 'TDEE' : 'burned'}</Text>}
-              {caloriesGoal && <Text style={{ fontSize: 11, color: c.muted }}>- - goal</Text>}
-            </View>
-            {(() => {
-              const calMax = Math.max(...calSeries, ...burnedSeries, caloriesGoal ?? 0, 1);
+            {todayWorkout ? (
+              <>
+                <CardHeader title="Exercise Today" meta={`${todayWorkout.durationMinutes ?? '—'} min · logged`} c={c} />
+                <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text }}>{workoutName(todayWorkout)}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 }}>
+                  {todayWorkout.totalVolumeKg != null && <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{Math.round(todayWorkout.totalVolumeKg * KG_TO_LBS).toLocaleString()} lbs</Text>}
+                  {todayWorkout.caloriesBurned != null && <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{todayWorkout.caloriesBurned} kcal</Text>}
+                </View>
+                {computeHighlights(todayWorkout, workouts).map((h, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: COL_GOLD }} />
+                    <Text style={{ fontSize: fontSize.sm, color: COL_GOLD }}>{h}</Text>
+                  </View>
+                ))}
+              </>
+            ) : isTodayRestDay ? (
+              <>
+                <CardHeader title="Exercise Today" c={c} />
+                <Text style={{ fontSize: fontSize.base, color: c.muted }}>Rest day — take it easy.</Text>
+              </>
+            ) : todaySession ? (
+              <>
+                <CardHeader title="Exercise Today" c={c} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Scheduled today</Text>
+                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text }}>{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={{ backgroundColor: COL_GOLD, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 7 }}
+                    onPress={() => router.push('/(app)/(tabs)/workouts')}
+                  >
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: '#1a1206' }}>Start</Text>
+                  </TouchableOpacity>
+                </View>
+                {routineDetail && routineDetail.exercises.slice(0, 5).map((re, i) => {
+                  const last = re.lastPerformedSets;
+                  const maxWeightKg = last?.reduce((m, s) => Math.max(m, s.weightKg ?? 0), 0) ?? 0;
+                  const setCount = last?.length ?? re.templateSets.length;
+                  const topReps = last?.find((s) => s.weightKg === maxWeightKg)?.reps ?? null;
+                  return (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+                      <Text style={{ fontSize: fontSize.sm, color: c.text }}>{re.exercise.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+                        <Text style={{ fontSize: 12, color: c.muted }}>{setCount} sets</Text>
+                        {maxWeightKg > 0 && (
+                          <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.muted, fontVariant: ['tabular-nums'] }}>
+                            {Math.round(maxWeightKg * KG_TO_LBS)} lb{topReps ? ` × ${topReps}` : ''}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+                {routineDetail && routineDetail.exercises.length > 5 && (
+                  <Text style={{ fontSize: 11, color: c.muted }}>+{routineDetail.exercises.length - 5} more</Text>
+                )}
+              </>
+            ) : lastWorkout ? (
+              <>
+                <CardHeader title="Exercise Today" meta="Not logged today" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Last — {workoutName(lastWorkout)} ({daysAgoLabel(lastWorkout.workoutDate)})</Text>
+                <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, marginTop: 4 }}>
+                  {lastWorkout.durationMinutes ? `${lastWorkout.durationMinutes} min  ·  ` : ''}
+                  {lastWorkout.totalVolumeKg != null ? `${Math.round(lastWorkout.totalVolumeKg * KG_TO_LBS).toLocaleString()} lbs` : ''}
+                </Text>
+                <TouchableOpacity
+                  style={{ marginTop: 10, borderWidth: 1, borderColor: COL_GOLD, borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}
+                  onPress={() => router.push('/(app)/(tabs)/workouts')}
+                >
+                  <Text style={{ fontSize: fontSize.sm, color: COL_GOLD, fontWeight: '600' }}>Start today's session →</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <CardHeader title="Exercise Today" meta="Not logged today" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No workouts yet. Head to Train to get started.</Text>
+              </>
+            )}
+          </View>
+
+          {/* Weekly Goal Progress */}
+          {(() => {
+            const volGoal = exGoals?.volumeLbsPerWeek ?? 0;
+            const items = [
+              (weekCalGoal ?? 0) > 0   ? { label: 'Calories', val: weekCalories,  goal: weekCalGoal!,       fmtv: weekCalories.toLocaleString(),              fmtg: `${weekCalGoal!.toLocaleString()} kcal` }      : null,
+              (weekProtGoal ?? 0) > 0  ? { label: 'Protein',  val: weekProtein,   goal: weekProtGoal!,      fmtv: `${Math.round(weekProtein)}g`,               fmtg: `${weekProtGoal!}g` }                          : null,
+              weekWorkoutGoal          ? { label: 'Workouts', val: weekWorkouts,   goal: weekWorkoutGoal,    fmtv: String(weekWorkouts),                        fmtg: `of ${weekWorkoutGoal}` }                      : null,
+              volGoal > 0              ? { label: 'Volume',   val: weekVolumeLbs,  goal: volGoal,            fmtv: Math.round(weekVolumeLbs).toLocaleString(),  fmtg: `${Math.round(volGoal).toLocaleString()} lb` } : null,
+            ].filter(Boolean) as { label: string; val: number; goal: number; fmtv: string; fmtg: string }[];
+            if (!items.length) return null;
+            return (
+              <View style={s.card}>
+                <CardHeader title="Weekly Progress" meta={`day ${daysElapsed} of 7`} c={c} />
+                <View style={{ gap: 18 }}>
+                  {items.map((m) => (
+                    <WeeklyProgressRow key={m.label} {...m} daysElapsed={daysElapsed} c={c} />
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
+
+        </>)}
+
+        {/* ══ GOALS tab ══ */}
+        {activeTab === 'goals' && (<>
+
+          {/* ── Weight ── */}
+          {(() => {
+            const todayMs = new Date(todayStr + 'T12:00:00').getTime();
+            const sorted = measurements
+              .filter((m) => m.metric === 'weight')
+              .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+              .map((m) => ({ date: m.measuredAt, val: m.unit === 'kg' ? m.value * KG_TO_LBS : m.value }));
+            const goal = measGoals['weight'];
+            const target = goal?.targetValue ?? null;
+            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+
+            if (!sorted.length) {
               return (
-                <View style={{ height: CHART_H + 4, position: 'relative' }}>
-                  <MiniLineChart data={calSeries} color={COL_CAL} goalLine={caloriesGoal} maxOverride={calMax} />
-                  {hasBurned && (
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.7 }}>
-                      <MiniLineChart data={burnedSeries} color={COL_TDEE} maxOverride={calMax} />
+                <View style={s.card}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={target ? `target ${target.toFixed(1)} lb` : undefined} c={c} /></View>
+                    <GoalStatusChip status="no_data" />
+                  </View>
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No weight entries yet.</Text>
+                </View>
+              );
+            }
+
+            const current = sorted[sorted.length - 1].val;
+
+            // 28-day linear regression for trend slope (lbs/day)
+            const cutoff28Ms = todayMs - 28 * 86400000;
+            const recent28 = sorted.filter((m) => new Date(m.date + 'T12:00:00').getTime() >= cutoff28Ms);
+            const trendData = recent28.length >= 2 ? recent28 : sorted;
+            const trendT0 = new Date(trendData[0].date + 'T12:00:00').getTime();
+            const trendSlope = linReg(
+              trendData.map((m) => (new Date(m.date + 'T12:00:00').getTime() - trendT0) / 86400000),
+              trendData.map((m) => m.val)
+            );
+
+            // TDEE-based slope: (avgCal - tdeeAtAvg) / 3500
+            let tdeeSlope: number | null = null;
+            if (todayTDEE) {
+              const recentFood = foodLogHistory.slice(-30).filter((d) => d.calories > 0);
+              if (recentFood.length > 0) {
+                const avgCal = recentFood.reduce((s, d) => s + d.calories, 0) / recentFood.length;
+                const tdeeAtAvg = todayTDEE.bmr + todayTDEE.neat + todayTDEE.exercise + avgCal * 0.1;
+                tdeeSlope = (avgCal - tdeeAtAvg) / 3500;
+              }
+            }
+
+            function etaDays(slope: number): number | null {
+              if (!target || Math.abs(slope) < 0.001) return null;
+              const d = (target - current) / slope;
+              return d > 0 ? Math.round(d) : null;
+            }
+
+            const trendEta = etaDays(trendSlope);
+            const tdeeEta  = tdeeSlope != null ? etaDays(tdeeSlope) : null;
+            const isAchieved = target != null && current <= target;
+            const status = deadlineStatus(trendEta, deadline, isAchieved);
+
+            // Chart: 90-day window + 28-day projection
+            const chart = sorted.filter((m) => new Date(m.date + 'T12:00:00').getTime() >= todayMs - 90 * 86400000);
+            const chartData = chart.length > 0 ? chart : sorted.slice(-30);
+            const chartT0Ms = new Date(chartData[0].date + 'T12:00:00').getTime();
+            const totalSpanDays = (todayMs - chartT0Ms) / 86400000 + 28;
+            // Build daily series (forward-fill) for chart
+            const numDays = Math.round(totalSpanDays) + 1;
+            let last: number | null = null;
+            const byDate: Record<string, number> = {};
+            for (const m of chartData) byDate[m.date] = m.val;
+            const actualSeries: number[] = [];
+            const projStart = chartData.length;
+            for (let i = 0; i < numDays; i++) {
+              const d = new Date(chartT0Ms + i * 86400000);
+              const ds = localDateStr(d);
+              if (byDate[ds] != null) last = byDate[ds];
+              if (new Date(ds + 'T12:00:00').getTime() <= todayMs) {
+                actualSeries.push(last ?? 0);
+              }
+            }
+            const proj28 = Array.from({ length: 29 }, (_, i) => +(current + trendSlope * i).toFixed(2));
+            const tdeeProj28 = tdeeSlope != null
+              ? Array.from({ length: 29 }, (_, i) => +(current + tdeeSlope! * i).toFixed(2))
+              : undefined;
+
+            const allVals = [...actualSeries.filter(Boolean), ...proj28, ...(tdeeProj28 ?? []), target ?? 0].filter((v) => v > 0);
+            const chartMin = allVals.length ? Math.min(...allVals) * 0.994 : 0;
+            const chartMax = allVals.length ? Math.max(...allVals) * 1.006 : 1;
+
+            return (
+              <View style={s.card}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={goal ? `${target!.toFixed(1)} lb${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <GoalStatusChip status={status} />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Current</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{current.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                  </View>
+                  {target != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Target</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{target.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                    </View>
+                  )}
+                  {trendEta != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: '#818cf8', marginBottom: 2 }}>ETA · trend</Text>
+                      <Text style={{ fontSize: 13, color: '#818cf8', fontWeight: '600' }}>{fmtETA(trendEta)}</Text>
+                    </View>
+                  )}
+                  {tdeeEta != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: '#f97316', marginBottom: 2 }}>ETA · TDEE</Text>
+                      <Text style={{ fontSize: 13, color: '#f97316', fontWeight: '600' }}>{fmtETA(tdeeEta)}</Text>
                     </View>
                   )}
                 </View>
-              );
-            })()}
-          </View>
-
-          <View style={{ gap: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: fontSize.sm, color: COL_PROTEIN, fontWeight: '600' }}>Protein</Text>
-              {proteinGoal && <Text style={{ fontSize: 11, color: c.muted }}>- - goal {proteinGoal}g</Text>}
-            </View>
-            <MiniLineChart data={proteinSeries} color={COL_PROTEIN} goalLine={proteinGoal} />
-          </View>
-
-          {hasWeight && (
-            <View style={{ gap: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: fontSize.sm, color: COL_WEIGHT, fontWeight: '600' }}>Weight</Text>
-                {weightGoalLbs != null && <Text style={{ fontSize: 11, color: c.muted }}>- - goal {weightGoalLbs.toFixed(1)} lbs</Text>}
+                <MiniLineChart data={actualSeries} projection={proj28} projection2={tdeeProj28} color={COL_GOLD} goalLine={target} maxOverride={chartMax} minOverride={chartMin} />
+                <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 11, color: COL_GOLD }}>── actual</Text>
+                  <Text style={{ fontSize: 11, color: '#818cf8' }}>╌╌ trend proj</Text>
+                  {tdeeProj28 && <Text style={{ fontSize: 11, color: '#f97316' }}>╌╌ TDEE proj</Text>}
+                  {target != null && <Text style={{ fontSize: 11, color: c.muted }}>╌╌ target {target.toFixed(1)} lb</Text>}
+                </View>
               </View>
-              <MiniLineChart data={weightSeries} color={COL_WEIGHT} goalLine={weightGoalLbs} maxOverride={weightMax} minOverride={weightMin} />
-            </View>
-          )}
-        </View>
+            );
+          })()}
 
-        {/* ── Weekly Averages ── */}
-        {weeklyAverages.some((w) => w.days > 0) && (
-          <View style={s.card}>
-            <CardHeader title="Weekly Averages" meta="per-day avg · newest first" c={c} />
-            {/* Header */}
-            <View>
-              <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: c.border }}>
-                {['Week', 'Cal', 'Prot', 'Carb', 'Fat', ...(todayTDEE ? ['Net'] : [])].map((h, i) => (
-                  <Text key={h} style={[s.weeklyTh, i === 0 ? { width: 56, textAlign: 'left', flex: 0 } : { flex: 1 }]}>{h}</Text>
+          {/* ── Waist ── */}
+          {(() => {
+            const metric = 'waist'; const unit = 'in'; const dir: 'up' | 'down' = 'down';
+            const todayMs = new Date(todayStr + 'T12:00:00').getTime();
+            const sorted = measurements
+              .filter((m) => m.metric === metric)
+              .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+              .map((m) => ({ date: m.measuredAt, val: m.value }));
+            const goal = measGoals[metric];
+            const target = goal?.targetValue ?? null;
+            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+
+            if (!sorted.length) return null;
+
+            const current = sorted[sorted.length - 1].val;
+            const cutoff90Ms = todayMs - 90 * 86400000;
+            const recentForSlope = sorted.filter((m) => new Date(m.date + 'T12:00:00').getTime() >= cutoff90Ms);
+            const regrData = recentForSlope.length >= 2 ? recentForSlope : sorted;
+            const rT0 = new Date(regrData[0].date + 'T12:00:00').getTime();
+            const slopePerDay = linReg(
+              regrData.map((m) => (new Date(m.date + 'T12:00:00').getTime() - rT0) / 86400000),
+              regrData.map((m) => m.val)
+            );
+
+            let etaDaysVal: number | null = null;
+            if (target != null && Math.abs(slopePerDay) > 0.0001) {
+              const d = (target - current) / slopePerDay;
+              etaDaysVal = d > 0 ? Math.round(d) : null;
+            }
+            const isAchieved = target != null && (dir === 'down' ? current <= target : current >= target);
+            const status = deadlineStatus(etaDaysVal, deadline, isAchieved);
+
+            const t0Ms = new Date(sorted[0].date + 'T12:00:00').getTime();
+            const byDate: Record<string, number> = {};
+            for (const m of sorted) byDate[m.date] = m.val;
+            let last: number | null = null;
+            const actualSeries: number[] = [];
+            const totalActualDays = Math.round((todayMs - t0Ms) / 86400000) + 1;
+            for (let i = 0; i < totalActualDays; i++) {
+              const d = localDateStr(new Date(t0Ms + i * 86400000));
+              if (byDate[d] != null) last = byDate[d];
+              actualSeries.push(last ?? 0);
+            }
+            const proj30 = Array.from({ length: 31 }, (_, i) => +(current + slopePerDay * i).toFixed(2));
+            const allVals = [...actualSeries.filter(Boolean), ...proj30, target ?? 0].filter((v) => v > 0);
+            const chartMin = allVals.length ? Math.min(...allVals) * 0.994 : 0;
+            const chartMax = allVals.length ? Math.max(...allVals) * 1.006 : 1;
+
+            return (
+              <View style={s.card}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <View style={{ flex: 1 }}><CardHeader title="Waist goal" meta={goal ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <GoalStatusChip status={status} />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Current</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{current.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> {unit}</Text></Text>
+                  </View>
+                  {target != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Target</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{target.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> {unit}</Text></Text>
+                    </View>
+                  )}
+                  {etaDaysVal != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: COL_GOLD, marginBottom: 2 }}>ETA · trend</Text>
+                      <Text style={{ fontSize: 13, color: COL_GOLD, fontWeight: '600' }}>{fmtETA(etaDaysVal)}</Text>
+                    </View>
+                  )}
+                </View>
+                <MiniLineChart data={actualSeries} projection={proj30} color={COL_GOLD} goalLine={target} maxOverride={chartMax} minOverride={chartMin} />
+                <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 11, color: COL_GOLD }}>── actual</Text>
+                  <Text style={{ fontSize: 11, color: '#818cf8' }}>╌╌ trend proj</Text>
+                  {target != null && <Text style={{ fontSize: 11, color: c.muted }}>╌╌ target {target.toFixed(1)} {unit}</Text>}
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Bicep ── */}
+          {(() => {
+            const metric = 'bicep'; const unit = 'in';
+            const todayMs = new Date(todayStr + 'T12:00:00').getTime();
+            const sorted = measurements
+              .filter((m) => m.metric === metric)
+              .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+              .map((m) => ({ date: m.measuredAt, val: m.value }));
+            const goal = measGoals[metric];
+            const target = goal?.targetValue ?? null;
+            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+
+            if (!sorted.length) return null;
+
+            const current = sorted[sorted.length - 1].val;
+            const cutoff90Ms = todayMs - 90 * 86400000;
+            const recentForSlope = sorted.filter((m) => new Date(m.date + 'T12:00:00').getTime() >= cutoff90Ms);
+            const regrData = recentForSlope.length >= 2 ? recentForSlope : sorted;
+            const rT0 = new Date(regrData[0].date + 'T12:00:00').getTime();
+            const slopePerDay = linReg(
+              regrData.map((m) => (new Date(m.date + 'T12:00:00').getTime() - rT0) / 86400000),
+              regrData.map((m) => m.val)
+            );
+
+            let etaDaysVal: number | null = null;
+            if (target != null && Math.abs(slopePerDay) > 0.0001) {
+              const d = (target - current) / slopePerDay;
+              etaDaysVal = d > 0 ? Math.round(d) : null;
+            }
+            const isAchieved = target != null && current >= target;
+            const status = deadlineStatus(etaDaysVal, deadline, isAchieved);
+
+            const t0Ms = new Date(sorted[0].date + 'T12:00:00').getTime();
+            const byDate: Record<string, number> = {};
+            for (const m of sorted) byDate[m.date] = m.val;
+            let last: number | null = null;
+            const actualSeries: number[] = [];
+            const totalActualDays = Math.round((todayMs - t0Ms) / 86400000) + 1;
+            for (let i = 0; i < totalActualDays; i++) {
+              const d = localDateStr(new Date(t0Ms + i * 86400000));
+              if (byDate[d] != null) last = byDate[d];
+              actualSeries.push(last ?? 0);
+            }
+            const proj30 = Array.from({ length: 31 }, (_, i) => +(current + slopePerDay * i).toFixed(2));
+            const allVals = [...actualSeries.filter(Boolean), ...proj30, target ?? 0].filter((v) => v > 0);
+            const chartMin = allVals.length ? Math.min(...allVals) * 0.994 : 0;
+            const chartMax = allVals.length ? Math.max(...allVals) * 1.006 : 1;
+
+            return (
+              <View style={s.card}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <View style={{ flex: 1 }}><CardHeader title="Bicep goal" meta={goal ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <GoalStatusChip status={status} />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Current</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{current.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> {unit}</Text></Text>
+                  </View>
+                  {target != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Target</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{target.toFixed(1)}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> {unit}</Text></Text>
+                    </View>
+                  )}
+                  {etaDaysVal != null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: COL_GOLD, marginBottom: 2 }}>ETA · trend</Text>
+                      <Text style={{ fontSize: 13, color: COL_GOLD, fontWeight: '600' }}>{fmtETA(etaDaysVal)}</Text>
+                    </View>
+                  )}
+                </View>
+                <MiniLineChart data={actualSeries} projection={proj30} color={COL_GOLD} goalLine={target} maxOverride={chartMax} minOverride={chartMin} />
+                <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 11, color: COL_GOLD }}>── actual</Text>
+                  <Text style={{ fontSize: 11, color: '#818cf8' }}>╌╌ trend proj</Text>
+                  {target != null && <Text style={{ fontSize: 11, color: c.muted }}>╌╌ target {target.toFixed(1)} {unit}</Text>}
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Workout frequency ── */}
+          {(() => {
+            const activeGoals = routineGoals.filter((rg) => rg.targetPerWeek > 0 && rg.targetPerWeek <= 7);
+            if (!activeGoals.length) {
+              return (
+                <View style={s.card}>
+                  <CardHeader title="Workout frequency" c={c} />
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No per-routine frequency goals set.</Text>
+                </View>
+              );
+            }
+            const weeks: string[] = [];
+            for (let i = 7; i >= 0; i--) {
+              const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() - i * 7);
+              weeks.push(getWeekStart(localDateStr(d)));
+            }
+            const thisWeek = weeks[weeks.length - 1];
+            function weekEnd(ws: string): string {
+              const d = new Date(ws + 'T12:00:00'); d.setDate(d.getDate() + 6); return localDateStr(d);
+            }
+            function countForWeek(routineId: number, ws: string): number {
+              const we = weekEnd(ws);
+              return workouts.filter((w) => w.routineId === routineId && w.workoutDate >= ws && w.workoutDate <= we).length;
+            }
+            const allDone = activeGoals.every((rg) => countForWeek(rg.routineId, thisWeek) >= rg.targetPerWeek);
+            return (
+              <View style={s.card}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <View style={{ flex: 1 }}><CardHeader title="Workout frequency" meta={`${activeGoals.length} routine${activeGoals.length !== 1 ? 's' : ''} · weekly`} c={c} /></View>
+                  <GoalStatusChip status={allDone ? 'achieved' : 'on_track'} />
+                </View>
+                <View style={{ gap: 14 }}>
+                  {activeGoals.map((rg) => {
+                    const name = routineById[rg.routineId]?.name ?? `Routine ${rg.routineId}`;
+                    const thisCount = countForWeek(rg.routineId, thisWeek);
+                    const hit = thisCount >= rg.targetPerWeek;
+                    return (
+                      <View key={rg.routineId}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <Text style={{ fontSize: fontSize.sm, color: c.text, fontWeight: '500' }} numberOfLines={1}>{name}</Text>
+                          <Text style={{ fontSize: 11, color: hit ? COL_GOOD : c.muted }}>{thisCount}/{rg.targetPerWeek} this week</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 3 }}>
+                          {weeks.map((ws) => {
+                            const count  = countForWeek(rg.routineId, ws);
+                            const isHit  = count >= rg.targetPerWeek;
+                            const isThis = ws === thisWeek;
+                            return (
+                              <View
+                                key={ws}
+                                style={{
+                                  flex: 1, height: 22, borderRadius: 3,
+                                  backgroundColor: isHit
+                                    ? isThis ? COL_GOLD : COL_GOOD + 'aa'
+                                    : 'rgba(255,255,255,0.06)',
+                                  borderWidth: isThis ? 1 : 0,
+                                  borderColor: COL_GOLD + '55',
+                                  alignItems: 'center', justifyContent: 'center',
+                                }}
+                              >
+                                {isHit && <Text style={{ fontSize: 8, color: isThis ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)' }}>✓</Text>}
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>8 weeks ago</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>this week</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+        </>)}
+
+        {/* ══ HISTORY tab ══ */}
+        {/* ══ TRENDS tab ══ */}
+        {activeTab === 'trends' && (<>
+
+          {/* ── Calories consumed vs burned ── */}
+          {(() => {
+            const exByDate: Record<string, number> = {};
+            for (const w of workouts) { if (w.caloriesBurned) exByDate[w.workoutDate] = (exByDate[w.workoutDate] ?? 0) + w.caloriesBurned; }
+            const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+            const series = foodLogHistory.slice(-14).map((d) => {
+              const tef = Math.round(d.calories * 0.1);
+              const ex = exByDate[d.date] ?? 0;
+              const tdee = baseline != null ? baseline + tef + ex : 0;
+              return { cal: Math.round(d.calories), tdee, date: d.date };
+            }).filter((d) => d.cal > 0 || d.tdee > 0);
+            if (!series.length) return (
+              <View style={s.card}>
+                <CardHeader title="Calories · consumed vs burned" meta="14 days" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No nutrition data in the last 30 days.</Text>
+              </View>
+            );
+            const calVals  = series.map((d) => d.cal);
+            const tdeeVals = series.map((d) => d.tdee);
+            const hasTDEE  = tdeeVals.some(Boolean);
+            const consumedAvg = Math.round(calVals.reduce((a, b) => a + b, 0) / calVals.length);
+            const burnedFiltered = tdeeVals.filter(Boolean);
+            const burnedAvg = burnedFiltered.length ? Math.round(burnedFiltered.reduce((a, b) => a + b, 0) / burnedFiltered.length) : 0;
+            const deficit = consumedAvg - burnedAvg;
+            const allVals = [...calVals, ...tdeeVals.filter(Boolean)].filter(Boolean);
+            const chartMin = allVals.length ? Math.min(...allVals) * 0.92 : 0;
+            const chartMax = allVals.length ? Math.max(...allVals) * 1.05 : 1;
+            return (
+              <View style={s.card}>
+                <CardHeader title="Calories · consumed vs burned" meta="14 days" c={c} />
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Consumed avg</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{consumedAvg.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> kcal</Text></Text>
+                  </View>
+                  {burnedAvg > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Burned avg (TDEE)</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{burnedAvg.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> kcal</Text></Text>
+                    </View>
+                  )}
+                  {burnedAvg > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Avg daily net</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: deficit < 0 ? COL_GOOD : COL_WARN, fontVariant: ['tabular-nums'] }}>{deficit > 0 ? '+' : ''}{deficit.toLocaleString()}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ height: CHART_H + 4, position: 'relative' }}>
+                  <MiniLineChart data={calVals} color={COL_GOLD} minOverride={chartMin} maxOverride={chartMax} />
+                  {hasTDEE && (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.65 }}>
+                      <MiniLineChart data={tdeeVals} color={COL_TDEE} minOverride={chartMin} maxOverride={chartMax} />
+                    </View>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 14 }}>
+                  <Text style={{ fontSize: 11, color: COL_GOLD }}>── consumed</Text>
+                  {hasTDEE && <Text style={{ fontSize: 11, color: COL_TDEE }}>╌╌ TDEE</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>14 days ago</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Exercise volume week-over-week ── */}
+          {(() => {
+            const weeks12 = weeklyData.slice(-12);
+            const hasVol  = weeks12.some((w) => w.volumeLbs > 0);
+            if (!hasVol) return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · week over week" meta="12 weeks" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No workout volume data yet.</Text>
+              </View>
+            );
+            const maxVol  = Math.max(...weeks12.map((w) => w.volumeLbs), 1);
+            const currWk  = weeks12[weeks12.length - 1];
+            const prevWks = weeks12.slice(0, -1).filter((w) => w.volumeLbs > 0);
+            const avgVol  = prevWks.length ? Math.round(prevWks.reduce((s, w) => s + w.volumeLbs, 0) / prevWks.length) : 0;
+            const bestVol = Math.max(...weeks12.map((w) => w.volumeLbs));
+            const delta   = avgVol > 0 ? Math.round(currWk.volumeLbs - avgVol) : null;
+            const BAR_H   = 80;
+            return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · week over week" meta="12 weeks" c={c} />
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>This week</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{Math.round(currWk.volumeLbs).toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                  </View>
+                  {avgVol > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Avg / week</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{avgVol.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                    </View>
+                  )}
+                  {delta !== null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>vs avg</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: delta >= 0 ? COL_GOOD : COL_WARN, fontVariant: ['tabular-nums'] }}>{delta > 0 ? '+' : ''}{delta.toLocaleString()}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 4 }}>
+                  {weeks12.map((wk, i) => {
+                    const barH = wk.volumeLbs > 0 ? Math.max(3, (wk.volumeLbs / maxVol) * BAR_H) : 0;
+                    const isCurr = i === weeks12.length - 1;
+                    const isBest = wk.volumeLbs === bestVol && wk.volumeLbs > 0;
+                    const bg = isCurr ? COL_GOLD : isBest ? `${COL_GOLD}8C` : `${COL_GOLD}47`;
+                    return (
+                      <View key={i} style={{ flex: 1, height: BAR_H, justifyContent: 'flex-end' }}>
+                        <View style={{ height: barH, backgroundColor: bg, borderRadius: 2 }} />
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>12 weeks ago</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>this week</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Exercise volume 12-week heatmap ── */}
+          {(() => {
+            const mon = new Date(todayStr + 'T12:00:00');
+            mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+            type HeatCell = { date: string; vol: number };
+            const heatWeeks: HeatCell[][] = [];
+            for (let w = 11; w >= 0; w--) {
+              const row: HeatCell[] = [];
+              for (let d = 0; d < 7; d++) {
+                const cell = new Date(mon); cell.setDate(mon.getDate() - w * 7 + d);
+                row.push({ date: localDateStr(cell), vol: 0 });
+              }
+              heatWeeks.push(row);
+            }
+            for (const w of workouts) {
+              for (const wk of heatWeeks) {
+                const cell = wk.find((c) => c.date === w.workoutDate);
+                if (cell) cell.vol += w.totalVolumeKg * KG_TO_LBS;
+              }
+            }
+            const maxVol = Math.max(...heatWeeks.flatMap((wk) => wk.map((c) => c.vol)), 1);
+            function heatColor(vol: number) {
+              if (!vol) return 'rgba(255,255,255,0.04)';
+              const op = Math.round((0.2 + (vol / maxVol) * 0.72) * 255);
+              return COL_GOLD + op.toString(16).padStart(2, '0');
+            }
+            const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+            return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · 12-week heatmap" c={c} />
+                <View style={{ flexDirection: 'row', gap: 5 }}>
+                  <View style={{ gap: 4, paddingTop: 1 }}>
+                    {dayLabels.map((d, i) => (
+                      <View key={i} style={{ height: 16, justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 10, color: c.muted, width: 10 }}>{d}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={{ flex: 1, flexDirection: 'row', gap: 4 }}>
+                    {heatWeeks.map((wk, wi) => (
+                      <View key={wi} style={{ flex: 1, gap: 4 }}>
+                        {wk.map((cell, di) => (
+                          <View key={di} style={{ height: 16, backgroundColor: heatColor(cell.vol), borderRadius: 2 }} />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>12 weeks ago</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Text style={{ fontSize: 11, color: c.muted }}>less</Text>
+                    {[0.2, 0.4, 0.6, 0.85].map((op, i) => (
+                      <View key={i} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: COL_GOLD + Math.round(op * 255).toString(16).padStart(2, '0') }} />
+                    ))}
+                    <Text style={{ fontSize: 11, color: c.muted }}>more</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Weekly averages ── */}
+          {weeklyAverages.some((w) => w.days > 0) && (
+            <View style={s.card}>
+              <CardHeader title="Weekly averages" meta="per-day avg · newest first" c={c} />
+              {/* Header row */}
+              <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }}>
+                {(['Week', 'Cal', 'Prot', 'Carbs', 'Fat', ...(todayTDEE ? ['Net'] : [])] as string[]).map((h, i) => (
+                  <Text key={h} style={{ flex: i === 0 ? 1.3 : 1, fontSize: 11, color: c.muted, fontWeight: '600', textAlign: i === 0 ? 'left' : 'right' }}>{h}</Text>
                 ))}
               </View>
-              {weeklyAverages.map((week) => {
-                const netColor = week.net == null ? c.muted : week.net < -100 ? '#34d399' : week.net > 200 ? '#f87171' : c.muted;
-                return (
-                  <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: c.border + '33' }}>
-                    <Text style={[s.weeklyTd, { width: 56, flex: 0, textAlign: 'left', color: week.isCurrentWeek ? COL_GOLD : c.muted }]}>
-                      {week.isCurrentWeek ? 'Now' : week.label}
+              {weeklyAverages.map((week) => (
+                <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border + '33', backgroundColor: week.isCurrentWeek ? `${COL_GOLD}0A` : undefined, borderRadius: week.isCurrentWeek ? 4 : 0 }}>
+                  <Text style={{ flex: 1.3, fontSize: 13, color: week.isCurrentWeek ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
+                    {week.label}{week.isCurrentWeek ? <Text style={{ color: COL_GOLD, fontWeight: '600' }}> now</Text> : null}
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? c.text : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? COL_GOLD : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.protein : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? '#7C9ECB' : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.carbs : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? '#C5896E' : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.fat : '—'}</Text>
+                  {todayTDEE && (
+                    <Text style={{ flex: 1, fontSize: 13, textAlign: 'right', fontVariant: ['tabular-nums'], fontWeight: '600', color: week.net == null || !week.days ? c.muted : week.net < 0 ? '#86AA80' : week.net > 300 ? COL_WARN : c.muted }}>
+                      {week.net != null && week.days > 0 ? `${week.net > 0 ? '+' : ''}${week.net.toLocaleString()}` : '—'}
                     </Text>
-                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
-                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.protein + 'g' : '—'}</Text>
-                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.carbs + 'g' : '—'}</Text>
-                    <Text style={[s.weeklyTd, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.fat + 'g' : '—'}</Text>
-                    {todayTDEE && (
-                      <Text style={[s.weeklyTd, { flex: 1, color: netColor, fontWeight: week.net != null ? '600' : '400' }]}>
-                        {week.net == null ? '—' : (week.net > 0 ? '+' : '') + week.net.toLocaleString()}
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+        </>)}
+
+        {/* ══ SESSIONS tab ══ */}
+        {/* ══ SESSIONS tab ══ */}
+        {activeTab === 'sessions' && (() => {
+          const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
+          const rows = completed.slice(0, 10);
+          if (!rows.length) return (
+            <View style={s.card}>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No sessions yet.</Text>
+            </View>
+          );
+          const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
+          return (
+            <View style={s.card}>
+              <CardHeader title="Recent sessions" meta="last 10" c={c} />
+              {rows.map((session, idx) => {
+                const highlights = computeHighlights(session, completed);
+                const volLbs = Math.round((session.totalVolumeKg ?? 0) * KG_TO_LBS);
+                const rt = session.routineType ?? (volLbs > 0 ? 'strength' : session.totalSteps ? 'steps' : 'cardio_duration');
+                const totalSecs = session.totalDurationSeconds ?? session.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+
+                let primaryVal: number | null = null;
+                let primaryUnit = 'lbs';
+                if (rt === 'steps') {
+                  primaryVal = session.totalSteps != null && totalSecs > 0 ? Math.round(session.totalSteps / (totalSecs / 60)) : null;
+                  primaryUnit = 'stairs/min';
+                } else if (rt === 'cardio_distance') {
+                  const distMiles = session.totalDistanceMeters ? session.totalDistanceMeters / 1609.34 : null;
+                  primaryVal = distMiles && session.durationMinutes ? Number((distMiles / session.durationMinutes).toFixed(2)) : null;
+                  primaryUnit = 'mi/min';
+                } else if (rt === 'cardio_duration') {
+                  primaryVal = totalSecs ? Math.round(totalSecs / 60) : (session.durationMinutes ?? null);
+                  primaryUnit = 'min';
+                } else {
+                  primaryVal = volLbs > 0 ? volLbs : null;
+                }
+
+                const prior = completed.find((x) => x.id !== session.id && x.routineId != null && x.routineId === session.routineId && x.workoutDate < session.workoutDate);
+                let priorVal: number | null = null;
+                if (prior) {
+                  const priorVolLbs = Math.round((prior.totalVolumeKg ?? 0) * KG_TO_LBS);
+                  const priorSecs = prior.totalDurationSeconds ?? prior.exercises.reduce((acc, e) => acc + (e.totalDurationSeconds ?? 0), 0);
+                  if (rt === 'steps') {
+                    priorVal = prior.totalSteps != null && priorSecs > 0 ? Math.round(prior.totalSteps / (priorSecs / 60)) : null;
+                  } else if (rt === 'cardio_distance') {
+                    const priorMiles = prior.totalDistanceMeters ? prior.totalDistanceMeters / 1609.34 : null;
+                    priorVal = priorMiles && prior.durationMinutes ? Number((priorMiles / prior.durationMinutes).toFixed(2)) : null;
+                  } else if (rt === 'cardio_duration') {
+                    priorVal = priorSecs ? Math.round(priorSecs / 60) : (prior.durationMinutes ?? null);
+                  } else {
+                    priorVal = priorVolLbs > 0 ? priorVolLbs : null;
+                  }
+                }
+
+                const delta = priorVal != null && primaryVal != null ? primaryVal - priorVal : null;
+                const deltaPct = delta != null && priorVal && priorVal > 0 ? (delta / priorVal * 100) : null;
+                const sessionName = session.routineName ?? session.name ?? (session.exercises.length > 0 ? session.exercises.map((e) => e.name).join(', ') : 'Workout');
+                const dateLabel = new Date(session.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                const secondaryParts: string[] = [];
+                if (primaryVal != null) secondaryParts.push(primaryUnit === 'lbs' ? `${fmtNum(primaryVal)} lb` : `${primaryVal} ${primaryUnit}`);
+                if (session.caloriesBurned) secondaryParts.push(`${fmtNum(session.caloriesBurned)} kcal`);
+
+                return (
+                  <View key={session.id} style={{ paddingVertical: 10, borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+                    {/* Line 1: date · name · vs prior */}
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                      <Text style={{ fontSize: 11, color: c.muted, fontVariant: ['tabular-nums'], width: 42 }}>{dateLabel}</Text>
+                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: c.text }} numberOfLines={1}>{sessionName}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: deltaPct != null ? (delta! >= 0 ? '#86AA80' : '#C5896E') : c.muted }}>
+                        {deltaPct != null
+                          ? `${delta! >= 0 ? '▲' : '▼'}${Math.abs(Math.round(deltaPct))}%`
+                          : prior === undefined && session.routineId ? 'first' : '—'}
                       </Text>
-                    )}
+                    </View>
+                    {/* Line 2: metric · calories · highlights */}
+                    <View style={{ flexDirection: 'row', marginTop: 3, marginLeft: 48, gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {secondaryParts.length > 0 && (
+                        <Text style={{ fontSize: 12, color: c.muted, fontVariant: ['tabular-nums'] }}>{secondaryParts.join(' · ')}</Text>
+                      )}
+                      {highlights.map((h, i) => (
+                        <Text key={i} style={{ fontSize: 12, color: COL_GOLD }}>★ {h}</Text>
+                      ))}
+                    </View>
                   </View>
                 );
               })}
             </View>
-          </View>
-        )}
-
-        {/* ── Body Composition ── */}
-        <View style={s.card}>
-          <CardHeader title="Body Composition" meta="latest readings" c={c} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {BODY_COMP_METRICS.map((key) => {
-              const cfg = METRIC_CONFIG[key];
-              const forMetric = measurements
-                .filter((m) => m.metric === key)
-                .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-              const latest = forMetric[0];
-              const monthAgo = forMetric.find((m) => m.measuredAt <= thirtyDaysAgo);
-
-              const latestNum = latest
-                ? (key === 'weight' && latest.unit === 'kg' ? latest.value * KG_TO_LBS : latest.value)
-                : null;
-              const prevNum = monthAgo
-                ? (key === 'weight' && monthAgo.unit === 'kg' ? monthAgo.value * KG_TO_LBS : monthAgo.value)
-                : null;
-              const displayVal = latestNum != null ? latestNum.toFixed(1) : null;
-
-              let deltaText: string | null = null;
-              let deltaColor: string = c.muted;
-              if (latestNum != null && prevNum != null && monthAgo?.id !== latest?.id) {
-                const delta = latestNum - prevNum;
-                const dir = cfg.dir === 'up' ? (delta >= 0 ? 'good' : 'bad') : (delta <= 0 ? 'good' : 'bad');
-                const sign = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-                deltaText = `${sign} ${Math.abs(Math.round(delta * 10) / 10)}${cfg.unit}`;
-                deltaColor = dir === 'good' ? '#86AA80' : Math.abs(delta / (prevNum || 1)) > 0.05 ? '#C5896E' : COL_GOLD;
-              }
-
-              return (
-                <View key={key} style={{ width: '47%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 10, gap: 4 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: cfg.color }} />
-                    <Text style={{ fontSize: 11, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{cfg.label}</Text>
-                  </View>
-                  {displayVal != null ? (
-                    <>
-                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'], lineHeight: 26 }}>
-                        {displayVal}{cfg.unit ? <Text style={{ fontSize: fontSize.sm, color: c.muted }}> {cfg.unit}</Text> : null}
-                      </Text>
-                      {deltaText && <Text style={{ fontSize: 11, color: deltaColor, fontWeight: '600' }}>{deltaText} / mo</Text>}
-                    </>
-                  ) : (
-                    <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 4 }}>—{'\n'}Log it</Text>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        </>)}
-
-        {/* ══ Exercise tab ══ */}
-        {activeTab === 'exercise' && (<>
-
-        {/* ── This Week ── */}
-        <View style={s.card}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <CardHeader title="This Week" c={c} />
-            {weekStreak > 0 && (
-              <View style={{ backgroundColor: streakIsMilestone ? COL_GOLD + '33' : 'rgba(255,255,255,0.07)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: streakIsMilestone ? COL_GOLD : c.muted }}>
-                  {weekStreak}-week streak
-                </Text>
-              </View>
-            )}
-          </View>
-          <ProgressBar label="Workouts" actual={weekWorkouts} goal={weekWorkoutGoal} unit="" color={COL_GOLD} c={c} />
-          <ProgressBar label="Volume"   actual={weekVolumeLbs} goal={volumeGoal}    unit=" lbs" color={COL_VOL} c={c} />
-          {(weekDelta.volumePct != null || weekDelta.stepsPct != null) && (
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
-              {weekDelta.volumePct != null && (
-                <Text style={{ fontSize: fontSize.sm, color: weekDelta.volumePct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
-                  {weekDelta.volumePct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.volumePct)}% vol vs last wk
-                </Text>
-              )}
-              {weekDelta.stepsPct != null && (
-                <Text style={{ fontSize: fontSize.sm, color: weekDelta.stepsPct >= 0 ? '#34d399' : '#f87171', fontVariant: ['tabular-nums'] }}>
-                  {weekDelta.stepsPct >= 0 ? '↑' : '↓'} {Math.abs(weekDelta.stepsPct)}% steps vs last wk
-                </Text>
-              )}
-            </View>
-          )}
-          <DayVolumeBars workouts={workouts} volumeGoal={volumeGoal} routineGoals={routineGoals} c={c} />
-        </View>
-
-        {/* ── Volume Heatmap ── */}
-        {workouts.some((w) => w.routineId) && (
-          <View style={s.card}>
-            <CardHeader title="Volume Heatmap" meta="by routine × week" c={c} />
-            <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
-          </View>
-        )}
-
-        {/* ── Creatine ── */}
-        {creatineData && (
-          <View style={s.card}>
-            <CardHeader title="Creatine" meta={creatineData.phase} c={c} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[s.creatinePhaseBadge, {
-                color: creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171',
-                backgroundColor: (creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171') + '22',
-              }]}>
-                {creatineData.phase}
-              </Text>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{Math.round(creatineData.satPct * 100)}% saturated</Text>
-            </View>
-            <View style={s.progressTrack}>
-              <View style={[s.progressFill, {
-                width: `${creatineData.satPct * 100}%` as any,
-                backgroundColor: creatineData.satPct >= 0.9 ? '#34d399' : creatineData.satPct >= 0.5 ? '#facc15' : '#f87171',
-              }]} />
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-              <View style={s.creatineStat}>
-                <Text style={s.creatineStatVal}>{creatineData.daysSinceStart}d</Text>
-                <Text style={s.creatineStatLabel}>since start</Text>
-              </View>
-              <View style={s.creatineStat}>
-                <Text style={[s.creatineStatVal, { color: creatineData.compliancePct >= 0.9 ? '#34d399' : creatineData.compliancePct >= 0.7 ? '#facc15' : '#f87171' }]}>
-                  {Math.round(creatineData.compliancePct * 100)}%
-                </Text>
-                <Text style={s.creatineStatLabel}>{creatineData.loggedDays}/{creatineData.daysSinceStart} days</Text>
-              </View>
-              {creatineData.satPct < 1 && creatineData.daysToFull > 0 && (
-                <View style={s.creatineStat}>
-                  <Text style={s.creatineStatVal}>{creatineData.daysToFull}d</Text>
-                  <Text style={s.creatineStatLabel}>to peak</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* ── Personal Bests ── */}
-        <View style={s.card}>
-          <CardHeader title="Personal Bests" meta="All time" c={c} />
-
-          {/* Volume by strength routine — compact 3-col grid */}
-          {(personalBests?.bestVolumeByRoutine?.length ?? 0) > 0 && (
-            <View style={{ paddingBottom: 10 }}>
-              <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Best Session Volume</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {(personalBests!.bestVolumeByRoutine ?? []).map((r) => (
-                  <View key={r.routineId} style={{ flex: 1 }}>
-                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
-                      {Math.round(r.volumeKg * KG_TO_LBS).toLocaleString()}<Text style={{ fontSize: 13, fontWeight: '400', color: c.muted }}> lbs</Text>
-                    </Text>
-                    <Text style={{ fontSize: 13, color: c.muted, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{r.routineName}</Text>
-                    {r.workoutDate && <Text style={{ fontSize: 13, color: c.muted, opacity: 0.6 }} numberOfLines={1}>{fmtPbDate(r.workoutDate)}</Text>}
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Heaviest single lift */}
-          {personalBests?.heaviestLift && (
-            <View style={[s.pbRow, (personalBests.bestVolumeByRoutine?.length ?? 0) > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>{personalBests.heaviestLift.exerciseName}</Text>
-                <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                  {personalBests.heaviestLift.reps != null ? `${personalBests.heaviestLift.reps} rep${personalBests.heaviestLift.reps !== 1 ? 's' : ''} · ` : ''}Heaviest set · {fmtPbDate(personalBests.heaviestLift.workoutDate)}
-                </Text>
-              </View>
-              <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
-                {Math.round(personalBests.heaviestLift.weightKg * KG_TO_LBS).toLocaleString()} lbs
-              </Text>
-            </View>
-          )}
-
-          {/* Most calories burned — always shown */}
-          <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
-                Most Calories Burned
-              </Text>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2 }}>
-                {personalBests?.mostCaloriesBurned
-                  ? `${personalBests.mostCaloriesBurned.workoutName} · ${fmtPbDate(personalBests.mostCaloriesBurned.workoutDate)}`
-                  : 'No data yet'}
-              </Text>
-            </View>
-            <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.mostCaloriesBurned ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
-              {personalBests?.mostCaloriesBurned
-                ? <>{personalBests.mostCaloriesBurned.calories.toLocaleString()}<Text style={{ fontSize: fontSize.sm, fontWeight: '400', color: c.muted }}> kcal</Text></>
-                : '—'}
-            </Text>
-          </View>
-
-          {/* Best stair pace — always shown */}
-          <View style={[s.pbRow, { borderTopWidth: 1, borderTopColor: c.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: c.text }}>
-                {personalBests?.bestStairPace?.exerciseName ?? 'Best Stair Pace'}
-              </Text>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                {personalBests?.bestStairPace ? `Best pace · ${fmtPbDate(personalBests.bestStairPace.workoutDate)}` : 'No data yet'}
-              </Text>
-            </View>
-            <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: personalBests?.bestStairPace ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
-              {personalBests?.bestStairPace
-                ? <>{Math.round(personalBests.bestStairPace.pacePerMinute)}<Text style={{ fontSize: fontSize.sm, fontWeight: '400', color: c.muted }}> stairs/min</Text></>
-                : '—'}
-            </Text>
-          </View>
-
-        </View>
-
-        {/* ── Recent Workouts ── */}
-        {recentWorkouts.length > 0 && (
-          <View style={s.card}>
-            <CardHeader title="Recent Workouts" meta={`Last ${recentWorkouts.length} sessions`} c={c} />
-            {recentWorkouts.map((w, i) => {
-              const rt = (w as any).routineType as string | null | undefined;
-              const rName = w.routineId ? (routineById[w.routineId]?.name ?? w.name ?? 'Workout') : (w.name ?? 'Free workout');
-              let volDisplay: string;
-              if (rt === 'steps') {
-                const steps = (w as any).totalSteps as number | null;
-                const dur = w.totalDurationSeconds;
-                const pace = steps && dur ? Math.round(steps / (dur / 60)) : 0;
-                volDisplay = pace > 0 ? `${pace} stairs/min` : '—';
-              } else if (rt === 'cardio_distance') {
-                const dm = (w as any).totalDistanceMeters as number | null;
-                const dur = w.totalDurationSeconds;
-                const pace = dm && dur ? (dm / 1609.34) / (dur / 60) : 0;
-                volDisplay = pace > 0 ? `${pace.toFixed(2)} mi/min` : '—';
-              } else if (rt === 'cardio_duration') {
-                const ds = (w as any).totalDurationSeconds;
-                volDisplay = ds ? `${Math.floor(ds / 60)} min` : '—';
-              } else {
-                const volLbs = Math.round((w.totalVolumeKg ?? 0) * KG_TO_LBS);
-                volDisplay = volLbs > 0 ? `${volLbs.toLocaleString()} lbs` : '—';
-              }
-              const highlights = computeHighlight(w, workouts);
-              return (
-                <View key={w.id} style={[s.workoutRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
-                        {new Date(w.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        {w.durationMinutes ? `  ·  ${w.durationMinutes} min` : ''}
-                      </Text>
-                      <Text style={{ fontSize: fontSize.sm, color: c.text, fontWeight: '500', marginTop: 1 }}>{rName}</Text>
-                      {highlights.length > 0 && (
-                        <View style={{ marginTop: 2, gap: 2 }}>
-                          {highlights.map((h, idx) => (
-                            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: COL_GOLD }} />
-                              <Text style={{ fontSize: fontSize.sm, color: COL_GOLD }}>{h}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: fontSize.sm, color: c.muted, fontVariant: ['tabular-nums'] }}>{volDisplay}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        </>)}
-
-        {/* ══ Goals tab ══ */}
-        {activeTab === 'goals' && (<>
-
-        {/* ── North Star Goals ── */}
-        <View style={s.card}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <CardHeader title="North Star Goals" c={c} />
-            </View>
-            <TouchableOpacity
-              onPress={() => openMeasModal('weight')}
-              style={{ backgroundColor: c.accent + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-            >
-              <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: c.accent }}>+ Log</Text>
-            </TouchableOpacity>
-          </View>
-          {NORTH_STAR_METRICS.map((key) => {
-            const cfg = METRIC_CONFIG[key];
-            const sorted = measurements
-              .filter((m) => m.metric === key)
-              .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
-            const latest = sorted[0];
-            const goal = measGoals[key];
-            const displayVal = latest
-              ? (key === 'weight' && latest.unit === 'kg' ? (latest.value * KG_TO_LBS).toFixed(1) : String(latest.value))
-              : null;
-            const { status, pct, projectedDate } = goal
-              ? computeGoalPace(measurements, key, goal, cfg.dir)
-              : { status: 'red' as PaceStatus, pct: 0, projectedDate: null };
-            const paceColor = PACE_COLORS[status];
-            const delta = goal && displayVal != null ? (goal.targetValue - Number(displayVal)).toFixed(1) : null;
-            const deltaNum = delta != null ? Number(delta) : null;
-            return (
-              <View key={key} style={[s.metricRow, { borderTopColor: c.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={[s.metricLabel, { color: cfg.color }]}>{cfg.label}</Text>
-                  <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '22' }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: paceColor }}>{PACE_LABELS[status]}</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <Text style={s.metricCurrent}>
-                    {displayVal ?? '—'} <Text style={{ fontSize: fontSize.sm, color: c.muted, fontWeight: '400' }}>{cfg.unit}</Text>
-                  </Text>
-                  {goal && (
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
-                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{goal.targetValue} {cfg.unit}</Text>
-                      {deltaNum != null && deltaNum !== 0 && (
-                        <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: paceColor }}>
-                          {deltaNum > 0 ? '+' : ''}{delta} {cfg.unit}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-                <View style={s.progressTrack}>
-                  <View style={[s.progressFill, { width: `${pct * 100}%` as any, backgroundColor: paceColor }]} />
-                </View>
-                {projectedDate && (
-                  <Text style={{ fontSize: fontSize.sm, fontWeight: '600', textAlign: 'center', color: paceColor }}>{status === 'done' ? `Achieved: ${projectedDate}` : `Proj: ${projectedDate}`}</Text>
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        </>)}
+          );
+        })()}
 
         <View style={{ height: 24 }} />
       </ScrollView>
-
-      {/* Add measurement modal */}
-      <Modal visible={measModalVisible} transparent animationType="fade" onRequestClose={() => setMeasModalVisible(false)}>
-        <View style={s.measOverlay}>
-          <View style={s.measModal}>
-            <Text style={s.measTitle}>Log Measurement</Text>
-
-            <Text style={s.measLabel}>Metric</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-              {NORTH_STAR_METRICS.map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  onPress={() => setMeasModalMetric(m)}
-                  style={[s.measChip, measModalMetric === m && { backgroundColor: c.accent, borderColor: c.accent }]}
-                >
-                  <Text style={[s.measChipText, { color: measModalMetric === m ? c.bg : c.muted }]}>
-                    {METRIC_CONFIG[m].label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={s.measLabel}>Value ({METRIC_CONFIG[measModalMetric].unit})</Text>
-            <TextInput
-              style={s.measInput}
-              value={measModalValue}
-              onChangeText={setMeasModalValue}
-              placeholder="0.0"
-              placeholderTextColor={c.muted}
-              keyboardType="decimal-pad"
-              autoFocus
-            />
-
-            <Text style={s.measLabel}>Date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={s.measInput}
-              value={measModalDate}
-              onChangeText={setMeasModalDate}
-              placeholder="2026-01-01"
-              placeholderTextColor={c.muted}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="done"
-              onSubmitEditing={submitMeasurement}
-            />
-
-            <View style={s.measButtons}>
-              <TouchableOpacity onPress={() => setMeasModalVisible(false)} style={s.measCancelBtn}>
-                <Text style={s.measCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={submitMeasurement} disabled={measModalSaving} style={[s.measSaveBtn, measModalSaving && { opacity: 0.5 }]}>
-                <Text style={s.measSaveText}>{measModalSaving ? 'Saving…' : 'Save'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 function makeStyles(c: Colors) {
   return StyleSheet.create({
-    pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
-    pageTitle:  { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
-    scroll:     { padding: 14, gap: 12 },
-    card:       { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
-
-    metricRow:    { borderTopWidth: 1, paddingTop: 10, gap: 6 },
-    metricLabel:  { fontSize: fontSize.sm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-    metricCurrent: { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
-    progressTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
-    progressFill:  { height: '100%', borderRadius: 2 },
-
-    creatinePhaseBadge: { fontSize: 13, fontWeight: '700', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-    creatineStat:       { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 8, alignItems: 'center' },
-    creatineStatVal:    { fontSize: fontSize.base, fontWeight: '700', color: c.text },
-    creatineStatLabel:  { fontSize: 13, color: c.muted, marginTop: 2 },
-
-    pbRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10 },
-    workoutRow: { gap: 2 },
-    empty:    { fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 12 },
-
-    weeklyTh: { fontSize: 13, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
-    weeklyTd: { fontSize: 13, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
-
-    measOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-    measModal: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '88%', borderWidth: 1, borderColor: c.border },
-    measTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text, marginBottom: 14 },
-    measLabel: { fontSize: fontSize.sm, color: c.muted, marginBottom: 6 },
-    measInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: fontSize.sm, color: c.text, marginBottom: 14 },
-    measChip: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: c.border },
-    measChipText: { fontSize: fontSize.sm, fontWeight: '600' },
-    measButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
-    measCancelBtn: { paddingVertical: 8, paddingHorizontal: 14 },
-    measCancelText: { color: c.muted, fontSize: fontSize.sm },
-    measSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 8 },
-    measSaveText: { color: c.bg, fontWeight: '700', fontSize: fontSize.sm },
-  });
-}
-
-function makeSegStyles(c: Colors) {
-  return StyleSheet.create({
-    scroll:    { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: c.border },
-    row:       { flexDirection: 'row', alignItems: 'stretch' },
-    btn:       { paddingHorizontal: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-    btnActive: { borderBottomWidth: 2, borderBottomColor: COL_GOLD },
-    label:     { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
-    labelActive: { color: COL_GOLD, fontWeight: '700' },
+    pageHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    pageTitle:   { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
+    segScroll:   { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: c.border },
+    segRow:      { flexDirection: 'row', alignItems: 'stretch' },
+    segBtn:      { paddingHorizontal: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+    segBtnActive: { borderBottomWidth: 2, borderBottomColor: COL_GOLD },
+    segLabel:    { fontSize: fontSize.sm, color: c.muted, fontWeight: '500' },
+    segLabelActive: { color: COL_GOLD, fontWeight: '700' },
+    scroll:      { padding: 14, gap: 12 },
+    card:        { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
+    th:          { fontSize: 11, color: c.muted, fontWeight: '600', textAlign: 'right', paddingHorizontal: 2 },
+    td:          { fontSize: 13, color: c.text, textAlign: 'right', paddingHorizontal: 2, fontVariant: ['tabular-nums'] },
   });
 }

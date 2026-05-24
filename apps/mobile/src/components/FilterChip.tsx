@@ -25,10 +25,10 @@ export default function FilterChip({ label, active, onPress }: Props) {
 
 function makeStyles(c: Colors) {
   return StyleSheet.create({
-    chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+    chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginRight: 6 },
     active: { backgroundColor: c.accent, borderColor: c.accent },
     inactive: { backgroundColor: 'transparent', borderColor: c.border },
-    label: { fontSize: fontSize.sm, fontWeight: '600' },
+    label: { fontSize: 12, fontWeight: '600' },
     activeLabel: { color: c.bg },
     inactiveLabel: { color: c.muted },
   });
