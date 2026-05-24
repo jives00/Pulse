@@ -15,7 +15,8 @@ import {
 } from '../../../src/api/client';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
-  computeHighlights,
+  computeHighlights, buildWeeklyData,
+  type WeekBucket,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -30,7 +31,7 @@ const COL_GOOD    = '#7BB389';
 const COL_WARN    = '#C9714F';
 
 
-const TABS = ['today', 'goals', 'history', 'trends', 'sessions'] as const;
+const TABS = ['today', 'goals', 'trends', 'sessions'] as const;
 type Tab = typeof TABS[number];
 
 type RecoveryData = { level: 'high' | 'medium' | 'low'; score: number; hint: string };
@@ -233,78 +234,46 @@ function GoalStatusChip({ status }: { status: GoalStatus }) {
 }
 
 // ── Routine heatmap ───────────────────────────────────────────────────────────
-function RoutineHeatmap({ workouts, routinesList, c }: { workouts: WorkoutSummary[]; routinesList: RoutineSummary[]; c: Colors }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const WEEKS = 8;
-  const now = new Date();
-  const weeks = Array.from({ length: WEEKS }, (_, i) => {
-    const d = new Date(now); d.setDate(d.getDate() - (WEEKS - 1 - i) * 7);
-    return getWeekStart(localDateStr(d));
-  });
-  const routineById = Object.fromEntries(routinesList.map((r) => [r.id, r]));
-  const routineVol: Record<number, Record<string, number>> = {};
-  for (const w of workouts) {
-    if (!w.routineId) continue;
-    const volLbs = (w.totalVolumeKg ?? 0) * KG_TO_LBS;
-    if (volLbs <= 0) continue;
-    const ws = getWeekStart(w.workoutDate);
-    if (!routineVol[w.routineId]) routineVol[w.routineId] = {};
-    routineVol[w.routineId][ws] = (routineVol[w.routineId][ws] ?? 0) + volLbs;
-  }
-  const ids = Object.keys(routineVol).map(Number).filter((id) => weeks.some((ws) => (routineVol[id][ws] ?? 0) > 0));
-  if (ids.length === 0) return <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center', paddingVertical: 8 }}>No data yet</Text>;
-  const globalMax = Math.max(...ids.flatMap((id) => Object.values(routineVol[id])), 1);
-  ids.sort((a, b) => (routineById[a]?.name ?? '').localeCompare(routineById[b]?.name ?? ''));
-  const nameColW = 88; const cellGap = 2;
-  const cellW = Math.max(Math.floor((screenWidth - 56 - nameColW - (WEEKS - 1) * cellGap) / WEEKS), 14);
-  const cellH = 16;
-  function cellColor(vol: number) {
-    if (vol <= 0) return 'rgba(255,255,255,0.05)';
-    const t = 0.12 + (vol / globalMax) * 0.88;
-    return `rgb(${Math.round(212 * t + 30 * (1 - t))},${Math.round(168 * t + 30 * (1 - t))},${Math.round(67 * t + 30 * (1 - t))})`;
-  }
-  return (
-    <View style={{ gap: 8 }}>
-      {ids.map((id) => (
-        <View key={id} style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: nameColW }}><Text style={{ fontSize: fontSize.sm, color: c.text }} numberOfLines={1}>{routineById[id]?.name ?? `#${id}`}</Text></View>
-          <View style={{ flexDirection: 'row', gap: cellGap }}>
-            {weeks.map((ws) => (
-              <View key={ws} style={{ width: cellW, height: cellH, borderRadius: 3, backgroundColor: cellColor(routineVol[id][ws] ?? 0) }} />
-            ))}
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 // ── Weekly averages helper ────────────────────────────────────────────────────
-function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: WorkoutSummary[], todayTDEE: TDEEBreakdown | null, numWeeks = 5) {
+function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: WorkoutSummary[], todayTDEE: TDEEBreakdown | null) {
   const now = new Date();
-  const weeks: { weekStart: string; label: string; calories: number; protein: number; workoutDays: number; weight: number; days: number; isCurrentWeek: boolean }[] = [];
-  for (let i = numWeeks - 1; i >= 0; i--) {
+  const exerciseByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
+  }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+  const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
     const d = new Date(now); d.setDate(d.getDate() - i * 7);
     const ws = getWeekStart(localDateStr(d));
     const weekDate = new Date(ws + 'T12:00:00');
-    weeks.push({ weekStart: ws, label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), calories: 0, protein: 0, workoutDays: 0, weight: 0, days: 0, isCurrentWeek: ws === getWeekStart(localDateStr()) });
+    weeks.push({ weekStart: ws, label: weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), calories: 0, protein: 0, carbs: 0, fat: 0, tdee: null, net: null, isCurrentWeek: ws === getWeekStart(localDateStr()), days: 0 });
   }
   for (const day of foodLogHistory) {
-    const week = weeks.find((w) => w.weekStart === getWeekStart(day.date));
+    const ws = getWeekStart(day.date);
+    const week = weeks.find((wk) => wk.weekStart === ws);
     if (!week) continue;
-    week.calories += day.calories; week.protein += day.protein; week.days++;
-  }
-  const workoutsByWeek: Record<string, Set<string>> = {};
-  for (const w of workouts) {
-    const ws = getWeekStart(w.workoutDate);
-    if (!workoutsByWeek[ws]) workoutsByWeek[ws] = new Set();
-    workoutsByWeek[ws].add(w.workoutDate);
+    week.calories += day.calories;
+    week.protein += day.protein;
+    week.carbs += day.entries.reduce((s, e) => s + e.carbsG, 0);
+    week.fat += day.entries.reduce((s, e) => s + e.fatG, 0);
+    week.days++;
+    if (baseline != null) {
+      const tef = Math.round(day.calories * 0.1);
+      const ex = exerciseByDate[day.date] ?? 0;
+      week.tdee = (week.tdee ?? 0) + baseline + tef + ex;
+    }
   }
   for (const week of weeks) {
-    if (week.days > 0) { week.calories = Math.round(week.calories / week.days); week.protein = Math.round(week.protein / week.days); }
-    week.workoutDays = workoutsByWeek[week.weekStart]?.size ?? 0;
+    if (week.days > 0) {
+      week.calories = Math.round(week.calories / week.days);
+      week.protein  = Math.round(week.protein  / week.days);
+      week.carbs    = Math.round(week.carbs    / week.days);
+      week.fat      = Math.round(week.fat      / week.days);
+      if (week.tdee != null) { week.tdee = Math.round(week.tdee / week.days); week.net = week.calories - week.tdee; }
+    }
   }
-  return [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek);
+  return [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek).slice(0, 5);
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -452,8 +421,9 @@ export default function DashboardV4Screen() {
   const weightMin = allW.length ? Math.min(...allW) * 0.98 : 0;
   const weightMax = allW.length ? Math.max(...allW) * 1.02 : 1;
 
-  // Weekly averages
+  // Weekly averages & volume buckets
   const weeklyAverages = buildWeeklyAverages(foodLogHistory, workouts, todayTDEE);
+  const weeklyData: WeekBucket[] = buildWeeklyData(workouts);
 
   if (loading) return <ActivityIndicator style={{ marginTop: 60 }} color={COL_GOLD} />;
 
@@ -477,7 +447,7 @@ export default function DashboardV4Screen() {
         {TABS.map((t) => (
           <TouchableOpacity key={t} style={[s.segBtn, activeTab === t && s.segBtnActive]} onPress={() => setActiveTab(t)}>
             <Text style={[s.segLabel, activeTab === t && s.segLabelActive]}>
-              {t === 'today' ? 'Today' : t === 'goals' ? 'Goals' : t === 'history' ? 'History' : t === 'trends' ? 'Trends' : 'Sessions'}
+              {t === 'today' ? 'Today' : t === 'goals' ? 'Goals' : t === 'trends' ? 'Trends' : 'Sessions'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -1021,79 +991,233 @@ export default function DashboardV4Screen() {
         </>)}
 
         {/* ══ HISTORY tab ══ */}
-        {activeTab === 'history' && (<>
+        {/* ══ TRENDS tab ══ */}
+        {activeTab === 'trends' && (<>
 
-          {/* Weekly averages */}
+          {/* ── Calories consumed vs burned ── */}
+          {(() => {
+            const exByDate: Record<string, number> = {};
+            for (const w of workouts) { if (w.caloriesBurned) exByDate[w.workoutDate] = (exByDate[w.workoutDate] ?? 0) + w.caloriesBurned; }
+            const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+            const series = foodLogHistory.slice(-14).map((d) => {
+              const tef = Math.round(d.calories * 0.1);
+              const ex = exByDate[d.date] ?? 0;
+              const tdee = baseline != null ? baseline + tef + ex : 0;
+              return { cal: Math.round(d.calories), tdee, date: d.date };
+            }).filter((d) => d.cal > 0 || d.tdee > 0);
+            if (!series.length) return (
+              <View style={s.card}>
+                <CardHeader title="Calories · consumed vs burned" meta="14 days" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No nutrition data in the last 30 days.</Text>
+              </View>
+            );
+            const calVals  = series.map((d) => d.cal);
+            const tdeeVals = series.map((d) => d.tdee);
+            const hasTDEE  = tdeeVals.some(Boolean);
+            const consumedAvg = Math.round(calVals.reduce((a, b) => a + b, 0) / calVals.length);
+            const burnedFiltered = tdeeVals.filter(Boolean);
+            const burnedAvg = burnedFiltered.length ? Math.round(burnedFiltered.reduce((a, b) => a + b, 0) / burnedFiltered.length) : 0;
+            const deficit = consumedAvg - burnedAvg;
+            const allVals = [...calVals, ...tdeeVals.filter(Boolean)].filter(Boolean);
+            const chartMin = allVals.length ? Math.min(...allVals) * 0.92 : 0;
+            const chartMax = allVals.length ? Math.max(...allVals) * 1.05 : 1;
+            return (
+              <View style={s.card}>
+                <CardHeader title="Calories · consumed vs burned" meta="14 days" c={c} />
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Consumed avg</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{consumedAvg.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> kcal</Text></Text>
+                  </View>
+                  {burnedAvg > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Burned avg (TDEE)</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{burnedAvg.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> kcal</Text></Text>
+                    </View>
+                  )}
+                  {burnedAvg > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Avg daily net</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: deficit < 0 ? COL_GOOD : COL_WARN, fontVariant: ['tabular-nums'] }}>{deficit > 0 ? '+' : ''}{deficit.toLocaleString()}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ height: CHART_H + 4, position: 'relative' }}>
+                  <MiniLineChart data={calVals} color={COL_GOLD} minOverride={chartMin} maxOverride={chartMax} />
+                  {hasTDEE && (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.65 }}>
+                      <MiniLineChart data={tdeeVals} color={COL_TDEE} minOverride={chartMin} maxOverride={chartMax} />
+                    </View>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 14 }}>
+                  <Text style={{ fontSize: 11, color: COL_GOLD }}>── consumed</Text>
+                  {hasTDEE && <Text style={{ fontSize: 11, color: COL_TDEE }}>╌╌ TDEE</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>14 days ago</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Exercise volume week-over-week ── */}
+          {(() => {
+            const weeks12 = weeklyData.slice(-12);
+            const hasVol  = weeks12.some((w) => w.volumeLbs > 0);
+            if (!hasVol) return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · week over week" meta="12 weeks" c={c} />
+                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No workout volume data yet.</Text>
+              </View>
+            );
+            const maxVol  = Math.max(...weeks12.map((w) => w.volumeLbs), 1);
+            const currWk  = weeks12[weeks12.length - 1];
+            const prevWks = weeks12.slice(0, -1).filter((w) => w.volumeLbs > 0);
+            const avgVol  = prevWks.length ? Math.round(prevWks.reduce((s, w) => s + w.volumeLbs, 0) / prevWks.length) : 0;
+            const bestVol = Math.max(...weeks12.map((w) => w.volumeLbs));
+            const delta   = avgVol > 0 ? Math.round(currWk.volumeLbs - avgVol) : null;
+            const BAR_H   = 80;
+            return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · week over week" meta="12 weeks" c={c} />
+                <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>This week</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{Math.round(currWk.volumeLbs).toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                  </View>
+                  {avgVol > 0 && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Avg / week</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{avgVol.toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                    </View>
+                  )}
+                  {delta !== null && (
+                    <View>
+                      <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>vs avg</Text>
+                      <Text style={{ fontSize: 22, fontWeight: '700', color: delta >= 0 ? COL_GOOD : COL_WARN, fontVariant: ['tabular-nums'] }}>{delta > 0 ? '+' : ''}{delta.toLocaleString()}</Text>
+                    </View>
+                  )}
+                  <View>
+                    <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Best week</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>{Math.round(bestVol).toLocaleString()}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> lb</Text></Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 4 }}>
+                  {weeks12.map((wk, i) => {
+                    const barH = wk.volumeLbs > 0 ? Math.max(3, (wk.volumeLbs / maxVol) * BAR_H) : 0;
+                    const isCurr = i === weeks12.length - 1;
+                    const isBest = wk.volumeLbs === bestVol && wk.volumeLbs > 0;
+                    const bg = isCurr ? COL_GOLD : isBest ? `${COL_GOLD}8C` : `${COL_GOLD}47`;
+                    return (
+                      <View key={i} style={{ flex: 1, height: BAR_H, justifyContent: 'flex-end' }}>
+                        <View style={{ height: barH, backgroundColor: bg, borderRadius: 2 }} />
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>12 weeks ago</Text>
+                  <Text style={{ fontSize: 11, color: c.muted }}>this week</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Exercise volume 12-week heatmap ── */}
+          {(() => {
+            const mon = new Date(todayStr + 'T12:00:00');
+            mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+            type HeatCell = { date: string; vol: number };
+            const heatWeeks: HeatCell[][] = [];
+            for (let w = 11; w >= 0; w--) {
+              const row: HeatCell[] = [];
+              for (let d = 0; d < 7; d++) {
+                const cell = new Date(mon); cell.setDate(mon.getDate() - w * 7 + d);
+                row.push({ date: localDateStr(cell), vol: 0 });
+              }
+              heatWeeks.push(row);
+            }
+            for (const w of workouts) {
+              for (const wk of heatWeeks) {
+                const cell = wk.find((c) => c.date === w.workoutDate);
+                if (cell) cell.vol += w.totalVolumeKg * KG_TO_LBS;
+              }
+            }
+            const maxVol = Math.max(...heatWeeks.flatMap((wk) => wk.map((c) => c.vol)), 1);
+            function heatColor(vol: number) {
+              if (!vol) return 'rgba(255,255,255,0.04)';
+              const op = Math.round((0.2 + (vol / maxVol) * 0.72) * 255);
+              return COL_GOLD + op.toString(16).padStart(2, '0');
+            }
+            const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+            return (
+              <View style={s.card}>
+                <CardHeader title="Exercise volume · 12-week heatmap" c={c} />
+                <View style={{ flexDirection: 'row', gap: 5 }}>
+                  <View style={{ gap: 4, paddingTop: 1 }}>
+                    {dayLabels.map((d, i) => (
+                      <View key={i} style={{ height: 16, justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 10, color: c.muted, width: 10 }}>{d}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={{ flex: 1, flexDirection: 'row', gap: 4 }}>
+                    {heatWeeks.map((wk, wi) => (
+                      <View key={wi} style={{ flex: 1, gap: 4 }}>
+                        {wk.map((cell, di) => (
+                          <View key={di} style={{ height: 16, backgroundColor: heatColor(cell.vol), borderRadius: 2 }} />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>12 weeks ago</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Text style={{ fontSize: 11, color: c.muted }}>less</Text>
+                    {[0.2, 0.4, 0.6, 0.85].map((op, i) => (
+                      <View key={i} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: COL_GOLD + Math.round(op * 255).toString(16).padStart(2, '0') }} />
+                    ))}
+                    <Text style={{ fontSize: 11, color: c.muted }}>more</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* ── Weekly averages ── */}
           {weeklyAverages.some((w) => w.days > 0) && (
             <View style={s.card}>
-              <CardHeader title="Weekly Averages" meta="per-day avg · newest first" c={c} />
-              <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: c.border }}>
-                {['Week', 'Cal/d', 'Prot', 'Wkts'].map((h, i) => (
-                  <Text key={h} style={[s.th, i === 0 ? { flex: 1.4, textAlign: 'left' } : { flex: 1 }]}>{h}</Text>
+              <CardHeader title="Weekly averages" meta="per-day avg · newest first" c={c} />
+              {/* Header row */}
+              <View style={{ flexDirection: 'row', paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }}>
+                {(['Week', 'Cal', 'Prot', 'Carbs', 'Fat', ...(todayTDEE ? ['Net'] : [])] as string[]).map((h, i) => (
+                  <Text key={h} style={{ flex: i === 0 ? 1.3 : 1, fontSize: 11, color: c.muted, fontWeight: '600', textAlign: i === 0 ? 'left' : 'right' }}>{h}</Text>
                 ))}
               </View>
               {weeklyAverages.map((week) => (
-                <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: c.border + '33' }}>
-                  <Text style={[s.td, { flex: 1.4, textAlign: 'left', color: week.isCurrentWeek ? COL_GOLD : c.muted }]}>{week.isCurrentWeek ? 'Now' : week.label}</Text>
-                  <Text style={[s.td, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
-                  <Text style={[s.td, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.days > 0 ? `${week.protein}g` : '—'}</Text>
-                  <Text style={[s.td, { flex: 1, color: week.days > 0 ? c.text : c.muted }]}>{week.workoutDays}</Text>
+                <View key={week.weekStart} style={{ flexDirection: 'row', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border + '33', backgroundColor: week.isCurrentWeek ? `${COL_GOLD}0A` : undefined, borderRadius: week.isCurrentWeek ? 4 : 0 }}>
+                  <Text style={{ flex: 1.3, fontSize: 13, color: week.isCurrentWeek ? c.text : c.muted, fontVariant: ['tabular-nums'] }}>
+                    {week.label}{week.isCurrentWeek ? <Text style={{ color: COL_GOLD, fontWeight: '600' }}> now</Text> : null}
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? c.text : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.calories.toLocaleString() : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? COL_GOLD : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.protein : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? '#7C9ECB' : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.carbs : '—'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: week.days > 0 ? '#C5896E' : c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{week.days > 0 ? week.fat : '—'}</Text>
+                  {todayTDEE && (
+                    <Text style={{ flex: 1, fontSize: 13, textAlign: 'right', fontVariant: ['tabular-nums'], fontWeight: '600', color: week.net == null || !week.days ? c.muted : week.net < 0 ? '#86AA80' : week.net > 300 ? COL_WARN : c.muted }}>
+                      {week.net != null && week.days > 0 ? `${week.net > 0 ? '+' : ''}${week.net.toLocaleString()}` : '—'}
+                    </Text>
+                  )}
                 </View>
               ))}
             </View>
           )}
 
-          {/* Volume heatmap */}
-          {workouts.some((w) => w.routineId) && (
-            <View style={s.card}>
-              <CardHeader title="Exercise Volume" meta="8 weeks · by routine" c={c} />
-              <RoutineHeatmap workouts={workouts} routinesList={routinesList} c={c} />
-            </View>
-          )}
-
-          {/* Calories chart */}
-          <View style={s.card}>
-            <CardHeader title="Calories · Consumed vs Burned" meta="30 days" c={c} />
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 4 }}>
-              <Text style={{ fontSize: fontSize.sm, color: COL_CAL, fontWeight: '600' }}>Consumed</Text>
-              {hasBurned && <Text style={{ fontSize: fontSize.sm, color: COL_TDEE }}>{tdeeSeries ? 'TDEE' : 'Burned'}</Text>}
-              {caloriesGoal && <Text style={{ fontSize: 11, color: c.muted }}>- - goal</Text>}
-            </View>
-            {(() => {
-              const calMax = Math.max(...calSeries, ...burnedSeries, caloriesGoal ?? 0, 1);
-              return (
-                <View style={{ height: CHART_H + 4, position: 'relative' }}>
-                  <MiniLineChart data={calSeries} color={COL_CAL} goalLine={caloriesGoal} maxOverride={calMax} />
-                  {hasBurned && (
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.7 }}>
-                      <MiniLineChart data={burnedSeries} color={COL_TDEE} maxOverride={calMax} />
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
-          </View>
-
-          {/* Weight chart */}
-          {hasWeight && (
-            <View style={s.card}>
-              <CardHeader title="Weight" meta="30 days" c={c} />
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 4 }}>
-                <Text style={{ fontSize: fontSize.sm, color: COL_WEIGHT, fontWeight: '600' }}>Weight</Text>
-                {weightGoalLbs != null && <Text style={{ fontSize: 11, color: c.muted }}>- - goal {weightGoalLbs.toFixed(1)} lbs</Text>}
-              </View>
-              <MiniLineChart data={weightSeries} color={COL_WEIGHT} goalLine={weightGoalLbs} maxOverride={weightMax} minOverride={weightMin} />
-            </View>
-          )}
-
         </>)}
-
-        {/* ══ TRENDS tab ══ */}
-        {activeTab === 'trends' && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-            <Text style={{ fontSize: fontSize.sm, color: c.muted }}>Trends — coming soon</Text>
-          </View>
-        )}
 
         {/* ══ SESSIONS tab ══ */}
         {activeTab === 'sessions' && (

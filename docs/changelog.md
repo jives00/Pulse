@@ -8,6 +8,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Trends tab** — Replaced History tab with four cards matching the web: Calories consumed vs burned (14-day line chart, consumed=gold, TDEE=gray, avg stats + net); Exercise volume week-over-week (12-week bar chart, current=gold, best=dimmed gold); Exercise volume 12-week heatmap (opacity-scaled gold cells, M–S day labels, legend swatches); Weekly averages table (Cal, Prot/gold, Carbs/blue, Fat/brown, Net/colored; 13px number size; 5 most-recent weeks + current). `2cff22f`
+
 - **Goals tab chart colors + TDEE projection** — Trend projection line changed to indigo (`#818cf8`) and TDEE projection added as a second orange (`#f97316`) line on the weight card, matching the web; weight card actual line changed to gold; all legend labels updated to reflect line colors; GoalStatusChip layout fixed on all four goal cards (CardHeader wrapped in `flex:1` so chips stay on-screen); `getExerciseGoals` corrected to call `/api/goals/exercise`. `45f8ccf`
 
 - **Routine detail overview + progress** — Added Overview stat band (Sessions, Best Volume/Distance/Duration/Steps, Last Performed, Avg/Week) and Progress section (bar chart replacing line chart, Now value, vs-30-days-ago delta with color and %) above the exercise list on the routine detail screen. `2c9523f`
