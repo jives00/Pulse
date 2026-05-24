@@ -700,21 +700,10 @@ export async function getTDEE(token: string, date?: string): Promise<TDEEResult>
   return handle<TDEEResult>(res);
 }
 
-// Exercise goals (wrapper for /user-goals endpoints)
+// Exercise goals
 export async function getExerciseGoals(token: string): Promise<ExerciseGoals> {
-  const res = await fetch(`${API_BASE}/api/user-goals`, { headers: headers(token) });
-  const allGoals = await handle<any[]>(res);
-
-  // Extract exercise goals from user goals using sourceKey
-  const workoutGoal = allGoals.find((g) => g.sourceKey === 'workouts_per_week');
-  const volumeGoal = allGoals.find((g) => g.sourceKey === 'volume_lbs_per_week');
-  const minutesGoal = allGoals.find((g) => g.sourceKey === 'minutes_per_week');
-
-  return {
-    workoutsPerWeek: workoutGoal?.targetValue ?? null,
-    minutesPerWeek: minutesGoal?.targetValue ?? null,
-    volumeLbsPerWeek: volumeGoal?.targetValue ?? null,
-  };
+  const res = await fetch(`${API_BASE}/api/goals/exercise`, { headers: headers(token) });
+  return handle<ExerciseGoals>(res);
 }
 
 export async function saveExerciseGoals(token: string, data: ExerciseGoals): Promise<void> {

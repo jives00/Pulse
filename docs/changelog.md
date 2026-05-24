@@ -8,6 +8,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Goals tab chart colors + TDEE projection** — Trend projection line changed to indigo (`#818cf8`) and TDEE projection added as a second orange (`#f97316`) line on the weight card, matching the web; weight card actual line changed to gold; all legend labels updated to reflect line colors; GoalStatusChip layout fixed on all four goal cards (CardHeader wrapped in `flex:1` so chips stay on-screen); `getExerciseGoals` corrected to call `/api/goals/exercise`. `45f8ccf`
+
 - **Routine detail overview + progress** — Added Overview stat band (Sessions, Best Volume/Distance/Duration/Steps, Last Performed, Avg/Week) and Progress section (bar chart replacing line chart, Now value, vs-30-days-ago delta with color and %) above the exercise list on the routine detail screen. `2c9523f`
 - **Active workout last-session bar** — Sub-bar below the workout header shows last session's total volume and a live colored delta % (▲/▼) comparing current running volume against that target; only visible on active workouts where prior session data exists. `2c9523f`
 - **Planning tab redesigned** — Settings now includes a Planning tab with a 14-day agenda view (vertical list, colored event dots per category) replacing the horizontal card strip; single "Add to schedule" button opens a DayModal with a day-picker strip defaulting to today; DayModal contains Workout, Meals, Goals, and Nutrition tabs; workout add supports routine/exercise/rest day with once-or-recurring; meal add supports food search, recipe search, or custom label; goal checkpoints support metric dropdown, target, date, and notes; nutrition add supports macros and water in glasses; Day Type Presets and Import Program features removed. `71bf8e3`
