@@ -242,6 +242,13 @@ router.get('/tdee', async (req, res) => {
     );
     const exerciseKcal = Number(workoutRows[0]?.totalBurned) || 0;
 
+    // Today's steps
+    const [stepsRows] = await pool.query<RowDataPacket[]>(
+      'SELECT steps FROM steps_log WHERE user_id = ? AND log_date = ?',
+      [req.userId, date]
+    );
+    const stepsKcal = stepsRows[0]?.steps ? Math.round(Number(stepsRows[0].steps) * 0.05) : 0;
+
     const breakdown = calcTDEE({
       weightKg,
       heightCm: Number(u.height_cm),
@@ -250,6 +257,7 @@ router.get('/tdee', async (req, res) => {
       activityLevel: u.activity_level as ActivityLevel,
       caloriesIn,
       exerciseKcal,
+      stepsKcal,
     });
 
     res.json({ available: true, ...breakdown, caloriesIn });

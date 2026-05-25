@@ -27,6 +27,7 @@ export interface TDEEBreakdown {
   neat: number;
   tef: number;
   exercise: number;
+  stepsKcal: number;
   total: number;
   caloriesIn: number;
 }

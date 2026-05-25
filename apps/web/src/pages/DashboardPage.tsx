@@ -1276,7 +1276,7 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
     const recentFood = foodLogHistory.slice(-30).filter(d => d.calories > 0);
     if (recentFood.length > 0) {
       const avgCal = recentFood.reduce((s, d) => s + d.calories, 0) / recentFood.length;
-      const tdeeAtAvg = tdee.bmr + tdee.neat + tdee.exercise + avgCal * 0.1;
+      const tdeeAtAvg = tdee.bmr + tdee.neat + tdee.exercise + avgCal * 0.1 + (tdee.stepsKcal ?? 0);
       tdeeLbsPerDay = (avgCal - tdeeAtAvg) / 3500;
     }
   }

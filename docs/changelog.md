@@ -12,8 +12,13 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Planning tab date indicator** — Changed today's date circle to a square in the planning calendar. `43f3a7d`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules now have Edit buttons in SettingsPlanningTab; clicking Edit pre-fills the form with existing data (type/routineId/exerciseId/recurrence/macros/etc) and calls the update endpoint instead of create; `parseRecConfig` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 
+### API
+
+- **Steps calories in TDEE** — Today's synced steps now contribute to TDEE at 0.05 kcal/step as a dedicated `stepsKcal` field; included in the total but kept separate from NEAT so the activity-level multiplier is unchanged. `1dcae3d`
+
 ### Web
 
+- **Steps calories in TDEE breakdown** — Dashboard weight-goal projection and Workouts dashboard today-card now include steps calories in TDEE; formula description shows step contribution when non-zero. `1dcae3d`
 - **Daily insight banner removed** — Removed the AI insight banner from the top of the dashboard, including the `InsightBanner` component, insight state, and `assistantApi.getInsight()` call. `4a17512`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules in the DayModal now have Edit buttons; clicking Edit pre-fills the form with existing data and calls the update endpoint instead of create; `parseRec` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 - **Links category dropdown icons removed** — Removed emoji icons from the category dropdown in the Links header when adding a new link, displaying only the category label. `d60cc47`

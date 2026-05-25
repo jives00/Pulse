@@ -23,6 +23,7 @@ export interface TDEEBreakdown {
   neat: number;
   tef: number;
   exercise: number;
+  stepsKcal: number;
   total: number;
 }
 
@@ -56,8 +57,9 @@ export function calcTDEE(params: {
   activityLevel: ActivityLevel;
   caloriesIn: number;
   exerciseKcal: number;
+  stepsKcal?: number;
 }): TDEEBreakdown {
-  const { weightKg, heightCm, dob, sex, activityLevel, caloriesIn, exerciseKcal } = params;
+  const { weightKg, heightCm, dob, sex, activityLevel, caloriesIn, exerciseKcal, stepsKcal = 0 } = params;
 
   const dobDate = new Date(dob + 'T00:00:00');
   const now = new Date();
@@ -69,7 +71,8 @@ export function calcTDEE(params: {
   const neat = Math.round((multiplier - 1) * bmr);
   const tef = Math.round(caloriesIn * 0.1);
   const exercise = Math.round(exerciseKcal);
-  const total = bmr + neat + tef + exercise;
+  const steps = Math.round(stepsKcal);
+  const total = bmr + neat + tef + exercise + steps;
 
-  return { bmr, neat, tef, exercise, total };
+  return { bmr, neat, tef, exercise, stepsKcal: steps, total };
 }

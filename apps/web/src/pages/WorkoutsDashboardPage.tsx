@@ -1018,7 +1018,7 @@ function TodaysBlurb({
         <div>
           <p className="font-semibold text-slate-200 mb-2">Last 30 Days — Calories In vs. TDEE</p>
           <p className="text-sm text-dram-muted mb-3">
-            BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF (10% of intake) + exercise per day
+            BMR {todayTDEE.bmr} + NEAT {todayTDEE.neat} + TEF (10% of intake) + exercise per day{todayTDEE.stepsKcal > 0 ? ` + steps (today: ${todayTDEE.stepsKcal} kcal)` : ''}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -1197,7 +1197,7 @@ function FuelTodayCard({
 
   let tdeeToday: number | null = null;
   if (todayTDEE) {
-    tdeeToday = todayTDEE.bmr + todayTDEE.neat + Math.round(calories * 0.1) + burnedToday;
+    tdeeToday = todayTDEE.bmr + todayTDEE.neat + Math.round(calories * 0.1) + burnedToday + (todayTDEE.stepsKcal ?? 0);
   }
   const net = tdeeToday != null ? calories - tdeeToday : null;
   const calPct = caloriesGoal ? Math.min(calories / caloriesGoal, 1) : 0;
