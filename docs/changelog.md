@@ -16,6 +16,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Daily insight banner removed** — Removed the AI insight banner from the top of the dashboard, including the `InsightBanner` component, insight state, and `assistantApi.getInsight()` call. `4a17512`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules in the DayModal now have Edit buttons; clicking Edit pre-fills the form with existing data and calls the update endpoint instead of create; `parseRec` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 - **Links category dropdown icons removed** — Removed emoji icons from the category dropdown in the Links header when adding a new link, displaying only the category label. `d60cc47`
+- **Routine cover image edit** — Routine detail page now displays the cover image in the right column (top of exercises section) with an "Add Photo" / "Change Photo" hover overlay; clicking the overlay opens a file picker to upload or replace the image; uploaded images display immediately via preview and persist after reload. `9c578c4`
 
 ## May 24, 2026
 

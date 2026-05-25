@@ -492,6 +492,9 @@ export default function RoutineDetailPage() {
   const [name, setName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const numId = Number(id);
@@ -581,6 +584,22 @@ export default function RoutineDetailPage() {
       await routinesApi.delete(routine.id);
       navigate('/workouts?tab=routines');
     } catch { /* ignore */ }
+  }
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !routine) return;
+    setPhotoUploading(true);
+    try {
+      const { uploadUrl, key } = await routinesApi.getPhotoUploadUrl(routine.id, file.type);
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      await routinesApi.update(routine.id, { coverImageKey: key });
+      setRoutine((prev) => prev ? { ...prev, coverImageUrl: URL.createObjectURL(file) } : prev);
+    } catch { /* ignore */ }
+    finally {
+      setPhotoUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
   }
 
   const chartData = useMemo(() => {
@@ -735,6 +754,21 @@ export default function RoutineDetailPage() {
 
           {/* Right column — exercises */}
           <div className="p-6 space-y-4 lg:overflow-y-auto">
+            {/* Cover image */}
+            <div className="relative aspect-square bg-dram-bg overflow-hidden border border-dram-border">
+              {routine.coverImageUrl && (
+                <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover" />
+              )}
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                disabled={photoUploading}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition text-white text-sm font-medium disabled:opacity-50"
+              >
+                {photoUploading ? 'Uploading…' : routine.coverImageUrl ? 'Change Photo' : 'Add Photo'}
+              </button>
+            </div>
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+
             <div className="flex items-center gap-3">
               <div style={{ width: 14, height: 2, background: '#D4A843' }} />
               <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
