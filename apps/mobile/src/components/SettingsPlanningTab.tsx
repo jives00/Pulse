@@ -1315,20 +1315,34 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
                 </View>
               ))}
               {(nutOverride || nutEvts.length > 0) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#c084fc' }} />
-                  <Text style={{ color: '#c084fc', fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
-                    {nutOverride?.dayTypeName ?? nutEvts[0]?.dayTypeName ?? (() => {
-                      const ev = nutOverride ?? nutEvts[0];
-                      if (!ev) return 'Nutrition';
-                      const parts = [];
-                      if (ev.calories != null) parts.push(`${Math.round(ev.calories)} kcal`);
-                      if (ev.proteinG != null) parts.push(`${ev.proteinG}g P`);
-                      if (ev.carbsG != null) parts.push(`${ev.carbsG}g C`);
-                      if (ev.fatG != null) parts.push(`${ev.fatG}g F`);
-                      return parts.length > 0 ? parts.join(' · ') : 'Nutrition';
-                    })()}
-                  </Text>
+                <View style={{ gap: 2 }}>
+                  {(nutOverride?.dayTypeName || nutEvts[0]?.dayTypeName) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#c084fc' }} />
+                      <Text style={{ color: '#c084fc', fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
+                        {nutOverride?.dayTypeName ?? nutEvts[0]?.dayTypeName}
+                      </Text>
+                    </View>
+                  )}
+                  {!(nutOverride?.dayTypeName || nutEvts[0]?.dayTypeName) && (() => {
+                    const ev = nutOverride ?? nutEvts[0];
+                    const parts = [];
+                    if (ev?.calories != null) parts.push(`${Math.round(ev.calories)} kcal`);
+                    if (ev?.proteinG != null) parts.push(`${ev.proteinG}g protein`);
+                    if (ev?.carbsG != null) parts.push(`${ev.carbsG}g carbs`);
+                    if (ev?.fatG != null) parts.push(`${ev.fatG}g fat`);
+                    return parts.length > 0 ? parts.map((p, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#c084fc' }} />
+                        <Text style={{ color: '#c084fc', fontSize: fontSize.xs, flex: 1 }}>{p}</Text>
+                      </View>
+                    )) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#c084fc' }} />
+                        <Text style={{ color: '#c084fc', fontSize: fontSize.xs }}>Nutrition</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
             </View>
