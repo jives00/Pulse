@@ -466,7 +466,7 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE }: {
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
-  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
   const series = foodLogHistory.slice(-30)
     .map(d => {
       const tef = Math.round(d.calories * 0.1);
@@ -848,7 +848,7 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
-  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
 
   for (const day of foodLogHistory) {
     const ws = getWeekStart(day.date);

@@ -242,7 +242,7 @@ function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: Work
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
-  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
   const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now); d.setDate(d.getDate() - i * 7);
@@ -1060,7 +1060,7 @@ export default function DashboardV4Screen() {
           {(() => {
             const exByDate: Record<string, number> = {};
             for (const w of workouts) { if (w.caloriesBurned) exByDate[w.workoutDate] = (exByDate[w.workoutDate] ?? 0) + w.caloriesBurned; }
-            const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+            const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
             const series = foodLogHistory.slice(-14).map((d) => {
               const tef = Math.round(d.calories * 0.1);
               const ex = exByDate[d.date] ?? 0;
