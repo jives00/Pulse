@@ -280,7 +280,6 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
     return () => document.removeEventListener('keydown', handler);
   }, [showForm]);
 
-  function openCreate() { setForm({ ...EMPTY_EX_FORM, category: categories[0] ?? '' }); setUseCustomCat(false); setShowForm(true); }
   function closeForm() { setShowForm(false); setForm(EMPTY_EX_FORM); setUseCustomCat(false); }
 
   async function handleSave() {
@@ -409,7 +408,6 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
 // ─── Hero banner ─────────────────────────────────────────────────────────────
 
 const ACCENT = '#D4A843';
-const MUTED  = '#828ea8';
 
 const MI_TO_M = 1609.344;
 

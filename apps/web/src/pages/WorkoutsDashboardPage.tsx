@@ -1,23 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { buildWorkoutLine } from '../utils/workoutLine';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BarChart, Bar, YAxis, Cell, ResponsiveContainer, LineChart, Line, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi,
-  waterApi, logApi, historyApi,
+  waterApi, logApi,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary,
   type WaterHistory, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket,
-  localDateStr, getWeekStart, shortDate, formatDate,
+  localDateStr, getWeekStart,
   buildWeeklyData, computeGoalPace, computeCreatineSaturation,
   computeWeekDelta, computeWeekStreak, computeHighlights, WEEK_STREAK_MILESTONES,
   type PaceStatus,
   KG_TO_LBS,
 } from '@pulse/api-client';
-import Spinner from '../components/Spinner';
-import { useSettingsStore } from '../store/settings';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,55 +53,6 @@ const DISPLAYED_METRICS = ['weight', 'waist', 'bicep'];
 
 // ─── Dashboard: on-pace helpers ───────────────────────────────────────────────
 
-type PaceResult = { status: PaceStatus; projectedDate: string | null; pct: number; }
-
-const PACE_COLORS: Record<PaceStatus, string> = {
-  green:  '#34d399',
-  yellow: '#facc15',
-  red:    '#f87171',
-  done:   '#34d399',
-};
-const PACE_LABELS: Record<PaceStatus, string> = {
-  green:  'On pace',
-  yellow: 'Slightly behind',
-  red:    'Behind',
-  done:   '🎉 Done!',
-};
-
-function PaceBadge({ status }: { status: PaceStatus }) {
-  const color = PACE_COLORS[status];
-  return (
-    <span
-      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-      style={{ color, backgroundColor: `${color}22` }}
-    >
-      {PACE_LABELS[status]}
-    </span>
-  );
-}
-
-
-// ─── Dashboard: compact volume sparkline ─────────────────────────────────────
-
-function VolumeSparkline({ data, goal }: { data: WeekBucket[]; goal: number | null }) {
-  return (
-    <div style={{ height: 52 }}>
-      <ResponsiveContainer width="100%" height={52}>
-        <BarChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }} barCategoryGap={3}>
-          <YAxis hide domain={[0, 'auto']} />
-          <Bar dataKey="volumeLbs" maxBarSize={14} radius={[2, 2, 0, 0]}>
-            {data.map((entry, i) => {
-              const isCurrent = i === data.length - 1;
-              const dim = goal ? entry.volumeLbs / goal < 0.85 : false;
-              const fill = isCurrent ? '#a78bfa' : dim ? '#a78bfa44' : '#a78bfa88';
-              return <Cell key={entry.weekStart} fill={fill} />;
-            })}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 // ─── Today's Blurb ───────────────────────────────────────────────────────────
 
@@ -520,7 +468,7 @@ function ThisWeekCardV3({
   workouts,
   exGoals,
   weeklyData: _weeklyData,
-  routinesList,
+  routinesList: _routinesList,
   routineGoals,
 }: {
   workouts: WorkoutSummary[];
@@ -1040,7 +988,6 @@ function WeightTrendCard({
   const yMinW = allVals.length ? Math.min(...allVals) * 0.98 : 0;
   const yMaxW = allVals.length ? Math.max(...allVals) * 1.02 : 1;
   const current = data[data.length - 1]?.weight ?? null;
-  const avg = vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
   const delta = data.length >= 2 ? Math.round((data[data.length - 1].weight - data[0].weight) * 10) / 10 : null;
 
   const W = 460, H = 160;
@@ -1851,11 +1798,6 @@ function PersonalBestsCardV3({ personalBests }: {
 }) {
   const fmtLbs = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
   const fmtDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtDuration = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return m > 0 ? `${m}m ${s}s` : `${s}s`;
-  };
 
   return (
     <section className="card overflow-hidden h-full flex flex-col">
@@ -2238,7 +2180,7 @@ export default function WorkoutsDashboardPage() {
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
-  const [starting, setStarting] = useState(false);
+  const [, setStarting] = useState(false);
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'other'>('dashboard');

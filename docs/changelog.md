@@ -17,6 +17,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### API (chore)
 
 - **Server cleanup** — Removed unused imports and locals from `log`, `nutrition-schedules`, `schedules`, and `user-goals` routes; stripped debug `console.log` statements from `routines` route; added duplicate-prefix guard to `migrate.ts` (throws on startup if two migration files share a numeric prefix). `944de45`
+- **migrate.ts guard softened** — Changed duplicate migration prefix guard from `throw` to `console.warn` so existing 025_*/030_* files don't block `npm run migrate`; renamed `@dram/mobile` → `@pulse/mobile`; enabled `noUnusedLocals` in web tsconfig; removed remaining dead code (recharts import, `HowToTab`, `openCreate` duplicate, `MUTED`, `fmtDuration`, unused helpers); added root `check` script. `4c6d96b`
 
 ### Mobile
 

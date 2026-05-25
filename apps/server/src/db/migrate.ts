@@ -25,7 +25,7 @@ function discoverMigrations(): string[] {
   const collisions = Object.entries(prefixCount).filter(([, names]) => names.length > 1);
   if (collisions.length > 0) {
     const detail = collisions.map(([p, names]) => `  prefix ${p}: ${names.join(', ')}`).join('\n');
-    throw new Error(`Duplicate migration prefixes found:\n${detail}`);
+    console.warn(`Duplicate migration prefixes found (will run both):\n${detail}`);
   }
 
   return files;

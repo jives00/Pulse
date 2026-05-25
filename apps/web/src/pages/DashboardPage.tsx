@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
-  localDateStr, getWeekStart, buildWeeklyData, computeHighlights, shortDate,
+  localDateStr, getWeekStart, buildWeeklyData, computeHighlights,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
-  type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
+  type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
 } from '@pulse/api-client';
 
@@ -158,7 +158,6 @@ function FuelToday({ actual, goals, tdee }: {
   const tdeeVal = tdee?.total ?? 0;
   const pct   = calG > 0 ? clamp(cal / calG) : 0;
   const size  = 200, sw = 10, r = (size - sw) / 2, c = 2 * Math.PI * r;
-  const remaining = calG - cal;
   const net = cal - tdeeVal;
 
   return (
@@ -1097,7 +1096,6 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
   }
 
   const current  = sorted[sorted.length - 1].val;
-  const startVal = sorted[0].val;
   const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
 
   // 28-day trend slope via linear regression (lbs/day)

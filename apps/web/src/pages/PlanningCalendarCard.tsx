@@ -60,10 +60,6 @@ function fmtDisplayDate(dateStr: string) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-function fmtShortDate(dateStr: string) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 // ─── Recurrence form (shared between workout + meal) ─────────────────────────
 
 type AnyRecurrence = RecurrenceType | MealRecurrenceType;
@@ -1056,7 +1052,6 @@ function DayModal({
   const [editNutritionSch, setEditNutritionSch] = useState<NutritionSchedule | null>(null);
 
   const dayCheckpoints = checkpoints.filter((c) => c.targetDate === date);
-  const hasOverride    = nutritionOverride != null;
 
   async function deleteSchedule(id: number) {
     if (!confirm('Remove this schedule?')) return;

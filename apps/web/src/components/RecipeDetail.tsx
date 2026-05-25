@@ -253,10 +253,7 @@ function formatTime(minutes?: number | null) {
   return m ? `${h} hr ${m} min` : `${h} hr`;
 }
 
-function formatDate(dateStr?: string | null) {
-  if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
+
 
 export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onUpdated }: Props) {
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);

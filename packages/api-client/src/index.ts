@@ -1,7 +1,5 @@
-// Recipe types (from Dram)
 export * from './recipes';
 
-// Nutrition types (from FoodTracker)
 export * from './nutrition';
 
 // Axios client + configuration

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   routinesApi, workoutsApi, exercisesApi,
-  type RoutineDetail, type RoutineExercise,
+  type RoutineDetail,
   type Exercise, type WorkoutSummary, type WorkoutDetail, type RoutineType,
   KG_TO_LBS, shortDate, formatDate,
   secondsToMMSS as _secondsToMMSS,
