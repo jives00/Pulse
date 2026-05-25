@@ -231,7 +231,7 @@ export default function HistoryScreen() {
     ]);
   }
 
-  const swipe = useSwipeNav(-1, HIST_TABS, activeTab, setActiveTab);
+  const swipe = useSwipeNav(5, HIST_TABS, activeTab, setActiveTab);
 
   const styles = makeStyles(c);
   const workoutGroups = groupWorkoutsByDate(workouts);

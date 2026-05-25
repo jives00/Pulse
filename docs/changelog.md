@@ -21,6 +21,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Dashboard swipe navigation** — Dashboard tabs (Today, Goals, Trends, Sessions) now respond to left/right swipes to navigate between them; swiping right from the last tab navigates to the next navbar section (Food Log). Navbar swipe order: Home → Log → Train → Recipes → Links → History → Settings. `e5297a2`
 - **Weekly averages TDEE fix** — Weekly averages table on dashboard now correctly includes step calories in TDEE calculations, matching the formula used in the Today section. `1d791c5`
 - **Steps auto-sync from Samsung Health** — Steps now auto-sync from Samsung Health via Health Connect when the Workouts Log tab opens; shows 'Synced from Samsung Health' or 'Manually entered' label; manual entry remains available as an override. Requires APK rebuild with Health Connect native module. `df231a2`
 - **Today's Blurb shows step count** — Today's Blurb section on the dashboard now includes a steps line when steps have been logged for the day. `e5dadcc`

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
   getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
@@ -335,6 +336,14 @@ export default function DashboardV4Screen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Swipe navigation (between internal tabs and to next navbar section)
+  const panResponder = useSwipeNav(
+    0, // dashboard is at index 0 in BOTTOM_TABS
+    TABS,
+    activeTab,
+    setActiveTab
+  );
+
   // Data state
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
@@ -490,7 +499,7 @@ export default function DashboardV4Screen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']} {...panResponder.panHandlers}>
       {/* Header */}
       <View style={s.pageHeader}>
         <Text style={s.pageTitle}>Dashboard</Text>

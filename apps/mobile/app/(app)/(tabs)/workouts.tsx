@@ -1114,7 +1114,7 @@ export default function WorkoutsScreen() {
   const seg = makeSegStyles(c);
   const rp = makeRpStyles(c);
   const [tab, setTab] = useState<Tab>('routines');
-  const swipe = useSwipeNav(3, WORKOUT_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav(2, WORKOUT_TABS_ORDER, tab, setTab);
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);

@@ -151,7 +151,7 @@ export default function NutritionScreen() {
   const [barcodeQueue, setBarcodeQueue] = useState<BarcodeQueueItem[]>([]);
   const [scanningActive, setScanningActive] = useState(false);
   const [barcodeScanning, setBarcodeScanning] = useState(false); // lookup in-flight
-  const swipe = useSwipeNav(2);
+  const swipe = useSwipeNav(1);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
