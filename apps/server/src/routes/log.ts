@@ -96,11 +96,15 @@ router.get('/frequent', async (req, res) => {
               ROUND(f.fat_per100 * ss.grams / 100, 1) AS fat_per_serving
        FROM food_log fl
        JOIN foods f ON f.id = fl.food_id
-       LEFT JOIN serving_sizes ss ON ss.food_id = f.id AND ss.is_default = 1
+       LEFT JOIN serving_sizes ss ON ss.id = (
+         SELECT id FROM serving_sizes
+         WHERE food_id = f.id AND is_default = 1
+         ORDER BY id LIMIT 1
+       )
        WHERE fl.user_id = ?
          AND fl.log_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
          AND (f.source IS NULL OR f.source != 'quick_log')
-       GROUP BY f.id, ss.id
+       GROUP BY f.id
        ORDER BY log_count DESC
        LIMIT 10`,
       [req.userId]

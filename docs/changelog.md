@@ -6,6 +6,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 25, 2026
 
+### API (fix)
+
+- **Eliminated duplicate React key warnings** — Fixed `GET /log/frequent` returning the same food multiple times when it had multiple `is_default=1` serving sizes (replaced `GROUP BY f.id, ss.id` with correlated subquery); added migration 036 to add `UNIQUE KEY` on `routine_goals(user_id, routine_id, effective_from)` and delete pre-existing duplicate rows. `bd09e1c`
+
+### Mobile (fix)
+
+- **Defensive dedup for routine goals** — Added client-side `Map`-keyed deduplication of `routineGoals` before rendering to prevent duplicate React keys surviving until migration is deployed. `bd09e1c`
+
 ### Mobile (refactor)
 
 - **Consolidated API client** — Replaced 1,230-line mobile fetch client with a thin shim delegating to `@pulse/api-client`; no caller files changed. Deleted unused 397-line web fetch client. Expanded shared package endpoints to cover all mobile needs. `69c0a29`

@@ -984,7 +984,9 @@ export default function DashboardV4Screen() {
 
           {/* ── Workout frequency ── */}
           {(() => {
-            const activeGoals = routineGoals.filter((rg) => rg.targetPerWeek > 0 && rg.targetPerWeek <= 7);
+            const activeGoals = Array.from(
+              new Map(routineGoals.map((rg) => [rg.routineId, rg])).values()
+            ).filter((rg) => rg.targetPerWeek > 0 && rg.targetPerWeek <= 7);
             if (!activeGoals.length) {
               return (
                 <View style={s.card}>
