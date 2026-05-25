@@ -301,6 +301,17 @@ function RecurrenceFields({
   );
 }
 
+function parseRec(recType: AnyRecurrence, cfg: any) {
+  const out = { dowDays: [] as number[], xInterval: '3', domType: 'specific_dates' as 'specific_dates' | 'nth_weekday', domDates: '1, 15', domN: '1', domWeekday: '0' };
+  if (recType === 'days_of_week') out.dowDays = cfg?.days ?? [];
+  if (recType === 'every_x_days') out.xInterval = String(cfg?.interval ?? 3);
+  if (recType === 'day_of_month') {
+    if (cfg?.type === 'nth_weekday') { out.domType = 'nth_weekday'; out.domN = String(cfg?.n ?? 1); out.domWeekday = String(cfg?.weekday ?? 0); }
+    else { out.domDates = (cfg?.dates ?? []).join(', '); }
+  }
+  return out;
+}
+
 function buildRecurrenceConfig(recType: AnyRecurrence, dowDays: number[], xInterval: string, domType: string, domDates: string, domN: string, domWeekday: string) {
   if (recType === 'once' || recType === 'daily' || recType === 'every_other_day') return {};
   if (recType === 'days_of_week') return { days: dowDays };
@@ -314,35 +325,39 @@ function buildRecurrenceConfig(recType: AnyRecurrence, dowDays: number[], xInter
 
 // ─── Add Workout Modal ────────────────────────────────────────────────────────
 
-function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, onSaved }: {
+function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, onSaved, editing }: {
   defaultDate: string;
   routinesList: RoutineSummary[];
   exercisesList: Exercise[];
   onClose: () => void;
   onSaved: () => void;
+  editing?: WorkoutSchedule;
 }) {
-  const [scheduleType, setScheduleType] = useState<'routine' | 'exercise' | 'rest'>('routine');
-  const [routineId,   setRoutineId]   = useState<number | null>(null);
-  const [exerciseId,  setExerciseId]  = useState<number | null>(null);
-  const [label,       setLabel]       = useState('');
-  const [recType,     setRecType]     = useState<AnyRecurrence>('once');
-  const [dowDays,     setDowDays]     = useState<number[]>([]);
-  const [xInterval,   setXInterval]   = useState('3');
-  const [domType,     setDomType]     = useState<'specific_dates' | 'nth_weekday'>('specific_dates');
-  const [domDates,    setDomDates]    = useState('1, 15');
-  const [domN,        setDomN]        = useState('1');
-  const [domWeekday,  setDomWeekday]  = useState('0');
-  const [startDate,   setStartDate]   = useState(defaultDate);
-  const [endDate,     setEndDate]     = useState('');
+  const initRec = editing ? parseRec(editing.recurrenceType, editing.recurrenceConfig) : null;
+  const [scheduleType, setScheduleType] = useState<'routine' | 'exercise' | 'rest'>(
+    editing ? (editing.isRestDay ? 'rest' : editing.routineId ? 'routine' : 'exercise') : 'routine'
+  );
+  const [routineId,   setRoutineId]   = useState<number | null>(editing?.routineId ?? null);
+  const [exerciseId,  setExerciseId]  = useState<number | null>(editing?.exerciseId ?? null);
+  const [label,       setLabel]       = useState(editing?.label ?? '');
+  const [recType,     setRecType]     = useState<AnyRecurrence>(editing?.recurrenceType ?? 'once');
+  const [dowDays,     setDowDays]     = useState<number[]>(initRec?.dowDays ?? []);
+  const [xInterval,   setXInterval]   = useState(initRec?.xInterval ?? '3');
+  const [domType,     setDomType]     = useState<'specific_dates' | 'nth_weekday'>(initRec?.domType ?? 'specific_dates');
+  const [domDates,    setDomDates]    = useState(initRec?.domDates ?? '1, 15');
+  const [domN,        setDomN]        = useState(initRec?.domN ?? '1');
+  const [domWeekday,  setDomWeekday]  = useState(initRec?.domWeekday ?? '0');
+  const [startDate,   setStartDate]   = useState(editing?.startDate ?? defaultDate);
+  const [endDate,     setEndDate]     = useState(editing?.endDate ?? '');
   const [saving,      setSaving]      = useState(false);
 
-  // Custom cycle state - stores items as { type: 'exercise'|'routine', id: number }
-  const [cycleItems,         setCycleItems]         = useState<{ type: 'exercise' | 'routine'; id: number }[]>([]);
+  const initCfg = editing?.recurrenceConfig;
+  const [cycleItems,         setCycleItems]         = useState<{ type: 'exercise' | 'routine'; id: number }[]>(initCfg?.items ?? []);
   const [cycleItemType,      setCycleItemType]      = useState<'exercise' | 'routine'>('exercise');
   const [cycleItemId,        setCycleItemId]        = useState<number | null>(null);
-  const [cycleDays,          setCycleDays]          = useState<number[]>([0, 1, 2, 4]); // Mon, Tue, Wed, Fri
-  const [restFrequency,      setRestFrequency]      = useState('3');
-  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(false);
+  const [cycleDays,          setCycleDays]          = useState<number[]>(initCfg?.days ?? [0, 1, 2, 4]);
+  const [restFrequency,      setRestFrequency]      = useState(String(initCfg?.restFrequency ?? 3));
+  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(initCfg?.alwaysRestWeekends ?? false);
 
   const isRestDay = scheduleType === 'rest';
   const isCustomCycle = recType === 'custom_cycle';
@@ -360,7 +375,7 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
         ? { items: cycleItems, days: cycleDays, restFrequency: Number(restFrequency) || 1, alwaysRestWeekends }
         : buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday);
 
-      await schedulesApi.create({
+      const payload = {
         routineId:  isRestDay ? null : (scheduleType === 'routine' ? routineId : null),
         exerciseId: isRestDay ? null : (scheduleType === 'exercise' ? exerciseId : null),
         label: label.trim() || undefined,
@@ -369,7 +384,13 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
         recurrenceConfig: config,
         startDate,
         endDate: recType === 'once' ? startDate : (endDate.trim() || null),
-      });
+      };
+
+      if (editing) {
+        await schedulesApi.update(editing.id, payload);
+      } else {
+        await schedulesApi.create(payload);
+      }
       onSaved();
     } catch { /* ignore */ } finally { setSaving(false); }
   }
@@ -427,7 +448,7 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
         <button type="button" onClick={onClose} className="flex-1 text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">Cancel</button>
         <button type="button" onClick={handleSave} disabled={saving || !canSave}
           className="flex-[2] bg-dram-accent text-black text-base font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-        >{saving ? 'Saving…' : 'Add Workout'}</button>
+        >{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Workout'}</button>
       </div>
     </div>
   );
@@ -435,12 +456,14 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
 
 // ─── Add Meal Schedule Modal ──────────────────────────────────────────────────
 
-function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
+function AddMealScheduleForm({ defaultDate, onClose, onSaved, editing }: {
   defaultDate: string;
   onClose: () => void;
   onSaved: () => void;
+  editing?: { sch: MealSchedule; ev: MealScheduleEvent };
 }) {
-  const [mode, setMode]             = useState<'pick' | 'configure'>('pick');
+  const initRec = editing ? parseRec(editing.sch.recurrenceType, editing.sch.recurrenceConfig) : null;
+  const [mode, setMode]             = useState<'pick' | 'configure'>(editing ? 'configure' : 'pick');
   const [foodTab, setFoodTab]       = useState<'food' | 'recipe' | 'custom'>('food');
   const [search, setSearch]         = useState('');
   const [foodResults, setFoodResults] = useState<Food[]>([]);
@@ -457,25 +480,25 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
   const [recipeServings, setRecipeServings] = useState('1');
 
   // Custom label
-  const [label,      setLabel]      = useState('');
+  const [label,      setLabel]      = useState(editing?.sch.label ?? '');
 
   // Macros (editable)
-  const [calories,   setCalories]   = useState('');
-  const [protein,    setProtein]    = useState('');
-  const [carbs,      setCarbs]      = useState('');
-  const [fat,        setFat]        = useState('');
+  const [calories,   setCalories]   = useState(editing?.ev.calories != null ? String(editing.ev.calories) : '');
+  const [protein,    setProtein]    = useState(editing?.ev.proteinG != null ? String(editing.ev.proteinG) : '');
+  const [carbs,      setCarbs]      = useState(editing?.ev.carbsG   != null ? String(editing.ev.carbsG)   : '');
+  const [fat,        setFat]        = useState(editing?.ev.fatG     != null ? String(editing.ev.fatG)     : '');
 
   // Recurrence
-  const [mealSlot,   setMealSlot]   = useState<MealSlotType | ''>('');
-  const [recType,    setRecType]    = useState<AnyRecurrence>('once');
-  const [dowDays,    setDowDays]    = useState<number[]>([]);
-  const [xInterval,  setXInterval]  = useState('3');
-  const [domType,    setDomType]    = useState<'specific_dates' | 'nth_weekday'>('specific_dates');
-  const [domDates,   setDomDates]   = useState('1, 15');
-  const [domN,       setDomN]       = useState('1');
-  const [domWeekday, setDomWeekday] = useState('0');
-  const [startDate,  setStartDate]  = useState(defaultDate);
-  const [endDate,    setEndDate]    = useState('');
+  const [mealSlot,   setMealSlot]   = useState<MealSlotType | ''>(editing?.sch.mealSlot ?? '');
+  const [recType,    setRecType]    = useState<AnyRecurrence>(editing?.sch.recurrenceType ?? 'once');
+  const [dowDays,    setDowDays]    = useState<number[]>(initRec?.dowDays ?? []);
+  const [xInterval,  setXInterval]  = useState(initRec?.xInterval ?? '3');
+  const [domType,    setDomType]    = useState<'specific_dates' | 'nth_weekday'>(initRec?.domType ?? 'specific_dates');
+  const [domDates,   setDomDates]   = useState(initRec?.domDates ?? '1, 15');
+  const [domN,       setDomN]       = useState(initRec?.domN ?? '1');
+  const [domWeekday, setDomWeekday] = useState(initRec?.domWeekday ?? '0');
+  const [startDate,  setStartDate]  = useState(editing?.sch.startDate ?? defaultDate);
+  const [endDate,    setEndDate]    = useState(editing?.sch.endDate ?? '');
   const [saving,     setSaving]     = useState(false);
 
   // Custom cycle state for nutrition
@@ -547,35 +570,40 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
   async function handleSave() {
     setSaving(true);
     try {
-      const foodId = foodTab === 'food' ? selectedFood?.id : null;
-      const servingSizeId = foodTab === 'food' ? selectedServingId : null;
-      const quantityNum = foodTab === 'food' ? Number(quantity) || 1 : null;
-      const recipeId = foodTab === 'recipe' ? selectedRecipe?.id : null;
-      const recipeServingsNum = foodTab === 'recipe' ? Number(recipeServings) || 1 : null;
-      const labelText = foodTab === 'custom' ? label.trim() : (selectedFood?.name || selectedRecipe?.name || label.trim());
+      if (editing) {
+        await mealSchedulesApi.update(editing.sch.id, {
+          mealSlot: mealSlot || null,
+          recurrenceType: recType as MealRecurrenceType,
+          recurrenceConfig: buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday),
+          startDate,
+          endDate: recType === 'once' ? startDate : (endDate.trim() || null),
+        });
+      } else {
+        const foodId = foodTab === 'food' ? selectedFood?.id : null;
+        const servingSizeId = foodTab === 'food' ? selectedServingId : null;
+        const quantityNum = foodTab === 'food' ? Number(quantity) || 1 : null;
+        const recipeId = foodTab === 'recipe' ? selectedRecipe?.id : null;
+        const recipeServingsNum = foodTab === 'recipe' ? Number(recipeServings) || 1 : null;
+        const labelText = foodTab === 'custom' ? label.trim() : (selectedFood?.name || selectedRecipe?.name || label.trim());
 
-      const caloriesNum = calories.trim() ? Number(calories) : null;
-      const proteinNum = protein.trim() ? Number(protein) : null;
-      const carbsNum = carbs.trim() ? Number(carbs) : null;
-      const fatNum = fat.trim() ? Number(fat) : null;
-
-      await mealSchedulesApi.create({
-        mealSlot: mealSlot || null,
-        label: labelText,
-        foodId,
-        servingSizeId,
-        quantity: quantityNum,
-        recipeId,
-        recipeServings: recipeServingsNum,
-        calories: caloriesNum,
-        proteinG: proteinNum,
-        carbsG: carbsNum,
-        fatG: fatNum,
-        recurrenceType: recType as MealRecurrenceType,
-        recurrenceConfig: buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday),
-        startDate,
-        endDate: recType === 'once' ? startDate : (endDate.trim() || null),
-      });
+        await mealSchedulesApi.create({
+          mealSlot: mealSlot || null,
+          label: labelText,
+          foodId,
+          servingSizeId,
+          quantity: quantityNum,
+          recipeId,
+          recipeServings: recipeServingsNum,
+          calories: calories.trim() ? Number(calories) : null,
+          proteinG: protein.trim() ? Number(protein) : null,
+          carbsG: carbs.trim() ? Number(carbs) : null,
+          fatG: fat.trim() ? Number(fat) : null,
+          recurrenceType: recType as MealRecurrenceType,
+          recurrenceConfig: buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday),
+          startDate,
+          endDate: recType === 'once' ? startDate : (endDate.trim() || null),
+        });
+      }
       onSaved();
     } catch { /* ignore */ } finally { setSaving(false); }
   }
@@ -687,7 +715,10 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => setMode('pick')} className="text-xs text-dram-accent hover:opacity-75">← Change food</button>
+      {editing
+        ? <p className="text-xs text-slate-500 italic">Editing meal schedule</p>
+        : <button onClick={() => setMode('pick')} className="text-xs text-dram-accent hover:opacity-75">← Change food</button>
+      }
 
       <div>
         <label className="block text-base text-slate-500 mb-1">Meal slot (optional)</label>
@@ -743,7 +774,7 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
         <button type="button" onClick={onClose} className="flex-1 text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">Cancel</button>
         <button type="button" onClick={handleSave} disabled={saving}
           className="flex-[2] bg-dram-accent text-black text-base font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-        >{saving ? 'Saving…' : 'Add Meal Event'}</button>
+        >{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Meal Event'}</button>
       </div>
     </div>
   );
@@ -810,32 +841,35 @@ function AddCheckpointForm({ defaultDate, onClose, onSaved, editing }: {
 
 // ─── Nutrition Override Form ──────────────────────────────────────────────────
 
-function NutritionOverrideForm({ date, existing, presets, onClose, onSaved }: {
+function NutritionOverrideForm({ date, existing, presets, onClose, onSaved, editingSchedule }: {
   date: string;
   existing: DailyNutritionOverride | null;
   presets: DayTypePreset[];
   onClose: () => void;
   onSaved: () => void;
+  editingSchedule?: NutritionSchedule;
 }) {
-  const [mode,      setMode]      = useState<'once' | 'recurring'>('once');
-  const [dayTypeId, setDayTypeId] = useState<number | ''>(existing?.dayTypeId ?? '');
-  const [calories,  setCalories]  = useState(existing?.calories != null ? String(existing.calories) : '');
-  const [protein,   setProtein]   = useState(existing?.proteinG != null ? String(existing.proteinG) : '');
-  const [carbs,     setCarbs]     = useState(existing?.carbsG   != null ? String(existing.carbsG)   : '');
-  const [fat,       setFat]       = useState(existing?.fatG     != null ? String(existing.fatG)     : '');
-  const [water,     setWater]     = useState(existing?.waterGoalOz != null ? String(Math.round(existing.waterGoalOz / GLASS_OZ)) : '');
+  const initRec = editingSchedule ? parseRec(editingSchedule.recurrenceType, editingSchedule.recurrenceConfig) : null;
+  const [mode,      setMode]      = useState<'once' | 'recurring'>(editingSchedule ? 'recurring' : 'once');
+  const src = editingSchedule ?? existing;
+  const [dayTypeId, setDayTypeId] = useState<number | ''>(src?.dayTypeId ?? '');
+  const [calories,  setCalories]  = useState(src?.calories != null ? String(src.calories) : '');
+  const [protein,   setProtein]   = useState(src?.proteinG != null ? String(src.proteinG) : '');
+  const [carbs,     setCarbs]     = useState(src?.carbsG   != null ? String(src.carbsG)   : '');
+  const [fat,       setFat]       = useState(src?.fatG     != null ? String(src.fatG)     : '');
+  const [water,     setWater]     = useState(src?.waterGoalOz != null ? String(Math.round(src.waterGoalOz / GLASS_OZ)) : '');
   const [saving,    setSaving]    = useState(false);
 
   // Recurrence state (for recurring mode)
-  const [recType,     setRecType]     = useState<MealRecurrenceType>('days_of_week');
-  const [dowDays,     setDowDays]     = useState<number[]>([]);
-  const [xInterval,   setXInterval]   = useState('2');
-  const [domType,     setDomType]     = useState<'specific_dates' | 'nth_weekday'>('specific_dates');
-  const [domDates,    setDomDates]    = useState('');
-  const [domN,        setDomN]        = useState('1');
-  const [domWeekday,  setDomWeekday]  = useState('0');
-  const [startDate,   setStartDate]   = useState(date);
-  const [endDate,     setEndDate]     = useState('');
+  const [recType,     setRecType]     = useState<MealRecurrenceType>(editingSchedule?.recurrenceType ?? 'days_of_week');
+  const [dowDays,     setDowDays]     = useState<number[]>(initRec?.dowDays ?? []);
+  const [xInterval,   setXInterval]   = useState(initRec?.xInterval ?? '2');
+  const [domType,     setDomType]     = useState<'specific_dates' | 'nth_weekday'>(initRec?.domType ?? 'specific_dates');
+  const [domDates,    setDomDates]    = useState(initRec?.domDates ?? '');
+  const [domN,        setDomN]        = useState(initRec?.domN ?? '1');
+  const [domWeekday,  setDomWeekday]  = useState(initRec?.domWeekday ?? '0');
+  const [startDate,   setStartDate]   = useState(editingSchedule?.startDate ?? date);
+  const [endDate,     setEndDate]     = useState(editingSchedule?.endDate ?? '');
 
   // Custom cycle state for nutrition
   const [cycleItems,         setCycleItems]         = useState<any[]>([]);
@@ -889,13 +923,12 @@ function NutritionOverrideForm({ date, existing, presets, onClose, onSaved }: {
         const cfg = recType === 'custom_cycle'
           ? { items: cycleItems, days: cycleDays, restFrequency: Number(restFrequency) || 1, alwaysRestWeekends }
           : buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday);
-        await nutritionSchedulesApi.create({
-          ...macroPayload(),
-          recurrenceType:   recType,
-          recurrenceConfig: cfg,
-          startDate,
-          endDate: endDate || null,
-        });
+        const recurPayload = { ...macroPayload(), recurrenceType: recType, recurrenceConfig: cfg, startDate, endDate: endDate || null };
+        if (editingSchedule) {
+          await nutritionSchedulesApi.update(editingSchedule.id, recurPayload);
+        } else {
+          await nutritionSchedulesApi.create(recurPayload);
+        }
       }
       onSaved();
     } catch { /* ignore */ } finally { setSaving(false); }
@@ -1017,7 +1050,10 @@ function DayModal({
 }) {
   const [tab,          setTab]          = useState<DayModalTab>('workout');
   const [adding,       setAdding]       = useState(false);
-  const [editCheckpoint, setEditCheckpoint] = useState<GoalCheckpoint | null>(null);
+  const [editCheckpoint,   setEditCheckpoint]   = useState<GoalCheckpoint | null>(null);
+  const [editWorkout,      setEditWorkout]      = useState<WorkoutSchedule | null>(null);
+  const [editMeal,         setEditMeal]         = useState<{ sch: MealSchedule; ev: MealScheduleEvent } | null>(null);
+  const [editNutritionSch, setEditNutritionSch] = useState<NutritionSchedule | null>(null);
 
   const dayCheckpoints = checkpoints.filter((c) => c.targetDate === date);
   const hasOverride    = nutritionOverride != null;
@@ -1068,7 +1104,7 @@ function DayModal({
         {/* Tab bar */}
         <div className="flex gap-1 px-5 pb-3 shrink-0 border-b border-slate-600">
           {tabs.map(({ key, label, count }) => (
-            <button key={key} onClick={() => { setTab(key); setAdding(false); setEditCheckpoint(null); }}
+            <button key={key} onClick={() => { setTab(key); setAdding(false); setEditCheckpoint(null); setEditWorkout(null); setEditMeal(null); setEditNutritionSch(null); }}
               className={`flex-1 text-base py-1.5 rounded-lg transition-colors relative ${tab === key ? 'bg-dram-accent text-black font-semibold' : 'bg-dram-border text-slate-300 hover:text-slate-100'}`}
             >
               {label}
@@ -1102,12 +1138,24 @@ function DayModal({
                       {ev.status}
                     </span>
                     {sch && (
-                      <button onClick={() => deleteSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                      <>
+                        <button onClick={() => { setEditWorkout(sch); setAdding(false); }} className="text-dram-accent hover:brightness-110 text-base px-1 transition-colors">Edit</button>
+                        <button onClick={() => deleteSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                      </>
                     )}
                   </div>
                 );
               })}
-              {adding ? (
+              {editWorkout ? (
+                <AddWorkoutModal
+                  defaultDate={date}
+                  routinesList={routinesList}
+                  exercisesList={exercisesList}
+                  editing={editWorkout}
+                  onClose={() => setEditWorkout(null)}
+                  onSaved={() => { setEditWorkout(null); onSaved(); }}
+                />
+              ) : adding ? (
                 <AddWorkoutModal
                   defaultDate={date}
                   routinesList={routinesList}
@@ -1139,12 +1187,22 @@ function DayModal({
                       {sch && <p className="text-base text-slate-600">{sch.recurrenceDescription}</p>}
                     </div>
                     {sch && (
-                      <button onClick={() => deleteMealSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                      <>
+                        <button onClick={() => { setEditMeal({ sch, ev }); setAdding(false); }} className="text-dram-accent hover:brightness-110 text-base px-1 transition-colors">Edit</button>
+                        <button onClick={() => deleteMealSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                      </>
                     )}
                   </div>
                 );
               })}
-              {adding ? (
+              {editMeal ? (
+                <AddMealScheduleForm
+                  defaultDate={date}
+                  editing={editMeal}
+                  onClose={() => setEditMeal(null)}
+                  onSaved={() => { setEditMeal(null); onSaved(); }}
+                />
+              ) : adding ? (
                 <AddMealScheduleForm
                   defaultDate={date}
                   onClose={() => setAdding(false)}
@@ -1206,14 +1264,17 @@ function DayModal({
           {tab === 'nutrition' && (
             <>
               {/* One-time override for this day */}
-              {nutritionOverride && !adding && (
+              {nutritionOverride && !adding && !editNutritionSch && (
                 <div className="bg-dram-bg/50 rounded-lg p-3 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-base font-medium text-slate-200">
                       {nutritionOverride.dayTypeName ?? 'This day'}
                       <span className="ml-2 text-base text-slate-500 font-normal">— one time</span>
                     </p>
-                    <button onClick={() => dayTypesApi.deleteOverride(date).then(onSaved)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setAdding(true)} className="text-dram-accent hover:brightness-110 text-base px-1 transition-colors">Edit</button>
+                      <button onClick={() => dayTypesApi.deleteOverride(date).then(onSaved)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                    </div>
                   </div>
                   {nutritionOverride.calories    != null && <p className="text-base text-slate-300">Calories — {nutritionOverride.calories} kcal</p>}
                   {nutritionOverride.proteinG    != null && <p className="text-base text-slate-300">Protein — {nutritionOverride.proteinG}g</p>}
@@ -1226,6 +1287,7 @@ function DayModal({
               {/* Recurring nutrition schedules active on this day */}
               {nutritionScheduleEvents.map((ev) => {
                 const sch = nutritionSchedules.find((s) => s.id === ev.scheduleId);
+                if (editNutritionSch?.id === sch?.id) return null;
                 return (
                   <div key={ev.scheduleId} className="bg-dram-bg/50 rounded-lg p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -1233,7 +1295,10 @@ function DayModal({
                         {ev.dayTypeName ?? 'Custom targets'}
                         <span className="ml-2 text-base text-slate-500 font-normal">— {ev.recurrenceDescription}</span>
                       </p>
-                      {sch && <button onClick={() => deleteNutritionSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>}
+                      <div className="flex items-center gap-1">
+                        {sch && <button onClick={() => { setEditNutritionSch(sch); setAdding(false); }} className="text-dram-accent hover:brightness-110 text-base px-1 transition-colors">Edit</button>}
+                        {sch && <button onClick={() => deleteNutritionSchedule(sch.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>}
+                      </div>
                     </div>
                     {ev.calories    != null && <p className="text-base text-slate-300">Calories — {ev.calories} kcal</p>}
                     {ev.proteinG    != null && <p className="text-base text-slate-300">Protein — {ev.proteinG}g</p>}
@@ -1248,7 +1313,16 @@ function DayModal({
                 <p className="text-base text-slate-500">No nutrition targets for this day — using global goals.</p>
               )}
 
-              {adding ? (
+              {editNutritionSch ? (
+                <NutritionOverrideForm
+                  date={date}
+                  existing={nutritionOverride}
+                  presets={presets}
+                  editingSchedule={editNutritionSch}
+                  onClose={() => setEditNutritionSch(null)}
+                  onSaved={() => { setEditNutritionSch(null); onSaved(); }}
+                />
+              ) : adding ? (
                 <NutritionOverrideForm
                   date={date}
                   existing={nutritionOverride}

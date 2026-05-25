@@ -4,12 +4,12 @@ import {
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
-  getSchedules, getUpcomingSchedule, createSchedule, deleteSchedule,
+  getSchedules, getUpcomingSchedule, createSchedule, updateSchedule, deleteSchedule,
   getRoutines, getExercises,
   searchFoods, searchRecipes,
   getGoalCheckpoints, createGoalCheckpoint, updateGoalCheckpoint, deleteGoalCheckpoint,
-  getMealSchedules, getMealScheduleUpcoming, createMealSchedule, deleteMealSchedule,
-  getNutritionSchedules, getNutritionScheduleUpcoming, createNutritionSchedule, deleteNutritionSchedule,
+  getMealSchedules, getMealScheduleUpcoming, createMealSchedule, updateMealSchedule, deleteMealSchedule,
+  getNutritionSchedules, getNutritionScheduleUpcoming, createNutritionSchedule, updateNutritionSchedule, deleteNutritionSchedule,
   getDailyNutritionOverrides, upsertDailyNutritionOverride, deleteDailyNutritionOverride,
   type WorkoutSchedule, type UpcomingSession, type RecurrenceType,
   type RoutineSummary, type Exercise, type GoalCheckpoint,
@@ -109,6 +109,20 @@ function buildRecConfig(r: RecState | (RecState & { cycleItems?: { type: 'exerci
   return {};
 }
 
+function parseRecConfig(rt: AnyRec, cfg: any): {
+  recType: AnyRec; dowDays: number[]; xInterval: string;
+  domType: 'specific_dates' | 'nth_weekday'; domDates: string; domN: string; domWeekday: string;
+} {
+  const out = { recType: rt, dowDays: [] as number[], xInterval: '3', domType: 'specific_dates' as 'specific_dates' | 'nth_weekday', domDates: '1, 15', domN: '1', domWeekday: '0' };
+  if (rt === 'days_of_week') out.dowDays = cfg?.days ?? [];
+  if (rt === 'every_x_days') out.xInterval = String(cfg?.interval ?? 3);
+  if (rt === 'day_of_month') {
+    if (cfg?.type === 'nth_weekday') { out.domType = 'nth_weekday'; out.domN = String(cfg?.n ?? 1); out.domWeekday = String(cfg?.weekday ?? 0); }
+    else { out.domDates = (cfg?.dates ?? []).join(', '); }
+  }
+  return out;
+}
+
 function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnType<typeof makeStyles>; opts: { value: AnyRec; label: string }[] }) {
   return (
     <>
@@ -191,6 +205,7 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
   c: Colors; s: ReturnType<typeof makeStyles>; onSaved: () => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [type, setType] = useState<'routine' | 'exercise' | 'rest'>('routine');
   const [routineId, setRoutineId] = useState<number | null>(null);
   const [exerciseId, setExerciseId] = useState<number | null>(null);
@@ -228,6 +243,27 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
   const isRest = type === 'rest';
   const isCustomCycle = recType === 'custom_cycle';
   const canSave = isRest || isCustomCycle || (type === 'routine' ? routineId !== null : exerciseId !== null);
+  const showForm = adding || editingId !== null;
+
+  function startEdit(sch: WorkoutSchedule) {
+    setEditingId(sch.id);
+    setAdding(false);
+    setType(sch.isRestDay ? 'rest' : sch.routineId ? 'routine' : 'exercise');
+    setRoutineId(sch.routineId ?? null);
+    setExerciseId(sch.exerciseId ?? null);
+    setLabel(sch.label ?? '');
+    const p = parseRecConfig(sch.recurrenceType, sch.recurrenceConfig);
+    setRecType(p.recType); setDowDays(p.dowDays); setXInterval(p.xInterval);
+    setDomType(p.domType); setDomDates(p.domDates); setDomN(p.domN); setDomWeekday(p.domWeekday);
+    setStartDate(sch.startDate); setEndDate(sch.endDate ?? '');
+    if (sch.recurrenceType === 'custom_cycle') {
+      setCycleItems(sch.recurrenceConfig?.items ?? []);
+      setCycleDays(sch.recurrenceConfig?.days ?? [0,1,2,4]);
+      setRestFrequency(String(sch.recurrenceConfig?.restFrequency ?? 3));
+      setAlwaysRestWeekends(sch.recurrenceConfig?.alwaysRestWeekends !== false);
+    }
+    setShowRoutinePicker(false); setShowExPicker(false);
+  }
 
   async function handleSave() {
     if (!canSave) return;
@@ -243,7 +279,7 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
         ? { days: [dayOfWeekIndex(startDate)] }
         : buildRecConfig(recState);
 
-      await createSchedule(token, {
+      const payload = {
         routineId:  isRest ? null : (type === 'routine' ? routineId : null),
         exerciseId: isRest ? null : (type === 'exercise' ? exerciseId : null),
         label: label.trim() || undefined,
@@ -252,8 +288,14 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
         recurrenceConfig: config,
         startDate,
         endDate: once ? startDate : (endDate.trim() || null),
-      });
-      onSaved(); setAdding(false);
+      };
+
+      if (editingId !== null) {
+        await updateSchedule(token, editingId, payload);
+      } else {
+        await createSchedule(token, payload);
+      }
+      onSaved(); setAdding(false); setEditingId(null);
     } catch { Alert.alert('Error', 'Could not save schedule.'); } finally { setSaving(false); }
   }
 
@@ -280,19 +322,27 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
               {sch && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{sch.recurrenceDescription}</Text>}
             </View>
             {sch && (
-              <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: async () => {
-                  try { await deleteSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
-                }},
-              ])}><Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingLeft: 12 }}>✕</Text></TouchableOpacity>
+              <>
+                <TouchableOpacity onPress={() => startEdit(sch)} style={{ paddingLeft: 12 }}>
+                  <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: async () => {
+                    try { await deleteSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
+                  }},
+                ])}><Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingLeft: 12 }}>✕</Text></TouchableOpacity>
+              </>
             )}
           </View>
         );
       })}
 
-      {adding ? (
+      {showForm ? (
         <View style={{ gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+          {editingId !== null && (
+            <Text style={{ color: c.muted, fontSize: fontSize.xs, fontStyle: 'italic' }}>Editing schedule</Text>
+          )}
           {/* Type selector */}
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {(['routine', 'exercise', 'rest'] as const).map(t => (
@@ -490,12 +540,12 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
           )}
 
           <View style={s.actions}>
-            <TouchableOpacity onPress={() => setAdding(false)} style={s.cancelBtn}>
+            <TouchableOpacity onPress={() => { setAdding(false); setEditingId(null); }} style={s.cancelBtn}>
               <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} disabled={saving || !canSave}
               style={[s.saveBtn, { backgroundColor: c.accent, opacity: (saving || !canSave) ? 0.5 : 1 }]}>
-              <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Add'}</Text>
+              <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : editingId !== null ? 'Save' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -515,6 +565,7 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
   c: Colors; s: ReturnType<typeof makeStyles>; onSaved: () => void;
 }) {
   const [step, setStep] = useState<'list' | 'pick' | 'configure'>('list');
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [foodTab, setFoodTab] = useState<'food' | 'recipe' | 'custom'>('food');
   const [search, setSearch] = useState('');
   const [foodResults, setFoodResults] = useState<Food[]>([]);
@@ -593,31 +644,55 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
     setFat(String(Math.round(food.nutrition.fat * factor * 100) / 100));
   }
 
+  function startEdit(ev: MealScheduleEvent, sch: MealSchedule) {
+    setEditingId(sch.id);
+    setMealSlot((sch.mealSlot as MealSlot | '') ?? '');
+    setCalories(ev.calories != null ? String(ev.calories) : '');
+    setProtein(ev.proteinG != null ? String(ev.proteinG) : '');
+    setCarbs(ev.carbsG != null ? String(ev.carbsG) : '');
+    setFat(ev.fatG != null ? String(ev.fatG) : '');
+    const p = parseRecConfig(sch.recurrenceType, sch.recurrenceConfig);
+    setRecType(p.recType); setDowDays(p.dowDays); setXInterval(p.xInterval);
+    setDomType(p.domType); setDomDates(p.domDates); setDomN(p.domN); setDomWeekday(p.domWeekday);
+    setStartDate(sch.startDate); setEndDate(sch.endDate ?? '');
+    setStep('configure');
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
-      const foodId = foodTab === 'food' ? selectedFood?.id ?? null : null;
-      const srvId = foodTab === 'food' ? selectedServingId : null;
-      const qty = foodTab === 'food' ? Number(quantity) || 1 : null;
-      const recipeId = foodTab === 'recipe' ? selectedRecipe?.id ?? null : null;
-      const recipeSrv = foodTab === 'recipe' ? Number(recipeServings) || 1 : null;
-      const labelText = foodTab === 'custom' ? customLabel.trim() : (selectedFood?.name || selectedRecipe?.name || customLabel.trim());
+      if (editingId !== null) {
+        await updateMealSchedule(token, editingId, {
+          mealSlot: mealSlot || null,
+          recurrenceType: recType as MealRecurrenceType,
+          recurrenceConfig: buildRecConfig(recState),
+          startDate,
+          endDate: recType === 'once' ? startDate : (endDate.trim() || null),
+        });
+      } else {
+        const foodId = foodTab === 'food' ? selectedFood?.id ?? null : null;
+        const srvId = foodTab === 'food' ? selectedServingId : null;
+        const qty = foodTab === 'food' ? Number(quantity) || 1 : null;
+        const recipeId = foodTab === 'recipe' ? selectedRecipe?.id ?? null : null;
+        const recipeSrv = foodTab === 'recipe' ? Number(recipeServings) || 1 : null;
+        const labelText = foodTab === 'custom' ? customLabel.trim() : (selectedFood?.name || selectedRecipe?.name || customLabel.trim());
 
-      await createMealSchedule(token, {
-        mealSlot: mealSlot || null,
-        label: labelText,
-        foodId, servingSizeId: srvId, quantity: qty,
-        recipeId, recipeServings: recipeSrv,
-        calories: calories !== '' ? Number(calories) : null,
-        proteinG: protein !== '' ? Number(protein) : null,
-        carbsG:   carbs  !== '' ? Number(carbs)  : null,
-        fatG:     fat    !== '' ? Number(fat)    : null,
-        recurrenceType: recType as MealRecurrenceType,
-        recurrenceConfig: buildRecConfig(recState),
-        startDate,
-        endDate: recType === 'once' ? startDate : (endDate.trim() || null),
-      });
-      onSaved(); setStep('list');
+        await createMealSchedule(token, {
+          mealSlot: mealSlot || null,
+          label: labelText,
+          foodId, servingSizeId: srvId, quantity: qty,
+          recipeId, recipeServings: recipeSrv,
+          calories: calories !== '' ? Number(calories) : null,
+          proteinG: protein !== '' ? Number(protein) : null,
+          carbsG:   carbs  !== '' ? Number(carbs)  : null,
+          fatG:     fat    !== '' ? Number(fat)    : null,
+          recurrenceType: recType as MealRecurrenceType,
+          recurrenceConfig: buildRecConfig(recState),
+          startDate,
+          endDate: recType === 'once' ? startDate : (endDate.trim() || null),
+        });
+      }
+      onSaved(); setStep('list'); setEditingId(null);
     } catch { Alert.alert('Error', 'Could not save meal event.'); } finally { setSaving(false); }
   }
 
@@ -645,12 +720,17 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
                 {sch && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{sch.recurrenceDescription}</Text>}
               </View>
               {sch && (
-                <TouchableOpacity onPress={() => Alert.alert('Remove meal event?', ev.label, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Remove', style: 'destructive', onPress: async () => {
-                    try { await deleteMealSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
-                  }},
-                ])}><Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingLeft: 12 }}>✕</Text></TouchableOpacity>
+                <>
+                  <TouchableOpacity onPress={() => startEdit(ev, sch)} style={{ paddingLeft: 12 }}>
+                    <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => Alert.alert('Remove meal event?', ev.label, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: async () => {
+                      try { await deleteMealSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
+                    }},
+                  ])}><Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingLeft: 12 }}>✕</Text></TouchableOpacity>
+                </>
               )}
             </View>
           );
@@ -768,7 +848,10 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
   // step === 'configure'
   return (
     <View style={{ gap: 8 }}>
-      <TouchableOpacity onPress={() => setStep('pick')}><Text style={{ color: c.accent, fontSize: fontSize.sm }}>← Change food</Text></TouchableOpacity>
+      {editingId !== null
+        ? <Text style={{ color: c.muted, fontSize: fontSize.xs, fontStyle: 'italic' }}>Editing meal schedule</Text>
+        : <TouchableOpacity onPress={() => setStep('pick')}><Text style={{ color: c.accent, fontSize: fontSize.sm }}>← Change food</Text></TouchableOpacity>
+      }
 
       <Text style={[s.fieldLabel, { color: c.muted }]}>Meal slot (optional)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
@@ -805,12 +888,12 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
       <RecurrenceForm r={recState} c={c} s={s} opts={REC_OPTS_MEAL} />
 
       <View style={s.actions}>
-        <TouchableOpacity onPress={() => setStep('list')} style={s.cancelBtn}>
+        <TouchableOpacity onPress={() => { setStep('list'); setEditingId(null); }} style={s.cancelBtn}>
           <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleSave} disabled={saving}
           style={[s.saveBtn, { backgroundColor: c.accent, opacity: saving ? 0.5 : 1 }]}>
-          <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Add Meal Event'}</Text>
+          <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : editingId !== null ? 'Save' : 'Add Meal Event'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -947,6 +1030,7 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
   nutritionSchedules: NutritionSchedule[]; c: Colors; s: ReturnType<typeof makeStyles>; onSaved: () => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [editingNutSchId, setEditingNutSchId] = useState<number | null>(null);
   const [mode, setMode] = useState<'once' | 'recurring'>('once');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -968,6 +1052,31 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
     domType, setDomType, domDates, setDomDates, domN, setDomN, domWeekday, setDomWeekday,
     startDate, setStartDate, endDate, setEndDate };
 
+  function startEditOverride(ov: DailyNutritionOverride) {
+    setMode('once');
+    setCalories(ov.calories != null ? String(ov.calories) : '');
+    setProtein(ov.proteinG != null ? String(ov.proteinG) : '');
+    setCarbs(ov.carbsG != null ? String(ov.carbsG) : '');
+    setFat(ov.fatG != null ? String(ov.fatG) : '');
+    setWater(ov.waterGoalOz != null ? String(Math.round(ov.waterGoalOz / GLASS_OZ)) : '');
+    setAdding(true);
+  }
+
+  function startEditNutSch(ev: NutritionScheduleEvent, sch: NutritionSchedule) {
+    setEditingNutSchId(sch.id);
+    setMode('recurring');
+    setCalories(ev.calories != null ? String(ev.calories) : '');
+    setProtein(ev.proteinG != null ? String(ev.proteinG) : '');
+    setCarbs(ev.carbsG != null ? String(ev.carbsG) : '');
+    setFat(ev.fatG != null ? String(ev.fatG) : '');
+    setWater(ev.waterGoalOz != null ? String(Math.round(ev.waterGoalOz / GLASS_OZ)) : '');
+    const p = parseRecConfig(sch.recurrenceType, sch.recurrenceConfig);
+    setRecType(p.recType); setDowDays(p.dowDays); setXInterval(p.xInterval);
+    setDomType(p.domType); setDomDates(p.domDates); setDomN(p.domN); setDomWeekday(p.domWeekday);
+    setStartDate(sch.startDate); setEndDate(sch.endDate ?? '');
+    setAdding(true);
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -981,6 +1090,13 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
       };
       if (mode === 'once') {
         await upsertDailyNutritionOverride(token, date, payload);
+      } else if (editingNutSchId !== null) {
+        await updateNutritionSchedule(token, editingNutSchId, {
+          ...payload,
+          recurrenceType: recType as MealRecurrenceType,
+          recurrenceConfig: buildRecConfig(recState),
+          startDate, endDate: endDate.trim() || null,
+        });
       } else {
         await createNutritionSchedule(token, {
           ...payload,
@@ -989,7 +1105,7 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
           startDate, endDate: endDate.trim() || null,
         });
       }
-      onSaved(); setAdding(false);
+      onSaved(); setAdding(false); setEditingNutSchId(null);
     } catch { Alert.alert('Error', 'Could not save nutrition targets.'); } finally { setSaving(false); }
   }
 
@@ -1007,12 +1123,17 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
             <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
               {nutritionOverride.dayTypeName ?? 'This day'}<Text style={{ color: c.muted, fontWeight: '400' }}> — one time</Text>
             </Text>
-            <TouchableOpacity onPress={() => Alert.alert('Remove override?', '', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Remove', style: 'destructive', onPress: async () => {
-                try { await deleteDailyNutritionOverride(token, date); onSaved(); } catch { Alert.alert('Error'); }
-              }},
-            ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => startEditOverride(nutritionOverride)}>
+                <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Alert.alert('Remove override?', '', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: async () => {
+                  try { await deleteDailyNutritionOverride(token, date); onSaved(); } catch { Alert.alert('Error'); }
+                }},
+              ])}><Text style={{ color: '#C5896E' }}>✕</Text></TouchableOpacity>
+            </View>
           </View>
           {nutritionOverride.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.calories} kcal</Text>}
           {nutritionOverride.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.proteinG}g protein</Text>}
@@ -1031,16 +1152,26 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
                 <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
                   {ev.dayTypeName}<Text style={{ color: c.muted, fontWeight: '400' }}> — {ev.recurrenceDescription}</Text>
                 </Text>
-                {sch && <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Remove', style: 'destructive', onPress: async () => {
-                    try { await deleteNutritionSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
-                  }},
-                ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>}
+                {sch && (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity onPress={() => startEditNutSch(ev, sch)}>
+                      <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Remove', style: 'destructive', onPress: async () => {
+                        try { await deleteNutritionSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
+                      }},
+                    ])}><Text style={{ color: '#C5896E' }}>✕</Text></TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
             {!ev.dayTypeName && sch && (
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+                <TouchableOpacity onPress={() => startEditNutSch(ev, sch)}>
+                  <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Remove', style: 'destructive', onPress: async () => {
@@ -1060,6 +1191,9 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
 
       {adding ? (
         <View style={{ gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+          {editingNutSchId !== null && (
+            <Text style={{ color: c.muted, fontSize: fontSize.xs, fontStyle: 'italic' }}>Editing recurring schedule</Text>
+          )}
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {(['once', 'recurring'] as const).map(m => (
               <TouchableOpacity key={m} onPress={() => setMode(m)}
@@ -1103,7 +1237,7 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
           )}
 
           <View style={s.actions}>
-            <TouchableOpacity onPress={() => setAdding(false)} style={s.cancelBtn}>
+            <TouchableOpacity onPress={() => { setAdding(false); setEditingNutSchId(null); }} style={s.cancelBtn}>
               <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} disabled={saving}

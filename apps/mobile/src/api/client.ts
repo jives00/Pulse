@@ -1174,6 +1174,10 @@ export async function createMealSchedule(token: string, data: any): Promise<impo
   const res = await fetch(`${API_BASE}/api/meal-schedules`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
   return handle(res);
 }
+export async function updateMealSchedule(token: string, id: number, data: any): Promise<import('../../../../packages/api-client/src/endpoints/calendar').MealSchedule> {
+  const res = await fetch(`${API_BASE}/api/meal-schedules/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
 export async function deleteMealSchedule(token: string, id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/meal-schedules/${id}`, { method: 'DELETE', headers: headers(token) });
   await handle(res);
@@ -1191,6 +1195,10 @@ export async function getNutritionScheduleUpcoming(token: string, days = 60): Pr
 }
 export async function createNutritionSchedule(token: string, data: any): Promise<import('../../../../packages/api-client/src/endpoints/calendar').NutritionSchedule> {
   const res = await fetch(`${API_BASE}/api/nutrition-schedules`, { method: 'POST', headers: headers(token), body: JSON.stringify(data) });
+  return handle(res);
+}
+export async function updateNutritionSchedule(token: string, id: number, data: any): Promise<import('../../../../packages/api-client/src/endpoints/calendar').NutritionSchedule> {
+  const res = await fetch(`${API_BASE}/api/nutrition-schedules/${id}`, { method: 'PUT', headers: headers(token), body: JSON.stringify(data) });
   return handle(res);
 }
 export async function deleteNutritionSchedule(token: string, id: number): Promise<void> {
