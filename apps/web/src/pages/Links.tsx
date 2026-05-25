@@ -119,7 +119,7 @@ export default function Links() {
               className="bg-dram-card border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
             >
               {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+                <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
             <button
