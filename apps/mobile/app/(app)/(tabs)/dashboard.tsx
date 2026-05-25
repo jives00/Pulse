@@ -8,10 +8,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import {
   getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
   getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay,
+  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
   type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
-  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail, type WaterDay,
+  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail, type WaterDay, type StepsEntry,
 } from '../../../src/api/client';
 import { Share } from 'react-native';
 import {
@@ -278,10 +278,11 @@ function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: Work
 }
 
 // ── Today Snapshot ────────────────────────────────────────────────────────────
-function TodaySnapshot({ workout, nutrition, water }: {
+function TodaySnapshot({ workout, nutrition, water, steps }: {
   workout: WorkoutSummary | null;
   nutrition: GoalsSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
+  steps: StepsEntry | null;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -300,6 +301,7 @@ function TodaySnapshot({ workout, nutrition, water }: {
     lines.push(`- Calories: ${nutrition!.calories.toLocaleString()}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
   }
   if (glasses > 0) lines.push(`- Water: ${glasses} glasses`);
+  if ((steps?.steps ?? 0) > 0) lines.push(`- Steps: ${steps!.steps!.toLocaleString()}`);
 
   const text = lines.join('\n');
 
@@ -349,6 +351,7 @@ export default function DashboardV4Screen() {
   const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
   const [routineGoals, setRoutineGoals] = useState<{ routineId: number; targetPerWeek: number }[]>([]);
   const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
+  const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -356,7 +359,7 @@ export default function DashboardV4Screen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg, wd] = await Promise.all([
+      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg, wd, sd] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -371,6 +374,7 @@ export default function DashboardV4Screen() {
         getUpcomingSchedule(token, 7).catch(() => []),
         getRoutineGoals(token).catch(() => []),
         getWaterDay(token, localDateStr()).catch(() => null),
+        getSteps(token).catch(() => null),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -386,6 +390,7 @@ export default function DashboardV4Screen() {
       setUpcoming(upc as UpcomingSession[]);
       setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
       setTodayWater(wd as WaterDay | null);
+      setTodaySteps(sd as StepsEntry | null);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -669,6 +674,7 @@ export default function DashboardV4Screen() {
             workout={todayWorkout}
             nutrition={nutritionSummary?.nutrition.actual ?? null}
             water={todayWater}
+            steps={todaySteps}
           />
 
         </>)}

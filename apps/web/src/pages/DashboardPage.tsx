@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay,
+  type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -120,10 +120,11 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
 
 // ─── Today Snapshot ──────────────────────────────────────────────────────────
 
-function TodaySnapshot({ workout, nutrition, water }: {
+function TodaySnapshot({ workout, nutrition, water, steps }: {
   workout: WorkoutSummary | null;
   nutrition: GoalsSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
+  steps: StepsDay | null;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -142,6 +143,7 @@ function TodaySnapshot({ workout, nutrition, water }: {
     lines.push(`- Calories: ${fmt(nutrition!.calories)}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
   }
   if (glasses > 0) lines.push(`- Water: ${glasses} glasses`);
+  if ((steps?.steps ?? 0) > 0) lines.push(`- Steps: ${steps!.steps!.toLocaleString()}`);
 
   const text = lines.join('\n');
 
@@ -1772,6 +1774,7 @@ export default function DashboardPage() {
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
   const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
+  const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1789,7 +1792,8 @@ export default function DashboardPage() {
       recoveryApi.get().catch(() => null),
       routinesApi.getAllGoals().catch(() => []),
       waterApi.getDay(today).catch(() => null),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd]) => {
+      stepsApi.getDay(today).catch(() => null),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1804,6 +1808,7 @@ export default function DashboardPage() {
       if (rec) setRecovery(rec as RecoveryData);
       if (rg) setRoutineGoals(rg as RoutineGoal[]);
       if (wd) setTodayWater(wd as WaterDay);
+      if (sd) setTodaySteps(sd as StepsDay);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1898,6 +1903,7 @@ export default function DashboardPage() {
           workout={todayWorkout}
           nutrition={summary?.nutrition.actual ?? null}
           water={todayWater}
+          steps={todaySteps}
         />
       </Band>
 

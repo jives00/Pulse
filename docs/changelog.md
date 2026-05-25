@@ -9,6 +9,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Mobile
 
 - **Steps auto-sync from Samsung Health** — Steps now auto-sync from Samsung Health via Health Connect when the Workouts Log tab opens; shows 'Synced from Samsung Health' or 'Manually entered' label; manual entry remains available as an override. Requires APK rebuild with Health Connect native module. `df231a2`
+- **Today's Blurb shows step count** — Today's Blurb section on the dashboard now includes a steps line when steps have been logged for the day. `e5dadcc`
 - **Planning tab date indicator** — Changed today's date circle to a square in the planning calendar. `43f3a7d`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules now have Edit buttons in SettingsPlanningTab; clicking Edit pre-fills the form with existing data (type/routineId/exerciseId/recurrence/macros/etc) and calls the update endpoint instead of create; `parseRecConfig` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 
@@ -20,6 +21,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Web
 
 - **Steps calories in TDEE breakdown** — Dashboard weight-goal projection and Workouts dashboard today-card now include steps calories in TDEE; formula description shows step contribution when non-zero. `1dcae3d`
+- **Today's Blurb shows step count** — Today's Blurb section on the dashboard now includes a steps line when steps have been logged for the day. `e5dadcc`
 - **Daily insight banner removed** — Removed the AI insight banner from the top of the dashboard, including the `InsightBanner` component, insight state, and `assistantApi.getInsight()` call. `4a17512`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules in the DayModal now have Edit buttons; clicking Edit pre-fills the form with existing data and calls the update endpoint instead of create; `parseRec` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 - **Links category dropdown icons removed** — Removed emoji icons from the category dropdown in the Links header when adding a new link, displaying only the category label. `d60cc47`
