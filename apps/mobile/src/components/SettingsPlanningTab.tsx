@@ -1403,7 +1403,7 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
               borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: c.border }}>
             {/* Date column */}
             <View style={{ width: 54, alignItems: 'center', paddingTop: 2 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+              <View style={{ width: 40, height: 40, borderRadius: 4, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: isToday ? c.accent : 'transparent' }}>
                 <Text style={{ color: isToday ? '#000' : c.muted, fontSize: 9, fontWeight: '600', lineHeight: 12 }}>
                   {headerLabel.toUpperCase()}
