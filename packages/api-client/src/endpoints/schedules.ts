@@ -1,6 +1,6 @@
 import { apiClient } from '../client';
 
-export type RecurrenceType = 'daily' | 'every_other_day' | 'days_of_week' | 'every_x_days' | 'day_of_month';
+export type RecurrenceType = 'daily' | 'every_other_day' | 'days_of_week' | 'every_x_days' | 'day_of_month' | 'custom_cycle';
 
 export interface WorkoutSchedule {
   id: number;

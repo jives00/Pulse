@@ -38,7 +38,13 @@ const inputCls = 'w-full bg-dram-bg border border-slate-600 rounded px-2 py-1.5 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function todayStr() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function localDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -73,6 +79,14 @@ function RecurrenceFields({
   startDate, setStartDate,
   endDate, setEndDate,
   includOnce = false,
+  cycleItems, setCycleItems,
+  cycleItemType, setCycleItemType,
+  cycleItemId, setCycleItemId,
+  cycleDays, setCycleDays,
+  restFrequency, setRestFrequency,
+  alwaysRestWeekends, setAlwaysRestWeekends,
+  exercisesList,
+  routinesList,
 }: {
   recType: AnyRecurrence; setRecType: (v: AnyRecurrence) => void;
   dowDays: number[]; setDowDays: (v: number[]) => void;
@@ -84,6 +98,14 @@ function RecurrenceFields({
   startDate: string; setStartDate: (v: string) => void;
   endDate: string; setEndDate: (v: string) => void;
   includOnce?: boolean;
+  cycleItems?: { type: 'exercise' | 'routine'; id: number }[]; setCycleItems?: (v: { type: 'exercise' | 'routine'; id: number }[]) => void;
+  cycleItemType?: 'exercise' | 'routine'; setCycleItemType?: (v: 'exercise' | 'routine') => void;
+  cycleItemId?: number | null; setCycleItemId?: (v: number | null) => void;
+  cycleDays?: number[]; setCycleDays?: (v: number[]) => void;
+  restFrequency?: string; setRestFrequency?: (v: string) => void;
+  alwaysRestWeekends?: boolean; setAlwaysRestWeekends?: (v: boolean) => void;
+  exercisesList?: Exercise[];
+  routinesList?: RoutineSummary[];
 }) {
   const types: { value: AnyRecurrence; label: string }[] = [
     ...(includOnce ? [{ value: 'once' as AnyRecurrence, label: 'Once' }] : []),
@@ -92,6 +114,7 @@ function RecurrenceFields({
     { value: 'days_of_week',    label: 'Days of week' },
     { value: 'every_x_days',    label: 'Every X days' },
     { value: 'day_of_month',    label: 'Day of month' },
+    { value: 'custom_cycle',    label: 'Custom cycle' },
   ];
 
   return (
@@ -154,6 +177,116 @@ function RecurrenceFields({
         </div>
       )}
 
+      {recType === 'custom_cycle' && cycleItems && setCycleItems && cycleItemType !== undefined && setCycleItemType && cycleItemId !== undefined && setCycleItemId && cycleDays && setCycleDays && restFrequency && setRestFrequency && alwaysRestWeekends !== undefined && setAlwaysRestWeekends && exercisesList && routinesList ? (() => {
+        const items = cycleItems;
+        const setItems = setCycleItems;
+        const itemType = cycleItemType;
+        const setItemType = setCycleItemType;
+        const itemId = cycleItemId;
+        const setItemId = setCycleItemId;
+        const days = cycleDays;
+        const setDays = setCycleDays;
+        const freq = restFrequency;
+        const setFreq = setRestFrequency;
+        const weekends = alwaysRestWeekends;
+        const setWeekends = setAlwaysRestWeekends;
+        return (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-base text-slate-500 mb-1.5">Rotation items</label>
+            <div className="space-y-1 mb-2">
+              {items.map((item, idx) => {
+                const name = item.type === 'exercise'
+                  ? exercisesList.find(e => e.id === item.id)?.name
+                  : routinesList.find(r => r.id === item.id)?.name;
+                return (
+                  <div key={idx} className="flex items-center gap-2 bg-dram-bg/50 rounded px-2 py-1">
+                    <span className="text-xs text-slate-400">{item.type === 'routine' ? 'R' : 'E'}</span>
+                    <span className="text-sm text-slate-300 flex-1">{idx + 1}. {name || `${item.type} ${item.id}`}</span>
+                    <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                      className="text-slate-500 hover:text-red-400 text-sm px-1 transition-colors">✕</button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="space-y-2 mb-2">
+              <div className="flex gap-2">
+                {(['exercise', 'routine'] as const).map(t => (
+                  <button key={t} type="button" onClick={() => { setItemType(t); setItemId(null); }}
+                    className={`flex-1 px-2.5 py-1 rounded text-sm transition-colors ${itemType === t ? 'bg-dram-accent text-black font-semibold' : 'bg-dram-border text-slate-300 hover:text-slate-100'}`}
+                  >{t === 'routine' ? 'Routine' : 'Exercise'}</button>
+                ))}
+              </div>
+              {itemType === 'exercise' ? (
+                <select value={itemId ?? ''} onChange={(e) => {
+                  const id = Number(e.target.value);
+                  if (id && !items.some(item => item.type === 'exercise' && item.id === id)) {
+                    setItems([...items, { type: 'exercise', id }]);
+                    setItemId(null);
+                  }
+                }} className={inputCls} defaultValue="">
+                  <option value="">+ Add exercise…</option>
+                  {exercisesList.map(ex => (
+                    <option key={ex.id} value={ex.id} disabled={items.some(item => item.type === 'exercise' && item.id === ex.id)}>
+                      {ex.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select value={itemId ?? ''} onChange={(e) => {
+                  const id = Number(e.target.value);
+                  if (id && !items.some(item => item.type === 'routine' && item.id === id)) {
+                    setItems([...items, { type: 'routine', id }]);
+                    setItemId(null);
+                  }
+                }} className={inputCls} defaultValue="">
+                  <option value="">+ Add routine…</option>
+                  {routinesList.map(r => (
+                    <option key={r.id} value={r.id} disabled={items.some(item => item.type === 'routine' && item.id === r.id)}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-base text-slate-500 mb-1.5">Workout days</label>
+            <div className="flex gap-1 flex-wrap">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setDays(days.includes(idx) ? days.filter((d: number) => d !== idx) : [...days, idx])}
+                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                    days.includes(idx)
+                      ? 'bg-dram-accent text-black font-semibold'
+                      : 'bg-dram-border text-slate-300 hover:text-slate-100'
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="block text-base text-slate-500 mb-1">Rest after N items</label>
+              <input type="number" min="1" value={freq || '3'} onChange={(e) => setFreq(e.target.value)} className={inputCls} />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={weekends || false} onChange={(e) => setWeekends(e.target.checked)} className="w-4 h-4" />
+                <span className="text-sm text-slate-300">Always rest weekends</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        );
+      })() : null}
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-base text-slate-500 mb-1">Start date</label>
@@ -203,16 +336,28 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
   const [endDate,     setEndDate]     = useState('');
   const [saving,      setSaving]      = useState(false);
 
+  // Custom cycle state - stores items as { type: 'exercise'|'routine', id: number }
+  const [cycleItems,         setCycleItems]         = useState<{ type: 'exercise' | 'routine'; id: number }[]>([]);
+  const [cycleItemType,      setCycleItemType]      = useState<'exercise' | 'routine'>('exercise');
+  const [cycleItemId,        setCycleItemId]        = useState<number | null>(null);
+  const [cycleDays,          setCycleDays]          = useState<number[]>([0, 1, 2, 4]); // Mon, Tue, Wed, Fri
+  const [restFrequency,      setRestFrequency]      = useState('3');
+  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(false);
+
   const isRestDay = scheduleType === 'rest';
-  const canSave = isRestDay || (scheduleType === 'routine' ? routineId !== null : exerciseId !== null);
+  const isCustomCycle = recType === 'custom_cycle';
+  const canSave = isRestDay || isCustomCycle || (scheduleType === 'routine' ? routineId !== null : exerciseId !== null);
 
   async function handleSave() {
     if (!canSave) return;
+    if (isCustomCycle && cycleItems.length === 0) return;
     setSaving(true);
     try {
       const apiRecType = (recType === 'once' ? 'days_of_week' : recType) as RecurrenceType;
       const config = recType === 'once'
         ? { days: [new Date(startDate + 'T12:00:00').getDay() === 0 ? 6 : new Date(startDate + 'T12:00:00').getDay() - 1] }
+        : recType === 'custom_cycle'
+        ? { items: cycleItems, days: cycleDays, restFrequency: Number(restFrequency) || 1, alwaysRestWeekends }
         : buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday);
 
       await schedulesApi.create({
@@ -268,6 +413,14 @@ function AddWorkoutModal({ defaultDate, routinesList, exercisesList, onClose, on
         startDate={startDate} setStartDate={setStartDate}
         endDate={endDate} setEndDate={setEndDate}
         includOnce
+        cycleItems={cycleItems} setCycleItems={setCycleItems}
+        cycleItemType={cycleItemType} setCycleItemType={setCycleItemType}
+        cycleItemId={cycleItemId} setCycleItemId={setCycleItemId}
+        cycleDays={cycleDays} setCycleDays={setCycleDays}
+        restFrequency={restFrequency} setRestFrequency={setRestFrequency}
+        alwaysRestWeekends={alwaysRestWeekends} setAlwaysRestWeekends={setAlwaysRestWeekends}
+        exercisesList={exercisesList}
+        routinesList={routinesList}
       />
 
       <div className="flex gap-2 pt-1">
@@ -324,6 +477,14 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
   const [startDate,  setStartDate]  = useState(defaultDate);
   const [endDate,    setEndDate]    = useState('');
   const [saving,     setSaving]     = useState(false);
+
+  // Custom cycle state for nutrition
+  const [cycleItems,         setCycleItems]         = useState<any[]>([]);
+  const [cycleItemType,      setCycleItemType]      = useState<any>('food');
+  const [cycleItemId,        setCycleItemId]        = useState<number | null>(null);
+  const [cycleDays,          setCycleDays]          = useState<number[]>([0, 1, 2, 4]);
+  const [restFrequency,      setRestFrequency]      = useState('3');
+  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(false);
 
   // Search foods/recipes
   useEffect(() => {
@@ -569,6 +730,13 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved }: {
         startDate={startDate} setStartDate={setStartDate}
         endDate={endDate} setEndDate={setEndDate}
         includOnce
+        cycleItems={cycleItems} setCycleItems={setCycleItems}
+        cycleItemType={cycleItemType} setCycleItemType={setCycleItemType}
+        cycleItemId={cycleItemId} setCycleItemId={setCycleItemId}
+        cycleDays={cycleDays} setCycleDays={setCycleDays}
+        restFrequency={restFrequency} setRestFrequency={setRestFrequency}
+        alwaysRestWeekends={alwaysRestWeekends} setAlwaysRestWeekends={setAlwaysRestWeekends}
+        exercisesList={foodResults as any} routinesList={recipeResults as any}
       />
 
       <div className="flex gap-2 pt-1">
@@ -669,6 +837,28 @@ function NutritionOverrideForm({ date, existing, presets, onClose, onSaved }: {
   const [startDate,   setStartDate]   = useState(date);
   const [endDate,     setEndDate]     = useState('');
 
+  // Custom cycle state for nutrition
+  const [cycleItems,         setCycleItems]         = useState<any[]>([]);
+  const [cycleItemType,      setCycleItemType]      = useState<any>('food');
+  const [cycleItemId,        setCycleItemId]        = useState<number | null>(null);
+  const [cycleDays,          setCycleDays]          = useState<number[]>([0, 1, 2, 4]);
+  const [restFrequency,      setRestFrequency]      = useState('3');
+  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(false);
+
+  // For nutrition custom cycles, fetch available foods/recipes for the item picker
+  const [foodsList,          setFoodsList]          = useState<any[]>([]);
+  const [recipesList,        setRecipesList]        = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setFoodsList(await foodsApi.listCustom());
+        setRecipesList(await recipesApi.getAll({ type: 'food', limit: 100 }));
+      } catch { /* ignore */ }
+    };
+    load();
+  }, []);
+
   function applyPreset(id: number | '') {
     setDayTypeId(id);
     if (!id) return;
@@ -696,7 +886,9 @@ function NutritionOverrideForm({ date, existing, presets, onClose, onSaved }: {
       if (mode === 'once') {
         await dayTypesApi.upsertOverride(date, macroPayload());
       } else {
-        const cfg = buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday);
+        const cfg = recType === 'custom_cycle'
+          ? { items: cycleItems, days: cycleDays, restFrequency: Number(restFrequency) || 1, alwaysRestWeekends }
+          : buildRecurrenceConfig(recType, dowDays, xInterval, domType, domDates, domN, domWeekday);
         await nutritionSchedulesApi.create({
           ...macroPayload(),
           recurrenceType:   recType,
@@ -765,6 +957,13 @@ function NutritionOverrideForm({ date, existing, presets, onClose, onSaved }: {
           startDate={startDate} setStartDate={setStartDate}
           endDate={endDate} setEndDate={setEndDate}
           includOnce={false}
+          cycleItems={cycleItems} setCycleItems={setCycleItems}
+          cycleItemType={cycleItemType} setCycleItemType={setCycleItemType}
+          cycleItemId={cycleItemId} setCycleItemId={setCycleItemId}
+          cycleDays={cycleDays} setCycleDays={setCycleDays}
+          restFrequency={restFrequency} setRestFrequency={setRestFrequency}
+          alwaysRestWeekends={alwaysRestWeekends} setAlwaysRestWeekends={setAlwaysRestWeekends}
+          exercisesList={foodsList as any} routinesList={recipesList as any}
         />
       )}
 
@@ -1127,10 +1326,10 @@ export default function PlanningCalendarCard({
 
   useEffect(() => { load(); }, [load]);
 
-  // Build kanban board: yesterday, today, and next 5 days (7 days total)
+  // Build kanban board: today and next 6 days (7 days total)
   const kanbanDays = (() => {
     const days: string[] = [];
-    for (let i = -1; i <= 5; i++) {
+    for (let i = 0; i <= 6; i++) {
       days.push(addDays(today, i));
     }
     return days;
@@ -1195,10 +1394,10 @@ export default function PlanningCalendarCard({
                       {/* Workouts */}
                       {workoutEvents.length > 0 && (
                         <div>
-                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Workouts</div>
+                          <div className="text-sm font-semibold text-slate-400 uppercase mb-1.5">Workouts</div>
                           <div className="space-y-1">
                             {workoutEvents.map((e) => (
-                              <div key={e.scheduleId} className="text-xs text-dram-accent rounded px-2 py-1">
+                              <div key={e.scheduleId} className="text-sm text-dram-accent rounded px-2 py-1">
                                 {e.isRestDay ? 'Rest day' : (e.exerciseName ?? e.routineName ?? 'Workout')}
                               </div>
                             ))}
@@ -1209,14 +1408,17 @@ export default function PlanningCalendarCard({
                       {/* Meals */}
                       {me.length > 0 && (
                         <div>
-                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Meals</div>
+                          <div className="text-sm font-semibold text-slate-400 uppercase mb-1.5">Meals</div>
                           <div className="space-y-1">
                             {me.map((e) => (
                               <div key={`${e.scheduleId}-${e.date}`} className="space-y-0.5">
-                                <div className="text-xs text-blue-400">{e.label}</div>
+                                <div className="text-sm text-blue-400">{e.label}</div>
                                 {e.calories != null && (
-                                  <div className="text-[10px] text-slate-500">
-                                    {Math.round(e.calories)} kcal · {e.proteinG?.toFixed(0)}g P · {e.carbsG?.toFixed(0)}g C · {e.fatG?.toFixed(0)}g F
+                                  <div className="text-sm text-dram-accent space-y-0">
+                                    <div>{Math.round(e.calories)} kcal</div>
+                                    <div>{e.proteinG?.toFixed(0)}g protein</div>
+                                    <div>{e.carbsG?.toFixed(0)}g carbs</div>
+                                    <div>{e.fatG?.toFixed(0)}g fat</div>
                                   </div>
                                 )}
                               </div>
@@ -1228,10 +1430,10 @@ export default function PlanningCalendarCard({
                       {/* Goal checkpoints */}
                       {cp.length > 0 && (
                         <div>
-                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Goals</div>
+                          <div className="text-sm font-semibold text-slate-400 uppercase mb-1.5">Goals</div>
                           <div className="space-y-1">
                             {cp.map((c) => (
-                              <div key={c.id} className="text-xs text-emerald-400 rounded px-2 py-1">
+                              <div key={c.id} className="text-sm text-emerald-400 rounded px-2 py-1">
                                 {METRIC_CONFIG[c.metric]?.label ?? c.metric} → {c.targetValue} {c.unit}
                               </div>
                             ))}
@@ -1242,16 +1444,38 @@ export default function PlanningCalendarCard({
                       {/* Nutrition override */}
                       {(nutritionOverride || nse.length > 0) && (
                         <div>
-                          <div className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Nutrition</div>
+                          <div className="text-sm font-semibold text-slate-400 uppercase mb-1.5">Nutrition</div>
                           <div className="space-y-1">
                             {nutritionOverride && (
-                              <div className="text-xs text-purple-400 rounded px-2 py-1">
-                                {nutritionOverride.dayTypeName ?? 'Custom targets'}
+                              <div className="space-y-0.5">
+                                <div className="text-sm text-purple-400 rounded px-2 py-1">
+                                  {nutritionOverride.dayTypeName ?? 'Custom targets'}
+                                </div>
+                                {nutritionOverride.calories != null && (
+                                  <div className="text-sm text-dram-accent space-y-0 px-2">
+                                    <div>{Math.round(nutritionOverride.calories)} kcal</div>
+                                    <div>{nutritionOverride.proteinG?.toFixed(0)}g protein</div>
+                                    <div>{nutritionOverride.carbsG?.toFixed(0)}g carbs</div>
+                                    <div>{nutritionOverride.fatG?.toFixed(0)}g fat</div>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {nse.map((e) => (
-                              <div key={e.scheduleId} className="text-xs text-purple-400 rounded px-2 py-1">
-                                {e.dayTypeName ?? 'Custom targets'}
+                              <div key={e.scheduleId} className="space-y-0.5">
+                                {e.recurrenceDescription && (
+                                  <div className="text-sm text-purple-400 rounded px-2 py-1">
+                                    {e.recurrenceDescription}
+                                  </div>
+                                )}
+                                {e.calories != null && (
+                                  <div className="text-sm text-dram-accent space-y-0 px-2">
+                                    <div>{Math.round(e.calories)} kcal</div>
+                                    <div>{e.proteinG?.toFixed(0)}g protein</div>
+                                    <div>{e.carbsG?.toFixed(0)}g carbs</div>
+                                    <div>{e.fatG?.toFixed(0)}g fat</div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

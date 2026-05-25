@@ -23,6 +23,22 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Planning tab redesigned** — Settings now includes a Planning tab with a 14-day agenda view (vertical list, colored event dots per category) replacing the horizontal card strip; single "Add to schedule" button opens a DayModal with a day-picker strip defaulting to today; DayModal contains Workout, Meals, Goals, and Nutrition tabs; workout add supports routine/exercise/rest day with once-or-recurring; meal add supports food search, recipe search, or custom label; goal checkpoints support metric dropdown, target, date, and notes; nutrition add supports macros and water in glasses; Day Type Presets and Import Program features removed. `71bf8e3`
 - **Today's Blurb** — Dashboard Today tab now includes a summary card as the last section, displaying today's workout (name + volume in lbs), nutrition (calories, protein, carbs, fats), and water intake (in glasses) as a plain-text blurb with a share button. `c80cb44`
 
+- **Custom cycle recurrence for meal schedules** — Meal schedule /upcoming endpoint now supports custom_cycle recurrence type with modulo-based day-of-week filtering; displays macros without description label. `fb78de2`
+- **Custom cycle recurrence for nutrition schedules** — Nutrition schedule /upcoming endpoint now supports custom_cycle recurrence type; calendar displays macros (calories, protein, carbs, fat) on separate lines with full names instead of abbreviations (P/C/F); removed generic "?-item cycle" description. `fb78de2`
+- **Timezone bug fix in /upcoming endpoints** — `/api/schedules/upcoming`, `/api/meal-schedules/upcoming`, and `/api/nutrition-schedules/upcoming` now use local dates instead of UTC, fixing date range mismatch where schedules starting tomorrow were filtered out when mobile requested current day. `fb78de2`
+- **Planning calendar font sizes and macro display** — Nutrition macro display on calendar increased from text-xs to text-sm and colored with dram-accent orange to match routine/exercise names; section headers increased from text-xs to text-sm; calendar date range fixed to remove yesterday and add one future day (now shows 14 days forward). `fb78de2`
+
+### Web
+
+- **Nutrition macro display improvements** — Nutrition schedule events on the calendar now display macros (calories, protein, carbs, fat) on separate lines with full names instead of abbreviations; removed generic "?-item cycle cycle on [days]" description for custom_cycle type. `fb78de2`
+- **Planning calendar date range fix** — Calendar now shows 14 days forward (removed yesterday, added one day to future); resolves off-by-one display issue. `fb78de2`
+- **Timezone bug fix** — Planning calendar and recipe history pages fixed `todayStr()` function to use local dates instead of UTC, matching backend /upcoming endpoints. `fb78de2`
+
+### API
+
+- **Custom cycle recurrence** — Nutrition schedules and meal schedules now support `custom_cycle` recurrence type; recurrence config stores `cycleDays` array and `days` array for day-of-week filtering; `matchesRecurrence()` checks day-of-week membership then counts elapsed days for position. Migration 035 added `custom_cycle` ENUM value. `fb78de2`
+- **Timezone bug fix in /upcoming endpoints** — All three schedule /upcoming endpoints now compute `todayStr` using local date (year/month/day) instead of `new Date().toISOString().slice(0, 10)` which was returning UTC time, causing schedules to shift by one day on mobile. `fb78de2`
+
 ## May 23, 2026
 
 ### Web

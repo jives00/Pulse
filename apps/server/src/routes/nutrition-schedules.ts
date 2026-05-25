@@ -43,6 +43,8 @@ function describeRecurrence(type: string, cfg: any): string {
       if (cfg.type === 'nth_weekday') return `${ORDINALS[cfg.n]} ${DOW_NAMES[cfg.weekday]}`;
       if (cfg.type === 'specific_dates') return (cfg.dates as number[]).map(ordinalStr).join(' & ');
       return '';
+    case 'custom_cycle':
+      return 'Custom cycle';
     default: return '';
   }
 }
@@ -63,6 +65,11 @@ function matchesRecurrence(type: string, cfg: any, date: Date, startDate: Date):
         return dom >= (cfg.n - 1) * 7 + 1 && dom <= cfg.n * 7;
       }
       return false;
+    case 'custom_cycle':
+      if (!Array.isArray(cfg.days) || cfg.days.length === 0) return false;
+      const dow = getDow(date);
+      if (!cfg.days.includes(dow)) return false;
+      return diff >= 0;
     default: return false;
   }
 }
@@ -99,7 +106,8 @@ router.get('/', async (req, res) => {
 // GET /api/nutrition-schedules/upcoming?days=60
 router.get('/upcoming', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 60, 1), 90);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const toDate   = new Date(todayStr + 'T00:00:00.000Z');
   toDate.setUTCDate(toDate.getUTCDate() + days - 1);
   const toStr = toDate.toISOString().slice(0, 10);
@@ -115,6 +123,12 @@ router.get('/upcoming', async (req, res) => {
       [req.userId, toStr, todayStr]
     );
 
+    // Fetch foods and recipes for name lookups
+    const [foodRows] = await pool.query<RowDataPacket[]>('SELECT id, name FROM foods');
+    const [recipeRows] = await pool.query<RowDataPacket[]>('SELECT id, name FROM recipes');
+    const foodMap = new Map(foodRows.map((r: RowDataPacket) => [r.id, r.name]));
+    const recipeMap = new Map(recipeRows.map((r: RowDataPacket) => [r.id, r.name]));
+
     const results: object[] = [];
 
     for (const sched of schedRows as RowDataPacket[]) {
@@ -128,6 +142,13 @@ router.get('/upcoming', async (req, res) => {
       while (cur <= toDate) {
         if (endDate && cur > endDate) break;
         if (matchesRecurrence(sched.recurrence_type, cfg, cur, startDate)) {
+          let recDesc = describeRecurrence(sched.recurrence_type, cfg);
+
+          // For custom_cycle, don't show description (just macros)
+          if (sched.recurrence_type === 'custom_cycle') {
+            recDesc = '';
+          }
+
           results.push({
             date:         cur.toISOString().slice(0, 10),
             scheduleId:   sched.id,
@@ -138,7 +159,7 @@ router.get('/upcoming', async (req, res) => {
             carbsG:       sched.carbs_g     != null ? Number(sched.carbs_g)     : null,
             fatG:         sched.fat_g       != null ? Number(sched.fat_g)       : null,
             waterGoalOz:  sched.water_goal_oz != null ? Number(sched.water_goal_oz) : null,
-            recurrenceDescription: describeRecurrence(sched.recurrence_type, cfg),
+            recurrenceDescription: recDesc,
           });
         }
         cur.setUTCDate(cur.getUTCDate() + 1);

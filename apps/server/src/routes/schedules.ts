@@ -47,7 +47,59 @@ function describeRecurrence(type: string, cfg: any): string {
       if (cfg.type === 'specific_dates')
         return (cfg.dates as number[]).map(ordinalStr).join(' & ');
       return '';
+    case 'custom_cycle': {
+      const itemCount = (cfg.items || cfg.exercises || []).length;
+      const itemLabel = itemCount ? `${itemCount}-item cycle` : 'Cycle';
+      const rest = cfg.restFrequency ? ` with rest every ${cfg.restFrequency}` : '';
+      const days = Array.isArray(cfg.days) && cfg.days.length > 0
+        ? ` on ${cfg.days.map((d: number) => DOW_NAMES[d]).join(' · ')}`
+        : '';
+      return itemLabel + rest + days;
+    }
     default: return '';
+  }
+}
+
+// Get the specific item in a custom_cycle for a given date
+// Returns { type: 'exercise' | 'routine' | 'rest', id: number | null }
+function getCycleItemForDate(cfg: any, date: Date, startDate: Date): { type: string; id: number | null } {
+  const items = cfg.items || [];
+  if (items.length === 0) return { type: 'rest', id: null };
+
+  const cycleDays = Array.isArray(cfg.days) && cfg.days.length > 0 ? cfg.days : null;
+  const dow = getDow(date);
+
+  // Check if this date is a workout day
+  if (cycleDays && !cycleDays.includes(dow)) {
+    return { type: 'rest', id: null };
+  }
+
+  // Count workout days from start_date to date
+  let dayCount = 0;
+  const cur = new Date(startDate);
+  while (cur < date) {
+    const curDow = getDow(cur);
+    const isWorkoutDay = cycleDays ? cycleDays.includes(curDow) : !(cfg.alwaysRestWeekends && (curDow === 5 || curDow === 6));
+    if (isWorkoutDay) dayCount++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  // Determine position in cycle
+  if (cycleDays) {
+    // With specific days, just cycle through items (no rest days inserted)
+    const posInCycle = dayCount % items.length;
+    const item = items[posInCycle];
+    return item ? { type: item.type, id: item.id } : { type: 'rest', id: null };
+  } else {
+    // Without specific days, insert rest day every restFrequency items
+    const restFrequency = cfg.restFrequency || 3;
+    const cycleLengthWithRest = items.length + 1;
+    const posInCycle = dayCount % cycleLengthWithRest;
+    if (posInCycle >= items.length) {
+      return { type: 'rest', id: null };
+    }
+    const item = items[posInCycle];
+    return item ? { type: item.type, id: item.id } : { type: 'rest', id: null };
   }
 }
 
@@ -67,6 +119,60 @@ function matchesRecurrence(recurrenceType: string, cfg: any, date: Date, startDa
         return dom >= (cfg.n - 1) * 7 + 1 && dom <= cfg.n * 7;
       }
       return false;
+    case 'custom_cycle': {
+      if (diff < 0) return false;
+
+      // Support both old 'exercises' and new 'items' format
+      const items = cfg.items || (cfg.exercises ? cfg.exercises.map((id: number) => ({ type: 'exercise', id })) : []);
+      if (!Array.isArray(items) || items.length === 0) return false;
+
+      const cycleDays = Array.isArray(cfg.days) && cfg.days.length > 0 ? cfg.days : null;
+      const restFrequency = cfg.restFrequency || 3;
+      const alwaysRestWeekends = cfg.alwaysRestWeekends === true;
+
+      const dow = getDow(date);
+
+      // If specific workout days are defined
+      if (cycleDays) {
+        if (!cycleDays.includes(dow)) return false; // Not a workout day
+
+        // Count workout days from start_date to date to determine cycle position
+        let dayCount = 0;
+        const cur = new Date(startDate);
+        while (cur < date) {
+          const curDow = getDow(cur);
+          if (cycleDays.includes(curDow)) dayCount++;
+          cur.setUTCDate(cur.getUTCDate() + 1);
+        }
+
+        // When specific days are defined, just cycle through items without inserting rest days
+        // The rest days are already handled by cycleDays (non-included days are rest)
+        const itemCount = items.length;
+        const posInCycle = dayCount % itemCount;
+        return posInCycle < itemCount; // Always true for workout days
+      }
+
+      // If no specific days, use the rest frequency logic
+      if (alwaysRestWeekends && (dow === 5 || dow === 6)) return false;
+
+      // Count all non-weekend days from start_date to date
+      let dayCount = 0;
+      const cur = new Date(startDate);
+      while (cur < date) {
+        const curDow = getDow(cur);
+        if (!(alwaysRestWeekends && (curDow === 5 || curDow === 6))) {
+          dayCount++;
+        }
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      // When no specific days: cycle pattern is [item0, ..., itemN-1, rest]
+      const itemCount = items.length;
+      const cycleLengthWithRest = itemCount + 1;
+      const posInCycle = dayCount % cycleLengthWithRest;
+      const isRestDayPosition = posInCycle >= itemCount;
+      return !isRestDayPosition;
+    }
     default: return false;
   }
 }
@@ -128,7 +234,8 @@ router.get('/', async (req, res) => {
 router.get('/upcoming', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const toDate   = new Date(todayStr + 'T00:00:00.000Z');
   toDate.setUTCDate(toDate.getUTCDate() + days - 1);
   const toStr = toDate.toISOString().slice(0, 10);
@@ -176,6 +283,24 @@ router.get('/upcoming', async (req, res) => {
       if (c.routine_id) completedSet.add(`${c.routine_id}:${dateStr(c.workout_date)}`);
     }
 
+    // Fetch all routines and exercises for name lookup in custom_cycle
+    const [routineRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name FROM workout_routines WHERE user_id = ?`,
+      [req.userId]
+    );
+    const routineMap = new Map<number, string>();
+    for (const r of routineRows as RowDataPacket[]) {
+      routineMap.set(r.id, r.name);
+    }
+
+    const [exerciseRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name FROM exercises`
+    );
+    const exerciseMap = new Map<number, string>();
+    for (const e of exerciseRows as RowDataPacket[]) {
+      exerciseMap.set(e.id, e.name);
+    }
+
     const results: object[] = [];
 
     for (const sched of schedRows as RowDataPacket[]) {
@@ -190,16 +315,48 @@ router.get('/upcoming', async (req, res) => {
       while (cur <= to) {
         if (endDate && cur > endDate) break;
 
-        if (matchesRecurrence(sched.recurrence_type, cfg, cur, startDate)) {
-          const d      = cur.toISOString().slice(0, 10);
+        const d = cur.toISOString().slice(0, 10);
+        const isCustomCycleWithDays = sched.recurrence_type === 'custom_cycle' && Array.isArray(cfg.days) && cfg.days.length > 0;
+        const matches = matchesRecurrence(sched.recurrence_type, cfg, cur, startDate);
+        const shouldInclude = matches || isCustomCycleWithDays; // Include all dates for custom_cycle with specific days
+
+        if (shouldInclude) {
           const oKey   = `${sched.id}:${d}`;
-          const cKey   = `${sched.routine_id}:${d}`;
           const over   = overrideMap.get(oKey);
 
+          let routineId: number | null = sched.routine_id ?? null;
+          let routineName: string | null = sched.routine_name ?? null;
+          let exerciseId: number | null = sched.exercise_id ?? null;
+          let exerciseName: string | null = sched.exercise_name ?? null;
+          let isRestDay = Boolean(sched.is_rest_day);
+
+          // For custom_cycle, determine which item to show for this date
+          if (sched.recurrence_type === 'custom_cycle') {
+            const item = getCycleItemForDate(cfg, cur, startDate);
+            if (item.type === 'rest') {
+              isRestDay = true;
+              routineId = null;
+              routineName = null;
+              exerciseId = null;
+              exerciseName = null;
+            } else if (item.type === 'routine') {
+              exerciseId = null;
+              exerciseName = null;
+              routineId = item.id ?? null;
+              routineName = item.id ? (routineMap.get(item.id) || null) : null;
+            } else if (item.type === 'exercise') {
+              routineId = null;
+              routineName = null;
+              exerciseId = item.id ?? null;
+              exerciseName = item.id ? (exerciseMap.get(item.id) || null) : null;
+            }
+          }
+
+          const cKey   = `${routineId}:${d}`;
           let status: string;
           if (over) {
             status = over;
-          } else if (!sched.is_rest_day && sched.routine_id && completedSet.has(cKey)) {
+          } else if (!isRestDay && routineId && completedSet.has(cKey)) {
             status = 'completed';
           } else {
             status = 'scheduled';
@@ -209,11 +366,11 @@ router.get('/upcoming', async (req, res) => {
             date:         d,
             dayLabel:     DOW_NAMES[getDow(cur)],
             scheduleId:   sched.id,
-            routineId:    sched.routine_id ?? null,
-            routineName:  sched.routine_name ?? null,
-            exerciseId:   sched.exercise_id ?? null,
-            exerciseName: sched.exercise_name ?? null,
-            isRestDay:    Boolean(sched.is_rest_day),
+            routineId,
+            routineName,
+            exerciseId,
+            exerciseName,
+            isRestDay,
             status,
           });
         }
@@ -237,7 +394,7 @@ router.post('/', async (req, res) => {
   if (!recurrenceType || !startDate) {
     res.status(400).json({ error: 'recurrenceType and startDate required' }); return;
   }
-  const validTypes = ['daily', 'every_other_day', 'days_of_week', 'every_x_days', 'day_of_month'];
+  const validTypes = ['daily', 'every_other_day', 'days_of_week', 'every_x_days', 'day_of_month', 'custom_cycle'];
   if (!validTypes.includes(recurrenceType)) {
     res.status(400).json({ error: 'Invalid recurrenceType' }); return;
   }

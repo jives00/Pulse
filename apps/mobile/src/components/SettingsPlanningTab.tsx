@@ -50,7 +50,15 @@ const REC_OPTS_MEAL: { value: MealRecurrenceType; label: string }[] = [
   { value: 'day_of_month',    label: 'Day of month' },
 ];
 
-const REC_OPTS_WORKOUT = REC_OPTS_MEAL; // workouts also allow 'once' (mapped server-side)
+const REC_OPTS_WORKOUT: { value: AnyRec; label: string }[] = [
+  { value: 'once',            label: 'Once'         },
+  { value: 'daily',           label: 'Daily'        },
+  { value: 'every_other_day', label: 'Every other'  },
+  { value: 'days_of_week',    label: 'Days of week' },
+  { value: 'every_x_days',    label: 'Every X days' },
+  { value: 'day_of_month',    label: 'Day of month' },
+  { value: 'custom_cycle',    label: 'Custom cycle' },
+];
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function addDays(dateStr: string, n: number): string {
@@ -82,7 +90,7 @@ interface RecState {
   endDate: string; setEndDate: (v: string) => void;
 }
 
-function buildRecConfig(r: RecState) {
+function buildRecConfig(r: RecState | (RecState & { cycleItems?: { type: 'exercise' | 'routine'; id: number }[]; restFrequency?: string; alwaysRestWeekends?: boolean })) {
   const { recType: rt, dowDays, xInterval, domType, domDates, domN, domWeekday } = r;
   if (rt === 'once' || rt === 'daily' || rt === 'every_other_day') return {};
   if (rt === 'days_of_week') return { days: dowDays };
@@ -90,6 +98,13 @@ function buildRecConfig(r: RecState) {
   if (rt === 'day_of_month') {
     if (domType === 'specific_dates') return { type: 'specific_dates', dates: domDates.split(',').map(d => Number(d.trim())).filter(d => d >= 1 && d <= 31) };
     return { type: 'nth_weekday', n: Number(domN) || 1, weekday: Number(domWeekday) || 0 };
+  }
+  if (rt === 'custom_cycle') {
+    const cycleItems = (r as any).cycleItems || [];
+    const cycleDays = (r as any).cycleDays || [];
+    const restFrequency = Number((r as any).restFrequency) || 1;
+    const alwaysRestWeekends = (r as any).alwaysRestWeekends !== false;
+    return { items: cycleItems, days: cycleDays, restFrequency, alwaysRestWeekends };
   }
   return {};
 }
@@ -146,6 +161,12 @@ function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnTy
               )}
             </>
           )}
+          {r.recType === 'custom_cycle' && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Exercise rotation</Text>
+              <Text style={{ color: c.muted, fontSize: fontSize.xs, marginBottom: 4 }}>(Set in edit modal)</Text>
+            </View>
+          )}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <TextInput style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
               value={r.startDate} onChangeText={r.setStartDate} placeholder="Start (YYYY-MM-DD)" placeholderTextColor={c.muted} />
@@ -188,15 +209,32 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const recState: RecState = { recType, setRecType, dowDays, setDowDays, xInterval, setXInterval,
+  // Custom cycle state
+  const [cycleItems, setCycleItems] = useState<{ type: 'exercise' | 'routine'; id: number }[]>([]);
+  const [cycleItemType, setCycleItemType] = useState<'exercise' | 'routine'>('exercise');
+  const [cycleDays, setCycleDays] = useState<number[]>([0, 1, 2, 4]); // Mon, Tue, Wed, Fri
+  const [restFrequency, setRestFrequency] = useState('3');
+  const [alwaysRestWeekends, setAlwaysRestWeekends] = useState(false);
+  const [showCycleEditor, setShowCycleEditor] = useState(false);
+  const [showCycleItemPicker, setShowCycleItemPicker] = useState(false);
+
+  const recState: RecState & { cycleItems?: { type: 'exercise' | 'routine'; id: number }[]; cycleDays?: number[]; restFrequency?: string; alwaysRestWeekends?: boolean } = {
+    recType, setRecType, dowDays, setDowDays, xInterval, setXInterval,
     domType, setDomType, domDates, setDomDates, domN, setDomN, domWeekday, setDomWeekday,
-    startDate, setStartDate, endDate, setEndDate };
+    startDate, setStartDate, endDate, setEndDate,
+    cycleItems, cycleDays, restFrequency, alwaysRestWeekends
+  };
 
   const isRest = type === 'rest';
-  const canSave = isRest || (type === 'routine' ? routineId !== null : exerciseId !== null);
+  const isCustomCycle = recType === 'custom_cycle';
+  const canSave = isRest || isCustomCycle || (type === 'routine' ? routineId !== null : exerciseId !== null);
 
   async function handleSave() {
     if (!canSave) return;
+    if (isCustomCycle && cycleItems.length === 0) {
+      Alert.alert('Error', 'Please add at least one item to the cycle.');
+      return;
+    }
     setSaving(true);
     try {
       const once = recType === 'once';
@@ -328,6 +366,128 @@ function WorkoutTabContent({ date, token, routinesList, exercisesList, workoutSc
             value={label} onChangeText={setLabel} placeholder="Label (optional, e.g. Morning run)" placeholderTextColor={c.muted} />
 
           <RecurrenceForm r={recState} c={c} s={s} opts={REC_OPTS_WORKOUT} />
+
+          {recType === 'custom_cycle' && (
+            <View style={{ gap: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
+              <TouchableOpacity onPress={() => setShowCycleEditor(!showCycleEditor)}
+                style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderColor: c.border, backgroundColor: c.bg }]}>
+                <Text style={{ color: cycleItems.length > 0 ? c.text : c.muted, fontSize: fontSize.sm }}>
+                  {cycleItems.length > 0 ? `${cycleItems.length} items` : 'Configure cycle…'}
+                </Text>
+                <Text style={{ color: c.muted }}>{showCycleEditor ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+
+              {showCycleEditor && (
+                <View style={{ gap: 8 }}>
+                  <View>
+                    <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Rotation items</Text>
+                    {cycleItems.map((item, idx) => {
+                      const name = item.type === 'exercise'
+                        ? exercisesList.find(e => e.id === item.id)?.name
+                        : routinesList.find(r => r.id === item.id)?.name;
+                      return (
+                        <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: `${c.accent}15`, marginBottom: 4, borderRadius: 6 }}>
+                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{item.type === 'routine' ? 'R' : 'E'}</Text>
+                            <Text style={{ color: c.text, fontSize: fontSize.sm }}>{idx + 1}. {name}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => setCycleItems(cycleItems.filter((_, i) => i !== idx))}>
+                            <Text style={{ color: '#C5896E', fontSize: fontSize.sm, paddingHorizontal: 4 }}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                      {(['exercise', 'routine'] as const).map(t => (
+                        <TouchableOpacity key={t} onPress={() => setCycleItemType(t)}
+                          style={{ flex: 1, paddingVertical: 8, borderRadius: 6, alignItems: 'center', backgroundColor: cycleItemType === t ? c.accent : c.border }}>
+                          <Text style={{ color: cycleItemType === t ? '#000' : c.text, fontSize: fontSize.xs, fontWeight: '600' }}>
+                            {t === 'routine' ? 'Routine' : 'Exercise'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {cycleItemType === 'exercise' ? (
+                      <>
+                        <TouchableOpacity onPress={() => setShowCycleItemPicker(!showCycleItemPicker)}
+                          style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderColor: c.border, backgroundColor: c.bg, marginBottom: 8 }]}>
+                          <Text style={{ color: c.muted, fontSize: fontSize.sm }}>+ Add exercise…</Text>
+                          <Text style={{ color: c.muted }}>{showCycleItemPicker ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
+                        {showCycleItemPicker && (
+                          <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 6, marginBottom: 8, maxHeight: 200 }}>
+                            <ScrollView>
+                              {exercisesList.map(ex => (
+                                <TouchableOpacity key={ex.id}
+                                  disabled={cycleItems.some(item => item.type === 'exercise' && item.id === ex.id)}
+                                  onPress={() => { setCycleItems([...cycleItems, { type: 'exercise', id: ex.id }]); setShowCycleItemPicker(false); }}
+                                  style={[s.pickerRow, { borderColor: c.border, paddingHorizontal: 12, opacity: cycleItems.some(item => item.type === 'exercise' && item.id === ex.id) ? 0.5 : 1 }]}>
+                                  <Text style={{ color: cycleItems.some(item => item.type === 'exercise' && item.id === ex.id) ? c.muted : c.text, fontSize: fontSize.sm }}>{ex.name}</Text>
+                                  {cycleItems.some(item => item.type === 'exercise' && item.id === ex.id) && <Text style={{ color: c.accent }}>✓</Text>}
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity onPress={() => setShowCycleItemPicker(!showCycleItemPicker)}
+                          style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderColor: c.border, backgroundColor: c.bg, marginBottom: 8 }]}>
+                          <Text style={{ color: c.muted, fontSize: fontSize.sm }}>+ Add routine…</Text>
+                          <Text style={{ color: c.muted }}>{showCycleItemPicker ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
+                        {showCycleItemPicker && (
+                          <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 6, marginBottom: 8, maxHeight: 200 }}>
+                            <ScrollView>
+                              {routinesList.map(r => (
+                                <TouchableOpacity key={r.id}
+                                  disabled={cycleItems.some(item => item.type === 'routine' && item.id === r.id)}
+                                  onPress={() => { setCycleItems([...cycleItems, { type: 'routine', id: r.id }]); setShowCycleItemPicker(false); }}
+                                  style={[s.pickerRow, { borderColor: c.border, paddingHorizontal: 12, opacity: cycleItems.some(item => item.type === 'routine' && item.id === r.id) ? 0.5 : 1 }]}>
+                                  <Text style={{ color: cycleItems.some(item => item.type === 'routine' && item.id === r.id) ? c.muted : c.text, fontSize: fontSize.sm }}>{r.name}</Text>
+                                  {cycleItems.some(item => item.type === 'routine' && item.id === r.id) && <Text style={{ color: c.accent }}>✓</Text>}
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+
+                  <View>
+                    <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 6 }]}>Workout days</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => (
+                        <TouchableOpacity key={idx} onPress={() => setCycleDays(cycleDays.includes(idx) ? cycleDays.filter(d => d !== idx) : [...cycleDays, idx])}
+                          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: cycleDays.includes(idx) ? c.accent : c.border }}>
+                          <Text style={{ color: cycleDays.includes(idx) ? '#000' : c.text, fontSize: fontSize.xs, fontWeight: '600' }}>{day}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={{ gap: 6 }}>
+                    <View>
+                      <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Rest after N items</Text>
+                      <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                        value={restFrequency} onChangeText={setRestFrequency} keyboardType="numeric" placeholder="e.g. 3" placeholderTextColor={c.muted} />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <TouchableOpacity onPress={() => setAlwaysRestWeekends(!alwaysRestWeekends)}
+                        style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: c.border, justifyContent: 'center', alignItems: 'center', backgroundColor: alwaysRestWeekends ? c.accent : 'transparent' }}>
+                        {alwaysRestWeekends && <Text style={{ color: '#000', fontSize: fontSize.xs, fontWeight: '700' }}>✓</Text>}
+                      </TouchableOpacity>
+                      <Text style={{ color: c.text, fontSize: fontSize.sm }}>Always rest weekends</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={s.actions}>
             <TouchableOpacity onPress={() => setAdding(false)} style={s.cancelBtn}>
@@ -474,7 +634,14 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={{ color: c.text, fontSize: fontSize.sm }}>{ev.label}</Text>
                 {ev.mealSlot && <Text style={{ color: c.muted, fontSize: fontSize.xs, textTransform: 'capitalize' }}>{ev.mealSlot}</Text>}
-                {ev.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{Math.round(ev.calories)} kcal · {(ev.proteinG ?? 0).toFixed(0)}g P · {(ev.carbsG ?? 0).toFixed(0)}g C · {(ev.fatG ?? 0).toFixed(0)}g F</Text>}
+                {ev.calories != null && (
+                  <View>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{Math.round(ev.calories)} kcal</Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{(ev.proteinG ?? 0).toFixed(0)}g protein</Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{(ev.carbsG ?? 0).toFixed(0)}g carbs</Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{(ev.fatG ?? 0).toFixed(0)}g fat</Text>
+                  </View>
+                )}
                 {sch && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{sch.recurrenceDescription}</Text>}
               </View>
               {sch && (
@@ -847,10 +1014,10 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
               }},
             ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>
           </View>
-          {nutritionOverride.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Calories — {nutritionOverride.calories} kcal</Text>}
-          {nutritionOverride.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Protein — {nutritionOverride.proteinG}g</Text>}
-          {nutritionOverride.carbsG   != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Carbs — {nutritionOverride.carbsG}g</Text>}
-          {nutritionOverride.fatG     != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Fat — {nutritionOverride.fatG}g</Text>}
+          {nutritionOverride.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.calories} kcal</Text>}
+          {nutritionOverride.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.proteinG}g protein</Text>}
+          {nutritionOverride.carbsG   != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.carbsG}g carbs</Text>}
+          {nutritionOverride.fatG     != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{nutritionOverride.fatG}g fat</Text>}
           {nutritionOverride.waterGoalOz != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Water — {Math.round(nutritionOverride.waterGoalOz / GLASS_OZ)} glasses</Text>}
         </View>
       )}
@@ -870,8 +1037,10 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
                 }},
               ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>}
             </View>
-            {ev.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Calories — {ev.calories} kcal</Text>}
-            {ev.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Protein — {ev.proteinG}g</Text>}
+            {ev.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.calories} kcal</Text>}
+            {ev.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.proteinG}g protein</Text>}
+            {ev.carbsG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.carbsG}g carbs</Text>}
+            {ev.fatG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.fatG}g fat</Text>}
             {ev.waterGoalOz != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Water — {Math.round(ev.waterGoalOz / GLASS_OZ)} glasses</Text>}
           </View>
         );
@@ -1055,9 +1224,9 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
   nutritionScheduleEvents: NutritionScheduleEvent[];
   onSelectDate: (date: string) => void; c: Colors;
 }) {
-  // yesterday + today + 12 more = 14 days
+  // today + 13 more days = 14 days total
   const days = Array.from({ length: 14 }, (_, i) => {
-    const dateStr = addDays(today, i - 1);
+    const dateStr = addDays(today, i);
     const d = new Date(dateStr + 'T12:00:00');
     const dow = d.getDay();
     const month = d.toLocaleDateString('en-US', { month: 'short' });
@@ -1067,7 +1236,7 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
       dayNum: d.getDate(),
       month,
       isToday: dateStr === today,
-      isYesterday: i === 0,
+      isYesterday: false,
       workouts: workoutSessions.filter(s => s.date === dateStr),
       meals: mealEvents.filter(e => e.date === dateStr),
       checkps: checkpoints.filter(cp => cp.targetDate === dateStr),
@@ -1176,17 +1345,18 @@ export default function SettingsPlanningTab() {
       const from = addDays(today, -1);
       const to   = addDays(today, 30);
       const [scheds, sessions, routines, exercises, mScheds, mEvts, chkpts, nutOvrs, nutEvts, nutScheds] = await Promise.all([
-        getSchedules(token).catch(() => []),
-        getUpcomingSchedule(token, 30).catch(() => []),
-        getRoutines(token).catch(() => []),
-        getExercises(token).catch(() => []),
-        getMealSchedules(token).catch(() => []),
-        getMealScheduleUpcoming(token, 30).catch(() => []),
-        getGoalCheckpoints(token).catch(() => []),
-        getDailyNutritionOverrides(token, from, to).catch(() => []),
-        getNutritionScheduleUpcoming(token, 30).catch(() => []),
-        getNutritionSchedules(token).catch(() => []),
+        getSchedules(token).catch(e => { console.error('getSchedules error:', e); return []; }),
+        getUpcomingSchedule(token, 30).catch(e => { console.error('getUpcomingSchedule error:', e); return []; }),
+        getRoutines(token).catch(e => { console.error('getRoutines error:', e); return []; }),
+        getExercises(token).catch(e => { console.error('getExercises error:', e); return []; }),
+        getMealSchedules(token).catch(e => { console.error('getMealSchedules error:', e); return []; }),
+        getMealScheduleUpcoming(token, 30).catch(e => { console.error('getMealScheduleUpcoming error:', e); return []; }),
+        getGoalCheckpoints(token).catch(e => { console.error('getGoalCheckpoints error:', e); return []; }),
+        getDailyNutritionOverrides(token, from, to).catch(e => { console.error('getDailyNutritionOverrides error:', e); return []; }),
+        getNutritionScheduleUpcoming(token, 30).catch(e => { console.error('getNutritionScheduleUpcoming error:', e); return []; }),
+        getNutritionSchedules(token).catch(e => { console.error('getNutritionSchedules error:', e); return []; }),
       ]);
+      console.log('Planning data loaded:', { sessions: sessions.length, mEvts: mEvts.length, nutEvts: nutEvts.length });
       setWorkoutSchedules(scheds as WorkoutSchedule[]);
       setWorkoutSessions(sessions as UpcomingSession[]);
       setRoutinesList(routines as RoutineSummary[]);
@@ -1197,7 +1367,7 @@ export default function SettingsPlanningTab() {
       setNutritionOverrides(nutOvrs as DailyNutritionOverride[]);
       setNutritionScheduleEvents(nutEvts as NutritionScheduleEvent[]);
       setNutritionSchedules(nutScheds as NutritionSchedule[]);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('load error:', e); }
     finally { setLoading(false); }
   }
 

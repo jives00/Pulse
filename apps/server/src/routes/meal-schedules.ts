@@ -123,7 +123,8 @@ router.get('/', async (req, res) => {
 // GET /api/meal-schedules/upcoming?days=30
 router.get('/upcoming', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const toDate   = new Date(todayStr + 'T00:00:00.000Z');
   toDate.setUTCDate(toDate.getUTCDate() + days - 1);
   const toStr = toDate.toISOString().slice(0, 10);
