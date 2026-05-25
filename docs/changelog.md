@@ -14,6 +14,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### API
 
+- **Nutrition schedule overrides daily macro goals** — Planning calendar nutrition schedule entries now override daily macro and water goals on `GET /log`, `GET /goals/summary`, and `GET /water`; weekly goals are unaffected. `8cc5052`
 - **Steps calories in TDEE** — Today's synced steps now contribute to TDEE at 0.05 kcal/step as a dedicated `stepsKcal` field; included in the total but kept separate from NEAT so the activity-level multiplier is unchanged. `1dcae3d`
 
 ### Web

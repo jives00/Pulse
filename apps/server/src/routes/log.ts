@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { upsertRecipeNutritionLog } from './recipes';
 import type { MealSlot, NutritionSnapshot } from '../types';
+import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';
 
 const router = Router();
 router.use(requireAuth);
@@ -156,6 +157,8 @@ router.get('/', async (req, res) => {
 
     const goals = goalRows[0] ?? { calories: 2000, carbs_g: 250, protein_g: 150, fat_g: 65, water_goal_oz: 64 };
 
+    const scheduleOverride = await getNutritionOverrideForDate(pool, req.userId, date);
+
     const meals: Record<MealSlot, ReturnType<typeof rowToEntry>[]> = {
       breakfast: [], lunch: [], dinner: [], snack: [],
     };
@@ -173,13 +176,13 @@ router.get('/', async (req, res) => {
       waterTotalOz: Number(waterRows[0]?.total ?? 0),
       goals: {
         id: goals.id,
-        calories: goals.calories,
-        carbsG: goals.carbs_g,
-        proteinG: goals.protein_g,
-        fatG: goals.fat_g,
+        calories: scheduleOverride?.calories ?? goals.calories,
+        carbsG: scheduleOverride?.carbsG ?? goals.carbs_g,
+        proteinG: scheduleOverride?.proteinG ?? goals.protein_g,
+        fatG: scheduleOverride?.fatG ?? goals.fat_g,
         fiberG: goals.fiber_g ?? undefined,
         sodiumMg: goals.sodium_mg ?? undefined,
-        waterGoalOz: goals.water_goal_oz,
+        waterGoalOz: scheduleOverride?.waterGoalOz ?? goals.water_goal_oz,
         effectiveFrom: goals.effective_from instanceof Date
           ? goals.effective_from.toISOString().slice(0, 10)
           : String(goals.effective_from),

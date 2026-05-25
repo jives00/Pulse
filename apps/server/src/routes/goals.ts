@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket } from 'mysql2';
 import { calcTDEE, type ActivityLevel } from '../services/tdee';
+import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';
 
 const router = Router();
 router.use(requireAuth);
@@ -133,6 +134,8 @@ router.get('/summary', async (req, res) => {
     );
     const goals = goalRows[0] ?? null;
 
+    const scheduleOverride = await getNutritionOverrideForDate(pool, req.userId, date);
+
     // Today's nutrition actuals
     const [nutritionRows] = await pool.query<RowDataPacket[]>(
       `SELECT ROUND(SUM(calories),1) AS calories, ROUND(SUM(carbs_g),1) AS carbsG,
@@ -163,11 +166,11 @@ router.get('/summary', async (req, res) => {
       weekEnd: weekEndStr,
       nutrition: {
         goals: goals ? {
-          calories: goals.calories,
-          carbsG: goals.carbs_g,
-          proteinG: goals.protein_g,
-          fatG: goals.fat_g,
-          waterGoalOz: goals.water_goal_oz,
+          calories: scheduleOverride?.calories ?? goals.calories,
+          carbsG: scheduleOverride?.carbsG ?? goals.carbs_g,
+          proteinG: scheduleOverride?.proteinG ?? goals.protein_g,
+          fatG: scheduleOverride?.fatG ?? goals.fat_g,
+          waterGoalOz: scheduleOverride?.waterGoalOz ?? goals.water_goal_oz,
           weeklyCalories:    goals.weekly_calories    ?? null,
           weeklyProteinG:    goals.weekly_protein_g   != null ? Number(goals.weekly_protein_g)   : null,
           weeklyCarbsG:      goals.weekly_carbs_g     != null ? Number(goals.weekly_carbs_g)     : null,

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';
 
 const router = Router();
 router.use(requireAuth);
@@ -21,8 +22,10 @@ router.get('/', async (req, res) => {
       [req.userId, date]
     );
 
+    const scheduleOverride = await getNutritionOverrideForDate(pool, req.userId, date);
+
     const totalOz = entries.reduce((sum, e) => sum + Number(e.amount_oz), 0);
-    const goalOz = goalRows[0]?.water_goal_oz ?? 64;
+    const goalOz = scheduleOverride?.waterGoalOz ?? goalRows[0]?.water_goal_oz ?? 64;
 
     res.json({
       date,
