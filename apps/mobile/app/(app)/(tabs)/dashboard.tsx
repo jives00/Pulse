@@ -8,11 +8,12 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import {
   getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
   getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine,
+  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay,
   type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
-  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail,
+  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail, type WaterDay,
 } from '../../../src/api/client';
+import { Share } from 'react-native';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData,
@@ -276,6 +277,51 @@ function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: Work
   return [...weeks].reverse().filter((w) => w.days > 0 || w.isCurrentWeek).slice(0, 5);
 }
 
+// ── Today Snapshot ────────────────────────────────────────────────────────────
+function TodaySnapshot({ workout, nutrition, water }: {
+  workout: WorkoutSummary | null;
+  nutrition: GoalsSummary['nutrition']['actual'] | null;
+  water: WaterDay | null;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const volLbs       = Math.round((workout?.totalVolumeKg ?? 0) * KG_TO_LBS);
+  const workoutLabel = workout?.routineName ?? workout?.name ?? 'Workout';
+  const glasses      = water ? Math.round(water.totalOz / 8) : 0;
+  const hasWorkout   = workout != null && workout.exerciseCount > 0;
+  const hasNutrition = (nutrition?.calories ?? 0) > 0;
+
+  const lines: string[] = ["Today's stats:"];
+  if (hasWorkout) {
+    const vol = volLbs > 0 ? ` — total volume of ${volLbs.toLocaleString()} lbs` : ' completed';
+    lines.push(`- ${workoutLabel}${vol}`);
+  }
+  if (hasNutrition) {
+    lines.push(`- Calories: ${nutrition!.calories.toLocaleString()}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
+  }
+  if (glasses > 0) lines.push(`- Water: ${glasses} glasses`);
+
+  const text = lines.join('\n');
+
+  function copy() {
+    Share.share({ message: text }).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  const c = useColors();
+  return (
+    <View style={{ backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10, position: 'relative' }}>
+      <Text style={{ fontSize: 13, color: c.muted, fontFamily: 'monospace', lineHeight: 22 }}>{text}</Text>
+      <TouchableOpacity onPress={copy} style={{ position: 'absolute', top: 12, right: 14 }}>
+        <Text style={{ fontSize: 11, color: copied ? COL_GOOD : c.muted, fontFamily: 'monospace', fontWeight: '600' }}>
+          {copied ? 'copied' : 'copy'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DashboardV4Screen() {
   const token = useAuthStore((s) => s.token)!;
@@ -302,6 +348,7 @@ export default function DashboardV4Screen() {
   const [upcoming,  setUpcoming]  = useState<UpcomingSession[]>([]);
   const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
   const [routineGoals, setRoutineGoals] = useState<{ routineId: number; targetPerWeek: number }[]>([]);
+  const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -309,7 +356,7 @@ export default function DashboardV4Screen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg] = await Promise.all([
+      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg, wd] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -323,6 +370,7 @@ export default function DashboardV4Screen() {
         getRecovery(token).catch(() => null),
         getUpcomingSchedule(token, 7).catch(() => []),
         getRoutineGoals(token).catch(() => []),
+        getWaterDay(token, localDateStr()).catch(() => null),
       ]);
       setWorkouts(ws);
       setExGoals(eg);
@@ -337,6 +385,7 @@ export default function DashboardV4Screen() {
       setRecovery(rec);
       setUpcoming(upc as UpcomingSession[]);
       setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
+      setTodayWater(wd as WaterDay | null);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -614,6 +663,13 @@ export default function DashboardV4Screen() {
               </View>
             );
           })()}
+
+          {/* Today's Blurb */}
+          <TodaySnapshot
+            workout={todayWorkout}
+            nutrition={nutritionSummary?.nutrition.actual ?? null}
+            water={todayWater}
+          />
 
         </>)}
 
