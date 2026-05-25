@@ -713,8 +713,8 @@ function GoalsTab() {
         }),
         ...routines.map((r) => {
           const val = routineGoalInputs[r.id];
+          if (val === '' || Number(val) === 0) return routinesApi.deleteGoal(r.id).catch(() => {});
           if (val && Number(val) > 0) return routinesApi.setGoal(r.id, Number(val));
-          if (!val || val === '') return routinesApi.deleteGoal(r.id).catch(() => {});
           return Promise.resolve();
         }),
       ]);

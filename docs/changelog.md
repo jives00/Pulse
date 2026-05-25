@@ -14,6 +14,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **Dead code removal** — Removed ~1,550 lines of never-rendered components across `DashboardPage`, `WorkoutsPage`, `WorkoutsDashboardPage`, and `App.tsx` (`Spark`, `RecoveryCard`, `UpcomingCard`, `PersonalBestsTable`, `Ring`, `ProgressBar`, `StatTile`, `WeeklyChart`, `BodyMeasurementsCard`, `RoutinesTab`/`ExercisesTab` duplicates, `ComingSoon`, and associated dead helpers); stripped debug `console.log` from `RoutinesTab`. `944de45`
 
+### Web (fix)
+
+- **Per-routine workout goals now persist when set to 0** — Fixed logic error in Goals tab where setting a routine goal to 0 was not saved; reordered condition check to explicitly handle 0 as a delete operation. `a707a5e`
+
 ### API (chore)
 
 - **Server cleanup** — Removed unused imports and locals from `log`, `nutrition-schedules`, `schedules`, and `user-goals` routes; stripped debug `console.log` statements from `routines` route; added duplicate-prefix guard to `migrate.ts` (throws on startup if two migration files share a numeric prefix). `944de45`
