@@ -45,8 +45,8 @@ export interface PersonalBests {
 }
 
 export const measurementsApi = {
-  getAll: () =>
-    apiClient.get<BodyMeasurement[]>('/measurements').then((r) => r.data),
+  getAll: (params?: { start?: string; end?: string }) =>
+    apiClient.get<BodyMeasurement[]>('/measurements', { params }).then((r) => r.data),
 
   add: (data: { metric: string; value: number; unit: string; measuredAt?: string; notes?: string }) =>
     apiClient.post<BodyMeasurement>('/measurements', data).then((r) => r.data),
@@ -238,7 +238,7 @@ export const exercisesApi = {
 };
 
 export const workoutsApi = {
-  getAll: (params?: { limit?: number; offset?: number; routineId?: number }) =>
+  getAll: (params?: { limit?: number; offset?: number; routineId?: number; start?: string; end?: string }) =>
     apiClient.get<WorkoutSummary[]>('/workouts', { params }).then((r) => r.data),
 
   get: (id: number) =>
@@ -275,8 +275,17 @@ export const workoutsApi = {
     apiClient.get<PersonalBests>('/workouts/personal-bests').then((r) => r.data),
 
   startTimer: (id: number) =>
-    apiClient.post<{ startedAt: string }>(`/workouts/${id}/start-timer`).then((r) => r.data),
+    apiClient.post<{ startedAt: string; pausedAt: string | null; totalPausedSeconds: number }>(`/workouts/${id}/start-timer`).then((r) => r.data),
+
+  pause: (id: number) =>
+    apiClient.post(`/workouts/${id}/pause`).then(() => {}),
+
+  resume: (id: number) =>
+    apiClient.post<{ totalPausedSeconds: number }>(`/workouts/${id}/resume`).then((r) => r.data),
 
   estimateCalories: (id: number) =>
     apiClient.post<{ caloriesBurned: number }>(`/workouts/${id}/estimate-calories`).then((r) => r.data),
+
+  updateExercise: (workoutId: number, weId: number, data: { notes?: string | null }) =>
+    apiClient.put(`/workouts/${workoutId}/exercises/${weId}`, data).then(() => {}),
 };

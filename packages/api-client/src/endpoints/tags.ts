@@ -17,4 +17,7 @@ export const tagsApi = {
 
   saveDefinitions: (defs: TagDefinitions) =>
     apiClient.put('/tags/definitions', defs).then(() => {}),
+
+  suggest: (data: { name: string; type: string; ingredients: string[]; steps: string[] }) =>
+    apiClient.post<string[]>('/tags/suggest', data).then((r) => r.data),
 };

@@ -2212,7 +2212,7 @@ export default function WorkoutsDashboardPage() {
       const start = localDateStr(startD);
       const [wh, fl, rl, tdee, rg] = await Promise.all([
         waterApi.getHistory(start, end).catch(() => null),
-        logApi.getHistory(30).catch(() => []),
+        logApi.getHistory({ limit: 30 }).catch(() => []),
         routinesApi.getAll().catch(() => []),
         goalsApi.getTDEE().catch(() => null),
         routinesApi.getAllGoals().catch(() => []),

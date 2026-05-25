@@ -56,4 +56,7 @@ export const assistantApi = {
 
   getInsight: (): Promise<DailyInsight> =>
     apiClient.get<DailyInsight>('/ai/assistant/insight', { params: { hour: new Date().getHours() } }).then((r) => r.data),
+
+  getDailyInsight: (): Promise<{ text: string }> =>
+    apiClient.get<{ text: string }>('/ai/assistant/insight', { params: { hour: new Date().getHours() } }).then((r) => r.data),
 };

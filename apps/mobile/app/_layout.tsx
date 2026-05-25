@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { setUnauthorizedHandler } from '../src/api/client';
+import { configureClient } from '../../../packages/api-client/src/client';
+import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 
@@ -9,9 +10,13 @@ export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => {
-      logout();
-      router.replace('/(auth)/login');
+    configureClient({
+      apiBase: API_BASE + '/api',
+      getToken: () => useAuthStore.getState().token,
+      onUnauthorized: () => {
+        logout();
+        router.replace('/(auth)/login');
+      },
     });
   }, [logout]);
 

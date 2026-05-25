@@ -16,6 +16,7 @@ export { historyApi }   from './endpoints/history';
 
 // Recipe/app API endpoints
 export { recipesApi, uploadPhotoToS3 } from './endpoints/recipes';
+export type { FromBarcodeResult } from './endpoints/recipes';
 export { tagsApi }                     from './endpoints/tags';
 export { linksApi }                    from './endpoints/links';
 export { workoutsApi, exercisesApi, measurementsApi } from './endpoints/workouts';
@@ -26,6 +27,8 @@ export { stepsApi } from './endpoints/steps';
 export { recoveryApi } from './endpoints/recovery';
 export type { RecoveryData, RecoveryLevel } from './endpoints/recovery';
 export type { StepsDay } from './endpoints/steps';
+// StepsEntry is an alias for StepsDay — kept for mobile compatibility
+export type { StepsDay as StepsEntry } from './endpoints/steps';
 export { mealPlanApi } from './endpoints/meal-plan';
 export type { MealPlanEntry, MealPlanDay, MealPlanWeek, MealPlanTemplate, AddFoodEntryPayload, AddRecipeEntryPayload, MealPlanEntryType, MealPlanDayTotals } from './endpoints/meal-plan';
 export { profileApi } from './endpoints/profile';

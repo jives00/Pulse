@@ -1623,7 +1623,7 @@ export default function DashboardPage() {
       measurementsApi.getAll().catch(() => []),
       measurementsApi.getGoals().catch(() => ({})),
       workoutsApi.getPersonalBests().catch(() => null),
-      logApi.getHistory(60).catch(() => []),
+      logApi.getHistory({ limit: 60 }).catch(() => []),
       routinesApi.getAll().catch(() => []),
       goalsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),

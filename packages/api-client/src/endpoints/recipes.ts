@@ -2,6 +2,10 @@ import { apiClient } from '../client';
 import type { Recipe, RecipeDetail, RecipeFormData, RecipeMacroResult, ScrapedRecipe, RecipeSuggestion, RecipeFilters, MakeLogEntry, RecipeSearchResult } from '../recipes';
 import { buildRecipeParams } from '../recipes';
 
+export type FromBarcodeResult =
+  | { found: false }
+  | { recipeId: number; created: boolean };
+
 export interface HistoryEntry {
   log_id: number;
   made_at: string;
@@ -81,6 +85,15 @@ export const recipesApi = {
 
   aiModify: (id: number, prompt: string, mode: 'update' | 'log') =>
     apiClient.post<{ modified: RecipeFormData | RecipeMacroResult }>(`/recipes/${id}/ai-modify`, { prompt, mode }).then((r) => r.data),
+
+  clearAllHistory: () =>
+    apiClient.delete('/recipes/history').then(() => {}),
+
+  deleteAll: () =>
+    apiClient.delete('/recipes').then(() => {}),
+
+  createFromBarcode: (params: { barcode: string; name?: string }) =>
+    apiClient.post<FromBarcodeResult>('/recipes/from-barcode', params).then((r) => r.data),
 };
 
 // Direct S3 upload — uses fetch directly against the presigned URL (no API client)

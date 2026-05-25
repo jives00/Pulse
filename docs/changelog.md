@@ -6,6 +6,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 25, 2026
 
+### Mobile (refactor)
+
+- **Consolidated API client** — Replaced 1,230-line mobile fetch client with a thin shim delegating to `@pulse/api-client`; no caller files changed. Deleted unused 397-line web fetch client. Expanded shared package endpoints to cover all mobile needs. `69c0a29`
+
+### Web (refactor)
+
+- **Updated `logApi.getHistory` callers** — Three pages updated to pass `{ limit: N }` object after shared client signature change. `69c0a29`
+
 ### Mobile (chore)
 
 - **Dead code and type cleanup** — Fixed mobile TypeScript errors: added `@expo/vector-icons` as explicit dependency, corrected `PersonalBests` field references (`bestVolumeByRoutine`, `pacePerMinute`), fixed `useHealthSteps` permission check and `readRecords` API shape, added `'resistance'` to `Exercise.exerciseType`; removed debug `console.log` from `SettingsPlanningTab`. `944de45`

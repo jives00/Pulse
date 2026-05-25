@@ -46,8 +46,8 @@ export const logApi = {
   getDay: (date: string) =>
     apiClient.get<DailyLog>('/log', { params: { date } }).then((r) => r.data),
 
-  getHistory: (limit = 90) =>
-    apiClient.get<FoodLogHistoryDay[]>('/log/history', { params: { limit } }).then((r) => r.data),
+  getHistory: (params?: { limit?: number; start?: string; end?: string }) =>
+    apiClient.get<FoodLogHistoryDay[]>('/log/history', { params }).then((r) => r.data),
 
   add: (payload: AddLogEntryPayload) =>
     apiClient.post<LogEntry>('/log', payload).then((r) => r.data),

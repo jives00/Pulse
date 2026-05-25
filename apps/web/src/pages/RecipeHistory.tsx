@@ -185,7 +185,7 @@ export default function History() {
 
   useEffect(() => {
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
-    logApi.getHistory(90).then(setFoodLogDays).finally(() => setNutritionLoading(false));
+    logApi.getHistory({ limit: 90 }).then(setFoodLogDays).finally(() => setNutritionLoading(false));
     measurementsApi.getAll().then(setMeasurements).finally(() => setMeasurementsLoading(false));
   }, []);
 
