@@ -1317,9 +1317,11 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
               {(nutOverride || nutEvts.length > 0) && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#c084fc' }} />
-                  <Text style={{ color: '#c084fc', fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
-                    {nutOverride?.dayTypeName ?? nutEvts[0]?.dayTypeName ?? 'Custom targets'}
-                  </Text>
+                  {(nutOverride?.dayTypeName || nutEvts[0]?.dayTypeName) && (
+                    <Text style={{ color: '#c084fc', fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
+                      {nutOverride?.dayTypeName ?? nutEvts[0]?.dayTypeName}
+                    </Text>
+                  )}
                 </View>
               )}
             </View>
