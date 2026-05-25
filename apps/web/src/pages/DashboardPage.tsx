@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, assistantApi, recoveryApi, waterApi,
+  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi,
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, shortDate,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown, type TDEEResult,
-  type WeekBucket, type UpcomingSession, type InsightPeriod, type RecoveryData, type WaterDay,
+  type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -114,44 +114,6 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
         </div>
       )}
       <div style={{ flex: 1 }}>{children}</div>
-    </div>
-  );
-}
-
-// ─── AI Insight banner ────────────────────────────────────────────────────────
-
-const INSIGHT_LABELS: Record<InsightPeriod, string> = {
-  morning:   'Yesterday',
-  afternoon: 'Today so far',
-  evening:   'Today',
-};
-
-function InsightBanner({ text, streak, date, period }: { text: string; streak: number; date: string; period: InsightPeriod }) {
-  const label = INSIGHT_LABELS[period];
-  return (
-    <div style={{
-      background: CARD, border: `1px solid ${LINE}`, borderLeft: `2px solid ${ACCENT}`,
-      padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 22, marginBottom: 0,
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="font-mono" style={{ fontSize: 12, color: MUTED2, letterSpacing: '.1em', marginBottom: 5 }}>{date}</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <path d="M7 0.5 L8.2 5 L13 6.5 L8.2 8 L7 12.5 L5.8 8 L1 6.5 L5.8 5 Z" fill={ACCENT} />
-            </svg>
-            <span className="micro" style={{ color: ACCENT, whiteSpace: 'nowrap' }}>{label}</span>
-          </div>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'white', paddingLeft: 6 }}>{text}</p>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
-        <svg width="10" height="13" viewBox="0 0 14 17" fill="none">
-          <path d="M7 0.5 C8.5 3.5 13 5 13 9.5 C13 13 10.5 16 7 16 C3.5 16 1 13 1 9.5 C1 6.5 3 5.5 4 3 C4.5 5 5.5 5.5 7 0.5Z" fill={ACCENT} />
-        </svg>
-        <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{streak}</span>
-        <span className="micro" style={{ fontSize: 9, color: MUTED2 }}>day streak</span>
-      </div>
     </div>
   );
 }
@@ -1796,7 +1758,6 @@ export default function DashboardPage() {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
-  const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).replace(',', ' ·');
 
   const [workouts,       setWorkouts]       = useState<WorkoutSummary[]>([]);
   const [exGoals,        setExGoals]        = useState<ExerciseGoals | null>(null);
@@ -1808,8 +1769,6 @@ export default function DashboardPage() {
   const [routines,       setRoutines]       = useState<RoutineSummary[]>([]);
   const [todayTDEE,      setTodayTDEE]      = useState<TDEEBreakdown | null>(null);
   const [upcoming,       setUpcoming]       = useState<UpcomingSession[]>([]);
-  const [insight,        setInsight]        = useState<string | null>(null);
-  const [insightPeriod,  setInsightPeriod]  = useState<InsightPeriod>('morning');
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
   const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
@@ -1827,11 +1786,10 @@ export default function DashboardPage() {
       routinesApi.getAll().catch(() => []),
       goalsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),
-      assistantApi.getInsight().catch(() => null),
       recoveryApi.get().catch(() => null),
       routinesApi.getAllGoals().catch(() => []),
       waterApi.getDay(today).catch(() => null),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, ins, rec, rg, wd]) => {
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1843,7 +1801,6 @@ export default function DashboardPage() {
       const t = tdee as import('@pulse/api-client').TDEEResult | null;
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
       setUpcoming(upc as UpcomingSession[]);
-      if (ins?.text) { setInsight(ins.text); setInsightPeriod(ins.period ?? 'morning'); }
       if (rec) setRecovery(rec as RecoveryData);
       if (rg) setRoutineGoals(rg as RoutineGoal[]);
       if (wd) setTodayWater(wd as WaterDay);
@@ -1863,16 +1820,6 @@ export default function DashboardPage() {
   const weeklyData     = buildWeeklyData(workouts);
   const thisWeekBucket = weeklyData[weeklyData.length - 1];
 
-  // Weight streak (consecutive days with a logged workout)
-  function computeStreak() {
-    const days = new Set(workouts.map(w => w.workoutDate));
-    let streak = 0, cursor = new Date(today + 'T12:00:00');
-    if (!days.has(today)) cursor.setDate(cursor.getDate() - 1);
-    while (days.has(localDateStr(cursor))) { streak++; cursor.setDate(cursor.getDate() - 1); }
-    return streak;
-  }
-  const streak = computeStreak();
-
   return (
     <div style={{ flex: 1, minWidth: 0, background: BG, height: '100%', overflowY: 'auto' }}>
 
@@ -1889,16 +1836,6 @@ export default function DashboardPage() {
             + Train
           </button>
         </div>
-      </div>
-
-      {/* Insight banner */}
-      <div style={{ padding: '18px 36px 0' }}>
-        <InsightBanner
-          text={insight || 'Track daily to unlock personalized AI insights about your health habits and progress.'}
-          streak={streak}
-          date={dateStr}
-          period={insightPeriod}
-        />
       </div>
 
       {/* ── TODAY ─────────────────────────────────────────────────────────────── */}

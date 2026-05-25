@@ -13,6 +13,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Daily insight banner removed** — Removed the AI insight banner from the top of the dashboard, including the `InsightBanner` component, insight state, and `assistantApi.getInsight()` call. `4a17512`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules in the DayModal now have Edit buttons; clicking Edit pre-fills the form with existing data and calls the update endpoint instead of create; `parseRec` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 
 ## May 24, 2026
