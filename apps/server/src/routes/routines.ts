@@ -13,6 +13,154 @@ function parseId(param: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+// Get day-of-week: 0=Mon ... 6=Sun (different from JS Date.getDay() where 0=Sun)
+function getDow(d: Date): number {
+  const js = d.getUTCDay();
+  return js === 0 ? 6 : js - 1;
+}
+
+// Find the next date that matches a recurrence pattern
+function getNextOccurrenceDate(recurrenceType: string, config: any, startDate: Date): Date | null {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setUTCHours(0, 0, 0, 0);
+
+  // Start checking from today
+  let current = new Date(today);
+
+  // Search up to 365 days ahead
+  for (let i = 0; i < 365; i++) {
+    const diff = Math.round((current.getTime() - start.getTime()) / 86400000);
+    let matches = false;
+
+    switch (recurrenceType) {
+      case 'daily':
+        matches = diff >= 0;
+        break;
+      case 'every_other_day':
+        matches = diff >= 0 && diff % 2 === 0;
+        break;
+      case 'days_of_week':
+        matches = Array.isArray(config.days) && config.days.includes(getDow(current));
+        break;
+      case 'every_x_days':
+        matches = diff >= 0 && config.interval > 0 && diff % config.interval === 0;
+        break;
+      case 'day_of_month':
+        if (config.type === 'specific_dates') {
+          matches = Array.isArray(config.dates) && config.dates.includes(current.getUTCDate());
+        } else if (config.type === 'nth_weekday') {
+          const dow = getDow(current);
+          if (dow === config.weekday) {
+            const dom = current.getUTCDate();
+            matches = dom >= (config.n - 1) * 7 + 1 && dom <= config.n * 7;
+          }
+        }
+        break;
+      case 'custom_cycle': {
+        if (diff < 0) {
+          matches = false;
+          break;
+        }
+        const items = config.items || [];
+        if (items.length === 0) {
+          matches = false;
+          break;
+        }
+        const cycleDays = Array.isArray(config.days) && config.days.length > 0 ? config.days : null;
+        const dow = getDow(current);
+
+        // If specific workout days are defined, check if today is a workout day
+        if (cycleDays) {
+          if (!cycleDays.includes(dow)) {
+            matches = false;
+            break;
+          }
+        } else {
+          // If no specific days, check if it's not a rest weekend
+          const alwaysRestWeekends = config.alwaysRestWeekends === true;
+          if (alwaysRestWeekends && (dow === 5 || dow === 6)) {
+            matches = false;
+            break;
+          }
+        }
+
+        // If we got here, it's a potential workout day
+        matches = true;
+        break;
+      }
+    }
+
+    if (matches) {
+      return current;
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return null;
+}
+
+// For custom_cycle schedules, find the next occurrence of a specific routine in the cycle
+function getNextOccurrenceInCustomCycle(routineId: number, config: any, startDate: Date): Date | null {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setUTCHours(0, 0, 0, 0);
+
+  const items = config.items || [];
+  if (!items.length) return null;
+
+  const cycleDays = Array.isArray(config.days) && config.days.length > 0 ? config.days : null;
+  let current = new Date(today);
+
+  // Search up to 365 days
+  for (let i = 0; i < 365; i++) {
+    const diff = Math.round((current.getTime() - start.getTime()) / 86400000);
+    const dow = getDow(current);
+
+    if (diff < 0) {
+      current.setUTCDate(current.getUTCDate() + 1);
+      continue;
+    }
+
+    // Check if this is a workout day
+    let isWorkoutDay = true;
+    if (cycleDays) {
+      isWorkoutDay = cycleDays.includes(dow);
+    } else {
+      const alwaysRestWeekends = config.alwaysRestWeekends === true;
+      if (alwaysRestWeekends && (dow === 5 || dow === 6)) {
+        isWorkoutDay = false;
+      }
+    }
+
+    if (isWorkoutDay) {
+      // Count workout days from start to current
+      let dayCount = 0;
+      const cursor = new Date(start);
+      while (cursor < current) {
+        const curDow = getDow(cursor);
+        const curIsWorkoutDay = cycleDays ? cycleDays.includes(curDow) : !(config.alwaysRestWeekends && (curDow === 5 || curDow === 6));
+        if (curIsWorkoutDay) dayCount++;
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      // Find which item in the cycle this day corresponds to
+      const posInCycle = dayCount % items.length;
+      const item = items[posInCycle];
+      if (item && item.type === 'routine' && item.id === routineId) {
+        return current;
+      }
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return null;
+}
+
 async function ownsRoutine(routineId: number, userId: number): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
     'SELECT id FROM workout_routines WHERE id = ? AND user_id = ?', [routineId, userId]
@@ -168,6 +316,47 @@ router.get('/', async (req, res) => {
       lastDurationMap[lu.routine_id] = lu.total_duration_seconds != null ? Number(lu.total_duration_seconds) : null;
     }
 
+    // Fetch schedules for sorting by next occurrence
+    const [scheduleRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, routine_id, recurrence_type, recurrence_config, start_date
+       FROM workout_schedules
+       WHERE user_id = ?`,
+      [req.userId]
+    );
+    const nextOccurrenceMap: Record<number, string | null> = {};
+    console.log(`[routines] Found ${scheduleRows.length} schedules for user ${req.userId}`);
+
+    for (const sched of scheduleRows) {
+      const config = typeof sched.recurrence_config === 'string'
+        ? JSON.parse(sched.recurrence_config)
+        : sched.recurrence_config;
+      const startDate = sched.start_date instanceof Date
+        ? sched.start_date
+        : new Date(String(sched.start_date) + 'T00:00:00.000Z');
+
+      if (sched.recurrence_type === 'custom_cycle') {
+        console.log(`[routines] Processing custom_cycle schedule ${sched.id}`);
+        const items = config.items || [];
+        for (const item of items) {
+          if (item.type === 'routine' && item.id && !nextOccurrenceMap[item.id]) {
+            const nextDate = getNextOccurrenceInCustomCycle(item.id, config, startDate);
+            nextOccurrenceMap[item.id] = nextDate ? nextDate.toISOString().slice(0, 10) : null;
+            console.log(`[routines] Routine ${item.id} in cycle: next=${nextOccurrenceMap[item.id]}`);
+          }
+        }
+      } else if (sched.routine_id) {
+        console.log(`[routines] Processing schedule ${sched.id} for routine ${sched.routine_id}, type=${sched.recurrence_type}`);
+        if (!nextOccurrenceMap[sched.routine_id]) {
+          const nextDate = getNextOccurrenceDate(sched.recurrence_type, config, startDate);
+          nextOccurrenceMap[sched.routine_id] = nextDate ? nextDate.toISOString().slice(0, 10) : null;
+          console.log(`[routines] Routine ${sched.routine_id}: type=${sched.recurrence_type}, next=${nextOccurrenceMap[sched.routine_id]}`);
+        }
+      }
+    }
+    console.log(`[routines] Routine IDs with schedules:`, Object.keys(nextOccurrenceMap).map(Number));
+    console.log(`[routines] All routine IDs:`, rows.map(r => r.id));
+    console.log(`[routines] Mapped ${Object.keys(nextOccurrenceMap).length} routines with next occurrence dates`);
+
     // Compute lastPrimaryMetric per routine based on routine_type
     function getPrimaryMetric(r: RowDataPacket): number | null {
       const rt = r.routine_type ?? 'strength';
@@ -198,12 +387,26 @@ router.get('/', async (req, res) => {
       routineType: r.routine_type ?? 'strength',
       exerciseCount: Number(r.exercise_count),
       lastUsedDate: lastUsedMap[r.id] ?? null,
+      nextOccurrenceDate: nextOccurrenceMap[r.id] ?? null,
       lastVolumeLbs: lastVolumeMap[r.id] ?? null,
       lastPrimaryMetric: getPrimaryMetric(r),
       lastCaloriesBurned: lastCaloriesMap[r.id] ?? null,
       coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
       createdAt: r.created_at,
     })));
+
+    // Sort: routines with next occurrence first (by date), then routines without
+    list.sort((a, b) => {
+      const aHasNext = a.nextOccurrenceDate != null;
+      const bHasNext = b.nextOccurrenceDate != null;
+      if (aHasNext && !bHasNext) return -1;
+      if (!aHasNext && bHasNext) return 1;
+      if (aHasNext && bHasNext) {
+        return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
+      }
+      return 0;
+    });
+
     res.json(list);
   } catch (err) {
     console.error(err);

@@ -702,14 +702,22 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {[...routines]
               .sort((a, b) => {
-                if (!a.lastUsedDate && !b.lastUsedDate) return 0;
-                if (!a.lastUsedDate) return 1;
-                if (!b.lastUsedDate) return -1;
-                return a.lastUsedDate.localeCompare(b.lastUsedDate);
+                // Sort by next scheduled occurrence first, then routines without schedule at the end
+                const aHasNext = a.nextOccurrenceDate != null;
+                const bHasNext = b.nextOccurrenceDate != null;
+                if (aHasNext && !bHasNext) return -1;
+                if (!aHasNext && bHasNext) return 1;
+                if (aHasNext && bHasNext) {
+                  return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
+                }
+                return 0;
               })
-              .map((r) => (
-                <RoutineCardInTab key={r.id} routine={r} />
-              ))}
+              .map((r, i) => {
+                if (i === 0) {
+                  console.log('[RoutinesTab] Sorted routines:', routines.map(rr => ({ name: rr.name, next: rr.nextOccurrenceDate })));
+                }
+                return <RoutineCardInTab key={r.id} routine={r} />;
+              })}
           </div>
         )}
       </div>

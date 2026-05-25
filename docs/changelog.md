@@ -17,6 +17,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Planning schedule edit** — Workout, meal, and nutrition schedules in the DayModal now have Edit buttons; clicking Edit pre-fills the form with existing data and calls the update endpoint instead of create; `parseRec` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 - **Links category dropdown icons removed** — Removed emoji icons from the category dropdown in the Links header when adding a new link, displaying only the category label. `d60cc47`
 - **Routine cover image edit** — Routine detail page now displays the cover image in the right column (top of exercises section) with an "Add Photo" / "Change Photo" hover overlay; clicking the overlay opens a file picker to upload or replace the image; uploaded images display immediately via preview and persist after reload. `9c578c4`
+- **Routines sorted by next scheduled occurrence** — Workouts page Routines section now sorts routines by their next scheduled date from the planning interface; routines with upcoming schedules appear first (ordered by soonest date), followed by routines without schedules; supports both direct routine schedules and routines within custom-cycle recurring schedules. `2f6e0f9`
 
 ## May 24, 2026
 

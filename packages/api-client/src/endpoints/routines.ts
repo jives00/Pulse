@@ -9,6 +9,7 @@ export interface RoutineSummary {
   routineType: RoutineType;
   exerciseCount: number;
   lastUsedDate: string | null;
+  nextOccurrenceDate: string | null;
   lastVolumeLbs: number | null;
   lastPrimaryMetric: number | null;
   lastCaloriesBurned: number | null;
