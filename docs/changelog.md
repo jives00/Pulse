@@ -27,6 +27,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Custom cycle recurrence for nutrition schedules** — Nutrition schedule /upcoming endpoint now supports custom_cycle recurrence type; calendar displays macros (calories, protein, carbs, fat) on separate lines with full names instead of abbreviations (P/C/F); removed generic "?-item cycle" description. `fb78de2`
 - **Timezone bug fix in /upcoming endpoints** — `/api/schedules/upcoming`, `/api/meal-schedules/upcoming`, and `/api/nutrition-schedules/upcoming` now use local dates instead of UTC, fixing date range mismatch where schedules starting tomorrow were filtered out when mobile requested current day. `fb78de2`
 - **Planning calendar font sizes and macro display** — Nutrition macro display on calendar increased from text-xs to text-sm and colored with dram-accent orange to match routine/exercise names; section headers increased from text-xs to text-sm; calendar date range fixed to remove yesterday and add one future day (now shows 14 days forward). `fb78de2`
+- **Nutrition schedule display fix** — Removed "Custom targets" label from nutrition schedule events in Planning tab; now displays only the macros without a type header when no day type is set. `00de964`
 
 ### Web
 

@@ -1026,18 +1026,30 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
         const sch = nutritionSchedules.find(n => n.id === ev.scheduleId);
         return (
           <View key={ev.scheduleId} style={{ backgroundColor: `${c.accent}11`, borderRadius: 10, padding: 12, gap: 4 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
-                {ev.dayTypeName ?? 'Custom targets'}<Text style={{ color: c.muted, fontWeight: '400' }}> — {ev.recurrenceDescription}</Text>
-              </Text>
-              {sch && <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: async () => {
-                  try { await deleteNutritionSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
-                }},
-              ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>}
-            </View>
-            {ev.calories != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.calories} kcal</Text>}
+            {ev.dayTypeName && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
+                  {ev.dayTypeName}<Text style={{ color: c.muted, fontWeight: '400' }}> — {ev.recurrenceDescription}</Text>
+                </Text>
+                {sch && <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: async () => {
+                    try { await deleteNutritionSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
+                  }},
+                ])}><Text style={{ color: '#C5896E', paddingLeft: 8 }}>✕</Text></TouchableOpacity>}
+              </View>
+            )}
+            {!ev.dayTypeName && sch && (
+              <View style={{ alignItems: 'flex-end' }}>
+                <TouchableOpacity onPress={() => Alert.alert('Remove schedule?', '', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: async () => {
+                    try { await deleteNutritionSchedule(token, sch.id); onSaved(); } catch { Alert.alert('Error'); }
+                  }},
+                ])}><Text style={{ color: '#C5896E' }}>✕</Text></TouchableOpacity>
+              </View>
+            )}
+            {ev.calories != null && <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>{Math.round(ev.calories)} kcal</Text>}
             {ev.proteinG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.proteinG}g protein</Text>}
             {ev.carbsG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.carbsG}g carbs</Text>}
             {ev.fatG != null && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{ev.fatG}g fat</Text>}
