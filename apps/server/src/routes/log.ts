@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
-import type { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { upsertRecipeNutritionLog } from './recipes';
 import type { MealSlot, NutritionSnapshot } from '../types';
 import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';

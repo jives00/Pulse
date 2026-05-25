@@ -1525,8 +1525,7 @@ export default function SettingsPlanningTab() {
         getNutritionScheduleUpcoming(token, 30).catch(e => { console.error('getNutritionScheduleUpcoming error:', e); return []; }),
         getNutritionSchedules(token).catch(e => { console.error('getNutritionSchedules error:', e); return []; }),
       ]);
-      console.log('Planning data loaded:', { sessions: sessions.length, mEvts: mEvts.length, nutEvts: nutEvts.length });
-      setWorkoutSchedules(scheds as WorkoutSchedule[]);
+setWorkoutSchedules(scheds as WorkoutSchedule[]);
       setWorkoutSessions(sessions as UpcomingSession[]);
       setRoutinesList(routines as RoutineSummary[]);
       setExercisesList(exercises as Exercise[]);

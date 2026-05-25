@@ -1043,13 +1043,13 @@ function ProgressTab() {
             </View>
           </View>
         ) : null}
-        {personalBests?.bestSessionVolume ? (
+        {personalBests?.bestVolumeByRoutine?.[0] ? (
           <View style={p.recordRow}>
             <Text style={p.recordIcon}>📈</Text>
             <View style={{ flex: 1 }}>
               <Text style={p.recordLabel}>Best session volume</Text>
-              <Text style={p.recordVal}>{Math.round(personalBests.bestSessionVolume.volumeKg * KG_TO_LBS).toLocaleString()} lbs</Text>
-              <Text style={p.recordSub}>{personalBests.bestSessionVolume.workoutDate}</Text>
+              <Text style={p.recordVal}>{Math.round(personalBests.bestVolumeByRoutine[0].volumeKg * KG_TO_LBS).toLocaleString()} lbs</Text>
+              <Text style={p.recordSub}>{personalBests.bestVolumeByRoutine[0].workoutDate ?? ''}</Text>
             </View>
           </View>
         ) : null}
@@ -1058,12 +1058,12 @@ function ProgressTab() {
             <Text style={p.recordIcon}>🪜</Text>
             <View style={{ flex: 1 }}>
               <Text style={p.recordLabel}>Best stair pace</Text>
-              <Text style={p.recordVal}>{personalBests.bestStairPace.secsPerStep.toFixed(1)}s/step · {personalBests.bestStairPace.steps} steps</Text>
+              <Text style={p.recordVal}>{personalBests.bestStairPace.pacePerMinute.toFixed(0)} steps/min · {personalBests.bestStairPace.steps} steps</Text>
               <Text style={p.recordSub}>{personalBests.bestStairPace.workoutDate}</Text>
             </View>
           </View>
         ) : null}
-        {!personalBests?.heaviestLift && !personalBests?.bestSessionVolume && !personalBests?.bestStairPace && (
+        {!personalBests?.heaviestLift && !personalBests?.bestVolumeByRoutine?.[0] && !personalBests?.bestStairPace && (
           <Text style={p.recordEmpty}>Complete some workouts to see records.</Text>
         )}
       </View>

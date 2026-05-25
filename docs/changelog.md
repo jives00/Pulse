@@ -6,6 +6,18 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 25, 2026
 
+### Mobile (chore)
+
+- **Dead code and type cleanup** — Fixed mobile TypeScript errors: added `@expo/vector-icons` as explicit dependency, corrected `PersonalBests` field references (`bestVolumeByRoutine`, `pacePerMinute`), fixed `useHealthSteps` permission check and `readRecords` API shape, added `'resistance'` to `Exercise.exerciseType`; removed debug `console.log` from `SettingsPlanningTab`. `944de45`
+
+### Web (chore)
+
+- **Dead code removal** — Removed ~1,550 lines of never-rendered components across `DashboardPage`, `WorkoutsPage`, `WorkoutsDashboardPage`, and `App.tsx` (`Spark`, `RecoveryCard`, `UpcomingCard`, `PersonalBestsTable`, `Ring`, `ProgressBar`, `StatTile`, `WeeklyChart`, `BodyMeasurementsCard`, `RoutinesTab`/`ExercisesTab` duplicates, `ComingSoon`, and associated dead helpers); stripped debug `console.log` from `RoutinesTab`. `944de45`
+
+### API (chore)
+
+- **Server cleanup** — Removed unused imports and locals from `log`, `nutrition-schedules`, `schedules`, and `user-goals` routes; stripped debug `console.log` statements from `routines` route; added duplicate-prefix guard to `migrate.ts` (throws on startup if two migration files share a numeric prefix). `944de45`
+
 ### Mobile
 
 - **Steps auto-sync from Samsung Health** — Steps now auto-sync from Samsung Health via Health Connect when the Workouts Log tab opens; shows 'Synced from Samsung Health' or 'Manually entered' label; manual entry remains available as an override. Requires APK rebuild with Health Connect native module. `df231a2`

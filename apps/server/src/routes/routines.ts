@@ -324,7 +324,6 @@ router.get('/', async (req, res) => {
       [req.userId]
     );
     const nextOccurrenceMap: Record<number, string | null> = {};
-    console.log(`[routines] Found ${scheduleRows.length} schedules for user ${req.userId}`);
 
     for (const sched of scheduleRows) {
       const config = typeof sched.recurrence_config === 'string'
@@ -335,27 +334,20 @@ router.get('/', async (req, res) => {
         : new Date(String(sched.start_date) + 'T00:00:00.000Z');
 
       if (sched.recurrence_type === 'custom_cycle') {
-        console.log(`[routines] Processing custom_cycle schedule ${sched.id}`);
         const items = config.items || [];
         for (const item of items) {
           if (item.type === 'routine' && item.id && !nextOccurrenceMap[item.id]) {
             const nextDate = getNextOccurrenceInCustomCycle(item.id, config, startDate);
             nextOccurrenceMap[item.id] = nextDate ? nextDate.toISOString().slice(0, 10) : null;
-            console.log(`[routines] Routine ${item.id} in cycle: next=${nextOccurrenceMap[item.id]}`);
           }
         }
       } else if (sched.routine_id) {
-        console.log(`[routines] Processing schedule ${sched.id} for routine ${sched.routine_id}, type=${sched.recurrence_type}`);
         if (!nextOccurrenceMap[sched.routine_id]) {
           const nextDate = getNextOccurrenceDate(sched.recurrence_type, config, startDate);
           nextOccurrenceMap[sched.routine_id] = nextDate ? nextDate.toISOString().slice(0, 10) : null;
-          console.log(`[routines] Routine ${sched.routine_id}: type=${sched.recurrence_type}, next=${nextOccurrenceMap[sched.routine_id]}`);
         }
       }
     }
-    console.log(`[routines] Routine IDs with schedules:`, Object.keys(nextOccurrenceMap).map(Number));
-    console.log(`[routines] All routine IDs:`, rows.map(r => r.id));
-    console.log(`[routines] Mapped ${Object.keys(nextOccurrenceMap).length} routines with next occurrence dates`);
 
     // Compute lastPrimaryMetric per routine based on routine_type
     function getPrimaryMetric(r: RowDataPacket): number | null {

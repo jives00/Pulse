@@ -3,7 +3,6 @@ import {
   initialize,
   requestPermission,
   readRecords,
-  type PermissionStatus,
 } from 'react-native-health-connect';
 
 export function useHealthSteps() {
@@ -27,8 +26,9 @@ export function useHealthSteps() {
 
     try {
       if (!permissionGranted) {
-        const status = await requestPermission([{ accessType: 'read', recordType: 'Steps' }]);
-        if (status !== PermissionStatus.GRANTED) {
+        const granted = await requestPermission([{ accessType: 'read', recordType: 'Steps' }]);
+        const hasSteps = granted.some((p) => p.accessType === 'read' && p.recordType === 'Steps');
+        if (!hasSteps) {
           setPermissionGranted(false);
           return null;
         }
@@ -38,11 +38,11 @@ export function useHealthSteps() {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const records = await readRecords('Steps', {
+      const { records } = await readRecords('Steps', {
         timeRangeFilter: {
           operator: 'between',
-          startTime: startOfDay,
-          endTime: now,
+          startTime: startOfDay.toISOString(),
+          endTime: now.toISOString(),
         },
       });
 

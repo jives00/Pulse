@@ -51,7 +51,7 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected, recentSess
     <ScrollView contentContainerStyle={ts.scroll}>
       <View style={ts.pbGrid}>
         {[
-          { label: 'Heaviest Weight', value: fmtLbs(pb.heaviestWeightKg), sub: pb.heaviestWeightReps != null ? `@ ${pb.heaviestWeightReps} reps` : undefined },
+          { label: 'Heaviest Weight', value: fmtLbs(pb.heaviestWeightKg) },
           { label: 'Est. 1 Rep Max', value: fmtLbs(pb.estimatedOneRepMaxKg) },
           { label: 'Best Set Volume', value: fmtLbs(pb.bestSetVolumeKg) },
           { label: 'Best Session Vol', value: fmtLbs(pb.bestSessionVolumeKg) },
@@ -59,7 +59,6 @@ function SummaryTab({ stats, metric, onMetricChange, plateauDetected, recentSess
           <View key={tile.label} style={ts.pbTile}>
             <Text style={ts.pbLabel}>{tile.label}</Text>
             <Text style={ts.pbValue}>{tile.value}</Text>
-            {tile.sub && <Text style={ts.pbSub}>{tile.sub}</Text>}
           </View>
         ))}
       </View>

@@ -26,57 +26,6 @@ const clamp = (n: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const fmt   = (n: number) => Math.round(n).toLocaleString();
 const fmt1  = (n: number) => n.toFixed(1);
 
-// ─── Spark (pure SVG sparkline with optional projection tail) ─────────────────
-
-interface SparkProps {
-  values: number[];
-  projection?: number[];
-  color?: string;
-  w?: number;
-  h?: number;
-  area?: boolean;
-  dot?: boolean;
-  goalVal?: number;
-  minO?: number;
-  maxO?: number;
-}
-
-function Spark({ values, projection, color = ACCENT, w = 300, h = 40, area = false, dot = true, goalVal, minO, maxO }: SparkProps) {
-  if (!values.length) return null;
-  const all = projection ? [...values, ...projection] : values;
-  const min = minO ?? Math.min(...all.filter(v => v != null));
-  const max = maxO ?? Math.max(...all, goalVal ?? 0, min + 1);
-  const rng = max - min || 1;
-  const total = values.length + (projection?.length ?? 0);
-  const X = (i: number) => (i / (total - 1)) * w;
-  const Y = (v: number) => h - ((v - min) / rng) * (h - 4) - 2;
-  const pts = values.map((v, i) => [X(i), Y(v)] as [number, number]);
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
-  const aPath = `${line} L${pts.at(-1)![0]},${h} L0,${h} Z`;
-  const id = `sp${Math.abs(color.length * 31 + w)}`;
-  const goalY = goalVal != null ? Y(goalVal) : null;
-  const projPts = projection ? projection.map((v, i) => [X(values.length + i), Y(v)] as [number, number]) : null;
-  const projLine = projPts ? [pts.at(-1)!, ...projPts].map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('') : null;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
-      {area && (
-        <defs>
-          <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-      )}
-      {area && <path d={aPath} fill={`url(#${id})`} />}
-      {goalY != null && <line x1="0" x2={w} y1={goalY} y2={goalY} stroke={color} strokeWidth="0.7" strokeDasharray="2 3" opacity="0.45" />}
-      <path d={line} fill="none" stroke={color} strokeWidth="1.4" />
-      {projLine && <path d={projLine} fill="none" stroke={color} strokeWidth="1.4" strokeDasharray="3 3" opacity="0.65" />}
-      {dot && pts.length > 0 && <circle cx={pts.at(-1)![0]} cy={pts.at(-1)![1]} r="2.6" fill={color} />}
-      {projPts && projPts.length > 0 && <circle cx={projPts.at(-1)![0]} cy={projPts.at(-1)![1]} r="2.6" fill={color} opacity="0.65" />}
-    </svg>
-  );
-}
-
 // ─── Band section header ──────────────────────────────────────────────────────
 
 function Band({ kicker, title, meta, children }: { kicker: string; title?: string; meta?: string; children: React.ReactNode }) {
@@ -439,111 +388,6 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
 // ─── Recovery ─────────────────────────────────────────────────────────────────
 
 const RECOVERY_COLOR: Record<string, string> = { high: COL_GOOD, medium: '#D4A843', low: COL_WARN };
-
-function RecoveryCard({ data }: { data: RecoveryData | null }) {
-  if (!data) return <div style={{ fontSize: 11, color: MUTED2 }}>Loading…</div>;
-  const color = RECOVERY_COLOR[data.level];
-  const pct = data.score / 100;
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-        <span className="font-display" style={{ fontSize: 26, fontWeight: 600, color }}>{data.score}</span>
-        <span style={{ padding: '3px 9px', borderRadius: 99, background: color + '22', color, fontSize: 10, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{data.level}</span>
-      </div>
-      <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', marginBottom: 10, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pct * 100}%`, background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />
-      </div>
-      <div style={{ fontSize: 11, color: MUTED2, lineHeight: 1.5 }}>{data.hint}</div>
-    </div>
-  );
-}
-
-// ─── Upcoming workouts ────────────────────────────────────────────────────────
-
-function UpcomingCard({ upcoming, navigate }: { upcoming: UpcomingSession[]; navigate: (p: string) => void }) {
-  if (!upcoming.length) {
-    return <div style={{ fontSize: 13, color: MUTED2 }}>No schedule configured. Set one up in <span style={{ color: ACCENT, cursor: 'pointer' }} onClick={() => navigate('/planning')}>Planning</span>.</div>;
-  }
-
-  function statusColor(status: string) {
-    if (status === 'completed') return '#86AA80';
-    if (status === 'skipped')  return '#C5896E';
-    if (status === 'rest')     return MUTED2;
-    return ACCENT;
-  }
-
-  function fmtDate(dateStr: string) {
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  }
-
-  return (
-    <div>
-      {upcoming.map((session, i) => (
-        <div
-          key={`${session.scheduleId}-${session.date}`}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE_SOFT}` }}
-        >
-          <div style={{ width: 2, height: 22, background: statusColor(session.status), opacity: 0.75, flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: 'white', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {session.isRestDay ? 'Rest' : (session.routineName ?? 'Workout')}
-            </div>
-            <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 2 }}>{fmtDate(session.date)}</div>
-          </div>
-          {session.status === 'completed' && <span style={{ fontSize: 11, color: '#86AA80' }}>✓</span>}
-          {session.status === 'skipped'   && <span style={{ fontSize: 11, color: '#C5896E' }}>✕</span>}
-          {session.status === 'scheduled' && !session.isRestDay && (
-            <button
-              onClick={() => navigate('/workouts')}
-              style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: 11, cursor: 'pointer' }}
-            >Start</button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Personal bests table ─────────────────────────────────────────────────────
-
-function PersonalBestsTable({ pb }: { pb: PersonalBests | null }) {
-  if (!pb) return <div style={{ fontSize: 13, color: MUTED2 }}>No workouts yet.</div>;
-  const rows: { lift: string; value: string; meta: string }[] = [];
-  if (pb.heaviestLift) rows.push({
-    lift: pb.heaviestLift.exerciseName,
-    value: `${Math.round(pb.heaviestLift.weightKg * KG_TO_LBS)} lb${pb.heaviestLift.reps ? ` × ${pb.heaviestLift.reps}` : ''}`,
-    meta: pb.heaviestLift.workoutDate,
-  });
-  pb.bestVolumeByRoutine.slice(0, 2).forEach(r => rows.push({
-    lift: r.routineName,
-    value: `${fmt(r.volumeKg * KG_TO_LBS)} lb vol`,
-    meta: r.workoutDate ?? '',
-  }));
-  if (pb.mostCaloriesBurned) rows.push({
-    lift: pb.mostCaloriesBurned.workoutName ?? 'Workout',
-    value: `${pb.mostCaloriesBurned.calories.toLocaleString()} kcal`,
-    meta: pb.mostCaloriesBurned.workoutDate,
-  });
-  if (pb.bestStairPace) rows.push({
-    lift: pb.bestStairPace.exerciseName,
-    value: `${pb.bestStairPace.pacePerMinute.toFixed(0)} steps/min`,
-    meta: pb.bestStairPace.workoutDate,
-  });
-  if (!rows.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No records yet.</div>;
-  return (
-    <div>
-      {rows.map((p, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 0', borderTop: i ? `1px solid ${LINE_SOFT}` : 'none' }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'white' }}>{p.lift}</div>
-            <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 2 }}>{p.meta}</div>
-          </div>
-          <span className="font-display" style={{ fontSize: 14, fontWeight: 600, color: ACCENT }}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ─── Flagship goal (weight) ───────────────────────────────────────────────────
 
@@ -1757,16 +1601,12 @@ function WorkoutFreqCard({ routines, routineGoals, workouts }: {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const today = localDateStr();
-  const now = new Date();
-  const hour = now.getHours();
-  const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
-
   const [workouts,       setWorkouts]       = useState<WorkoutSummary[]>([]);
   const [exGoals,        setExGoals]        = useState<ExerciseGoals | null>(null);
   const [measurements,   setMeasurements]   = useState<BodyMeasurement[]>([]);
   const [measGoals,      setMeasGoals]      = useState<Record<string, MeasurementGoal>>({});
   const [summary,        setSummary]        = useState<GoalsSummary | null>(null);
-  const [personalBests,  setPersonalBests]  = useState<PersonalBests | null>(null);
+  const [,               setPersonalBests]  = useState<PersonalBests | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [routines,       setRoutines]       = useState<RoutineSummary[]>([]);
   const [todayTDEE,      setTodayTDEE]      = useState<TDEEBreakdown | null>(null);

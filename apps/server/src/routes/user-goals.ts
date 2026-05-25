@@ -24,19 +24,6 @@ const CATEGORY_BY_METRIC: Record<string, string> = {
   nutrition_daily_avg:       'nutrition',
 };
 
-const JOIN = `
-  SELECT ug.*,
-    CASE ug.source_type
-      WHEN 'exercise' THEN e.name
-      WHEN 'routine'  THEN r.name
-      ELSE NULL
-    END AS source_name
-  FROM custom_goals ug
-  LEFT JOIN exercises ue ON ug.source_type = 'exercise' AND ue.id = ug.source_id
-  LEFT JOIN exercises e  ON ug.source_type = 'exercise' AND e.id  = ug.source_id
-  LEFT JOIN workout_routines  r  ON ug.source_type = 'routine'  AND r.id  = ug.source_id
-`;
-
 function fmt(r: RowDataPacket) {
   return {
     id:          r.id,

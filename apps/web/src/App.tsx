@@ -25,15 +25,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Placeholder for sections added in later phases
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-      {label} — coming soon
-    </div>
-  );
-}
-
 export default function App() {
   const basename = import.meta.env.PROD ? '/pulse' : '/';
   const colorScheme = useSettingsStore((s) => s.colorScheme);

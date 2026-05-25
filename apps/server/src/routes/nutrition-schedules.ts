@@ -123,12 +123,6 @@ router.get('/upcoming', async (req, res) => {
       [req.userId, toStr, todayStr]
     );
 
-    // Fetch foods and recipes for name lookups
-    const [foodRows] = await pool.query<RowDataPacket[]>('SELECT id, name FROM foods');
-    const [recipeRows] = await pool.query<RowDataPacket[]>('SELECT id, name FROM recipes');
-    const foodMap = new Map(foodRows.map((r: RowDataPacket) => [r.id, r.name]));
-    const recipeMap = new Map(recipeRows.map((r: RowDataPacket) => [r.id, r.name]));
-
     const results: object[] = [];
 
     for (const sched of schedRows as RowDataPacket[]) {

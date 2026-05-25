@@ -92,7 +92,6 @@ function getCycleItemForDate(cfg: any, date: Date, startDate: Date): { type: str
     return item ? { type: item.type, id: item.id } : { type: 'rest', id: null };
   } else {
     // Without specific days, insert rest day every restFrequency items
-    const restFrequency = cfg.restFrequency || 3;
     const cycleLengthWithRest = items.length + 1;
     const posInCycle = dayCount % cycleLengthWithRest;
     if (posInCycle >= items.length) {
@@ -127,7 +126,6 @@ function matchesRecurrence(recurrenceType: string, cfg: any, date: Date, startDa
       if (!Array.isArray(items) || items.length === 0) return false;
 
       const cycleDays = Array.isArray(cfg.days) && cfg.days.length > 0 ? cfg.days : null;
-      const restFrequency = cfg.restFrequency || 3;
       const alwaysRestWeekends = cfg.alwaysRestWeekends === true;
 
       const dow = getDow(date);

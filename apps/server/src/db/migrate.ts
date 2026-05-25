@@ -12,10 +12,23 @@ const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
  * manual list to maintain.
  */
 function discoverMigrations(): string[] {
-  return fs
+  const files = fs
     .readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.sql'))
     .sort();
+
+  const prefixCount: Record<string, string[]> = {};
+  for (const f of files) {
+    const prefix = f.match(/^(\d+)/)?.[1] ?? f;
+    (prefixCount[prefix] ??= []).push(f);
+  }
+  const collisions = Object.entries(prefixCount).filter(([, names]) => names.length > 1);
+  if (collisions.length > 0) {
+    const detail = collisions.map(([p, names]) => `  prefix ${p}: ${names.join(', ')}`).join('\n');
+    throw new Error(`Duplicate migration prefixes found:\n${detail}`);
+  }
+
+  return files;
 }
 
 /**

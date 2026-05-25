@@ -73,7 +73,7 @@ export interface Exercise {
   id: number;
   name: string;
   category: string;
-  exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration';
+  exerciseType: 'weight' | 'cardio' | 'bodyweight' | 'duration' | 'resistance';
   musclesPrimary: string[];
   musclesSecondary: string[];
   isCustom: boolean;
