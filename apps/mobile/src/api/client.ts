@@ -823,11 +823,11 @@ export async function getSteps(token: string, date?: string): Promise<StepsEntry
   const res = await fetch(`${API_BASE}/api/steps${qs}`, { headers: headers(token) });
   return handle<StepsEntry>(res);
 }
-export async function logSteps(token: string, steps: number, date?: string): Promise<StepsEntry> {
+export async function logSteps(token: string, steps: number, date?: string, source?: string): Promise<StepsEntry> {
   const res = await fetch(`${API_BASE}/api/steps`, {
     method: 'POST',
     headers: headers(token),
-    body: JSON.stringify({ steps, date }),
+    body: JSON.stringify({ steps, date, source }),
   });
   return handle<StepsEntry>(res);
 }

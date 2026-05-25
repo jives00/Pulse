@@ -22,6 +22,7 @@ import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/se
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import { useHealthSteps } from '../../../src/hooks/useHealthSteps';
 import FilterChip from '../../../src/components/FilterChip';
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 const WORKOUT_TABS_ORDER = ['routines', 'exercises', 'log'] as const;
@@ -40,6 +41,7 @@ function LogTab() {
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
+  const { readTodaySteps } = useHealthSteps();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [steps, setSteps] = useState<StepsEntry | null>(null);
@@ -61,12 +63,23 @@ function LogTab() {
       setActiveWorkout(active);
       setSteps(stepsData);
       if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
+
+      const hcSteps = await readTodaySteps();
+      if (hcSteps != null && hcSteps > 0 && hcSteps !== stepsData?.steps) {
+        try {
+          const synced = await logSteps(token, hcSteps, undefined, 'health_connect');
+          setSteps(synced);
+          setStepsInput(String(hcSteps));
+        } catch (err) {
+          console.warn('[LogTab] Failed to auto-sync Health Connect steps:', err);
+        }
+      }
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, readTodaySteps]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -82,9 +95,20 @@ function LogTab() {
       setActiveWorkout(active);
       setSteps(stepsData);
       if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
+
+      const hcSteps = await readTodaySteps();
+      if (hcSteps != null && hcSteps > 0 && hcSteps !== stepsData?.steps) {
+        try {
+          const synced = await logSteps(token, hcSteps, undefined, 'health_connect');
+          setSteps(synced);
+          setStepsInput(String(hcSteps));
+        } catch (err) {
+          console.warn('[LogTab] Failed to auto-sync Health Connect steps:', err);
+        }
+      }
     } catch { /* ignore */ }
     finally { setRefreshing(false); }
-  }, [token]);
+  }, [token, readTodaySteps]);
 
   async function handleSaveSteps() {
     const count = parseInt(stepsInput, 10);
@@ -155,7 +179,14 @@ function LogTab() {
               </TouchableOpacity>
             </View>
             {steps?.steps != null && (
-              <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
+              <View>
+                <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
+                {steps.source && (
+                  <Text style={s.stepsSource}>
+                    {steps.source === 'health_connect' ? 'Synced from Samsung Health' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
         </>
@@ -1250,6 +1281,7 @@ function makeSStyles(c: Colors) {
     stepsSaveBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
     stepsSaveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
     stepsSaved: { fontSize: fontSize.sm, color: c.muted, marginTop: 6 },
+    stepsSource: { fontSize: fontSize.xs, color: c.muted, marginTop: 4 },
   });
 }
 

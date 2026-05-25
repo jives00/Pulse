@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile
 
+- **Steps auto-sync from Samsung Health** — Steps now auto-sync from Samsung Health via Health Connect when the Workouts Log tab opens; shows 'Synced from Samsung Health' or 'Manually entered' label; manual entry remains available as an override. Requires APK rebuild with Health Connect native module. `df231a2`
 - **Planning tab date indicator** — Changed today's date circle to a square in the planning calendar. `43f3a7d`
 - **Planning schedule edit** — Workout, meal, and nutrition schedules now have Edit buttons in SettingsPlanningTab; clicking Edit pre-fills the form with existing data (type/routineId/exerciseId/recurrence/macros/etc) and calls the update endpoint instead of create; `parseRecConfig` helper reconstructs form state from stored `recurrenceConfig` JSON. `1e6f9ae`
 

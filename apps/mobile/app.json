@@ -51,6 +51,12 @@
             "usesCleartextTraffic": true
           }
         }
+      ],
+      [
+        "react-native-health-connect",
+        {
+          "androidPermissions": ["android.permission.health.READ_STEPS"]
+        }
       ]
     ]
   }
