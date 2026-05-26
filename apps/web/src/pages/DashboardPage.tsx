@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
-  localDateStr, getWeekStart, buildWeeklyData, computeHighlights,
+  localDateStr, getWeekStart, buildWeeklyData, computeHighlights, buildWorkoutLine,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
@@ -69,24 +69,20 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
 
 // ─── Today Snapshot ──────────────────────────────────────────────────────────
 
-function TodaySnapshot({ workout, nutrition, water, steps }: {
-  workout: WorkoutSummary | null;
+function TodaySnapshot({ workouts, nutrition, water, steps }: {
+  workouts: WorkoutSummary[];
   nutrition: GoalsSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
   steps: StepsDay | null;
 }) {
   const [copied, setCopied] = useState(false);
 
-  const volLbs       = Math.round((workout?.totalVolumeKg ?? 0) * KG_TO_LBS);
-  const workoutLabel = workout?.routineName ?? workout?.name ?? 'Workout';
   const glasses      = water ? Math.round(water.totalOz / 8) : 0;
-  const hasWorkout   = workout != null && workout.exerciseCount > 0;
   const hasNutrition = (nutrition?.calories ?? 0) > 0;
 
   const lines: string[] = ["Today's stats:"];
-  if (hasWorkout) {
-    const vol = volLbs > 0 ? ` — total volume of ${volLbs.toLocaleString()} lbs` : ' completed';
-    lines.push(`- ${workoutLabel}${vol}`);
+  for (const w of workouts) {
+    if (w.exerciseCount > 0) lines.push(`- ${buildWorkoutLine(w)}`);
   }
   if (hasNutrition) {
     lines.push(`- Calories: ${fmt(nutrition!.calories)}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
@@ -1659,6 +1655,7 @@ export default function DashboardPage() {
   }
 
   const todayWorkout   = workouts.find(w => w.workoutDate === today && w.exerciseCount > 0) ?? null;
+  const todayWorkouts  = workouts.filter(w => w.workoutDate === today);
   const weekStart      = summary?.weekStart ?? getWeekStart(today);
   const weeklyData     = buildWeeklyData(workouts);
   const thisWeekBucket = weeklyData[weeklyData.length - 1];
@@ -1738,7 +1735,7 @@ export default function DashboardPage() {
       {/* ── TODAY'S BLURB ─────────────────────────────────────────────────────── */}
       <Band kicker="Today's Blurb">
         <TodaySnapshot
-          workout={todayWorkout}
+          workouts={todayWorkouts}
           nutrition={summary?.nutrition.actual ?? null}
           water={todayWater}
           steps={todaySteps}

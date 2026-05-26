@@ -17,7 +17,7 @@ import {
 import { Share } from 'react-native';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
-  computeHighlights, buildWeeklyData,
+  computeHighlights, buildWeeklyData, buildWorkoutLine,
   type WeekBucket,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -279,24 +279,20 @@ function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: Work
 }
 
 // ── Today Snapshot ────────────────────────────────────────────────────────────
-function TodaySnapshot({ workout, nutrition, water, steps }: {
-  workout: WorkoutSummary | null;
+function TodaySnapshot({ workouts, nutrition, water, steps }: {
+  workouts: WorkoutSummary[];
   nutrition: GoalsSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
   steps: StepsEntry | null;
 }) {
   const [copied, setCopied] = useState(false);
 
-  const volLbs       = Math.round((workout?.totalVolumeKg ?? 0) * KG_TO_LBS);
-  const workoutLabel = workout?.routineName ?? workout?.name ?? 'Workout';
   const glasses      = water ? Math.round(water.totalOz / 8) : 0;
-  const hasWorkout   = workout != null && workout.exerciseCount > 0;
   const hasNutrition = (nutrition?.calories ?? 0) > 0;
 
   const lines: string[] = ["Today's stats:"];
-  if (hasWorkout) {
-    const vol = volLbs > 0 ? ` — total volume of ${volLbs.toLocaleString()} lbs` : ' completed';
-    lines.push(`- ${workoutLabel}${vol}`);
+  for (const w of workouts) {
+    if (w.exerciseCount > 0) lines.push(`- ${buildWorkoutLine(w)}`);
   }
   if (hasNutrition) {
     lines.push(`- Calories: ${nutrition!.calories.toLocaleString()}, Protein: ${Math.round(nutrition!.proteinG)}g, Carbs: ${Math.round(nutrition!.carbsG)}g, Fats: ${Math.round(nutrition!.fatG)}g`);
@@ -667,7 +663,7 @@ export default function DashboardV4Screen() {
 
           {/* Today's Blurb */}
           <TodaySnapshot
-            workout={todayWorkout}
+            workouts={todayWorkouts}
             nutrition={nutritionSummary?.nutrition.actual ?? null}
             water={todayWater}
             steps={todaySteps}

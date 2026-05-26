@@ -30,6 +30,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Fixed Health Connect steps sync race condition and missing permission prompt** — `readTodaySteps` now calls `syncGrantedPermissions()` directly instead of the stale startup cache, fixing timing issues on app open; added `requestPermission` to `useHealthSteps` and a "Connect Health Connect" button in the steps card so the READ_STEPS permission dialog is actually shown; fixed label from "Samsung Health" to "Health Connect". `5e49f6b`
 - **Fixed "Connect Health Connect" button crashing app on Samsung Galaxy** — `requestPermission()` launches an Android Activity for result which kills the RN process on Samsung devices; switched to `openHealthConnectSettings()` which opens Health Connect directly to Pulse's permissions page; `readTodaySteps` now calls `setPermissionGranted` so the button hides automatically when the user returns after granting. `d90f66a`
 - **Quick Log for single exercises** — New ⚡ Quick Log button in the Log tab header opens a two-step modal: searchable exercise picker, then a set logger with last-session reference and columns that adapt to the exercise's trackedFields (weight/reps/duration/distance/steps). Auto-saves on field blur; Finish discards empty sets and marks the workout complete; back/close before finishing deletes the session so no partial data is saved. `edd4cb6`
+- **Today's Blurb shows one bullet per workout with correct names** — Blurb now renders a line for every workout logged today (routine or quick-log) using `buildWorkoutLine`; quick-log entries show the exercise name, routine entries append "routine" to the routine name. `buildWorkoutLine` moved to shared api-client. `a0497e6`
+
+### Web (feat)
+
+- **Today's Blurb shows one bullet per workout with correct names** — Same fix as mobile; `TodaySnapshot` now accepts the full array of today's workouts and renders a line per entry. `a0497e6`
 
 ---
 
