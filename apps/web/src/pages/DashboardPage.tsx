@@ -152,7 +152,9 @@ function FuelToday({ actual, goals, tdee }: {
   const carbsG=goals?.carbsG ?? 0;
   const fatG  =goals?.fatG ?? 0;
   const tdeeVal = tdee?.total ?? 0;
-  const pct   = calG > 0 ? clamp(cal / calG) : 0;
+  const calPctRaw = calG > 0 ? cal / calG : 0;
+  const pct   = clamp(calPctRaw);
+  const ringColor = calG > 0 && calPctRaw >= 0.95 && calPctRaw <= 1.05 ? COL_GOOD : ACCENT;
   const size  = 200, sw = 10, r = (size - sw) / 2, c = 2 * Math.PI * r;
   const net = cal - tdeeVal;
 
@@ -162,7 +164,7 @@ function FuelToday({ actual, goals, tdee }: {
       <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={LINE_SOFT} strokeWidth={sw} />
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ACCENT} strokeWidth={sw}
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ringColor} strokeWidth={sw}
             strokeDasharray={`${pct * c} ${c}`} strokeLinecap="round"
             style={{ transition: 'stroke-dasharray .5s ease' }} />
         </svg>

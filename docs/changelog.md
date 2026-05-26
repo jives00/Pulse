@@ -11,6 +11,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Recipe action buttons moved above title for full-width title display** — Star, Modify, and Edit buttons now appear in a right-aligned row above the recipe name so the title is no longer squished. `d133b2f`
 - **Surface voice recognition errors in AI assistant** — `useVoice` now exposes a `voiceError` string when `Voice.start()` throws or `onSpeechError` fires; `AIAssistant` displays it instead of silently failing. Root cause on current device: native module is `null` (APK predates Gradle 9 patch). `24be945`
 - **Eliminated white screen flash during screen loads** — Added `contentStyle: { backgroundColor: c.bg }` to both root and app-level Stack navigators so the theme background fills immediately instead of flashing white between screens. `009207d`
+- **Calorie ring and macro bars turn green at ±5% of goal** — Fixed macro bars to match web (removed `!over` guard so 100–105% range also goes green); added same logic to mobile calorie ring and web calorie ring SVG stroke. `737fcdb`
 
 ### Build (feat)
 

@@ -134,7 +134,7 @@ function ProgressBar({ label, actual, goal, unit, c }: {
   const pctRaw = goal && goal > 0 ? actual / goal : 0;
   const pct = Math.min(pctRaw, 1);
   const over = goal != null && goal > 0 && actual > goal;
-  const nearGoal = goal != null && goal > 0 && pctRaw >= 0.95 && pctRaw <= 1.05 && !over;
+  const nearGoal = goal != null && goal > 0 && pctRaw >= 0.95 && pctRaw <= 1.05;
   const barColor = nearGoal ? COL_GOOD : COL_GOLD;
   const valueColor = over ? COL_WARN : c.text;
   return (
@@ -422,6 +422,8 @@ export default function DashboardV4Screen() {
 
   const caloriesGoal     = nutritionSummary?.nutrition.goals?.calories ?? null;
   const caloriesConsumed = Math.round(nutritionSummary?.nutrition.actual.calories ?? 0);
+  const caloriePctRaw    = caloriesGoal && caloriesGoal > 0 ? caloriesConsumed / caloriesGoal : 0;
+  const calorieRingColor = caloriesGoal && caloriePctRaw >= 0.95 && caloriePctRaw <= 1.05 ? COL_GOOD : COL_GOLD;
   const proteinGoal      = nutritionSummary?.nutrition.goals?.proteinG ?? null;
   const proteinConsumed  = Math.round(nutritionSummary?.nutrition.actual.proteinG ?? 0);
   const carbsGoal        = nutritionSummary?.nutrition.goals?.carbsG ?? null;
@@ -522,7 +524,7 @@ export default function DashboardV4Screen() {
             <CardHeader title="Fuel Today" c={c} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ alignItems: 'center', gap: 6 }}>
-                <CalorieRing pct={caloriesGoal ? caloriesConsumed / caloriesGoal : 0} color={COL_GOLD} size={84} c={c} />
+                <CalorieRing pct={caloriePctRaw} color={calorieRingColor} size={84} c={c} />
                 <Text style={{ fontSize: fontSize.sm, color: c.muted, textAlign: 'center' }}>
                   <Text style={{ fontWeight: '700', color: caloriesGoal && caloriesConsumed > caloriesGoal ? COL_WARN : c.text }}>{caloriesConsumed.toLocaleString()}</Text>
                   {caloriesGoal ? `/${caloriesGoal.toLocaleString()} kcal` : ' kcal'}
