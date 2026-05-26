@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile (fix)
 
+- **Recipe action buttons moved above title for full-width title display** — Star, Modify, and Edit buttons now appear in a right-aligned row above the recipe name so the title is no longer squished. `d133b2f`
 - **Surface voice recognition errors in AI assistant** — `useVoice` now exposes a `voiceError` string when `Voice.start()` throws or `onSpeechError` fires; `AIAssistant` displays it instead of silently failing. Root cause on current device: native module is `null` (APK predates Gradle 9 patch). `24be945`
 
 ### Build (feat)

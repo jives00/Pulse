@@ -145,20 +145,19 @@ export default function RecipeDetailScreen() {
         )}
 
         <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text style={styles.name}>{recipe.name}</Text>
-            <View style={styles.titleActions}>
-              <TouchableOpacity onPress={handleToggleFavorite}>
-                <Text style={styles.star}>{recipe.is_favorite === 1 ? '★' : '☆'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowModify(true)}>
-                <Text style={styles.editBtn}>✦ Modify</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push(`/(app)/recipe/edit?id=${recipe.id}`)}>
-                <Text style={styles.editBtn}>Edit</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.titleActions}>
+            <TouchableOpacity onPress={handleToggleFavorite}>
+              <Text style={styles.star}>{recipe.is_favorite === 1 ? '★' : '☆'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowModify(true)}>
+              <Text style={styles.editBtn}>✦ Modify</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push(`/(app)/recipe/edit?id=${recipe.id}`)}>
+              <Text style={styles.editBtn}>Edit</Text>
+            </TouchableOpacity>
           </View>
+
+          <Text style={styles.name}>{recipe.name}</Text>
 
           <Text style={styles.type}>{recipe.type}</Text>
 
@@ -342,9 +341,8 @@ function makeStyles(c: Colors) {
   container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 16 },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: c.card },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 },
-  name: { color: c.text, fontSize: fontSize['2xl'], fontWeight: 'bold', flex: 1, marginRight: 8 },
-  titleActions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },
+  name: { color: c.text, fontSize: fontSize['2xl'], fontWeight: 'bold', marginBottom: 4 },
+  titleActions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, justifyContent: 'flex-end' },
   star: { color: c.accent, fontSize: fontSize['2xl'] },
   editBtn: { color: c.accent, fontSize: fontSize.sm, fontWeight: '600' },
   type: { color: c.muted, fontSize: fontSize.sm, textTransform: 'capitalize', marginBottom: 10 },
