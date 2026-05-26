@@ -176,14 +176,6 @@ async function playRestDing() {
     const Haptics = await import('expo-haptics');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   } catch { /* not available in Expo Go */ }
-  try {
-    const { Audio } = await import('expo-av');
-    const { sound } = await Audio.Sound.createAsync(require('../../../assets/ding.wav'));
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate((status: any) => {
-      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
-    });
-  } catch { /* not available in Expo Go — works in EAS build */ }
 }
 
 function defaultTrackedFields(exerciseType: string): string[] {

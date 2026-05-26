@@ -6,6 +6,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 26, 2026
 
+### Mobile (fix)
+
+- **Removed expo-av to fix startup crash on RN 0.83** — `expo-av 15.1.7` references `CallInvokerHolder::getCallInvoker` which was removed from RN 0.83's new architecture; `AVManager.<clinit>` threw `UnsatisfiedLinkError` at native module init before any JS loaded, crashing every build on open. Removed the package and its one dead usage (the `ding.wav` asset never existed). `adcc9fd`
+
 ### Build (fix)
 
 - **Fixed deploy workflow leaving EC2 in dirty state on failure** — Added `package.json` to the pre-pull `git checkout --` reset so a failed previous deploy can't block the next one. `803006d`
