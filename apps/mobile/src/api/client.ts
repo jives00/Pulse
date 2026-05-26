@@ -420,7 +420,7 @@ export async function addWorkoutSet(_token: string, workoutId: number, weId: num
   return workoutsApi.addSet(workoutId, weId, data);
 }
 
-export async function updateWorkoutSet(_token: string, workoutId: number, weId: number, setId: number, data: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; completed?: boolean }): Promise<void> {
+export async function updateWorkoutSet(_token: string, workoutId: number, weId: number, setId: number, data: { reps?: number | null; weightKg?: number | null; durationSeconds?: number | null; distanceMeters?: number | null; steps?: number | null; completed?: boolean }): Promise<void> {
   await workoutsApi.updateSet(workoutId, weId, setId, data);
 }
 

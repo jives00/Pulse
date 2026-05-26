@@ -25,6 +25,7 @@ import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { useHealthSteps } from '../../../src/hooks/useHealthSteps';
 import FilterChip from '../../../src/components/FilterChip';
+import QuickLogModal from '../../../src/components/QuickLogModal';
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
 const WORKOUT_TABS_ORDER = ['routines', 'exercises', 'log'] as const;
 
@@ -1155,6 +1156,7 @@ export default function WorkoutsScreen() {
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);
+  const [quickLogVisible, setQuickLogVisible] = useState(false);
 
   // Routine picker for + Start
   const [routinePickerVisible, setRoutinePickerVisible] = useState(false);
@@ -1212,6 +1214,13 @@ export default function WorkoutsScreen() {
         </TouchableOpacity>
       );
     }
+    if (tab === 'log') {
+      return (
+        <TouchableOpacity style={s.quickLogBtn} onPress={() => setQuickLogVisible(true)}>
+          <Text style={s.quickLogText}>⚡ Quick Log</Text>
+        </TouchableOpacity>
+      );
+    }
     return null;
   }
 
@@ -1246,6 +1255,13 @@ export default function WorkoutsScreen() {
           onCreateClose={() => setExCreateVisible(false)}
         />
       )}
+
+      <QuickLogModal
+        visible={quickLogVisible}
+        token={token}
+        onClose={() => setQuickLogVisible(false)}
+        onLogged={() => { setQuickLogVisible(false); }}
+      />
 
       {/* Routine picker modal */}
       <Modal visible={routinePickerVisible} animationType="slide" transparent onRequestClose={() => setRoutinePickerVisible(false)}>
@@ -1321,6 +1337,8 @@ function makeSStyles(c: Colors) {
     stepsSource: { fontSize: fontSize.xs, color: c.muted, marginTop: 4 },
     connectHCBtn: { marginTop: 10, backgroundColor: c.accent + '22', borderWidth: 1, borderColor: c.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
     connectHCText: { fontSize: fontSize.sm, color: c.accent, textAlign: 'center' },
+    quickLogBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+    quickLogText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
   });
 }
 
