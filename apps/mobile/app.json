@@ -49,11 +49,11 @@
         {
           "android": {
             "usesCleartextTraffic": true,
-            "minSdkVersion": 26,
-            "newArchEnabled": false
+            "minSdkVersion": 26
           }
         }
       ],
+      "./plugins/withOldArch",
       "./plugins/withHealthConnectPermissions"
     ]
   }

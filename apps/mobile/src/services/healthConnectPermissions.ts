@@ -1,4 +1,4 @@
-import { getSdkStatus, getGrantedPermissions, initialize, requestPermission, openHealthConnectSettings, SdkAvailabilityStatus, Permission } from 'react-native-health-connect';
+import { getSdkStatus, getGrantedPermissions, initialize, openHealthConnectSettings, SdkAvailabilityStatus } from 'react-native-health-connect';
 
 export interface HealthConnectPermissions {
   read: {
@@ -70,16 +70,12 @@ export async function syncGrantedPermissions(): Promise<HealthConnectPermissions
   }
 }
 
-const HEALTH_PERMISSIONS: Permission[] = [
-  { accessType: 'read',  recordType: 'Steps' },
-  { accessType: 'write', recordType: 'Nutrition' },
-  { accessType: 'write', recordType: 'Hydration' },
-  { accessType: 'write', recordType: 'ExerciseSession' },
-  { accessType: 'write', recordType: 'Weight' },
-];
-
-// Requests permissions via the Health Connect dialog. Falls back to opening
-// Health Connect settings if requestPermission throws (e.g. older Samsung devices).
+// Opens Health Connect settings so the user can grant Pulse permissions there.
+// requestPermission() crashes on Samsung Galaxy devices (activity result handling
+// kills the RN process), so we use openHealthConnectSettings() instead. The
+// VIEW_PERMISSION_USAGE intent filter in the manifest ensures Pulse appears in
+// Health Connect's app list. Permissions are re-synced via syncGrantedPermissions()
+// when the user returns to the app.
 export async function requestHealthConnectPermissions(): Promise<HealthConnectPermissions> {
   if (!initialized) {
     await initializeHealthConnect();
@@ -90,17 +86,12 @@ export async function requestHealthConnectPermissions(): Promise<HealthConnectPe
   }
 
   try {
-    await requestPermission(HEALTH_PERMISSIONS);
+    await openHealthConnectSettings();
   } catch (err) {
-    console.warn('[HealthConnect] requestPermission failed, opening settings instead:', err);
-    try {
-      await openHealthConnectSettings();
-    } catch (e2) {
-      console.warn('[HealthConnect] Failed to open Health Connect settings:', e2);
-    }
+    console.warn('[HealthConnect] Failed to open Health Connect settings:', err);
   }
 
-  return syncGrantedPermissions();
+  return cachedPermissions || EMPTY_PERMISSIONS;
 }
 
 export function getHealthConnectPermissions(): HealthConnectPermissions | null {
