@@ -3,5 +3,5 @@ import { useSettingsStore } from '../store/settings';
 
 export function useColors(): Colors {
   const colorScheme = useSettingsStore((s) => s.colorScheme);
-  return PALETTES[colorScheme];
+  return PALETTES[colorScheme] as Colors;
 }

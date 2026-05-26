@@ -138,7 +138,7 @@ export default function LibraryScreen() {
               { label: 'Recently Made', value: 'recently_made' },
               { label: 'Prep Time', value: 'prep_time' },
             ],
-            onSelect: (v) => setSort(v),
+            onSelect: (v) => setSort(v as typeof sort),
           })}
         >
           <Text style={styles.sortBtnText}>

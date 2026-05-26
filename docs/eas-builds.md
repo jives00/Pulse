@@ -62,22 +62,40 @@ The current `minSdkVersion` is **26**, required by `androidx.health.connect:conn
 
 If the server URL ever changes, update `eas.json` and rebuild.
 
-### 4. Verify TypeScript compiles without errors in Health Connect files
+### 4. Verify TypeScript compiles without errors
 
-EAS uses Metro bundler (no type-checking), but TS errors in the Health Connect files indicate runtime API mismatches that will silently fail or crash at runtime:
+EAS uses Metro bundler (no type-checking), but TS errors often indicate runtime API mismatches that will silently fail or crash:
 
 ```bash
-npx tsc --project apps/mobile/tsconfig.json --noEmit 2>&1 | grep "healthConnect"
+npx tsc --project apps/mobile/tsconfig.json --noEmit
 ```
 
-Pre-existing errors in `index.tsx`, `recipe/edit.tsx`, and `useColors.ts` are known and do not block the build or affect Health Connect functionality.
+This should produce zero errors. If it doesn't, fix them before building.
 
-### 5. Check for recently added packages that need native setup
+### 5. Never call `requestPermission` at startup
+
+`requestPermission(...)` launches the Health Connect app as a separate Android Activity. Calling it during app initialization causes a crash. Use `syncGrantedPermissions()` at startup instead — it calls `getGrantedPermissions()` which silently reads already-granted permissions without opening any UI. Only call `requestHealthConnectPermissions()` from an explicit user action (e.g. a Settings screen button).
+
+### 6. Run `expo install --check` and `expo config` introspect
+
+Catch dependency version mismatches and plugin resolution failures before EAS does:
+
+```bash
+cd apps/mobile
+npx expo install --check
+npx expo config --type introspect --json | head -5   # must not error
+```
+
+If `expo install --check` reports outdated packages, run `npx expo install` from `apps/mobile` to fix them. Do **not** use `npm install --legacy-peer-deps` — it creates a corrupted workspace layout where packages end up in the wrong `node_modules` tier.
+
+### 7. Check for recently added packages that need native setup
 
 If a package was added since the last APK build, verify:
 - Its plugin is declared in `app.json` `plugins` array (for packages with Expo plugins)
-- Any required Android permissions are listed (e.g. `react-native-health-connect` permissions in `app.json`)
+- Any required Android permissions are listed (e.g. Health Connect permissions in `withHealthConnectPermissions.js`)
 - Its `minSdkVersion` requirement is met (check the package's README or manifest merger error)
+
+**Health Connect plugin note:** `react-native-health-connect` is NOT listed in `app.json` plugins. Its only job was adding the `ACTION_SHOW_PERMISSIONS_RATIONALE` intent-filter, which is now handled (with dedup) by `plugins/withHealthConnectPermissions.js`. Do not re-add it to plugins — doing so re-introduces the duplicate intent-filter.
 
 ---
 
@@ -145,6 +163,25 @@ The library is v3.5.3. Common mistakes if updating Health Connect integration:
 | `clientRecordId` at record top level | `metadata: { clientRecordId }` |
 
 Check types directly in `apps/mobile/node_modules/react-native-health-connect/lib/typescript/`.
+
+---
+
+### Expo config fails / plugin cannot resolve `expo/config-plugins`
+
+**Symptom:**
+```
+expo-router cannot import expo/config-plugins
+npx expo config --type introspect --json fails
+```
+
+**Cause:** `npm install --legacy-peer-deps` was used, creating a corrupted workspace where some packages (e.g. `expo-router`) are hoisted to root `node_modules` while their dependencies (e.g. `expo`) are trapped in `apps/mobile/node_modules`, breaking Node.js module resolution.
+
+**Fix:** Delete everything and do a clean install:
+```bash
+rm -rf node_modules apps/mobile/node_modules package-lock.json
+npm install
+```
+Never use `--legacy-peer-deps`. If `npm install` fails with peer dep conflicts, fix the version specs in `package.json` instead.
 
 ---
 

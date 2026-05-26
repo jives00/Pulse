@@ -1,4 +1,4 @@
-import { getSdkStatus, initialize, requestPermission, SdkAvailabilityStatus } from 'react-native-health-connect';
+import { getSdkStatus, getGrantedPermissions, initialize, requestPermission, SdkAvailabilityStatus } from 'react-native-health-connect';
 
 export interface HealthConnectPermissions {
   read: {
@@ -39,6 +39,38 @@ export async function initializeHealthConnect(): Promise<HealthConnectPermission
   }
 }
 
+// Silently checks already-granted permissions — no dialog, safe to call at startup.
+export async function syncGrantedPermissions(): Promise<HealthConnectPermissions> {
+  if (!initialized) {
+    await initializeHealthConnect();
+  }
+
+  if (!sdkAvailable) {
+    return cachedPermissions || EMPTY_PERMISSIONS;
+  }
+
+  try {
+    const granted = await getGrantedPermissions();
+    const permissions: HealthConnectPermissions = {
+      read: {
+        steps: granted.some((p) => 'accessType' in p && p.accessType === 'read' && p.recordType === 'Steps'),
+      },
+      write: {
+        nutrition: granted.some((p) => 'accessType' in p && p.accessType === 'write' && p.recordType === 'Nutrition'),
+        hydration: granted.some((p) => 'accessType' in p && p.accessType === 'write' && p.recordType === 'Hydration'),
+        exercise: granted.some((p) => 'accessType' in p && p.accessType === 'write' && p.recordType === 'ExerciseSession'),
+        weight: granted.some((p) => 'accessType' in p && p.accessType === 'write' && p.recordType === 'Weight'),
+      },
+    };
+    cachedPermissions = permissions;
+    return permissions;
+  } catch (err) {
+    console.warn('[HealthConnect] Failed to sync granted permissions:', err);
+    return cachedPermissions || EMPTY_PERMISSIONS;
+  }
+}
+
+// Opens the Health Connect permission dialog — only call from an explicit user action, never at startup.
 export async function requestHealthConnectPermissions(): Promise<HealthConnectPermissions> {
   if (!initialized) {
     await initializeHealthConnect();

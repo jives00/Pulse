@@ -4,6 +4,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 26, 2026
+
+### Mobile (feat)
+
+- **Health Connect write sync + APK startup crash fix** — Replaced `requestPermission()` at startup with `syncGrantedPermissions()` to prevent native Activity crash; rewrote `healthConnectWriter.ts` with correct v3 API (`insertRecords`, `deleteRecordsByUuids`, correct field shapes); added `withHealthConnectPermissions` config plugin for all six HC manifest permissions with dedup guard for the rationale intent-filter; fixed TS errors across `index.tsx`, `edit.tsx`, `useColors.ts`; upgraded expo SDK packages; aligned `@types/react`/`react` versions across workspaces; fixed `metro.config.js` `watchFolders`; updated `eas-builds.md` pre-build checklist. `c4fec5d`
+
+---
+
 ## May 25, 2026
 
 ### API (fix)

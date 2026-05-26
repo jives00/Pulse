@@ -321,7 +321,7 @@ export default function EditRecipeScreen() {
               <Text style={styles.label}>Barcode</Text>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 }}>
                 <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="e.g. 012345678901" placeholderTextColor={c.muted} keyboardType="number-pad" value={barcode} onChangeText={setBarcode} />
-                <TouchableOpacity onPress={openScanner} style={styles.scanBtn}>
+                <TouchableOpacity onPress={() => openScanner()} style={styles.scanBtn}>
                   <Text style={styles.scanBtnText}>📷 Scan</Text>
                 </TouchableOpacity>
               </View>
