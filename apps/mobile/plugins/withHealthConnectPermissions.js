@@ -15,6 +15,8 @@ const HEALTH_PERMISSIONS = [
 ];
 
 const RATIONALE_ACTION = 'androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE';
+const VIEW_PERMISSION_USAGE_ACTION = 'android.intent.action.VIEW_PERMISSION_USAGE';
+const HEALTH_PERMISSIONS_CATEGORY = 'android.intent.category.HEALTH_PERMISSIONS';
 
 module.exports = (config) => {
   return withAndroidManifest(config, (config) => {
@@ -37,12 +39,25 @@ module.exports = (config) => {
     if (!activity['intent-filter']) {
       activity['intent-filter'] = [];
     }
+
+    // ACTION_SHOW_PERMISSIONS_RATIONALE — required for Health Connect permission rationale
     const hasRationale = activity['intent-filter'].some(
       (f) => f.action && f.action.some((a) => a.$ && a.$['android:name'] === RATIONALE_ACTION)
     );
     if (!hasRationale) {
       activity['intent-filter'].push({
         action: [{ $: { 'android:name': RATIONALE_ACTION } }],
+      });
+    }
+
+    // VIEW_PERMISSION_USAGE — required for Pulse to appear in Health Connect's app list
+    const hasViewPermUsage = activity['intent-filter'].some(
+      (f) => f.action && f.action.some((a) => a.$ && a.$['android:name'] === VIEW_PERMISSION_USAGE_ACTION)
+    );
+    if (!hasViewPermUsage) {
+      activity['intent-filter'].push({
+        action: [{ $: { 'android:name': VIEW_PERMISSION_USAGE_ACTION } }],
+        category: [{ $: { 'android:name': HEALTH_PERMISSIONS_CATEGORY } }],
       });
     }
 

@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import { useColors } from '../hooks/useColors';
@@ -51,6 +52,7 @@ function Bubble({ msg, isUser, bubbleBg, textColor }: BubbleProps) {
 
 export default function AIAssistant() {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
   const { listening, transcript, permissionDenied, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
@@ -172,10 +174,12 @@ export default function AIAssistant() {
       </TouchableOpacity>
 
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-        <View style={[sheetStyles.container, { backgroundColor: c.bg }]}>
-
+        <KeyboardAvoidingView
+          style={[sheetStyles.container, { backgroundColor: c.bg }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           {/* Header */}
-          <View style={[sheetStyles.header, { borderBottomColor: c.border }]}>
+          <View style={[sheetStyles.header, { borderBottomColor: c.border, paddingTop: insets.top + 16 }]}>
             <Text style={[sheetStyles.title, { color: c.text }]}>Pulse Assistant</Text>
             <View style={sheetStyles.headerActions}>
               <TouchableOpacity
@@ -201,6 +205,7 @@ export default function AIAssistant() {
           {/* Messages */}
           <FlatList
             ref={listRef}
+            style={sheetStyles.messageListFlex}
             data={history}
             keyExtractor={(_, i) => String(i)}
             renderItem={({ item }) => (
@@ -242,43 +247,41 @@ export default function AIAssistant() {
           )}
 
           {/* Input row */}
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[sheetStyles.inputRow, { borderTopColor: c.border, backgroundColor: c.bg }]}>
-              <TextInput
-                style={[sheetStyles.input, { backgroundColor: c.card, color: c.text, borderColor: c.border }]}
-                placeholder={listening ? 'Listening…' : 'Ask something…'}
-                placeholderTextColor={c.muted}
-                value={input}
-                onChangeText={setInput}
-                multiline
-                maxLength={500}
-                returnKeyType="send"
-                onSubmitEditing={handleSend}
-                blurOnSubmit={false}
-              />
+          <View style={[sheetStyles.inputRow, { borderTopColor: c.border, backgroundColor: c.bg, paddingBottom: insets.bottom + 12 }]}>
+            <TextInput
+              style={[sheetStyles.input, { backgroundColor: c.card, color: c.text, borderColor: c.border }]}
+              placeholder={listening ? 'Listening…' : 'Ask something…'}
+              placeholderTextColor={c.muted}
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={500}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+              blurOnSubmit={false}
+            />
 
-              {loading ? (
-                <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
-              ) : showMic ? (
-                <TouchableOpacity
-                  style={[sheetStyles.actionBtn, { backgroundColor: listening ? '#f87171' : c.card, borderWidth: 1, borderColor: listening ? '#f87171' : c.border }]}
-                  onPress={handleMicPress}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name={listening ? 'stop' : 'mic'} size={18} color={listening ? '#fff' : c.muted} />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[sheetStyles.actionBtn, { backgroundColor: c.accent }]}
-                  onPress={handleSend}
-                >
-                  <Ionicons name="arrow-up" size={18} color="#fff" />
-                </TouchableOpacity>
-              )}
-            </View>
-          </KeyboardAvoidingView>
+            {loading ? (
+              <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
+            ) : showMic ? (
+              <TouchableOpacity
+                style={[sheetStyles.actionBtn, { backgroundColor: listening ? '#f87171' : c.card, borderWidth: 1, borderColor: listening ? '#f87171' : c.border }]}
+                onPress={handleMicPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={listening ? 'stop' : 'mic'} size={18} color={listening ? '#fff' : c.muted} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[sheetStyles.actionBtn, { backgroundColor: c.accent }]}
+                onPress={handleSend}
+              >
+                <Ionicons name="arrow-up" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -327,7 +330,7 @@ const sheetStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: {
@@ -341,6 +344,9 @@ const sheetStyles = StyleSheet.create({
   },
   ttsBtn: {
     padding: 2,
+  },
+  messageListFlex: {
+    flex: 1,
   },
   messageList: {
     flexGrow: 1,
@@ -392,7 +398,7 @@ const sheetStyles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {

@@ -17,12 +17,18 @@ async function requestMicPermission(): Promise<boolean> {
 }
 
 export function useVoice() {
+  const [available, setAvailable] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    Voice.isAvailable()
+      .then((v) => { if (mounted) setAvailable(v === 1); })
+      .catch(() => { if (mounted) setAvailable(false); });
+
     Voice.onSpeechStart = () => { setListening(true); setVoiceError(null); };
     Voice.onSpeechEnd = () => setListening(false);
     Voice.onSpeechResults = (e: SpeechResultsEvent) => {
@@ -40,6 +46,7 @@ export function useVoice() {
       }
     };
     return () => {
+      mounted = false;
       Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
     };
   }, []);
@@ -72,5 +79,5 @@ export function useVoice() {
     setListening(false);
   }, []);
 
-  return { listening, transcript, permissionDenied, voiceError, start, stop, cancel };
+  return { available, listening, transcript, permissionDenied, voiceError, start, stop, cancel };
 }
