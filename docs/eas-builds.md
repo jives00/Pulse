@@ -128,16 +128,21 @@ uses-sdk:minSdkVersion 24 cannot be smaller than version 26 declared in library
 
 ---
 
-### Kotlin compilation error in expo-av
+### expo-av crashes app on startup (RN 0.83+)
 
 **Symptom:**
 ```
-e: .../ViewUtils.kt:21:52: error: unresolved reference: resolveView
+java.lang.UnsatisfiedLinkError: dlopen failed: cannot locate symbol
+"_ZN8facebook5react17CallInvokerHolder14getCallInvokerEv" referenced by libexpo-av.so
+at expo.modules.av.AVManager.<clinit>
 ```
+App crashes immediately on open before any JS loads.
 
-**Cause:** `expo-av` 15.0.2 has a Kotlin incompatibility.
+**Cause:** `expo-av` ≤ 15.1.7 links against `CallInvokerHolder::getCallInvoker`, a symbol removed from React Native 0.83's new architecture. The native module registers at startup regardless of whether JS imports it.
 
-**Fix:** Upgrade to `expo-av` 15.1.7 or later in `apps/mobile/package.json`.
+**Fix:** Remove `expo-av` from `apps/mobile/package.json` entirely. Replace any `import('expo-av')` usages — audio playback is the typical use case; haptic feedback (`expo-haptics`) is a viable substitute for simple notifications.
+
+**Note:** An older compile-time failure (`ViewUtils.kt: unresolved reference: resolveView`) affected `expo-av` 15.0.2 specifically. That was a different bug; upgrading to 15.1.7 fixed the compile error but the runtime crash above remains in 15.1.7 on RN 0.83.
 
 ---
 
@@ -206,7 +211,32 @@ And `.easignore` contains `android/` to exclude the entire directory from upload
 
 Local builds are unreliable on Windows due to Gradle 9.0.0 configuration cache state tracking bugs and MAX_PATH limits. Only attempt if EAS is unavailable.
 
-Required setup each session:
+### One-time setup: enable Windows long paths
+
+CMake object file paths exceed 260 characters during the build. The fix is a registry key (requires an **elevated** PowerShell, one time only):
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1
+```
+
+Close and reopen PowerShell after setting this. No full reboot required.
+
+> **Do NOT use `subst E:`** to work around MAX_PATH. It breaks Node.js codegen: React Native's `Path.relativize()` call fails with "different roots" when the codegen CLI resolves to `E:\node_modules\...` but packages resolve to their real `C:\` paths.
+
+### Generate the android directory
+
+`android/` is excluded from git (and from `.easignore`). Run prebuild first:
+
+```powershell
+cd C:\Users\jbrom\SynologyDrive\Development\Pulse\apps\mobile
+npx expo prebuild android --clean
+```
+
+Note: the platform is a positional argument, not a flag — `--platform android` is not valid.
+
+### Build
+
+Required env vars each session:
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:ANDROID_HOME = "C:\Users\jbrom\AppData\Local\Android\Sdk"
@@ -216,12 +246,17 @@ $env:CMAKE_VERSION = "3.30.3"
 
 Additional requirements:
 - Pause Synology Drive before building (file sync interferes with Gradle's file locking)
-- Use `subst E:` to shorten the path if MAX_PATH errors occur
-- Build command: `.\gradlew.bat app:assembleRelease -x lint -x test -PreactNativeArchitectures=arm64-v8a`
-- APK output: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`
+- Build from the real `C:\` path, not a subst drive
+
+```powershell
+cd C:\Users\jbrom\SynologyDrive\Development\Pulse\apps\mobile\android
+.\gradlew.bat app:assembleRelease -x lint -x test --% -PreactNativeArchitectures=arm64-v8a
+```
+
+APK output: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`
 
 If CMake errors occur, delete stale caches first:
 ```powershell
-Remove-Item "...\node_modules\react-native-reanimated\android\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item "...\apps\mobile\android\app\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "C:\Users\jbrom\SynologyDrive\Development\Pulse\node_modules\react-native-reanimated\android\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "C:\Users\jbrom\SynologyDrive\Development\Pulse\apps\mobile\android\app\.cxx" -Recurse -Force -ErrorAction SilentlyContinue
 ```

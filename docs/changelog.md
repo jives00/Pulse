@@ -6,6 +6,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 26, 2026
 
+### Build (fix)
+
+- **Switched APK builds from EAS to Linux Gradle on GitHub Actions** — EAS tokens are monthly-limited; local Windows Gradle builds fail due to cmake `C_/...` path mangling exceeding 260 chars with no practical workaround. `apk-*` tag trigger now runs `expo prebuild` + Gradle on `ubuntu-latest` (no MAX_PATH) and uploads the APK as a workflow artifact. Zero EAS tokens used. `725fe4a`
+
 ### Mobile (fix)
 
 - **Removed expo-av to fix startup crash on RN 0.83** — `expo-av 15.1.7` references `CallInvokerHolder::getCallInvoker` which was removed from RN 0.83's new architecture; `AVManager.<clinit>` threw `UnsatisfiedLinkError` at native module init before any JS loaded, crashing every build on open. Removed the package and its one dead usage (the `ding.wav` asset never existed). `adcc9fd`
