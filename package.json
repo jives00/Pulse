@@ -10,6 +10,7 @@
     "packages/theme"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "concurrently \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/web\"",
     "dev:mobile": "npm run start --workspace=apps/mobile",
     "build": "npm run build --workspace=apps/server && npm run build --workspace=apps/web",
@@ -17,6 +18,7 @@
     "check": "npm run build --workspace=apps/server && npm run build --workspace=apps/web && npx tsc -p apps/mobile/tsconfig.json --noEmit --pretty false"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "patch-package": "^8.0.1"
   }
 }
