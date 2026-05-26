@@ -31,6 +31,9 @@ jobs:
             git checkout -- package.json package-lock.json
             git pull origin main
 
+            # Stop server before wiping node_modules to release file locks (prevents ETXTBSY on esbuild)
+            pm2 stop pulse-server || true
+
             # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors
             rm -rf node_modules apps/*/node_modules packages/*/node_modules
 
