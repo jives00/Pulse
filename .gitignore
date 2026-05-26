@@ -8,6 +8,9 @@ dist/
 Thumbs.db
 .expo/
 apps/mobile/.expo/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/.cxx/
+apps/mobile/android/app/build/
 apps/server/scripts/*.sql
 .claude/
 .plans/
