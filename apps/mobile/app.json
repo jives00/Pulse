@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.jives00.dram",
+      "permissions": ["android.permission.RECORD_AUDIO"],
       "adaptiveIcon": {
         "backgroundColor": "#1a3a4a",
         "foregroundImage": "./assets/android-icon-foreground.png",

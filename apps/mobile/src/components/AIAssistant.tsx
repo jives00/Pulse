@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 import { useColors } from '../hooks/useColors';
+import { useVoice } from '../hooks/useVoice';
 import { fontSize } from '../theme';
 import { useAuthStore } from '../store/auth';
 import { useAssistantStore } from '../store/assistant';
@@ -51,19 +53,32 @@ export default function AIAssistant() {
   const c = useColors();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
+  const { listening, transcript, permissionDenied, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<AssistantMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const listRef = useRef<FlatList>(null);
+
+  // Fill input field when voice transcript arrives
+  useEffect(() => {
+    if (transcript) setInput(transcript);
+  }, [transcript]);
 
   function handleOpen() {
     setHistory([]);
     setError(null);
     setInput('');
     setOpen(true);
+  }
+
+  function handleClose() {
+    cancelListening();
+    Speech.stop();
+    setOpen(false);
   }
 
   async function executeAction(action: AssistantAction) {
@@ -97,6 +112,9 @@ export default function AIAssistant() {
     const text = input.trim();
     if (!text || loading || !token) return;
 
+    // Stop any in-progress speech before sending
+    Speech.stop();
+
     const userMsg: AssistantMessage = { role: 'user', content: text };
     const nextHistory = [...history, userMsg];
     setHistory(nextHistory);
@@ -117,11 +135,25 @@ export default function AIAssistant() {
       if (response.type === 'action' && response.action) {
         await executeAction(response.action);
       }
+
+      if (speechEnabled && response.text) {
+        Speech.speak(response.text, { language: 'en-US', rate: 1.0 });
+      }
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }
+
+  function handleMicPress() {
+    if (listening) {
+      stopListening();
+    } else {
+      // Stop AI speech before listening so they don't overlap
+      Speech.stop();
+      startListening();
     }
   }
 
@@ -131,20 +163,39 @@ export default function AIAssistant() {
     }
   }, [history.length]);
 
+  const showMic = !input.trim() && !loading;
+
   return (
     <>
       <TouchableOpacity style={[fabStyles.fab, { backgroundColor: c.accent }]} onPress={handleOpen} activeOpacity={0.85}>
         <Ionicons name="sparkles" size={22} color="#fff" />
       </TouchableOpacity>
 
-      <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
         <View style={[sheetStyles.container, { backgroundColor: c.bg }]}>
+
           {/* Header */}
           <View style={[sheetStyles.header, { borderBottomColor: c.border }]}>
             <Text style={[sheetStyles.title, { color: c.text }]}>Pulse Assistant</Text>
-            <TouchableOpacity onPress={() => setOpen(false)}>
-              <Ionicons name="close" size={24} color={c.muted} />
-            </TouchableOpacity>
+            <View style={sheetStyles.headerActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  const next = !speechEnabled;
+                  setSpeechEnabled(next);
+                  if (!next) Speech.stop();
+                }}
+                style={sheetStyles.ttsBtn}
+              >
+                <Ionicons
+                  name={speechEnabled ? 'volume-high' : 'volume-mute'}
+                  size={22}
+                  color={speechEnabled ? c.accent : c.muted}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleClose}>
+                <Ionicons name="close" size={24} color={c.muted} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Messages */}
@@ -165,11 +216,24 @@ export default function AIAssistant() {
               <View style={sheetStyles.emptyContainer}>
                 <Ionicons name="sparkles-outline" size={36} color={c.muted} />
                 <Text style={[sheetStyles.emptyText, { color: c.muted }]}>Ask me about nutrition, workouts, or log a meal.</Text>
+                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Tap the mic to speak, or type below.</Text>
               </View>
             }
           />
 
-          {error && (
+          {/* Listening indicator */}
+          {listening && (
+            <View style={[sheetStyles.listeningBar, { backgroundColor: c.card, borderTopColor: c.border }]}>
+              <View style={[sheetStyles.listeningDot, { backgroundColor: '#f87171' }]} />
+              <Text style={[sheetStyles.listeningText, { color: c.text }]}>Listening…</Text>
+            </View>
+          )}
+
+          {permissionDenied && (
+            <Text style={[sheetStyles.errorText, { color: c.error }]}>Microphone permission denied. Enable it in Settings.</Text>
+          )}
+
+          {error && !permissionDenied && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{error}</Text>
           )}
 
@@ -178,7 +242,7 @@ export default function AIAssistant() {
             <View style={[sheetStyles.inputRow, { borderTopColor: c.border, backgroundColor: c.bg }]}>
               <TextInput
                 style={[sheetStyles.input, { backgroundColor: c.card, color: c.text, borderColor: c.border }]}
-                placeholder="Ask something…"
+                placeholder={listening ? 'Listening…' : 'Ask something…'}
                 placeholderTextColor={c.muted}
                 value={input}
                 onChangeText={setInput}
@@ -188,19 +252,28 @@ export default function AIAssistant() {
                 onSubmitEditing={handleSend}
                 blurOnSubmit={false}
               />
+
               {loading ? (
-                <ActivityIndicator color={c.accent} style={sheetStyles.sendBtn} />
+                <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
+              ) : showMic ? (
+                <TouchableOpacity
+                  style={[sheetStyles.actionBtn, { backgroundColor: listening ? '#f87171' : c.card, borderWidth: 1, borderColor: listening ? '#f87171' : c.border }]}
+                  onPress={handleMicPress}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={listening ? 'stop' : 'mic'} size={18} color={listening ? '#fff' : c.muted} />
+                </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={[sheetStyles.sendBtn, { backgroundColor: c.accent, opacity: input.trim() ? 1 : 0.4 }]}
+                  style={[sheetStyles.actionBtn, { backgroundColor: c.accent }]}
                   onPress={handleSend}
-                  disabled={!input.trim()}
                 >
                   <Ionicons name="arrow-up" size={18} color="#fff" />
                 </TouchableOpacity>
               )}
             </View>
           </KeyboardAvoidingView>
+
         </View>
       </Modal>
     </>
@@ -257,6 +330,14 @@ const sheetStyles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: '600',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  ttsBtn: {
+    padding: 2,
+  },
   messageList: {
     flexGrow: 1,
     paddingVertical: 12,
@@ -272,6 +353,29 @@ const sheetStyles = StyleSheet.create({
     fontSize: fontSize.sm,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  emptyHint: {
+    fontSize: fontSize.sm,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    opacity: 0.6,
+  },
+  listeningBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  listeningDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  listeningText: {
+    fontSize: fontSize.sm,
+    fontStyle: 'italic',
   },
   errorText: {
     fontSize: fontSize.sm,
@@ -296,7 +400,7 @@ const sheetStyles = StyleSheet.create({
     fontSize: fontSize.sm,
     maxHeight: 100,
   },
-  sendBtn: {
+  actionBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,

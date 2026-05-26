@@ -80,8 +80,32 @@ jobs:
       - name: Build APK
         working-directory: apps/mobile/android
         run: ./gradlew app:assembleRelease -x lint -x test -PreactNativeArchitectures=arm64-v8a
+      - name: Rename APK
+        id: apk
+        run: |
+          TIMESTAMP=$(date -u +'%m%d%Y-%H%M')
+          APK_NAME="pulse-${TIMESTAMP}.apk"
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "${APK_NAME}"
+          echo "name=${APK_NAME}" >> "$GITHUB_OUTPUT"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: jbromberek@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          to: jbromberek@gmail.com
+          from: Pulse CI <jbromberek@gmail.com>
+          subject: "Pulse APK build complete — ${{ steps.apk.outputs.name }}"
+          body: |
+            Build succeeded for ${{ steps.apk.outputs.name }}.
+
+            Download (requires GitHub login):
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            The APK is inside a .zip artifact named ${{ steps.apk.outputs.name }}.

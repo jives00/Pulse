@@ -168,22 +168,27 @@ async function ownsRoutine(routineId: number, userId: number): Promise<boolean> 
   return rows.length > 0;
 }
 
-async function getLastPerformedSets(exerciseId: number, userId: number): Promise<RowDataPacket[]> {
+async function getLastPerformedSets(exerciseId: number, userId: number, routineId?: number): Promise<RowDataPacket[]> {
+  const routineFilter = routineId != null ? 'AND wl.routine_id = ?' : '';
+  const routineFilter2 = routineId != null ? 'AND wl2.routine_id = ?' : '';
+  const params = routineId != null
+    ? [userId, exerciseId, routineId, userId, exerciseId, routineId]
+    : [userId, exerciseId, userId, exerciseId];
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT es.*
      FROM exercise_sets es
      JOIN workout_exercises we ON we.id = es.workout_exercise_id
      JOIN workout_logs wl ON wl.id = we.workout_log_id
-     WHERE wl.user_id = ? AND we.exercise_id = ?
+     WHERE wl.user_id = ? AND we.exercise_id = ? AND wl.completed = 1 ${routineFilter}
        AND wl.id = (
          SELECT wl2.id FROM workout_logs wl2
          JOIN workout_exercises we2 ON we2.workout_log_id = wl2.id
-         WHERE wl2.user_id = ? AND we2.exercise_id = ?
+         WHERE wl2.user_id = ? AND we2.exercise_id = ? AND wl2.completed = 1 ${routineFilter2}
          ORDER BY wl2.workout_date DESC, wl2.id DESC
          LIMIT 1
        )
      ORDER BY es.set_number ASC`,
-    [userId, exerciseId, userId, exerciseId]
+    params
   );
   return rows;
 }
@@ -223,7 +228,7 @@ async function getRoutineDetail(routineId: number, userId: number) {
       'SELECT * FROM routine_exercise_sets WHERE routine_exercise_id = ? ORDER BY set_number ASC',
       [ex.re_id]
     );
-    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, userId);
+    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, userId, routineId);
 
     return {
       id: ex.re_id,
@@ -622,7 +627,7 @@ router.post('/:id/exercises', async (req, res) => {
       [result.insertId]
     );
     const ex = rows[0];
-    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, req.userId);
+    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, req.userId, id);
 
     res.status(201).json({
       id: ex.re_id,
@@ -832,7 +837,7 @@ router.post('/:id/start', async (req, res) => {
       );
       const weId = weResult.insertId;
 
-      const lastSets = await getLastPerformedSets(re.exercise_id, req.userId);
+      const lastSets = await getLastPerformedSets(re.exercise_id, req.userId, id);
 
       if (lastSets.length > 0) {
         for (const s of lastSets) {

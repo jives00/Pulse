@@ -6,6 +6,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 26, 2026
 
+### Build (feat)
+
+- **APK artifact renamed with timestamp and email notification on success** — Build workflow now renames the artifact to `pulse-MMDDYYYY-HHMM.apk` and emails jbromberek@gmail.com with a direct link to the Actions run on successful build. `aa339a5`
+
 ### Build (fix)
 
 - **Switched APK builds from EAS to Linux Gradle on GitHub Actions** — EAS tokens are monthly-limited; local Windows Gradle builds fail due to cmake `C_/...` path mangling exceeding 260 chars with no practical workaround. `apk-*` tag trigger now runs `expo prebuild` + Gradle on `ubuntu-latest` (no MAX_PATH) and uploads the APK as a workflow artifact. Zero EAS tokens used. `725fe4a`

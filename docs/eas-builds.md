@@ -112,6 +112,8 @@ If a package was added since the last APK build, verify:
 
 **Health Connect plugin note:** `react-native-health-connect` is NOT listed in `app.json` plugins. Its only job was adding the `ACTION_SHOW_PERMISSIONS_RATIONALE` intent-filter, which is now handled (with dedup) by `plugins/withHealthConnectPermissions.js`. Do not re-add it to plugins — doing so re-introduces the duplicate intent-filter.
 
+**Voice packages:** `expo-speech` (TTS) and `@react-native-voice/voice` (STT) auto-link without a plugin. The `RECORD_AUDIO` permission is declared in `app.json` under `android.permissions`. No separate plugin needed.
+
 ---
 
 ## Common Failures and Fixes
