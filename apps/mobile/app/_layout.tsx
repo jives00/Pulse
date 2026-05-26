@@ -6,9 +6,11 @@ import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
+import { useColors } from '../src/hooks/useColors';
 
 export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
+  const c = useColors();
 
   useEffect(() => {
     const initHealthConnect = async () => {
@@ -83,5 +85,5 @@ export default function RootLayout() {
     };
   }, []);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }} />;
 }
