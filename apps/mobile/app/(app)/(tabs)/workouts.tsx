@@ -193,10 +193,7 @@ function LogTab() {
             {!permissionGranted && (
               <TouchableOpacity
                 style={s.connectHCBtn}
-                onPress={async () => {
-                  const granted = await requestPermission();
-                  if (granted) load();
-                }}
+                onPress={() => { requestPermission(); }}
               >
                 <Text style={s.connectHCText}>Connect Health Connect to auto-sync steps</Text>
               </TouchableOpacity>

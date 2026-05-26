@@ -34,7 +34,7 @@ Do **not** use `--profile production` unless submitting to the Play Store.
 
 ## Pre-Build Checklist
 
-Run through these before initiating any EAS build.
+Run through these before initiating any APK build (GitHub Actions or EAS).
 
 ### 1. Exclude `android/` from the upload
 

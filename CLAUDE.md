@@ -67,18 +67,18 @@ cd testing/web && npm test
 cd testing/mobile && npm test
 ```
 
-Note: `testing/mobile` has its own `node_modules` (isolated from root `testing/`). Run `npm install` inside it if cloning fresh. See `.plans/TestingInfrastructure.md` for full setup details.
+Note: `testing/mobile` has its own `node_modules` (isolated from root `testing/`). Run `npm install` inside it if cloning fresh. See `testing/README.md` for full setup details.
 
 ## Tech stack
 
 | Layer | Stack |
 |---|---|
-| Frontend (web) | React 18, React Router v6, Zustand, Tailwind CSS v3, Recharts |
-| Mobile | Expo SDK 55, React Native 0.83, expo-router, Zustand + expo-secure-store, StyleSheet (not NativeWind) |
+| Frontend (web) | React 19, React Router v6, Zustand, Tailwind CSS v3, Recharts |
+| Mobile | Expo SDK 55, React Native 0.83, expo-router, Zustand + expo-secure-store, StyleSheet (not NativeWind), react-native-health-connect (steps sync), @react-native-voice/voice + expo-speech (voice input) |
 | Backend | Express 4, mysql2, bcryptjs, jsonwebtoken, Zod |
 | Storage | MySQL, AWS S3 (recipe photos) |
 | Auth | JWT — web: token in Zustand; mobile: token in expo-secure-store (key: `pulse-auth`) |
-| Build | Vite (web), tsc (server), EAS (mobile) |
+| Build | Vite (web), tsc (server), GitHub Actions Gradle (mobile APK — push `apk-*` tag); EAS is legacy fallback only |
 
 ## Environment variables (apps/server/.env)
 
@@ -102,3 +102,4 @@ Detailed technical documentation is split into specialized files in the `docs/` 
 - [Backend Conventions](docs/backend.md) — API routes, services, and AI integration.
 - [Engineering Patterns](docs/patterns.md) — Architectural decisions and implementation standards.
 - [EAS Build Reference](docs/eas-builds.md) — Pre-build checklist, common failures, and fixes for EAS cloud APK builds.
+- [Changelog](docs/changelog.md) — Release history and version notes.

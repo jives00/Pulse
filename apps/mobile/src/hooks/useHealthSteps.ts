@@ -19,6 +19,7 @@ export function useHealthSteps() {
 
   const readTodaySteps = useCallback(async (): Promise<number | null> => {
     const perms = await syncGrantedPermissions();
+    setPermissionGranted(perms.read.steps);
     if (!perms.read.steps) return null;
 
     try {

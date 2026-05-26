@@ -1,4 +1,4 @@
-import { getSdkStatus, getGrantedPermissions, initialize, requestPermission, SdkAvailabilityStatus } from 'react-native-health-connect';
+import { getSdkStatus, getGrantedPermissions, initialize, requestPermission, openHealthConnectSettings, SdkAvailabilityStatus } from 'react-native-health-connect';
 
 export interface HealthConnectPermissions {
   read: {
@@ -70,7 +70,10 @@ export async function syncGrantedPermissions(): Promise<HealthConnectPermissions
   }
 }
 
-// Opens the Health Connect permission dialog — only call from an explicit user action, never at startup.
+// Opens Health Connect settings for Pulse — user grants permissions there and returns to the app.
+// Using openHealthConnectSettings instead of requestPermission because requestPermission crashes
+// on Samsung Galaxy devices (activity result handling kills the RN process).
+// Permissions are re-checked via syncGrantedPermissions when the app/tab regains focus.
 export async function requestHealthConnectPermissions(): Promise<HealthConnectPermissions> {
   if (!initialized) {
     await initializeHealthConnect();
@@ -81,32 +84,12 @@ export async function requestHealthConnectPermissions(): Promise<HealthConnectPe
   }
 
   try {
-    const granted = await requestPermission([
-      { accessType: 'read', recordType: 'Steps' },
-      { accessType: 'write', recordType: 'Nutrition' },
-      { accessType: 'write', recordType: 'Hydration' },
-      { accessType: 'write', recordType: 'ExerciseSession' },
-      { accessType: 'write', recordType: 'Weight' },
-    ]);
-
-    const permissions: HealthConnectPermissions = {
-      read: {
-        steps: granted.some((p) => p.accessType === 'read' && p.recordType === 'Steps'),
-      },
-      write: {
-        nutrition: granted.some((p) => p.accessType === 'write' && p.recordType === 'Nutrition'),
-        hydration: granted.some((p) => p.accessType === 'write' && p.recordType === 'Hydration'),
-        exercise: granted.some((p) => p.accessType === 'write' && p.recordType === 'ExerciseSession'),
-        weight: granted.some((p) => p.accessType === 'write' && p.recordType === 'Weight'),
-      },
-    };
-
-    cachedPermissions = permissions;
-    return permissions;
+    await openHealthConnectSettings();
   } catch (err) {
-    console.warn('[HealthConnect] Failed to request permissions:', err);
-    return cachedPermissions || EMPTY_PERMISSIONS;
+    console.warn('[HealthConnect] Failed to open Health Connect settings:', err);
   }
+
+  return cachedPermissions || EMPTY_PERMISSIONS;
 }
 
 export function getHealthConnectPermissions(): HealthConnectPermissions | null {
