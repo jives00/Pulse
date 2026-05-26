@@ -12,6 +12,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Mobile (fix)
 
+- **Fixed Health Connect write sync API** — Corrected all react-native-health-connect v3 API mismatches: record type strings, `insertRecords`/`deleteRecordsByUuids` replace non-existent `writeRecords`/`deleteRecords`, `Energy`/`Mass`/`Volume` field shapes, numeric `mealType`, `WeightRecord` uses `time` not `startTime`/`endTime`, and api-client import paths. `006f749`
+
 - **Defensive dedup for routine goals** — Added client-side `Map`-keyed deduplication of `routineGoals` before rendering to prevent duplicate React keys surviving until migration is deployed. `bd09e1c`
 
 ### Mobile (refactor)

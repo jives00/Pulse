@@ -1,9 +1,8 @@
-import { writeRecords, deleteRecords } from 'react-native-health-connect';
+import { insertRecords, deleteRecordsByUuids } from 'react-native-health-connect';
 import { hasHealthConnectPermission } from './healthConnectPermissions';
-import type { LogEntry, MealSlot, WaterEntry, NutritionSnapshot } from '../../../packages/api-client/src/nutrition';
-import type { WorkoutDetail } from '../../../packages/api-client/src/endpoints/workouts';
+import type { LogEntry, MealSlot, WaterEntry } from '../../../../packages/api-client/src/nutrition';
+import type { WorkoutDetail } from '../../../../packages/api-client/src/endpoints/workouts';
 
-const KCAL_TO_JOULES = 4184;
 const OZ_TO_LITERS = 0.0295735;
 
 // ─── Nutrition ──────────────────────────────────────────────────────────────
@@ -17,31 +16,28 @@ export async function writeNutritionRecord(
   }
 
   try {
-    const mealTypeMap: Record<MealSlot, string> = {
-      breakfast: 'BREAKFAST',
-      lunch: 'LUNCH',
-      dinner: 'DINNER',
-      snack: 'SNACK',
+    const mealTypeMap: Record<MealSlot, number> = {
+      breakfast: 1,
+      lunch: 2,
+      dinner: 3,
+      snack: 4,
     };
 
     const logDate = new Date(logEntry.logDate);
     const nutrition = logEntry.nutrition;
 
-    await writeRecords([
+    await insertRecords([
       {
-        recordType: 'NutritionRecord',
-        clientRecordId,
+        recordType: 'Nutrition',
+        metadata: { clientRecordId },
         startTime: logDate.toISOString(),
         endTime: logDate.toISOString(),
         mealType: mealTypeMap[logEntry.meal],
-        energy: {
-          inKilocalories: nutrition.calories,
-          inJoules: nutrition.calories * KCAL_TO_JOULES,
-        },
-        protein: { inGrams: nutrition.protein },
-        totalCarbohydrate: { inGrams: nutrition.carbs },
-        totalFat: { inGrams: nutrition.fat },
-        dietaryFiber: nutrition.fiber ? { inGrams: nutrition.fiber } : undefined,
+        energy: { value: nutrition.calories, unit: 'kilocalories' },
+        protein: { value: nutrition.protein, unit: 'grams' },
+        totalCarbohydrate: { value: nutrition.carbs, unit: 'grams' },
+        totalFat: { value: nutrition.fat, unit: 'grams' },
+        ...(nutrition.fiber ? { dietaryFiber: { value: nutrition.fiber, unit: 'grams' } } : {}),
       },
     ]);
   } catch (err) {
@@ -55,10 +51,7 @@ export async function deleteNutritionRecord(clientRecordId: string): Promise<voi
   }
 
   try {
-    await deleteRecords({
-      recordIds: [clientRecordId],
-      clientRecordIds: [clientRecordId],
-    });
+    await deleteRecordsByUuids('Nutrition', [], [clientRecordId]);
   } catch (err) {
     console.warn('[HealthConnect] Failed to delete nutrition record:', err);
   }
@@ -77,13 +70,13 @@ export async function writeHydrationRecord(
   try {
     const logDate = new Date(waterEntry.logDate);
 
-    await writeRecords([
+    await insertRecords([
       {
-        recordType: 'HydrationRecord',
-        clientRecordId,
+        recordType: 'Hydration',
+        metadata: { clientRecordId },
         startTime: logDate.toISOString(),
         endTime: logDate.toISOString(),
-        volume: { inLiters: waterEntry.amountOz * OZ_TO_LITERS },
+        volume: { value: waterEntry.amountOz * OZ_TO_LITERS, unit: 'liters' },
       },
     ]);
   } catch (err) {
@@ -97,10 +90,7 @@ export async function deleteHydrationRecord(clientRecordId: string): Promise<voi
   }
 
   try {
-    await deleteRecords({
-      recordIds: [clientRecordId],
-      clientRecordIds: [clientRecordId],
-    });
+    await deleteRecordsByUuids('Hydration', [], [clientRecordId]);
   } catch (err) {
     console.warn('[HealthConnect] Failed to delete hydration record:', err);
   }
@@ -108,48 +98,42 @@ export async function deleteHydrationRecord(clientRecordId: string): Promise<voi
 
 // ─── Exercise ────────────────────────────────────────────────────────────────
 
-// Map Pulse exercise type + category to Health Connect ExerciseType enum
 function mapToHealthConnectExerciseType(exerciseType: string, category?: string): number {
   const normalizedType = exerciseType?.toLowerCase() ?? '';
   const normalizedCategory = category?.toLowerCase() ?? '';
 
-  // Cardio-specific mappings based on category
   if (normalizedType === 'cardio' || normalizedCategory === 'cardio') {
-    if (normalizedCategory.includes('run')) return 1; // RUNNING
-    if (normalizedCategory.includes('walk')) return 2; // WALKING
-    if (normalizedCategory.includes('cycl')) return 3; // CYCLING
-    if (normalizedCategory.includes('swim')) return 4; // SWIMMING
-    if (normalizedCategory.includes('hiit') || normalizedCategory.includes('high intensity')) return 8; // HIIT
-    if (normalizedCategory.includes('ellip')) return 13; // ELLIPTICAL
-    if (normalizedCategory.includes('row')) return 14; // ROWING
-    if (normalizedCategory.includes('jump')) return 33; // JUMP_ROPE
-    return 59; // OTHER_WORKOUT for unmapped cardio
+    if (normalizedCategory.includes('run')) return 56;
+    if (normalizedCategory.includes('walk')) return 79;
+    if (normalizedCategory.includes('cycl')) return 8;
+    if (normalizedCategory.includes('swim')) return 74;
+    if (normalizedCategory.includes('hiit') || normalizedCategory.includes('high intensity')) return 36;
+    if (normalizedCategory.includes('ellip')) return 25;
+    if (normalizedCategory.includes('row')) return 53;
+    if (normalizedCategory.includes('jump')) return 41;
+    return 0;
   }
 
-  // Weight/strength training
   if (normalizedType === 'weight' || normalizedType === 'resistance' || normalizedCategory.includes('weight') || normalizedCategory.includes('strength')) {
-    return 5; // WEIGHT_LIFTING
+    return 81;
   }
 
-  // Bodyweight/calisthenics
   if (normalizedType === 'bodyweight') {
-    if (normalizedCategory.includes('yoga')) return 6; // YOGA
-    if (normalizedCategory.includes('pilates')) return 7; // PILATES
-    if (normalizedCategory.includes('core')) return 18; // CORE_TRAINING
-    if (normalizedCategory.includes('stretch')) return 32; // STRETCHING
-    return 5; // Default to weight lifting for general bodyweight
+    if (normalizedCategory.includes('yoga')) return 83;
+    if (normalizedCategory.includes('pilates')) return 48;
+    if (normalizedCategory.includes('core')) return 13;
+    if (normalizedCategory.includes('stretch')) return 71;
+    return 81;
   }
 
-  // Duration-based (often cardio)
   if (normalizedType === 'duration') {
-    if (normalizedCategory.includes('yoga')) return 6; // YOGA
-    if (normalizedCategory.includes('pilates')) return 7; // PILATES
-    if (normalizedCategory.includes('dance')) return 10; // DANCING
-    return 59; // OTHER_WORKOUT for unmapped duration
+    if (normalizedCategory.includes('yoga')) return 83;
+    if (normalizedCategory.includes('pilates')) return 48;
+    if (normalizedCategory.includes('dance')) return 16;
+    return 0;
   }
 
-  // Fallback
-  return 59; // OTHER_WORKOUT
+  return 0;
 }
 
 export async function writeExerciseRecord(
@@ -162,7 +146,6 @@ export async function writeExerciseRecord(
 
   try {
     if (!workout.exercises || workout.exercises.length === 0) {
-      // Empty workout, nothing to write
       return;
     }
 
@@ -171,15 +154,13 @@ export async function writeExerciseRecord(
     const durationSeconds = workout.durationMinutes ? workout.durationMinutes * 60 : 0;
     const endTime = new Date(startTime.getTime() + durationSeconds * 1000);
 
-    // For now, write a single exercise record using the first exercise
-    // In a more detailed implementation, you could write one record per exercise
     const firstExercise = workout.exercises[0];
     const exerciseType = mapToHealthConnectExerciseType(firstExercise.exercise.exerciseType, firstExercise.exercise.category);
 
-    await writeRecords([
+    await insertRecords([
       {
-        recordType: 'ExerciseSessionRecord',
-        clientRecordId,
+        recordType: 'ExerciseSession',
+        metadata: { clientRecordId },
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         exerciseType,
@@ -187,18 +168,14 @@ export async function writeExerciseRecord(
       },
     ]);
 
-    // If calories were burned, write a separate TotalCaloriesBurnedRecord
     if (workout.caloriesBurned && workout.caloriesBurned > 0) {
-      await writeRecords([
+      await insertRecords([
         {
-          recordType: 'TotalCaloriesBurnedRecord',
-          clientRecordId: `${clientRecordId}_calories`,
+          recordType: 'TotalCaloriesBurned',
+          metadata: { clientRecordId: `${clientRecordId}_calories` },
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
-          energy: {
-            inKilocalories: workout.caloriesBurned,
-            inJoules: workout.caloriesBurned * KCAL_TO_JOULES,
-          },
+          energy: { value: workout.caloriesBurned, unit: 'kilocalories' },
         },
       ]);
     }
@@ -213,13 +190,15 @@ export async function deleteExerciseRecord(clientRecordId: string): Promise<void
   }
 
   try {
-    // Delete both the exercise session and calories records (if it exists)
-    await deleteRecords({
-      recordIds: [clientRecordId],
-      clientRecordIds: [clientRecordId, `${clientRecordId}_calories`],
-    });
+    await deleteRecordsByUuids('ExerciseSession', [], [clientRecordId]);
   } catch (err) {
     console.warn('[HealthConnect] Failed to delete exercise record:', err);
+  }
+
+  try {
+    await deleteRecordsByUuids('TotalCaloriesBurned', [], [`${clientRecordId}_calories`]);
+  } catch {
+    // calories record may not exist
   }
 }
 
@@ -238,20 +217,16 @@ export async function writeWeightRecord(
   }
 
   try {
-    const measurementDate = new Date(measuredAt);
-
-    // Convert to kg if needed (Health Connect uses kg)
     const valueInKg = unit.toLowerCase() === 'lbs' || unit.toLowerCase() === 'lb'
       ? value * LBS_TO_KG
       : value;
 
-    await writeRecords([
+    await insertRecords([
       {
-        recordType: 'WeightRecord',
-        clientRecordId,
-        startTime: measurementDate.toISOString(),
-        endTime: measurementDate.toISOString(),
-        weight: { inKilogram: valueInKg },
+        recordType: 'Weight',
+        metadata: { clientRecordId },
+        time: new Date(measuredAt).toISOString(),
+        weight: { value: valueInKg, unit: 'kilograms' },
       },
     ]);
   } catch (err) {
@@ -265,10 +240,7 @@ export async function deleteWeightRecord(clientRecordId: string): Promise<void> 
   }
 
   try {
-    await deleteRecords({
-      recordIds: [clientRecordId],
-      clientRecordIds: [clientRecordId],
-    });
+    await deleteRecordsByUuids('Weight', [], [clientRecordId]);
   } catch (err) {
     console.warn('[HealthConnect] Failed to delete weight record:', err);
   }

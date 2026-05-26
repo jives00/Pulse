@@ -36,10 +36,10 @@ export async function requestHealthConnectPermissions(): Promise<HealthConnectPe
   try {
     const granted = await requestPermission([
       { accessType: 'read', recordType: 'Steps' },
-      { accessType: 'write', recordType: 'NutritionRecord' },
-      { accessType: 'write', recordType: 'HydrationRecord' },
-      { accessType: 'write', recordType: 'ExerciseSessionRecord' },
-      { accessType: 'write', recordType: 'WeightRecord' },
+      { accessType: 'write', recordType: 'Nutrition' },
+      { accessType: 'write', recordType: 'Hydration' },
+      { accessType: 'write', recordType: 'ExerciseSession' },
+      { accessType: 'write', recordType: 'Weight' },
     ]);
 
     const permissions: HealthConnectPermissions = {
@@ -47,10 +47,10 @@ export async function requestHealthConnectPermissions(): Promise<HealthConnectPe
         steps: granted.some((p) => p.accessType === 'read' && p.recordType === 'Steps'),
       },
       write: {
-        nutrition: granted.some((p) => p.accessType === 'write' && p.recordType === 'NutritionRecord'),
-        hydration: granted.some((p) => p.accessType === 'write' && p.recordType === 'HydrationRecord'),
-        exercise: granted.some((p) => p.accessType === 'write' && p.recordType === 'ExerciseSessionRecord'),
-        weight: granted.some((p) => p.accessType === 'write' && p.recordType === 'WeightRecord'),
+        nutrition: granted.some((p) => p.accessType === 'write' && p.recordType === 'Nutrition'),
+        hydration: granted.some((p) => p.accessType === 'write' && p.recordType === 'Hydration'),
+        exercise: granted.some((p) => p.accessType === 'write' && p.recordType === 'ExerciseSession'),
+        weight: granted.some((p) => p.accessType === 'write' && p.recordType === 'Weight'),
       },
     };
 
