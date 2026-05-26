@@ -42,7 +42,7 @@ function LogTab() {
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
-  const { readTodaySteps } = useHealthSteps();
+  const { readTodaySteps, permissionGranted, requestPermission } = useHealthSteps();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [steps, setSteps] = useState<StepsEntry | null>(null);
@@ -184,10 +184,21 @@ function LogTab() {
                 <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
                 {steps.source && (
                   <Text style={s.stepsSource}>
-                    {steps.source === 'health_connect' ? 'Synced from Samsung Health' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
+                    {steps.source === 'health_connect' ? 'Synced from Health Connect' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
                   </Text>
                 )}
               </View>
+            )}
+            {!permissionGranted && (
+              <TouchableOpacity
+                style={s.connectHCBtn}
+                onPress={async () => {
+                  const granted = await requestPermission();
+                  if (granted) load();
+                }}
+              >
+                <Text style={s.connectHCText}>Connect Health Connect to auto-sync steps</Text>
+              </TouchableOpacity>
             )}
           </View>
         </>
@@ -1308,6 +1319,8 @@ function makeSStyles(c: Colors) {
     stepsSaveBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: c.bg },
     stepsSaved: { fontSize: fontSize.sm, color: c.muted, marginTop: 6 },
     stepsSource: { fontSize: fontSize.xs, color: c.muted, marginTop: 4 },
+    connectHCBtn: { marginTop: 10, backgroundColor: c.accent + '22', borderWidth: 1, borderColor: c.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+    connectHCText: { fontSize: fontSize.sm, color: c.accent, textAlign: 'center' },
   });
 }
 

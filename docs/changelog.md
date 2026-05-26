@@ -23,6 +23,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Mobile (feat)
 
 - **Health Connect write sync + APK startup crash fix** — Replaced `requestPermission()` at startup with `syncGrantedPermissions()` to prevent native Activity crash; rewrote `healthConnectWriter.ts` with correct v3 API (`insertRecords`, `deleteRecordsByUuids`, correct field shapes); added `withHealthConnectPermissions` config plugin for all six HC manifest permissions with dedup guard for the rationale intent-filter; fixed TS errors across `index.tsx`, `edit.tsx`, `useColors.ts`; upgraded expo SDK packages; aligned `@types/react`/`react` versions across workspaces; fixed `metro.config.js` `watchFolders`; updated `eas-builds.md` pre-build checklist. `c4fec5d`
+- **Fixed Health Connect steps sync race condition and missing permission prompt** — `readTodaySteps` now calls `syncGrantedPermissions()` directly instead of the stale startup cache, fixing timing issues on app open; added `requestPermission` to `useHealthSteps` and a "Connect Health Connect" button in the steps card so the READ_STEPS permission dialog is actually shown; fixed label from "Samsung Health" to "Health Connect". `5e49f6b`
 
 ---
 

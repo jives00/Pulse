@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { readRecords } from 'react-native-health-connect';
-import { hasHealthConnectPermission } from '../services/healthConnectPermissions';
+import { syncGrantedPermissions, requestHealthConnectPermissions } from '../services/healthConnectPermissions';
 
 export function useHealthSteps() {
-  const [initialized, setInitialized] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(false);
 
   useEffect(() => {
-    setInitialized(true);
+    syncGrantedPermissions().then((perms) => {
+      setPermissionGranted(perms.read.steps);
+    });
+  }, []);
+
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    const perms = await requestHealthConnectPermissions();
+    setPermissionGranted(perms.read.steps);
+    return perms.read.steps;
   }, []);
 
   const readTodaySteps = useCallback(async (): Promise<number | null> => {
-    if (!initialized) return null;
+    const perms = await syncGrantedPermissions();
+    if (!perms.read.steps) return null;
 
     try {
-      if (!hasHealthConnectPermission('steps')) {
-        return null;
-      }
-
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -28,13 +33,12 @@ export function useHealthSteps() {
         },
       });
 
-      const total = records.reduce((sum, record) => sum + (record.count || 0), 0);
-      return total;
+      return records.reduce((sum, record) => sum + (record.count || 0), 0);
     } catch (err) {
       console.warn('[HealthSteps] Failed to read steps:', err);
       return null;
     }
-  }, [initialized]);
+  }, []);
 
-  return { readTodaySteps, initialized, permissionGranted: hasHealthConnectPermission('steps') };
+  return { readTodaySteps, permissionGranted, requestPermission };
 }
