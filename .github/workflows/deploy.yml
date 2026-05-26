@@ -28,7 +28,7 @@ jobs:
             export PATH="/home/ubuntu/.nvm/versions/node/v24.15.0/bin:$PATH"
 
             cd ~/pulse-app
-            git checkout -- package-lock.json
+            git checkout -- package.json package-lock.json
             git pull origin main
 
             # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors

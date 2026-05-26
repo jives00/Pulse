@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Build (fix)
 
+- **Fixed deploy workflow leaving EC2 in dirty state on failure** — Added `package.json` to the pre-pull `git checkout --` reset so a failed previous deploy can't block the next one. `803006d`
 - **Reverted react/react-dom pinning that broke EC2 deploy** — Reverted `apps/web` to `^19.2.0` ranges and removed root `overrides` block; the exact-pin + overrides combination broke Vite's `react-dom/client` subpath resolution during EC2 deploy when mobile workspace is excluded. `e0927dd`
 
 ### Mobile (feat)
