@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+
+const COL_GOLD = '#D4A843';
 import {
   changeUsername, changePassword, deleteData, type DeleteScope,
   getTagDefinitions, saveTagDefinitions, type TagDefinitions,
@@ -75,9 +77,15 @@ function OptionsTab() {
   const c = useColors();
   const s = makeStyles(c);
   const { defaultSort, setDefaultSort, defaultExerciseSort, setDefaultExerciseSort, colorScheme, setColorScheme } = useSettingsStore();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   return (
-    <ScrollView contentContainerStyle={s.tabScroll}>
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
       <SectionHeader title="Color Scheme" />
       <View style={[s.card, { paddingHorizontal: 0 }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 12, paddingHorizontal: 14 }}>
@@ -136,6 +144,12 @@ const TAG_CATEGORIES: { key: keyof TagDefinitions; label: string }[] = [
 ];
 
 function TagsTab() {
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
   const c = useColors();
   const s = makeStyles(c);
   const ts = makeTagStyles(c);
@@ -181,7 +195,7 @@ function TagsTab() {
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
-    <ScrollView contentContainerStyle={s.tabScroll}>
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
       {TAG_CATEGORIES.map(({ key, label }) => (
         <View key={key}>
           <SectionHeader title={label} />
@@ -347,6 +361,12 @@ function UserTab() {
 
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
   const [confirmPwd, setConfirmPwd] = useState('');
   const [savingPwd, setSavingPwd] = useState(false);
   const [msgPwd, setMsgPwd] = useState('');
@@ -390,7 +410,7 @@ function UserTab() {
   }
 
   return (
-    <ScrollView contentContainerStyle={s.tabScroll}>
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
       <SectionHeader title="Profile" />
       <ProfileSection />
 
@@ -438,6 +458,12 @@ function DeleteTab() {
   const c = useColors();
   const s = makeStyles(c);
   const token = useAuthStore((s) => s.token)!;
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   function handleDelete(scope: DeleteScope, label: string) {
     Alert.alert(`${label}?`, 'This cannot be undone.', [
@@ -456,7 +482,7 @@ function DeleteTab() {
   }
 
   return (
-    <ScrollView contentContainerStyle={s.tabScroll}>
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
       <SectionHeader title="Danger Zone" />
       <View style={s.card}>
         {DELETE_OPTIONS.map(({ scope, label, description }, i) => (

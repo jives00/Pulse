@@ -9,7 +9,7 @@ import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
   getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
   getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, getExerciseGoals, getAiInsight, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
+  getRoutineGoals, getExerciseGoals, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
   type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
   type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail, type WaterDay, type StepsEntry,
@@ -354,7 +354,6 @@ export default function DashboardV4Screen() {
   const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [recovery,  setRecovery]  = useState<RecoveryData | null>(null);
   const [upcoming,  setUpcoming]  = useState<UpcomingSession[]>([]);
   const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
@@ -368,7 +367,7 @@ export default function DashboardV4Screen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, insight, rec, upc, rg, wd, sd] = await Promise.all([
+      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, rec, upc, rg, wd, sd] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
         getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
@@ -378,7 +377,6 @@ export default function DashboardV4Screen() {
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
         getTDEE(token).catch(() => null),
-        getAiInsight(token).catch(() => null),
         getRecovery(token).catch(() => null),
         getUpcomingSchedule(token, 7).catch(() => []),
         getRoutineGoals(token).catch(() => []),
@@ -394,7 +392,6 @@ export default function DashboardV4Screen() {
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
       setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
-      setAiInsight(insight?.text ?? null);
       setRecovery(rec);
       setUpcoming(upc as UpcomingSession[]);
       setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
@@ -523,16 +520,6 @@ export default function DashboardV4Screen() {
 
         {/* ══ TODAY tab ══ */}
         {activeTab === 'today' && (<>
-
-          {/* AI Insight */}
-          {aiInsight ? (
-            <View style={s.card}>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                <Text style={{ fontSize: 13, color: COL_GOLD }}>✦</Text>
-                <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.text, lineHeight: 20 }}>{aiInsight}</Text>
-              </View>
-            </View>
-          ) : null}
 
           {/* Fuel Today */}
           <View style={s.card}>

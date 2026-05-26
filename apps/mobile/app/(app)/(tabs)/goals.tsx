@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -22,6 +22,7 @@ import { useColors } from '../../../src/hooks/useColors';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+const COL_GOLD = "#D4A843";
 const GLASS_OZ = 8;
 
 const DISPLAYED_METRICS = [
@@ -517,6 +518,12 @@ export function GoalsTabContent() {
   const c = useColors();
   const s = makeStyles(c);
   const token = useAuthStore((st) => st.token)!;
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
@@ -693,7 +700,7 @@ export function GoalsTabContent() {
 
   return (
     <>
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
 
         {/* Daily nutrition */}
         <Text style={[s.sectionLabel, { color: c.muted }]}>Nutrition (daily)</Text>

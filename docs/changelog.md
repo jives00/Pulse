@@ -13,6 +13,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Mobile (fix)
 
 - **Removed expo-av to fix startup crash on RN 0.83** — `expo-av 15.1.7` references `CallInvokerHolder::getCallInvoker` which was removed from RN 0.83's new architecture; `AVManager.<clinit>` threw `UnsatisfiedLinkError` at native module init before any JS loaded, crashing every build on open. Removed the package and its one dead usage (the `ding.wav` asset never existed). `adcc9fd`
+- **Mobile UI fixes: AI summary removed, modal dismiss, pull-to-refresh, routine sorting** — Removed AI insight card from dashboard; fixed DayModal to dismiss on outside tap using Pressable overlay; added pull-to-refresh to all Settings tabs with 500ms spinner; fixed routine sorting to use `nextOccurrenceDate` from API (routines with schedules appear first, sorted by soonest date). `5db0b1a`
 
 ### Build (fix)
 

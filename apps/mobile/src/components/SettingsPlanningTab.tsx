@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
   getSchedules, getUpcomingSchedule, createSchedule, updateSchedule, deleteSchedule,
@@ -22,6 +22,7 @@ import { useAuthStore } from '../store/auth';
 import { fontSize, type Colors } from '../theme';
 import { useColors } from '../hooks/useColors';
 
+const COL_GOLD = "#D4A843";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const GLASS_OZ = 8;
@@ -1298,7 +1299,7 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={s.overlay}>
+        <Pressable style={s.overlay} onPress={onClose}>
           <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '90%' }]}>
             <View style={s.sheetHeader}>
               <Text style={[s.sheetTitle, { color: c.text }]}>{showDatePicker ? 'Add to Schedule' : fmtDate(activeDate)}</Text>
@@ -1355,7 +1356,7 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
               )}
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -1507,6 +1508,12 @@ export default function SettingsPlanningTab() {
   const [nutritionSchedules, setNutritionSchedules] = useState<NutritionSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
   async function load() {
@@ -1544,7 +1551,7 @@ setWorkoutSchedules(scheds as WorkoutSchedule[]);
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
+    <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
 
       {/* Calendar card */}
       <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>

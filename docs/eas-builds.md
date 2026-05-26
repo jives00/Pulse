@@ -1,10 +1,25 @@
-# EAS Build Reference
+# APK Build Reference
 
-EAS (Expo Application Services) cloud builds are the only reliable way to produce Android APKs for this project. Local Gradle builds have recurring issues on Windows (long paths, Gradle configuration cache, CMake state). EAS tokens are limited per month — the goal is to get builds right on the first attempt.
+## Preferred Method: GitHub Actions (Gradle on Linux)
+
+Push an `apk-*` tag to trigger a Gradle build on `ubuntu-latest`. No EAS tokens, no Windows path issues:
+
+```bash
+git tag apk-<description>
+git push origin apk-<description>
+```
+
+The APK appears as a downloadable artifact in the GitHub Actions run (`app-release` under the Artifacts section). Builds take ~20–30 minutes. Uses the free GitHub Actions Linux runner (2,000 min/month on private repos; unlimited on public).
+
+**Why not EAS?** EAS tokens are limited per month and burn even on failed builds. Local Windows Gradle builds fail due to cmake path-length limits (CMake mangles paths > 260 chars for out-of-source generated files; no ninja in the Android SDK is long-path-aware).
+
+**Why not local Gradle?** See the [Local Gradle Builds](#local-gradle-builds-emergency-fallback) section — it is an emergency fallback only.
 
 ---
 
-## The Build Command
+## EAS (Legacy / Emergency Fallback)
+
+EAS is no longer the default. Only use it if GitHub Actions is unavailable and a local Gradle build also fails.
 
 Always use the `preview` profile, which builds a release APK without requiring a Google Play upload:
 

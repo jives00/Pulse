@@ -258,7 +258,15 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         getRoutines(token),
         getActiveWorkout(token).catch(() => null),
       ]);
-      setRoutines(data);
+      const sorted = [...data].sort((a, b) => {
+        const aHasNext = a.nextOccurrenceDate != null;
+        const bHasNext = b.nextOccurrenceDate != null;
+        if (aHasNext && !bHasNext) return -1;
+        if (!aHasNext && bHasNext) return 1;
+        if (aHasNext && bHasNext) return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
+        return 0;
+      });
+      setRoutines(sorted);
       setActiveWorkout(active);
     } catch {
       Alert.alert('Error', 'Could not load routines.');
@@ -271,7 +279,18 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { const data = await getRoutines(token); setRoutines(data); } catch { /* ignore */ }
+    try {
+      const data = await getRoutines(token);
+      const sorted = [...data].sort((a, b) => {
+        const aHasNext = a.nextOccurrenceDate != null;
+        const bHasNext = b.nextOccurrenceDate != null;
+        if (aHasNext && !bHasNext) return -1;
+        if (!aHasNext && bHasNext) return 1;
+        if (aHasNext && bHasNext) return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
+        return 0;
+      });
+      setRoutines(sorted);
+    } catch { /* ignore */ }
     finally { setRefreshing(false); }
   }, [token]);
 
