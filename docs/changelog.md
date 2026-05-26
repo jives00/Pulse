@@ -6,6 +6,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 26, 2026
 
+### Mobile (fix)
+
+- **Surface voice recognition errors in AI assistant** — `useVoice` now exposes a `voiceError` string when `Voice.start()` throws or `onSpeechError` fires; `AIAssistant` displays it instead of silently failing. Root cause on current device: native module is `null` (APK predates Gradle 9 patch). `24be945`
+
 ### Build (feat)
 
 - **APK artifact renamed with timestamp and email notification on success** — Build workflow now renames the artifact to `pulse-MMDDYYYY-HHMM.apk` and emails jbromberek@gmail.com with a direct link to the Actions run on successful build. `aa339a5`

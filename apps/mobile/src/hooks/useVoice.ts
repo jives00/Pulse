@@ -20,9 +20,10 @@ export function useVoice() {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   useEffect(() => {
-    Voice.onSpeechStart = () => setListening(true);
+    Voice.onSpeechStart = () => { setListening(true); setVoiceError(null); };
     Voice.onSpeechEnd = () => setListening(false);
     Voice.onSpeechResults = (e: SpeechResultsEvent) => {
       setTranscript(e.value?.[0] ?? '');
@@ -31,6 +32,12 @@ export function useVoice() {
     Voice.onSpeechError = (e: SpeechErrorEvent) => {
       console.warn('[Voice] error', e.error);
       setListening(false);
+      const code = e.error?.code;
+      if (code === '7') {
+        setVoiceError('No speech recognized. Try again.');
+      } else {
+        setVoiceError(`Voice error: ${e.error?.message ?? code ?? 'unknown'}`);
+      }
     };
     return () => {
       Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
@@ -39,6 +46,7 @@ export function useVoice() {
 
   const start = useCallback(async () => {
     setTranscript('');
+    setVoiceError(null);
     const allowed = await requestMicPermission();
     if (!allowed) {
       setPermissionDenied(true);
@@ -47,9 +55,11 @@ export function useVoice() {
     setPermissionDenied(false);
     try {
       await Voice.start('en-US');
-    } catch (err) {
+    } catch (err: unknown) {
       console.warn('[Voice] start failed', err);
       setListening(false);
+      const msg = err instanceof Error ? err.message : String(err);
+      setVoiceError(`Could not start voice: ${msg}`);
     }
   }, []);
 
@@ -62,5 +72,5 @@ export function useVoice() {
     setListening(false);
   }, []);
 
-  return { listening, transcript, permissionDenied, start, stop, cancel };
+  return { listening, transcript, permissionDenied, voiceError, start, stop, cancel };
 }

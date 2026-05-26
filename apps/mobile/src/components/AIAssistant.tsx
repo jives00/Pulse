@@ -53,7 +53,7 @@ export default function AIAssistant() {
   const c = useColors();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
-  const { listening, transcript, permissionDenied, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
+  const { listening, transcript, permissionDenied, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -233,7 +233,11 @@ export default function AIAssistant() {
             <Text style={[sheetStyles.errorText, { color: c.error }]}>Microphone permission denied. Enable it in Settings.</Text>
           )}
 
-          {error && !permissionDenied && (
+          {voiceError && !permissionDenied && (
+            <Text style={[sheetStyles.errorText, { color: c.error }]}>{voiceError}</Text>
+          )}
+
+          {error && !permissionDenied && !voiceError && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{error}</Text>
           )}
 
