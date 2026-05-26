@@ -1,4 +1,4 @@
-import { initialize, requestPermission } from 'react-native-health-connect';
+import { getSdkStatus, initialize, requestPermission, SdkAvailabilityStatus } from 'react-native-health-connect';
 
 export interface HealthConnectPermissions {
   read: {
@@ -13,24 +13,39 @@ export interface HealthConnectPermissions {
 }
 
 let initialized = false;
+let sdkAvailable = false;
 let cachedPermissions: HealthConnectPermissions | null = null;
+
+const EMPTY_PERMISSIONS: HealthConnectPermissions = {
+  read: { steps: false },
+  write: { nutrition: false, hydration: false, exercise: false, weight: false },
+};
 
 export async function initializeHealthConnect(): Promise<HealthConnectPermissions> {
   try {
     if (!initialized) {
-      await initialize();
+      const status = await getSdkStatus();
+      sdkAvailable = status === SdkAvailabilityStatus.SDK_AVAILABLE;
+      if (sdkAvailable) {
+        await initialize();
+      }
       initialized = true;
     }
-    return cachedPermissions || { read: { steps: false }, write: { nutrition: false, hydration: false, exercise: false, weight: false } };
+    return cachedPermissions || EMPTY_PERMISSIONS;
   } catch (err) {
     console.warn('[HealthConnect] Failed to initialize:', err);
-    return { read: { steps: false }, write: { nutrition: false, hydration: false, exercise: false, weight: false } };
+    initialized = true;
+    return EMPTY_PERMISSIONS;
   }
 }
 
 export async function requestHealthConnectPermissions(): Promise<HealthConnectPermissions> {
   if (!initialized) {
     await initializeHealthConnect();
+  }
+
+  if (!sdkAvailable) {
+    return cachedPermissions || EMPTY_PERMISSIONS;
   }
 
   try {
@@ -58,7 +73,7 @@ export async function requestHealthConnectPermissions(): Promise<HealthConnectPe
     return permissions;
   } catch (err) {
     console.warn('[HealthConnect] Failed to request permissions:', err);
-    return cachedPermissions || { read: { steps: false }, write: { nutrition: false, hydration: false, exercise: false, weight: false } };
+    return cachedPermissions || EMPTY_PERMISSIONS;
   }
 }
 

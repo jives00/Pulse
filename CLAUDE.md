@@ -101,3 +101,4 @@ Detailed technical documentation is split into specialized files in the `docs/` 
 - [Frontend Conventions](docs/frontend.md) — Routing, theming, and component responsibilities.
 - [Backend Conventions](docs/backend.md) — API routes, services, and AI integration.
 - [Engineering Patterns](docs/patterns.md) — Architectural decisions and implementation standards.
+- [EAS Build Reference](docs/eas-builds.md) — Pre-build checklist, common failures, and fixes for EAS cloud APK builds.
