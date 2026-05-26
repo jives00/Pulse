@@ -18,6 +18,7 @@ import {
 } from '../../../src/api/client';
 import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
+import { writeWeightRecord } from '../../../src/services/healthConnectWriter';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
@@ -940,9 +941,15 @@ function ProgressTab() {
     if (!cfg) return;
     setLogSaving(true);
     try {
+      const numValue = Number(logValue);
+      const measuredAt = localDateStr();
       const entry = await addMeasurement(token, {
-        metric: logMetric, value: Number(logValue), unit: cfg.unit, measuredAt: localDateStr(),
+        metric: logMetric, value: numValue, unit: cfg.unit, measuredAt,
       });
+      // Write weight to Health Connect if this is a weight measurement
+      if (logMetric === 'weight') {
+        await writeWeightRecord(numValue, cfg.unit, measuredAt, String(entry.id));
+      }
       setMeasurements((prev) => [entry, ...prev].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)));
       setLogMetric(null);
       setLogValue('');

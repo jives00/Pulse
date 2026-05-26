@@ -16,6 +16,7 @@ import {
   getMeasurements,
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
 } from '../../../src/api/client';
+import { writeExerciseRecord, deleteExerciseRecord } from '../../../src/services/healthConnectWriter';
 import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -397,6 +398,7 @@ export default function WorkoutDetailScreen() {
         text: 'Cancel Session', style: 'destructive', onPress: async () => {
           try {
             await deleteWorkout(token, workoutId);
+            await deleteExerciseRecord(String(workoutId));
             dismissWorkoutNotification();
             router.back();
           } catch {
@@ -441,7 +443,8 @@ export default function WorkoutDetailScreen() {
     setFinishing(true);
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
-      await updateWorkout(token, workoutId, { durationMinutes, completed: true });
+      const updated = await updateWorkout(token, workoutId, { durationMinutes, completed: true });
+      await writeExerciseRecord(updated, String(updated.id));
       dismissWorkoutNotification();
       // Non-blocking: estimate calories burned in the background (mirrors web behavior)
       estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });

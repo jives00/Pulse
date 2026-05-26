@@ -1,38 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  initialize,
-  requestPermission,
-  readRecords,
-} from 'react-native-health-connect';
+import { readRecords } from 'react-native-health-connect';
+import { hasHealthConnectPermission } from '../services/healthConnectPermissions';
 
 export function useHealthSteps() {
   const [initialized, setInitialized] = useState(false);
-  const [permissionGranted, setPermissionGranted] = useState(false);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        await initialize();
-        setInitialized(true);
-      } catch (err) {
-        console.warn('[HealthSteps] Failed to initialize Health Connect:', err);
-      }
-    };
-    init();
+    setInitialized(true);
   }, []);
 
   const readTodaySteps = useCallback(async (): Promise<number | null> => {
     if (!initialized) return null;
 
     try {
-      if (!permissionGranted) {
-        const granted = await requestPermission([{ accessType: 'read', recordType: 'Steps' }]);
-        const hasSteps = granted.some((p) => p.accessType === 'read' && p.recordType === 'Steps');
-        if (!hasSteps) {
-          setPermissionGranted(false);
-          return null;
-        }
-        setPermissionGranted(true);
+      if (!hasHealthConnectPermission('steps')) {
+        return null;
       }
 
       const now = new Date();
@@ -52,7 +34,7 @@ export function useHealthSteps() {
       console.warn('[HealthSteps] Failed to read steps:', err);
       return null;
     }
-  }, [initialized, permissionGranted]);
+  }, [initialized]);
 
-  return { readTodaySteps, initialized, permissionGranted };
+  return { readTodaySteps, initialized, permissionGranted: hasHealthConnectPermission('steps') };
 }

@@ -5,9 +5,18 @@ import { configureClient } from '../../../packages/api-client/src/client';
 import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
+import { initializeHealthConnect, requestHealthConnectPermissions } from '../src/services/healthConnectPermissions';
 
 export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
+
+  useEffect(() => {
+    const initHealthConnect = async () => {
+      await initializeHealthConnect();
+      await requestHealthConnectPermissions();
+    };
+    initHealthConnect();
+  }, []);
 
   useEffect(() => {
     configureClient({

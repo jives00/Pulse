@@ -39,6 +39,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Server cleanup** — Removed unused imports and locals from `log`, `nutrition-schedules`, `schedules`, and `user-goals` routes; stripped debug `console.log` statements from `routines` route; added duplicate-prefix guard to `migrate.ts` (throws on startup if two migration files share a numeric prefix). `944de45`
 - **migrate.ts guard softened** — Changed duplicate migration prefix guard from `throw` to `console.warn` so existing 025_*/030_* files don't block `npm run migrate`; renamed `@dram/mobile` → `@pulse/mobile`; enabled `noUnusedLocals` in web tsconfig; removed remaining dead code (recharts import, `HowToTab`, `openCreate` duplicate, `MUTED`, `fmtDuration`, unused helpers); added root `check` script. `4c6d96b`
 
+### Mobile (feature)
+
+- **Health Connect write sync** — Food logs, water logs, workouts, and weight measurements now sync to Health Connect with fire-and-forget error handling. Nutrition records include macro breakdown (kcal→joules conversion). Workouts use smart exercise type mapping (30+ types with category awareness); calories logged as separate record. Weight converts lbs→kg. Uses clientRecordId for auto-upsert on edits. Gracefully skips writes if permission denied (Pulse still saves). Requires APK rebuild with new WRITE_* permissions. `c754048`
+
 ### Mobile
 
 - **Dashboard swipe navigation** — Dashboard tabs (Today, Goals, Trends, Sessions) now respond to left/right swipes to navigate between them; swiping right from the last tab navigates to the next navbar section (Food Log). Navbar swipe order: Home → Log → Train → Recipes → Links → History → Settings. `e5297a2`

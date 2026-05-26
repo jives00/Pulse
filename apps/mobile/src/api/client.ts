@@ -17,7 +17,7 @@ import type {
   Recipe, RecipeDetail, RecipeFormData, ScrapedRecipe, Ingredient,
   RecipeFilters, MakeLogEntry, LinkItem, HistoryEntry, TagDefinitions,
   MealSlot, ServingSize, NutritionSnapshot, Food, LogEntry as NutritionLogEntry,
-  DailyLog, WaterDay, GoalsSummary, Exercise, ExerciseSet, WorkoutExercise,
+  DailyLog, WaterDay, WaterEntry, GoalsSummary, Exercise, ExerciseSet, WorkoutExercise,
   WorkoutSummary, WorkoutDetail, ExerciseStats, ExerciseHistoryEntry,
   RoutineSummary, RoutineExercise, RoutineExerciseSet, RoutineDetail,
   RecipeSearchResult, PersonalBests, BodyMeasurement, MeasurementGoal,
@@ -38,7 +38,7 @@ import type {
 export type {
   Recipe, RecipeDetail, RecipeFormData, ScrapedRecipe, Ingredient, MakeLogEntry,
   LinkItem, HistoryEntry, TagDefinitions,
-  MealSlot, ServingSize, NutritionSnapshot, Food, NutritionLogEntry, DailyLog, WaterDay,
+  MealSlot, ServingSize, NutritionSnapshot, Food, NutritionLogEntry, DailyLog, WaterDay, WaterEntry,
   GoalsSummary, Exercise, ExerciseSet, WorkoutExercise, WorkoutSummary, WorkoutDetail,
   ExerciseStats, ExerciseHistoryEntry,
   RoutineSummary, RoutineExercise, RoutineExerciseSet, RoutineDetail,
@@ -268,8 +268,8 @@ export async function copyLogEntry(_token: string, entry: NutritionLogEntry, mea
   await logApi.copyEntry(entry, meal, logDate);
 }
 
-export async function editNutritionLogEntry(_token: string, id: number, payload: { servingSizeId: number; quantity: number }): Promise<void> {
-  await logApi.update(id, payload);
+export async function editNutritionLogEntry(_token: string, id: number, payload: { servingSizeId: number; quantity: number }): Promise<NutritionLogEntry> {
+  return logApi.update(id, payload);
 }
 
 export async function getFoodById(_token: string, id: number): Promise<Food> {
@@ -298,8 +298,8 @@ export async function getWaterDay(_token: string, date: string): Promise<WaterDa
   return waterApi.getDay(date);
 }
 
-export async function addWater(_token: string, date: string, amountOz: number): Promise<void> {
-  await waterApi.add(date, amountOz);
+export async function addWater(_token: string, date: string, amountOz: number): Promise<WaterEntry> {
+  return waterApi.add(date, amountOz);
 }
 
 export async function getWaterHistory(_token: string, start: string, end: string): Promise<WaterHistory> {
@@ -376,8 +376,8 @@ export async function createWorkout(_token: string, data?: { name?: string }): P
   return workoutsApi.create(data);
 }
 
-export async function updateWorkout(_token: string, id: number, data: { name?: string; durationMinutes?: number; completed?: boolean; workoutDate?: string }): Promise<void> {
-  await workoutsApi.update(id, data);
+export async function updateWorkout(_token: string, id: number, data: { name?: string; durationMinutes?: number; completed?: boolean; workoutDate?: string }): Promise<WorkoutDetail> {
+  return workoutsApi.update(id, data);
 }
 
 export async function getActiveWorkout(_token: string): Promise<WorkoutDetail | null> {

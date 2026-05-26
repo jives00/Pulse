@@ -18,6 +18,7 @@ import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { localDateStr } from '../../../../../packages/api-client/src/index';
+import { writeNutritionRecord, deleteNutritionRecord, writeHydrationRecord, deleteHydrationRecord } from '../../../src/services/healthConnectWriter';
 
 // TextInput that always shows the start of its value when unfocused (not scrolled to the end)
 function StartAlignedInput({ style, value, onChangeText, placeholder, placeholderTextColor }: {
@@ -339,7 +340,7 @@ export default function NutritionScreen() {
   async function confirmAddFrequent(food: FrequentFood) {
     if (!addMeal || !food.servingSizeId) return;
     try {
-      await addLogEntry(token, {
+      const entry = await addLogEntry(token, {
         logDate: date,
         meal: addMeal,
         foodId: food.foodId,
@@ -347,6 +348,7 @@ export default function NutritionScreen() {
         quantity: 1,
       });
       setAddMeal(null);
+      await writeNutritionRecord(entry, String(entry.id));
       setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
@@ -358,7 +360,7 @@ export default function NutritionScreen() {
     const qty = parseFloat(quantity);
     if (!qty || qty <= 0) { Alert.alert('Invalid quantity'); return; }
     try {
-      await addLogEntry(token, {
+      const entry = await addLogEntry(token, {
         logDate: date,
         meal: addMeal,
         foodId: selectedFood.id,
@@ -366,6 +368,7 @@ export default function NutritionScreen() {
         quantity: qty,
       });
       setAddMeal(null);
+      await writeNutritionRecord(entry, String(entry.id));
       setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
@@ -482,7 +485,7 @@ export default function NutritionScreen() {
     if (validItems.length === 0) { Alert.alert('No valid items', 'Enter a quantity greater than 0 for at least one item.'); return; }
     setAddingRecipe(true);
     try {
-      await Promise.all(validItems.map((item) => {
+      await Promise.all(validItems.map(async (item) => {
         const qty = parseFloat(item.quantity);
         if (item.type === 'recipe' && item.recipe) {
           return logRecipeToNutrition(token, {
@@ -492,13 +495,14 @@ export default function NutritionScreen() {
             logDate: date,
           });
         } else if (item.type === 'food' && item.food && item.serving) {
-          return addLogEntry(token, {
+          const entry = await addLogEntry(token, {
             logDate: date,
             meal: addMeal!,
             foodId: item.food.id,
             servingSizeId: item.serving.id,
             quantity: qty,
           });
+          await writeNutritionRecord(entry, String(entry.id));
         }
         return Promise.resolve();
       }));
@@ -545,7 +549,10 @@ export default function NutritionScreen() {
     const ids = Array.from(selectedIds);
     clearSelection();
     try {
-      await Promise.all(ids.map((id) => deleteNutritionLogEntry(token, id)));
+      await Promise.all(ids.map((id) => Promise.all([
+        deleteNutritionLogEntry(token, id),
+        deleteNutritionRecord(String(id)),
+      ])));
       setTimeout(() => load(true), 500);
     } catch { Alert.alert('Error', 'Could not remove entries.'); }
   }
@@ -581,7 +588,8 @@ export default function NutritionScreen() {
     if (!qty || qty <= 0) { Alert.alert('Invalid quantity'); return; }
     setSavingEdit(true);
     try {
-      await editNutritionLogEntry(token, editEntry.id, { servingSizeId: editServing.id, quantity: qty });
+      const updated = await editNutritionLogEntry(token, editEntry.id, { servingSizeId: editServing.id, quantity: qty });
+      await writeNutritionRecord(updated, String(updated.id));
       // Clear all edit state at once to prevent re-render duplication
       setEditEntry(null);
       setEditQuantity('1');
@@ -617,7 +625,8 @@ export default function NutritionScreen() {
   async function handleAddWater(oz: number) {
     const savedY = scrollYRef.current;
     try {
-      await addWater(token, date, oz);
+      const entry = await addWater(token, date, oz);
+      await writeHydrationRecord(entry, String(entry.id));
       await load(true);
       scrollRef.current?.scrollTo({ y: savedY, animated: false });
     }
@@ -870,7 +879,11 @@ export default function NutritionScreen() {
               onPress={async () => {
                 const { entry } = actionEntry!;
                 setActionEntry(null);
-                try { await deleteNutritionLogEntry(token, entry.id); setTimeout(() => load(true), 500); }
+                try {
+                  await deleteNutritionLogEntry(token, entry.id);
+                  await deleteNutritionRecord(String(entry.id));
+                  setTimeout(() => load(true), 500);
+                }
                 catch { Alert.alert('Error', 'Could not remove entry.'); }
               }}
             >
