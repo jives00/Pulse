@@ -4,7 +4,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -55,7 +54,7 @@ export default function AIAssistant() {
   const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
-  const { transcript, cancel: cancelListening } = useVoice();
+  const { listening, transcribing, transcript, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -64,6 +63,7 @@ export default function AIAssistant() {
   const [error, setError] = useState<string | null>(null);
   const [speechEnabled, setSpeechEnabled] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   // Fill input field when voice transcript arrives
   useEffect(() => {
@@ -80,6 +80,9 @@ export default function AIAssistant() {
   function handleClose() {
     cancelListening();
     Speech.stop();
+    // Blur first so keyboard dismisses before the modal slide-out animation,
+    // preventing the double-render flicker on Android.
+    inputRef.current?.blur();
     setOpen(false);
   }
 
@@ -155,7 +158,8 @@ export default function AIAssistant() {
     }
   }, [history.length]);
 
-  const showSend = input.trim().length > 0 && !loading;
+  const showMic = !input.trim() && !loading && !transcribing;
+  const showSend = input.trim().length > 0 && !loading && !transcribing;
 
   return (
     <>
@@ -166,7 +170,7 @@ export default function AIAssistant() {
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
         <KeyboardAvoidingView
           style={[sheetStyles.container, { backgroundColor: c.bg }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           {/* Header */}
           <View style={[sheetStyles.header, { borderBottomColor: c.border, paddingTop: insets.top + 16 }]}>
@@ -211,18 +215,30 @@ export default function AIAssistant() {
               <View style={sheetStyles.emptyContainer}>
                 <Ionicons name="sparkles-outline" size={36} color={c.muted} />
                 <Text style={[sheetStyles.emptyText, { color: c.muted }]}>Ask me about nutrition, workouts, or log a meal.</Text>
-                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Type below, or use the keyboard mic to speak.</Text>
+                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Tap the mic to speak, or type below.</Text>
               </View>
             }
           />
 
-          {error && (
+          {(listening || transcribing) && (
+            <View style={[sheetStyles.listeningBar, { backgroundColor: c.card, borderTopColor: c.border }]}>
+              <View style={[sheetStyles.listeningDot, { backgroundColor: transcribing ? c.accent : '#f87171' }]} />
+              <Text style={[sheetStyles.listeningText, { color: c.text }]}>{transcribing ? 'Transcribing…' : 'Listening…'}</Text>
+            </View>
+          )}
+
+          {voiceError && (
+            <Text style={[sheetStyles.errorText, { color: c.error }]}>{voiceError}</Text>
+          )}
+
+          {error && !voiceError && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{error}</Text>
           )}
 
           {/* Input row */}
           <View style={[sheetStyles.inputRow, { borderTopColor: c.border, backgroundColor: c.bg, paddingBottom: insets.bottom + 12 }]}>
             <TextInput
+              ref={inputRef}
               style={[sheetStyles.input, { backgroundColor: c.card, color: c.text, borderColor: c.border }]}
               placeholder="Ask something…"
               placeholderTextColor={c.muted}
@@ -235,7 +251,7 @@ export default function AIAssistant() {
               blurOnSubmit={false}
             />
 
-            {loading ? (
+            {loading || transcribing ? (
               <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
             ) : showSend ? (
               <TouchableOpacity
@@ -243,6 +259,14 @@ export default function AIAssistant() {
                 onPress={handleSend}
               >
                 <Ionicons name="arrow-up" size={18} color="#fff" />
+              </TouchableOpacity>
+            ) : showMic ? (
+              <TouchableOpacity
+                style={[sheetStyles.actionBtn, { backgroundColor: listening ? '#f87171' : c.card, borderWidth: 1, borderColor: listening ? '#f87171' : c.border }]}
+                onPress={listening ? stopListening : () => { Speech.stop(); startListening(); }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={listening ? 'stop' : 'mic'} size={18} color={listening ? '#fff' : c.muted} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -335,6 +359,23 @@ const sheetStyles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 40,
     opacity: 0.6,
+  },
+  listeningBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  listeningDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  listeningText: {
+    fontSize: fontSize.sm,
+    fontStyle: 'italic',
   },
   errorText: {
     fontSize: fontSize.sm,
