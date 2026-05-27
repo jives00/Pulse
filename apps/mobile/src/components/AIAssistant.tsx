@@ -54,7 +54,7 @@ export default function AIAssistant() {
   const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
-  const { transcript, cancel: cancelListening } = useVoice();
+  const { transcript, listening, voiceError, start: startListening, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -69,6 +69,11 @@ export default function AIAssistant() {
   useEffect(() => {
     if (transcript) setInput(transcript);
   }, [transcript]);
+
+  // Surface voice recognition errors
+  useEffect(() => {
+    if (voiceError) setError(voiceError);
+  }, [voiceError]);
 
   function handleOpen() {
     setHistory([]);
@@ -214,7 +219,7 @@ export default function AIAssistant() {
               <View style={sheetStyles.emptyContainer}>
                 <Ionicons name="sparkles-outline" size={36} color={c.muted} />
                 <Text style={[sheetStyles.emptyText, { color: c.muted }]}>Ask me about nutrition, workouts, or log a meal.</Text>
-                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Tap the mic to speak, or type below.</Text>
+                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Tap the mic button to speak, or type below.</Text>
               </View>
             }
           />
@@ -248,13 +253,21 @@ export default function AIAssistant() {
               >
                 <Ionicons name="arrow-up" size={18} color="#fff" />
               </TouchableOpacity>
+            ) : listening ? (
+              <TouchableOpacity
+                style={[sheetStyles.actionBtn, { backgroundColor: '#e53935' }]}
+                onPress={cancelListening}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="stop" size={18} color="#fff" />
+              </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[sheetStyles.actionBtn, { backgroundColor: c.card, borderWidth: 1, borderColor: c.border }]}
-                onPress={() => inputRef.current?.focus()}
+                onPress={startListening}
                 activeOpacity={0.7}
               >
-                <Ionicons name="mic" size={18} color={c.muted} />
+                <Ionicons name="mic" size={18} color={c.accent} />
               </TouchableOpacity>
             )}
           </View>

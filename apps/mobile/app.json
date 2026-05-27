@@ -53,7 +53,8 @@
           }
         }
       ],
-      "./plugins/withHealthConnectPermissions"
+      "./plugins/withHealthConnectPermissions",
+      "./plugins/withSpeechRecognizer"
     ]
   }
 }
