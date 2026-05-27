@@ -1,4 +1,4 @@
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest } = require('expo/config-plugins');
 
 // Health Connect requires these permissions declared in AndroidManifest.xml.
 // The react-native-health-connect app.plugin.js ignores its own androidPermissions
