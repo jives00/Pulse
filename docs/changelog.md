@@ -6,6 +6,15 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## May 27, 2026
 
+### Web
+
+- **Fix steps bleeding into historical TDEE** — Weekly averages table and CalVsBurned chart were stamping today's `stepsKcal` onto every historical day; now fetches 60-day steps history and applies each day's own recorded steps. Historical weeks with no steps are unaffected. `ad4252d`
+
+### Mobile
+
+- **Use Health Connect aggregation to fix step double-counting** — Switched from `readRecords` (sums all sources, causing duplicates when both Samsung Health and Google Fit write to Health Connect) to `aggregateRecord` so the platform deduplicates by priority source. `ad4252d`
+- **Sync steps on every app open** — Moved Health Connect steps auto-sync from Train tab focus to root `_layout.tsx` so steps are updated whenever the app is launched, not only when navigating to the Log tab. `ad4252d`
+
 ### Mobile
 
 - **Fix white flash before dashboard loads** — React Navigation's default `colors.background: white` was bleeding through navigator containers during screen transitions; fixed by providing a custom `ThemeProvider` with `colors.background: c.bg` at the root layout. Also added wrapping `View` bg, `animation: none` on index screen during auth redirect, and `backgroundColor` on dashboard `ScrollView`. `a077576`

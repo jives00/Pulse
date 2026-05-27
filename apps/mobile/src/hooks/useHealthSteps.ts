@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { readRecords } from 'react-native-health-connect';
+import { aggregateRecord } from 'react-native-health-connect';
 import { syncGrantedPermissions, requestHealthConnectPermissions } from '../services/healthConnectPermissions';
 
 export function useHealthSteps() {
@@ -26,7 +26,8 @@ export function useHealthSteps() {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const { records } = await readRecords('Steps', {
+      const result = await aggregateRecord({
+        recordType: 'Steps',
         timeRangeFilter: {
           operator: 'between',
           startTime: startOfDay.toISOString(),
@@ -34,7 +35,7 @@ export function useHealthSteps() {
         },
       });
 
-      return records.reduce((sum, record) => sum + (record.count || 0), 0);
+      return result.COUNT_TOTAL ?? 0;
     } catch (err) {
       console.warn('[HealthSteps] Failed to read steps:', err);
       return null;

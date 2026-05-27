@@ -454,8 +454,8 @@ function ThisWeek({ summary, exGoals, thisWeekBucket, foodLogHistory, weekStart 
 
 // ─── Cal vs Burned (custom SVG chart) ────────────────────────────────────────
 
-function CalVsBurned({ foodLogHistory, workouts, todayTDEE }: {
-  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null;
+function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
+  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null; stepsHistory: StepsDay[];
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -464,12 +464,17 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE }: {
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
-  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
+  const stepsKcalByDate: Record<string, number> = {};
+  for (const s of stepsHistory) {
+    if (s.steps) stepsKcalByDate[s.date] = Math.round(s.steps * 0.05);
+  }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
   const series = foodLogHistory.slice(-30)
     .map(d => {
       const tef = Math.round(d.calories * 0.1);
       const ex = exerciseByDate[d.date] ?? 0;
-      const tdee = baseline != null ? baseline + tef + ex : 0;
+      const stepsKcal = stepsKcalByDate[d.date] ?? 0;
+      const tdee = baseline != null ? baseline + tef + ex + stepsKcal : 0;
       return { cal: Math.round(d.calories), tdee, label: d.date.slice(5), date: d.date };
     })
     .filter(d => d.cal > 0 || d.tdee > 0);
@@ -822,8 +827,8 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
 
 // ─── Weekly averages table ─────────────────────────────────────────────────────
 
-function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
-  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null;
+function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
+  foodLogHistory: FoodLogHistoryDay[]; workouts: WorkoutSummary[]; todayTDEE: TDEEBreakdown | null; stepsHistory: StepsDay[];
 }) {
   const now = new Date();
   const weeks: { weekStart: string; label: string; calories: number; protein: number; carbs: number; fat: number; tdee: number | null; net: number | null; isCurrentWeek: boolean; days: number }[] = [];
@@ -846,7 +851,11 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
   for (const w of workouts) {
     if (w.caloriesBurned) exerciseByDate[w.workoutDate] = (exerciseByDate[w.workoutDate] ?? 0) + w.caloriesBurned;
   }
-  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat + todayTDEE.stepsKcal : null;
+  const stepsKcalByDate: Record<string, number> = {};
+  for (const s of stepsHistory) {
+    if (s.steps) stepsKcalByDate[s.date] = Math.round(s.steps * 0.05);
+  }
+  const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
 
   for (const day of foodLogHistory) {
     const ws = getWeekStart(day.date);
@@ -860,7 +869,8 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE }: {
     if (baseline != null) {
       const dayTef = Math.round(day.calories * 0.1);
       const dayEx = exerciseByDate[day.date] ?? 0;
-      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx;
+      const dayStepsKcal = stepsKcalByDate[day.date] ?? 0;
+      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx + dayStepsKcal;
     }
   }
 
@@ -1611,6 +1621,7 @@ export default function DashboardPage() {
   const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
+  const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1629,7 +1640,8 @@ export default function DashboardPage() {
       routinesApi.getAllGoals().catch(() => []),
       waterApi.getDay(today).catch(() => null),
       stepsApi.getDay(today).catch(() => null),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd]) => {
+      stepsApi.getHistory(60).catch(() => []),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1645,6 +1657,7 @@ export default function DashboardPage() {
       if (rg) setRoutineGoals(rg as RoutineGoal[]);
       if (wd) setTodayWater(wd as WaterDay);
       if (sd) setTodaySteps(sd as StepsDay);
+      setStepsHistory(sh as StepsDay[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1701,7 +1714,7 @@ export default function DashboardPage() {
       <Band kicker="Trends">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <Panel title="Calories · consumed vs burned">
-            <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} />
+            <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} stepsHistory={stepsHistory} />
           </Panel>
           <Panel title="Exercise volume · week over week">
             <VolumeByWeek weeklyData={weeklyData} />
@@ -1712,7 +1725,7 @@ export default function DashboardPage() {
             <Heatmap workouts={workouts} />
           </Panel>
           <Panel title="Weekly averages">
-            <WeeklyAvgTable foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} />
+            <WeeklyAvgTable foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} stepsHistory={stepsHistory} />
           </Panel>
         </div>
       </Band>

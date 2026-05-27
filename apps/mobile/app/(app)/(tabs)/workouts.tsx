@@ -66,22 +66,12 @@ function LogTab() {
       setSteps(stepsData);
       if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
 
-      const hcSteps = await readTodaySteps();
-      if (hcSteps != null && hcSteps > 0 && hcSteps !== stepsData?.steps) {
-        try {
-          const synced = await logSteps(token, hcSteps, undefined, 'health_connect');
-          setSteps(synced);
-          setStepsInput(String(hcSteps));
-        } catch (err) {
-          console.warn('[LogTab] Failed to auto-sync Health Connect steps:', err);
-        }
-      }
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
     } finally {
       setLoading(false);
     }
-  }, [token, readTodaySteps]);
+  }, [token]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

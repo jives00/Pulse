@@ -7,19 +7,35 @@ import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
+import { useHealthSteps } from '../src/hooks/useHealthSteps';
+import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
 import { useColors } from '../src/hooks/useColors';
 
 export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
+  const token = useAuthStore((s) => s.token);
   const c = useColors();
+  const { readTodaySteps } = useHealthSteps();
 
   useEffect(() => {
     const initHealthConnect = async () => {
       await initializeHealthConnect();
       await syncGrantedPermissions();
+
+      if (!token) return;
+      try {
+        const hcSteps = await readTodaySteps();
+        if (hcSteps == null || hcSteps <= 0) return;
+        const stored = await stepsApi.getDay(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }));
+        if (hcSteps !== stored.steps) {
+          await stepsApi.log(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }), hcSteps, 'health_connect');
+        }
+      } catch {
+        // steps sync is best-effort
+      }
     };
     initHealthConnect();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     configureClient({
