@@ -130,6 +130,98 @@ export default function RecipeDetailScreen() {
     ]);
   }
 
+  function handleShare() {
+    if (!recipe) return;
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const lines: string[] = [];
+
+    lines.push(recipe.name.toUpperCase());
+    lines.push('━'.repeat(Math.min(recipe.name.length, 40)));
+    lines.push('');
+
+    const meta: string[] = [`${cap(recipe.type)}`];
+    if (recipe.subcategory) meta.push(cap(recipe.subcategory));
+    if (recipe.glass_type) meta.push(`Glass: ${recipe.glass_type}`);
+    if (recipe.abv_level) meta.push(`ABV: ${recipe.abv_level}`);
+    if (recipe.servings) meta.push(`Serves ${recipe.servings}`);
+    lines.push(meta.join(' · '));
+
+    if (recipe.tags && recipe.tags.length > 0) lines.push(`Tags: ${recipe.tags.join(', ')}`);
+
+    if (recipe.description) { lines.push(''); lines.push(recipe.description); }
+
+    const prepTime = recipe.prep_time ? formatTime(recipe.prep_time) : null;
+    const cookTime = recipe.cook_time ? formatTime(recipe.cook_time) : null;
+    const totalMins = (recipe.prep_time ?? 0) + (recipe.cook_time ?? 0);
+    const totalTime = totalMins > 0 ? formatTime(totalMins) : null;
+    if (prepTime || cookTime) {
+      lines.push('');
+      const timeParts: string[] = [];
+      if (prepTime) timeParts.push(`Prep: ${prepTime}`);
+      if (cookTime) timeParts.push(`Cook: ${cookTime}`);
+      if (totalTime && prepTime && cookTime) timeParts.push(`Total: ${totalTime}`);
+      lines.push(timeParts.join('  ·  '));
+    }
+
+    if (recipe.ingredients && recipe.ingredients.length > 0) {
+      lines.push('');
+      lines.push('INGREDIENTS');
+      lines.push('───────────');
+      for (const ing of recipe.ingredients) {
+        const qty = ing.quantity ? String(ing.quantity) : '';
+        const unit = ing.unit ? ` ${ing.unit}` : '';
+        lines.push(`  • ${qty}${unit} ${ing.name}`.trim().replace(/^•/, '  •'));
+      }
+    }
+
+    if (recipe.steps && recipe.steps.length > 0) {
+      lines.push('');
+      lines.push('INSTRUCTIONS');
+      lines.push('────────────');
+      for (const step of recipe.steps) {
+        lines.push('');
+        lines.push(`${step.step_number}.  ${step.instruction}`);
+      }
+    }
+
+    if (recipe.notes) {
+      lines.push('');
+      lines.push('NOTES');
+      lines.push('─────');
+      lines.push(recipe.notes);
+    }
+
+    if (recipe.source) { lines.push(''); lines.push(`Source: ${recipe.source}`); }
+
+    const cal = recipe.calories;
+    const carbs = recipe.carbs_g;
+    const protein = recipe.protein_g;
+    const fat = recipe.fat_g;
+    const fiber = recipe.fiber_g;
+    const sodium = recipe.sodium_mg;
+    if (cal || carbs || protein || fat) {
+      lines.push('');
+      lines.push('NUTRITION  (per serving)');
+      lines.push('────────────────────────');
+      if (cal) lines.push(`  Calories  ${cal} kcal`);
+      if (carbs) lines.push(`  Carbs     ${carbs} g`);
+      if (protein) lines.push(`  Protein   ${protein} g`);
+      if (fat) lines.push(`  Fat       ${fat} g`);
+      if (fiber) lines.push(`  Fiber     ${fiber} g`);
+      if (sodium) lines.push(`  Sodium    ${sodium} mg`);
+    }
+
+    lines.push('');
+    lines.push('─────────────────────────');
+    lines.push('Shared from Pulse');
+
+    const subject = encodeURIComponent(`Recipe Shared - ${recipe.name}`);
+    const body = encodeURIComponent(lines.join('\n'));
+    Linking.openURL(`mailto:?subject=${subject}&body=${body}`).catch(() => {
+      Alert.alert('Error', 'Could not open email app.');
+    });
+  }
+
   if (loading) return <Spinner />;
   if (!recipe) return <SafeAreaView style={styles.container}><Text style={styles.muted}>Recipe not found</Text></SafeAreaView>;
 
@@ -148,6 +240,9 @@ export default function RecipeDetailScreen() {
           <View style={styles.titleActions}>
             <TouchableOpacity onPress={handleToggleFavorite}>
               <Text style={styles.star}>{recipe.is_favorite === 1 ? '★' : '☆'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleShare}>
+              <Text style={styles.editBtn}>Share</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowModify(true)}>
               <Text style={styles.editBtn}>✦ Modify</Text>

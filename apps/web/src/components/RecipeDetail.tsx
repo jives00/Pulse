@@ -269,6 +269,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
   const [togglingFav, setTogglingFav] = useState(false);
   const [log, setLog] = useState<MakeLogEntry[]>([]);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [shareNotice, setShareNotice] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -359,6 +360,114 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
 
   const isFav = Boolean(recipe?.is_favorite);
 
+  function buildRecipeHtml(r: RecipeDetailType): string {
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const prepTime = r.prep_time ? formatTime(r.prep_time) : null;
+    const cookTime = r.cook_time ? formatTime(r.cook_time) : null;
+    const totalMins = (r.prep_time ?? 0) + (r.cook_time ?? 0);
+    const totalTime = totalMins > 0 ? formatTime(totalMins) : null;
+
+    const metaChips: string[] = [];
+    if (r.subcategory) metaChips.push(cap(r.subcategory));
+    if (r.glass_type) metaChips.push(`🥃 ${r.glass_type}`);
+    if (r.abv_level) metaChips.push(`ABV: ${r.abv_level}`);
+    if (r.servings) metaChips.push(`${r.servings} servings`);
+
+    const timingParts: string[] = [];
+    if (prepTime) timingParts.push(`<span style="margin-right:16px">⏱ <strong>Prep</strong> ${prepTime}</span>`);
+    if (cookTime) timingParts.push(`<span style="margin-right:16px">🔥 <strong>Cook</strong> ${cookTime}</span>`);
+    if (totalTime && prepTime && cookTime) timingParts.push(`<span>⏰ <strong>Total</strong> ${totalTime}</span>`);
+
+    const ingredientsHtml = r.ingredients.length > 0
+      ? `<h2 style="font-family:Georgia,serif;font-size:18px;color:#1a1a2e;border-bottom:2px solid #e2e8f0;padding-bottom:6px;margin-top:28px">Ingredients</h2>
+         <ul style="margin:0;padding-left:20px;line-height:1.9">
+           ${r.ingredients.map(ing => {
+             const qty = ing.quantity ? String(ing.quantity) : '';
+             const unit = ing.unit ? ` ${ing.unit}` : '';
+             return `<li style="color:#374151">${qty}${unit} <strong>${ing.name}</strong></li>`;
+           }).join('\n           ')}
+         </ul>`
+      : '';
+
+    const stepsHtml = r.steps.length > 0
+      ? `<h2 style="font-family:Georgia,serif;font-size:18px;color:#1a1a2e;border-bottom:2px solid #e2e8f0;padding-bottom:6px;margin-top:28px">Instructions</h2>
+         <ol style="margin:0;padding-left:20px">
+           ${r.steps.map(s =>
+             `<li style="color:#374151;margin-bottom:12px;line-height:1.6">${s.instruction}</li>`
+           ).join('\n           ')}
+         </ol>`
+      : '';
+
+    const notesHtml = r.notes
+      ? `<div style="background:#fefce8;border-left:4px solid #eab308;padding:12px 16px;margin-top:24px;border-radius:0 6px 6px 0">
+           <strong style="color:#854d0e">Notes</strong>
+           <p style="margin:4px 0 0;color:#374151">${r.notes}</p>
+         </div>`
+      : '';
+
+    const sourceHtml = r.source
+      ? `<p style="color:#6b7280;font-size:13px;margin-top:8px">Source: ${r.source}</p>`
+      : '';
+
+    const hasNutrition = r.calories || r.carbs_g || r.protein_g || r.fat_g;
+    const nutritionHtml = hasNutrition
+      ? `<h2 style="font-family:Georgia,serif;font-size:18px;color:#1a1a2e;border-bottom:2px solid #e2e8f0;padding-bottom:6px;margin-top:28px">Nutrition <span style="font-size:13px;font-weight:400;color:#6b7280">(per serving)</span></h2>
+         <table style="border-collapse:collapse;width:100%;max-width:400px">
+           <tr>
+             ${[
+               r.calories ? `<td style="padding:8px 16px 8px 0;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1a2e">${r.calories}</div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Calories</div></td>` : '',
+               r.carbs_g ? `<td style="padding:8px 16px 8px 0;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1a2e">${r.carbs_g}g</div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Carbs</div></td>` : '',
+               r.protein_g ? `<td style="padding:8px 16px 8px 0;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1a2e">${r.protein_g}g</div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Protein</div></td>` : '',
+               r.fat_g ? `<td style="padding:8px 16px 8px 0;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1a2e">${r.fat_g}g</div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Fat</div></td>` : '',
+               r.fiber_g ? `<td style="padding:8px 16px 8px 0;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1a2e">${r.fiber_g}g</div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Fiber</div></td>` : '',
+             ].filter(Boolean).join('')}
+           </tr>
+         </table>`
+      : '';
+
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Georgia,serif">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+    ${r.photo_url ? `<img src="${r.photo_url}" alt="${r.name}" style="width:100%;max-width:600px;height:280px;object-fit:cover;display:block">` : ''}
+    <div style="padding:28px 32px 32px">
+      <p style="margin:0 0 4px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280">${cap(r.type)}${r.tags.length > 0 ? ' · ' + r.tags.join(', ') : ''}</p>
+      <h1 style="margin:0 0 12px;font-size:28px;color:#1a1a2e;line-height:1.2">${r.name}</h1>
+      ${metaChips.length > 0 ? `<p style="margin:0 0 12px;color:#6b7280;font-size:14px">${metaChips.join(' &nbsp;·&nbsp; ')}</p>` : ''}
+      ${r.description ? `<p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;font-style:italic">${r.description}</p>` : ''}
+      ${timingParts.length > 0 ? `<div style="background:#f1f5f9;border-radius:8px;padding:12px 16px;margin-bottom:8px;font-size:14px;color:#374151">${timingParts.join('')}</div>` : ''}
+      ${ingredientsHtml}
+      ${stepsHtml}
+      ${notesHtml}
+      ${sourceHtml}
+      ${nutritionHtml}
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin-top:32px">
+      <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;text-align:center">Shared from Pulse</p>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  async function handleShare() {
+    if (!recipe) return;
+    const subject = `Recipe Shared - ${recipe.name}`;
+    const html = buildRecipeHtml(recipe);
+    try {
+      const htmlBlob = new Blob([html], { type: 'text/html' });
+      const textBlob = new Blob([recipe.name], { type: 'text/plain' });
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }),
+      ]);
+    } catch {
+      // Clipboard API unavailable — mail client will open with just the subject
+    }
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}`;
+    setShareNotice(true);
+    setTimeout(() => setShareNotice(false), 5000);
+  }
+
   return (
     <>
     <div className="h-full flex flex-col bg-dram-card border-l border-dram-border">
@@ -375,6 +484,12 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
               className={`text-xl transition ${isFav ? 'text-dram-accent' : 'text-gray-600 hover:text-dram-accent'}`}
             >
               ★
+            </button>
+            <button
+              onClick={handleShare}
+              className="text-sm text-gray-400 hover:text-white border border-dram-border rounded-lg px-3 py-1"
+            >
+              Share
             </button>
             <button
               onClick={() => setShowAiModal(true)}
@@ -398,6 +513,14 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
           </div>
         )}
       </div>
+
+      {/* Share notice */}
+      {shareNotice && (
+        <div className="bg-green-900/40 border-b border-green-700/40 px-5 py-2.5 text-sm text-green-300 flex items-center justify-between flex-shrink-0">
+          <span>Formatted recipe copied — paste into the email body for rich formatting.</span>
+          <button onClick={() => setShareNotice(false)} className="ml-4 text-green-500 hover:text-green-300">×</button>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">

@@ -8,6 +8,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Web
 
+- **Share recipe via email** — Share button in recipe header copies a full HTML email (photo, styled ingredient list, numbered steps, nutrition table) to the clipboard and opens the mail client with the subject pre-filled; a notice banner instructs the user to paste the HTML into the email body. `8df41cb`
+
+### Mobile
+
+- **Share recipe via email** — Share button in recipe action row opens the mail client with subject pre-filled and a clean plain-text body (sections separated by rule lines, blank lines between steps, column-aligned nutrition). `8df41cb`
+
+### Web
+
 - **Fix steps bleeding into historical TDEE** — Weekly averages table and CalVsBurned chart were stamping today's `stepsKcal` onto every historical day; now fetches 60-day steps history and applies each day's own recorded steps. Historical weeks with no steps are unaffected. `ad4252d`
 
 ### Mobile
