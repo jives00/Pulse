@@ -61,7 +61,7 @@ const MODULE_KT = [
   '        p.resolve(text)',
   '    }',
   '',
-  '    override fun onNewIntent(intent: Intent?) {}',
+  '    override fun onNewIntent(intent: Intent) {}',
   '}',
 ].join('\n');
 

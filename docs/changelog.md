@@ -19,6 +19,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Restore in-app mic via expo-audio canary + Gemini transcription** — Switched to `expo-audio@55.0.9-canary` (SDK 55 first-party, audio-only, new arch native) which avoids the `ViewUtils.kt` issue. Tap mic to record, tap stop to transcribe via Gemini 1.5 Flash, transcript auto-populates input. Fixed AI modal double-render flicker on Android Back (`KeyboardAvoidingView behavior='padding'` + blur-before-close). `de2d32e`
 - **Add RecognizerIntent-based voice input to AI assistant** — Custom Expo config plugin injects a `ReactContextBaseJavaModule` that uses Android's `RecognizerIntent` activity system, bypassing the `CallInvokerHolder::getCallInvoker` JNI removal in RN 0.83 new arch that broke all audio recording libraries. Mic button launches system speech dialog with native VAD; transcript auto-populates input on return; red stop button shown while listening. `3910705`
 - **Fix SpeechRecognizerModule Kotlin compile errors** — `currentActivity` must be accessed via `reactCtx.currentActivity` (explicit ReactApplicationContext ref) in RN 0.83 new arch; also suppressed `startActivityForResult` deprecation warning. `c17e245`
+- **Fix onNewIntent signature in SpeechRecognizerModule** — `ActivityEventListener.onNewIntent` in RN 0.83 takes non-nullable `Intent`; our `Intent?` didn't override it, leaving the abstract method unimplemented. `d2b9c83`
 
 ### API
 
