@@ -13,7 +13,6 @@
     "axios": "^1.7.0",
     "babel-preset-expo": "^55.0.12",
     "expo": "~55.0.26",
-    "expo-audio": "^55.0.9-canary-20260429-a5e59cf",
     "expo-build-properties": "~55.0.14",
     "expo-camera": "~55.0.19",
     "expo-constants": "~55.0.16",
