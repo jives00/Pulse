@@ -39,6 +39,18 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/routines/*        Saved workout routines CRUD + start (POST /:id/start creates workout from routine)
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
+/api/steps/*           Steps CRUD — GET / (today), GET /history?start=&end=, POST / (upsert day)
+/api/schedules/*       Workout schedules — GET / (active), GET /upcoming, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
+/api/meal-plan/*       Meal plan entries — GET / (date range), POST /entries, DELETE /entries/:id; GET /templates, POST /templates, POST /templates/:id/apply, DELETE /templates/:id
+/api/meal-schedules/*  Recurring meal schedule entries — full CRUD
+/api/nutrition-schedules/* Recurring nutrition targets — full CRUD
+/api/day-types/*       Day type presets — GET/POST/PUT/DELETE /presets; GET /overrides, PUT /overrides/:date (upsert), DELETE /overrides/:date
+/api/goal-checkpoints/* Goal checkpoints — GET /, POST /, PUT /:id, DELETE /:id
+/api/user-goals/*      Custom goals — GET /, POST /, PUT /:id, DELETE /:id
+/api/recovery/*        Recovery score — GET / (returns HRV/sleep/fatigue summary)
+/api/ai/assistant/*    AI assistant — GET /insight (daily insight), POST / (chat message), POST /transcribe (audio → text)
+/api/scrape/*          Recipe scraper — POST / (scrape URL → recipe), POST /estimate-nutrition
+/api/templates/*       Meal templates (named sets of foods) — GET /, POST /, PUT /:id, DELETE /:id
 ```
 
 ## Services
