@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Backend
 
+- **Fix APK build (Node 24)** — APK CI was failing `npm ci` because the lock file was generated with npm 11 (Node 24) but the runner used Node 20 (npm 10); bumped `build-apk` job to Node 24. `683abdf`
 - **Docs audit** — Updated `database.md`, `backend.md`, `frontend.md`, and `eas-builds.md` to reflect tables, API routes, screens, and plugins added since last update; reorganized `changelog.md` into three canonical section headers throughout. `a0810db`
 
 ### Frontend – Web
