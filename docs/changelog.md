@@ -21,6 +21,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Fix SpeechRecognizerModule Kotlin compile errors** — `currentActivity` must be accessed via `reactCtx.currentActivity` (explicit ReactApplicationContext ref) in RN 0.83 new arch; also suppressed `startActivityForResult` deprecation warning. `c17e245`
 - **Fix onNewIntent signature in SpeechRecognizerModule** — `ActivityEventListener.onNewIntent` in RN 0.83 takes non-nullable `Intent`; our `Intent?` didn't override it, leaving the abstract method unimplemented. `d2b9c83`
 - **Fix SpeechRecognizerPackage never registering** — Expo SDK 55 / RN 0.83 generates a `MainApplication.kt` that uses `ExpoReactHostFactory` with a `PackageList.apply{}` block; the old regex targeting `return packages` never matched, so `NativeModules.SpeechRecognizer` was always undefined. Now targets the template comment line with a legacy fallback and throws on no match. `59e25b3`
+- **Voice UX improvements and fix white launch background** — AI assistant now auto-submits transcript on return from speech dialog; TTS is on by default so responses are read aloud; `EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS=6000` extends the initial listening window; `AppTheme` now sets `android:windowBackground` to `@color/splashscreen_background` so the dark background shows immediately after splash instead of flashing white. `f7c223a`
 
 ### API
 

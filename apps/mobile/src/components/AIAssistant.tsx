@@ -61,13 +61,17 @@ export default function AIAssistant() {
   const [history, setHistory] = useState<AssistantMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [speechEnabled, setSpeechEnabled] = useState(false);
+  const [speechEnabled, setSpeechEnabled] = useState(true);
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Fill input field when voice transcript arrives
+  // Auto-submit when voice transcript arrives
   useEffect(() => {
-    if (transcript) setInput(transcript);
+    if (transcript) {
+      setInput(transcript);
+      sendText(transcript);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcript]);
 
   // Surface voice recognition errors
@@ -118,14 +122,13 @@ export default function AIAssistant() {
     }
   }
 
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || loading || !token) return;
+  async function sendText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading || !token) return;
 
-    // Stop any in-progress speech before sending
     Speech.stop();
 
-    const userMsg: AssistantMessage = { role: 'user', content: text };
+    const userMsg: AssistantMessage = { role: 'user', content: trimmed };
     const nextHistory = [...history, userMsg];
     setHistory(nextHistory);
     setInput('');
@@ -135,7 +138,7 @@ export default function AIAssistant() {
     try {
       const response = await sendAssistantMessage(token, {
         history,
-        message: text,
+        message: trimmed,
         context: screenContext ?? undefined,
       });
 
@@ -155,6 +158,10 @@ export default function AIAssistant() {
       setLoading(false);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
+  }
+
+  function handleSend() {
+    sendText(input);
   }
 
   useEffect(() => {

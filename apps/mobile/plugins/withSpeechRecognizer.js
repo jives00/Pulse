@@ -41,6 +41,8 @@ const MODULE_KT = [
   '        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {',
   '            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)',
   '            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())',
+  '            // Keep the dialog open for at least 6 s so the user has time to start speaking',
+  '            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)',
   '        }',
   '        try {',
   '            @Suppress("DEPRECATION")',
@@ -120,6 +122,18 @@ module.exports = (config) => {
         }
 
         fs.writeFileSync(mainAppPath, modified);
+      }
+
+      // Fix white-flash on launch: AppTheme has no windowBackground so Android
+      // shows white between splash-screen dismiss and first React Native frame.
+      const stylesPath = path.join(root, 'app', 'src', 'main', 'res', 'values', 'styles.xml');
+      let styles = fs.readFileSync(stylesPath, 'utf8');
+      if (!styles.includes('android:windowBackground')) {
+        styles = styles.replace(
+          /(<style name="AppTheme"[^>]*>)/,
+          '$1\n    <item name="android:windowBackground">@color/splashscreen_background</item>'
+        );
+        fs.writeFileSync(stylesPath, styles);
       }
 
       return config;
