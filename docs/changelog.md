@@ -18,6 +18,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Mobile
 
 - **Fix white flash before dashboard loads** — React Navigation's default `colors.background: white` was bleeding through navigator containers during screen transitions; fixed by providing a custom `ThemeProvider` with `colors.background: c.bg` at the root layout. Also added wrapping `View` bg, `animation: none` on index screen during auth redirect, and `backgroundColor` on dashboard `ScrollView`. `a077576`
+- **Edit entry modal lifts above keyboard** — Wrapped the food log edit bottom sheet in `KeyboardAvoidingView` (behavior: padding) so tapping the quantity field no longer hides the modal behind the soft keyboard; also added `keyboardShouldPersistTaps="handled"` to the sheet's ScrollView. `434e604`
 
 ## May 26, 2026
 

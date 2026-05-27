@@ -952,15 +952,16 @@ export default function NutritionScreen() {
 
       {/* Edit Entry Modal */}
       <Modal visible={editEntry !== null} animationType="slide" transparent onRequestClose={() => setEditEntry(null)}>
-        <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setEditEntry(null)}>
-          <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle} numberOfLines={1}>{editEntry?.food.name}</Text>
-              <TouchableOpacity onPress={() => setEditEntry(null)}>
-                <Text style={s.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ padding: 16 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
+          <TouchableOpacity style={s.moveCopyOverlay} activeOpacity={1} onPress={() => setEditEntry(null)}>
+            <TouchableOpacity style={s.moveCopySheet} activeOpacity={1} onPress={() => {}}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle} numberOfLines={1}>{editEntry?.food.name}</Text>
+                <TouchableOpacity onPress={() => setEditEntry(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               {loadingEditServings ? (
                 <ActivityIndicator color={c.accent} style={{ marginVertical: 24 }} />
               ) : (
@@ -1001,9 +1002,10 @@ export default function NutritionScreen() {
                 </>
               )}
               <View style={{ height: 24 }} />
-            </ScrollView>
+              </ScrollView>
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Food Modal */}
