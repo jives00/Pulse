@@ -55,7 +55,7 @@ export default function AIAssistant() {
   const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
-  const { listening, transcribing, transcript, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
+  const { transcript, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -149,23 +149,13 @@ export default function AIAssistant() {
     }
   }
 
-  function handleMicPress() {
-    if (listening) {
-      stopListening();
-    } else {
-      // Stop AI speech before listening so they don't overlap
-      Speech.stop();
-      startListening();
-    }
-  }
-
   useEffect(() => {
     if (history.length > 0) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [history.length]);
 
-  const showMic = !input.trim() && !loading && !transcribing;
+  const showSend = input.trim().length > 0 && !loading;
 
   return (
     <>
@@ -221,24 +211,12 @@ export default function AIAssistant() {
               <View style={sheetStyles.emptyContainer}>
                 <Ionicons name="sparkles-outline" size={36} color={c.muted} />
                 <Text style={[sheetStyles.emptyText, { color: c.muted }]}>Ask me about nutrition, workouts, or log a meal.</Text>
-                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Tap the mic to speak, or type below.</Text>
+                <Text style={[sheetStyles.emptyHint, { color: c.muted }]}>Type below, or use the keyboard mic to speak.</Text>
               </View>
             }
           />
 
-          {/* Listening / transcribing indicator */}
-          {(listening || transcribing) && (
-            <View style={[sheetStyles.listeningBar, { backgroundColor: c.card, borderTopColor: c.border }]}>
-              <View style={[sheetStyles.listeningDot, { backgroundColor: transcribing ? c.accent : '#f87171' }]} />
-              <Text style={[sheetStyles.listeningText, { color: c.text }]}>{transcribing ? 'Transcribing…' : 'Listening…'}</Text>
-            </View>
-          )}
-
-          {voiceError && (
-            <Text style={[sheetStyles.errorText, { color: c.error }]}>{voiceError}</Text>
-          )}
-
-          {error && !voiceError && (
+          {error && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{error}</Text>
           )}
 
@@ -246,7 +224,7 @@ export default function AIAssistant() {
           <View style={[sheetStyles.inputRow, { borderTopColor: c.border, backgroundColor: c.bg, paddingBottom: insets.bottom + 12 }]}>
             <TextInput
               style={[sheetStyles.input, { backgroundColor: c.card, color: c.text, borderColor: c.border }]}
-              placeholder={listening ? 'Listening…' : 'Ask something…'}
+              placeholder="Ask something…"
               placeholderTextColor={c.muted}
               value={input}
               onChangeText={setInput}
@@ -257,24 +235,16 @@ export default function AIAssistant() {
               blurOnSubmit={false}
             />
 
-            {loading || transcribing ? (
+            {loading ? (
               <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
-            ) : showMic ? (
-              <TouchableOpacity
-                style={[sheetStyles.actionBtn, { backgroundColor: listening ? '#f87171' : c.card, borderWidth: 1, borderColor: listening ? '#f87171' : c.border }]}
-                onPress={handleMicPress}
-                activeOpacity={0.7}
-              >
-                <Ionicons name={listening ? 'stop' : 'mic'} size={18} color={listening ? '#fff' : c.muted} />
-              </TouchableOpacity>
-            ) : (
+            ) : showSend ? (
               <TouchableOpacity
                 style={[sheetStyles.actionBtn, { backgroundColor: c.accent }]}
                 onPress={handleSend}
               >
                 <Ionicons name="arrow-up" size={18} color="#fff" />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
 
         </KeyboardAvoidingView>
@@ -365,23 +335,6 @@ const sheetStyles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 40,
     opacity: 0.6,
-  },
-  listeningBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  listeningDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  listeningText: {
-    fontSize: fontSize.sm,
-    fontStyle: 'italic',
   },
   errorText: {
     fontSize: fontSize.sm,
