@@ -76,7 +76,7 @@ jobs:
           java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-      - run: npm ci
+      - run: npm install
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean
