@@ -136,8 +136,9 @@ const styles = StyleSheet.create({
 export default function TabsLayout() {
   const c = useColors();
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
     <Tabs
+      sceneContainerStyle={{ backgroundColor: c.bg }}
       screenOptions={{
         headerShown: false,
         tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 4, height: 72, paddingBottom: 10 },

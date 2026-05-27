@@ -512,6 +512,7 @@ export default function DashboardV4Screen() {
       </ScrollView>
 
       <ScrollView
+        style={{ flex: 1, backgroundColor: c.bg }}
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}
       >

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { DeviceEventEmitter } from 'react-native';
+import { DeviceEventEmitter, View } from 'react-native';
 import { Stack, router } from 'expo-router';
+import { ThemeProvider } from '@react-navigation/native';
 import { configureClient } from '../../../packages/api-client/src/client';
 import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
@@ -85,5 +86,26 @@ export default function RootLayout() {
     };
   }, []);
 
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }} />;
+  const navTheme = {
+    dark: true,
+    colors: {
+      primary: c.accent,
+      background: c.bg,
+      card: c.card,
+      text: c.text,
+      border: c.border,
+      notification: c.accent,
+    },
+    fonts: { regular: { fontFamily: 'System', fontWeight: '400' as const }, medium: { fontFamily: 'System', fontWeight: '500' as const }, bold: { fontFamily: 'System', fontWeight: '700' as const }, heavy: { fontFamily: 'System', fontWeight: '900' as const } },
+  };
+
+  return (
+    <ThemeProvider value={navTheme}>
+      <View style={{ flex: 1, backgroundColor: c.bg }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
+          <Stack.Screen name="index" options={{ animation: 'none' }} />
+        </Stack>
+      </View>
+    </ThemeProvider>
+  );
 }
