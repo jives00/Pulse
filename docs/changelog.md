@@ -20,6 +20,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Add RecognizerIntent-based voice input to AI assistant** — Custom Expo config plugin injects a `ReactContextBaseJavaModule` that uses Android's `RecognizerIntent` activity system, bypassing the `CallInvokerHolder::getCallInvoker` JNI removal in RN 0.83 new arch that broke all audio recording libraries. Mic button launches system speech dialog with native VAD; transcript auto-populates input on return; red stop button shown while listening. `3910705`
 - **Fix SpeechRecognizerModule Kotlin compile errors** — `currentActivity` must be accessed via `reactCtx.currentActivity` (explicit ReactApplicationContext ref) in RN 0.83 new arch; also suppressed `startActivityForResult` deprecation warning. `c17e245`
 - **Fix onNewIntent signature in SpeechRecognizerModule** — `ActivityEventListener.onNewIntent` in RN 0.83 takes non-nullable `Intent`; our `Intent?` didn't override it, leaving the abstract method unimplemented. `d2b9c83`
+- **Fix SpeechRecognizerPackage never registering** — Expo SDK 55 / RN 0.83 generates a `MainApplication.kt` that uses `ExpoReactHostFactory` with a `PackageList.apply{}` block; the old regex targeting `return packages` never matched, so `NativeModules.SpeechRecognizer` was always undefined. Now targets the template comment line with a legacy fallback and throws on no match. `59e25b3`
 
 ### API
 

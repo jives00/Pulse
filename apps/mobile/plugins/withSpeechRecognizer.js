@@ -97,12 +97,29 @@ module.exports = (config) => {
       let content = fs.readFileSync(mainAppPath, 'utf8');
 
       if (!content.includes('SpeechRecognizerPackage')) {
-        // Insert before the first `return packages` line inside getPackages()
-        content = content.replace(
-          /^(\s+)(return packages\s*)$/m,
-          '$1packages.add(SpeechRecognizerPackage())\n$1$2'
+        // Expo SDK 55 / RN 0.83 new arch: ExpoReactHostFactory with .apply {} block.
+        // The template has a comment "// add(MyReactNativePackage())" — inject after it.
+        let modified = content.replace(
+          /^([ \t]+)(\/\/ add\(MyReactNativePackage\(\)\))[ \t]*$/m,
+          '$1$2\n$1add(SpeechRecognizerPackage())'
         );
-        fs.writeFileSync(mainAppPath, content);
+
+        // Legacy fallback: getPackages() with `return packages` on its own line
+        if (modified === content) {
+          modified = content.replace(
+            /^([ \t]+)(return packages[ \t]*)$/m,
+            '$1packages.add(SpeechRecognizerPackage())\n$1$2'
+          );
+        }
+
+        if (modified === content) {
+          throw new Error(
+            '[withSpeechRecognizer] Could not find injection point in MainApplication.kt. ' +
+            'Expected "// add(MyReactNativePackage())" or "return packages" line.'
+          );
+        }
+
+        fs.writeFileSync(mainAppPath, modified);
       }
 
       return config;
