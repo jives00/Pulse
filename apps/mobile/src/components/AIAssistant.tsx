@@ -55,7 +55,7 @@ export default function AIAssistant() {
   const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
   const { screenContext } = useAssistantStore();
-  const { listening, transcript, permissionDenied, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
+  const { listening, transcribing, transcript, voiceError, start: startListening, stop: stopListening, cancel: cancelListening } = useVoice();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -165,7 +165,7 @@ export default function AIAssistant() {
     }
   }, [history.length]);
 
-  const showMic = !input.trim() && !loading;
+  const showMic = !input.trim() && !loading && !transcribing;
 
   return (
     <>
@@ -226,23 +226,19 @@ export default function AIAssistant() {
             }
           />
 
-          {/* Listening indicator */}
-          {listening && (
+          {/* Listening / transcribing indicator */}
+          {(listening || transcribing) && (
             <View style={[sheetStyles.listeningBar, { backgroundColor: c.card, borderTopColor: c.border }]}>
-              <View style={[sheetStyles.listeningDot, { backgroundColor: '#f87171' }]} />
-              <Text style={[sheetStyles.listeningText, { color: c.text }]}>Listening…</Text>
+              <View style={[sheetStyles.listeningDot, { backgroundColor: transcribing ? c.accent : '#f87171' }]} />
+              <Text style={[sheetStyles.listeningText, { color: c.text }]}>{transcribing ? 'Transcribing…' : 'Listening…'}</Text>
             </View>
           )}
 
-          {permissionDenied && (
-            <Text style={[sheetStyles.errorText, { color: c.error }]}>Microphone permission denied. Enable it in Settings.</Text>
-          )}
-
-          {voiceError && !permissionDenied && (
+          {voiceError && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{voiceError}</Text>
           )}
 
-          {error && !permissionDenied && !voiceError && (
+          {error && !voiceError && (
             <Text style={[sheetStyles.errorText, { color: c.error }]}>{error}</Text>
           )}
 
@@ -261,7 +257,7 @@ export default function AIAssistant() {
               blurOnSubmit={false}
             />
 
-            {loading ? (
+            {loading || transcribing ? (
               <ActivityIndicator color={c.accent} style={sheetStyles.actionBtn} />
             ) : showMic ? (
               <TouchableOpacity

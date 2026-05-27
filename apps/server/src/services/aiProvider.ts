@@ -120,6 +120,22 @@ export async function runConversation(params: {
   return result.response.text();
 }
 
+// ── transcribeAudio ───────────────────────────────────────────────────────────
+// Uses Gemini 1.5 Flash to transcribe base64-encoded audio. Anthropic does not
+// support audio input, so Gemini is required for this feature.
+
+export async function transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
+  const gemini = getGemini();
+  if (!gemini) throw new Error('GEMINI_API_KEY is required for audio transcription');
+
+  const model = gemini.getGenerativeModel({ model: GEMINI_MODELS.haiku });
+  const result = await model.generateContent([
+    { inlineData: { mimeType, data: base64Audio } },
+    'Transcribe this audio exactly as spoken. Return only the transcribed text, nothing else. If the audio is silent or unclear, return an empty string.',
+  ]);
+  return result.response.text().trim();
+}
+
 // ── runWithTools ──────────────────────────────────────────────────────────────
 // For structured tool-use calls. Tries Anthropic tool_choice first; falls back
 // to instructing Gemini to return a JSON object matching the schema.

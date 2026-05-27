@@ -1,83 +1,97 @@
-import { useCallback, useEffect, useState } from 'react';
-import { PermissionsAndroid, Platform } from 'react-native';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import { useAuthStore } from '../store/auth';
+import { API_BASE } from '../api/config';
 
-async function requestMicPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
-  const status = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    {
-      title: 'Microphone Permission',
-      message: 'Pulse needs microphone access to hear your voice.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    }
-  );
-  return status === PermissionsAndroid.RESULTS.GRANTED;
-}
+const MAX_RECORDING_MS = 30_000;
 
 export function useVoice() {
-  const [available, setAvailable] = useState(false);
+  const { token } = useAuthStore();
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [permissionDenied, setPermissionDenied] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    Voice.isAvailable()
-      .then((v) => { if (mounted) setAvailable(v === 1); })
-      .catch(() => { if (mounted) setAvailable(false); });
-
-    Voice.onSpeechStart = () => { setListening(true); setVoiceError(null); };
-    Voice.onSpeechEnd = () => setListening(false);
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      setTranscript(e.value?.[0] ?? '');
-      setListening(false);
-    };
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      console.warn('[Voice] error', e.error);
-      setListening(false);
-      const code = e.error?.code;
-      if (code === '7') {
-        setVoiceError('No speech recognized. Try again.');
-      } else {
-        setVoiceError(`Voice error: ${e.error?.message ?? code ?? 'unknown'}`);
-      }
-    };
     return () => {
-      mounted = false;
-      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+      if (autoStopRef.current) clearTimeout(autoStopRef.current);
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
     };
   }, []);
+
+  const stop = useCallback(async () => {
+    if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null; }
+    const recording = recordingRef.current;
+    if (!recording) return;
+
+    setListening(false);
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    } catch { /* ignore */ }
+    recordingRef.current = null;
+
+    const uri = recording.getURI();
+    if (!uri || !token) return;
+
+    setTranscribing(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const response = await fetch(`${API_BASE}/api/ai/assistant/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ audio: base64, mimeType: 'audio/mp4' }),
+      });
+      if (!response.ok) throw new Error('Transcription request failed');
+      const { transcript: text } = await response.json() as { transcript: string };
+      setTranscript(text);
+    } catch (err) {
+      console.warn('[Voice] transcribe failed', err);
+      setVoiceError('Could not transcribe audio. Try again.');
+    } finally {
+      setTranscribing(false);
+    }
+  }, [token]);
 
   const start = useCallback(async () => {
     setTranscript('');
     setVoiceError(null);
-    const allowed = await requestMicPermission();
-    if (!allowed) {
-      setPermissionDenied(true);
-      return;
-    }
-    setPermissionDenied(false);
     try {
-      await Voice.start('en-US');
-    } catch (err: unknown) {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setVoiceError('Microphone permission denied. Enable it in Settings.');
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setListening(true);
+      autoStopRef.current = setTimeout(() => stop(), MAX_RECORDING_MS);
+    } catch (err) {
       console.warn('[Voice] start failed', err);
-      setListening(false);
-      const msg = err instanceof Error ? err.message : String(err);
-      setVoiceError(`Could not start voice: ${msg}`);
+      setVoiceError('Could not start recording.');
     }
-  }, []);
-
-  const stop = useCallback(async () => {
-    try { await Voice.stop(); } catch { /* ignore */ }
-  }, []);
+  }, [stop]);
 
   const cancel = useCallback(async () => {
-    try { await Voice.cancel(); } catch { /* ignore */ }
+    if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null; }
+    const recording = recordingRef.current;
+    if (!recording) return;
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    } catch { /* ignore */ }
+    recordingRef.current = null;
     setListening(false);
+    setTranscribing(false);
   }, []);
 
-  return { available, listening, transcript, permissionDenied, voiceError, start, stop, cancel };
+  return { listening, transcribing, transcript, voiceError, start, stop, cancel };
 }
