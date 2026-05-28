@@ -18,24 +18,26 @@ export default function RootLayout() {
   const { readTodaySteps } = useHealthSteps();
 
   useEffect(() => {
-    const initHealthConnect = async () => {
-      await initializeHealthConnect();
-      await syncGrantedPermissions();
+    initializeHealthConnect().then(() => syncGrantedPermissions()).catch(() => {});
+  }, []);
 
-      if (!token) return;
+  useEffect(() => {
+    if (!token) return;
+    const syncSteps = async () => {
       try {
         const hcSteps = await readTodaySteps();
         if (hcSteps == null || hcSteps <= 0) return;
-        const stored = await stepsApi.getDay(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }));
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+        const stored = await stepsApi.getDay(today);
         if (hcSteps !== stored.steps) {
-          await stepsApi.log(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }), hcSteps, 'health_connect');
+          await stepsApi.log(today, hcSteps, 'health_connect');
         }
       } catch {
         // steps sync is best-effort
       }
     };
-    initHealthConnect();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    syncSteps();
+  }, [token]); // re-runs when token becomes available after login
 
   useEffect(() => {
     configureClient({
