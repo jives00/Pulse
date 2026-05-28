@@ -10,6 +10,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 - **Fix HC steps race condition on app open** — Added `useStepsStore` (Zustand) so the background HC sync in `_layout.tsx` immediately propagates the live step count to the dashboard and Log tab without waiting for a server re-fetch; both screens now re-render as soon as the sync completes. `4494cc3`
 - **Add HC debug display in Log tab** — Steps card shows raw `COUNT_TOTAL`, contributing data origins (package names), and the query time window to help diagnose step count inflation from multiple Health Connect sources. `4494cc3`
+- **Remove HC steps debug display** — Removed temporary diagnostic UI from Log tab steps card after confirming single source (Google Fit) with count difference attributed to Fit filtering active steps in its UI vs raw pedometer data in Health Connect. `826ad57`
 
 ---
 
