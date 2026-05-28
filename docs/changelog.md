@@ -4,6 +4,15 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 28, 2026
+
+### Frontend – Mobile
+
+- **Fix HC steps race condition on app open** — Added `useStepsStore` (Zustand) so the background HC sync in `_layout.tsx` immediately propagates the live step count to the dashboard and Log tab without waiting for a server re-fetch; both screens now re-render as soon as the sync completes. `4494cc3`
+- **Add HC debug display in Log tab** — Steps card shows raw `COUNT_TOTAL`, contributing data origins (package names), and the query time window to help diagnose step count inflation from multiple Health Connect sources. `4494cc3`
+
+---
+
 ## May 27, 2026
 
 ### Backend

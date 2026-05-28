@@ -20,10 +20,11 @@ import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate }
 import { useAuthStore } from '../../../src/store/auth';
 import { writeWeightRecord } from '../../../src/services/healthConnectWriter';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
+import { useStepsStore } from '../../../src/store/steps';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
-import { useHealthSteps } from '../../../src/hooks/useHealthSteps';
+import { useHealthSteps, type HealthStepsDebug } from '../../../src/hooks/useHealthSteps';
 import FilterChip from '../../../src/components/FilterChip';
 import QuickLogModal from '../../../src/components/QuickLogModal';
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
@@ -39,15 +40,17 @@ function fmtVolume(kg: number) {
 
 function LogTab() {
   const token = useAuthStore((s) => s.token)!;
+  const liveSteps = useStepsStore((s) => s.liveSteps);
   const router = useRouter();
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
-  const { readTodaySteps, permissionGranted, requestPermission } = useHealthSteps();
+  const { readTodaySteps, readTodayStepsDebug, permissionGranted, requestPermission } = useHealthSteps();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [steps, setSteps] = useState<StepsEntry | null>(null);
   const [stepsInput, setStepsInput] = useState('');
+  const [hcDebug, setHcDebug] = useState<HealthStepsDebug | null>(null);
   const [savingSteps, setSavingSteps] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -64,7 +67,8 @@ function LogTab() {
       setWorkouts(data);
       setActiveWorkout(active);
       setSteps(stepsData);
-      if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
+      const displaySteps = liveSteps ?? stepsData?.steps ?? null;
+      if (displaySteps != null) setStepsInput(String(displaySteps));
 
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
@@ -73,7 +77,10 @@ function LogTab() {
     }
   }, [token]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    readTodayStepsDebug().then(setHcDebug).catch(() => {});
+  }, [load, readTodayStepsDebug]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -178,6 +185,13 @@ function LogTab() {
                     {steps.source === 'health_connect' ? 'Synced from Health Connect' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
                   </Text>
                 )}
+              </View>
+            )}
+            {hcDebug && (
+              <View style={{ marginTop: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: 8 }}>
+                <Text style={{ fontSize: 10, color: c.muted, fontFamily: 'monospace' }}>
+                  {`HC raw: ${hcDebug.COUNT_TOTAL ?? 'null'}\nSources: ${hcDebug.dataOrigins.join(', ') || 'none'}\nWindow: ${hcDebug.startTime.replace('T', ' ').slice(0, 19)} → ${hcDebug.endTime.replace('T', ' ').slice(0, 19)}`}
+                </Text>
               </View>
             )}
             {!permissionGranted && (

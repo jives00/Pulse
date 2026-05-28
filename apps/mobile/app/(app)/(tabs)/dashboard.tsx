@@ -21,6 +21,7 @@ import {
   type WeekBucket,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
+import { useStepsStore } from '../../../src/store/steps';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
@@ -324,6 +325,7 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DashboardV4Screen() {
   const token = useAuthStore((s) => s.token)!;
+  const liveSteps = useStepsStore((s) => s.liveSteps);
   const c = useColors();
   const s = makeStyles(c);
   const router = useRouter();
@@ -669,7 +671,7 @@ export default function DashboardV4Screen() {
             workouts={todayWorkouts}
             nutrition={nutritionSummary?.nutrition.actual ?? null}
             water={todayWater}
-            steps={todaySteps}
+            steps={liveSteps != null ? { ...(todaySteps ?? {}), steps: liveSteps } as any : todaySteps}
           />
 
         </>)}

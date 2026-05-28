@@ -2,6 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { aggregateRecord } from 'react-native-health-connect';
 import { syncGrantedPermissions, requestHealthConnectPermissions } from '../services/healthConnectPermissions';
 
+export interface HealthStepsDebug {
+  COUNT_TOTAL: number | null;
+  dataOrigins: string[];
+  startTime: string;
+  endTime: string;
+}
+
 export function useHealthSteps() {
   const [permissionGranted, setPermissionGranted] = useState(false);
 
@@ -42,5 +49,33 @@ export function useHealthSteps() {
     }
   }, []);
 
-  return { readTodaySteps, permissionGranted, requestPermission };
+  const readTodayStepsDebug = useCallback(async (): Promise<HealthStepsDebug | null> => {
+    const perms = await syncGrantedPermissions();
+    if (!perms.read.steps) return null;
+
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const result = await aggregateRecord({
+        recordType: 'Steps',
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: startOfDay.toISOString(),
+          endTime: now.toISOString(),
+        },
+      });
+
+      return {
+        COUNT_TOTAL: result.COUNT_TOTAL ?? null,
+        dataOrigins: result.dataOrigins ?? [],
+        startTime: startOfDay.toISOString(),
+        endTime: now.toISOString(),
+      };
+    } catch (err) {
+      return null;
+    }
+  }, []);
+
+  return { readTodaySteps, readTodayStepsDebug, permissionGranted, requestPermission };
 }

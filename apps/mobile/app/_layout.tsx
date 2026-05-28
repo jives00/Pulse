@@ -9,6 +9,7 @@ import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
 import { useHealthSteps } from '../src/hooks/useHealthSteps';
 import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
+import { useStepsStore } from '../src/store/steps';
 import { useColors } from '../src/hooks/useColors';
 
 export default function RootLayout() {
@@ -16,6 +17,7 @@ export default function RootLayout() {
   const token = useAuthStore((s) => s.token);
   const c = useColors();
   const { readTodaySteps } = useHealthSteps();
+  const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
 
   useEffect(() => {
     initializeHealthConnect().then(() => syncGrantedPermissions()).catch(() => {});
@@ -32,6 +34,7 @@ export default function RootLayout() {
         if (hcSteps !== stored.steps) {
           await stepsApi.log(today, hcSteps, 'health_connect');
         }
+        setLiveSteps(hcSteps);
       } catch {
         // steps sync is best-effort
       }
