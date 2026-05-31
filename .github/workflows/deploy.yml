@@ -7,58 +7,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Deploy to EC2
+  build-and-push:
+    name: Build and push Docker images
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: SSH into EC2 and deploy
-        uses: appleboy/ssh-action@v1.0.0
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
-          script: |
-            set -e
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            # Load app env vars
-            set -a; source /etc/pulse.env; set +a
+      - uses: docker/setup-buildx-action@v3
 
-            export PATH="/home/ubuntu/.nvm/versions/node/v24.15.0/bin:$PATH"
+      - name: Build and push server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/pulse-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-            cd ~/pulse-app
-            git checkout -- package.json package-lock.json
-            git pull origin main
-
-            # Stop server before wiping node_modules to release file locks (prevents ETXTBSY on esbuild)
-            pm2 stop pulse-server || true
-
-            # Clean all node_modules (root + workspaces) before install to avoid ENOTEMPTY errors
-            rm -rf node_modules apps/*/node_modules packages/*/node_modules
-
-            # Exclude mobile workspace so Expo/React Native aren't installed on EC2
-            # (mobile is built via EAS — package.json is restored after prune)
-            node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.workspaces=p.workspaces.filter(w=>w.indexOf('mobile')===-1); fs.writeFileSync('package.json',JSON.stringify(p,null,2));"
-            npm install
-
-            # Run DB migrations (idempotent — safe to run on every deploy)
-            npm run migrate --workspace=apps/server
-
-            # Build server and web
-            npm run build --workspace=apps/server
-            npm run build --workspace=apps/web
-
-            # Prune devDeps while package.json still excludes mobile (prevents mobile deps being re-added)
-            npm prune --omit=dev
-
-            # Restore package.json and package-lock.json so git stays clean
-            git checkout package.json package-lock.json
-
-            # Restart server
-            pm2 restart pulse-server --update-env
-
-            echo "Deployed at $(date)"
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/pulse-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-apk:
     name: Build Android APK (Gradle)
@@ -69,14 +55,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean

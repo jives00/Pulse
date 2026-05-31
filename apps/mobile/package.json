@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "~15.1.1",
-    "@pulse/theme": "*",
+    "@pulse/theme": "workspace:*",
     "axios": "^1.7.0",
     "babel-preset-expo": "^55.0.12",
     "expo": "~55.0.26",

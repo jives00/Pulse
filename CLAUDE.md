@@ -6,7 +6,7 @@
 
 ## Project overview
 
-Pulse is a personal health tracker: food/drink recipes, nutrition logging, workout tracking, and goal dashboards. It is a full-stack TypeScript monorepo deployed on AWS EC2 + S3. 
+Pulse is a personal health tracker: food/drink recipes, nutrition logging, workout tracking, and goal dashboards. It is a full-stack TypeScript monorepo deployed on Synology NAS (Docker) + S3. 
 
 ## Monorepo structure
 
@@ -20,36 +20,36 @@ packages/
   theme/           Color palette source of truth (used by web + mobile)
 ```
 
-npm workspaces — install from the root: `npm install`
-All packages including `apps/mobile` are in the root workspace. A single `npm install` from the root installs everything.
+pnpm workspaces — install from the root: `pnpm install`
+All packages including `apps/mobile` are in the root workspace. A single `pnpm install` from the root installs everything.
 
 ## Dev commands
 
 Run both server and web in parallel:
 ```
-npm run dev
+pnpm dev
 ```
 
 Or individually:
 ```
-npm run dev --workspace=apps/server
-npm run dev --workspace=apps/web
+pnpm --filter @pulse/server dev
+pnpm --filter @pulse/web dev
 ```
 
 Mobile (Android emulator — start emulator in Android Studio first):
 ```
-npm run dev:mobile
+pnpm dev:mobile
 # then press 'a' to open in emulator
 ```
 
 Production build:
 ```
-npm run build
+pnpm build
 ```
 
 Run DB migrations:
 ```
-npm run migrate --workspace=apps/server
+pnpm migrate
 ```
 
 ## Test commands
@@ -57,7 +57,7 @@ npm run migrate --workspace=apps/server
 Tests live in `testing/` — a standalone folder with its own packages. Each suite runs independently.
 
 ```
-# Server (Jest + ts-jest) — unit tests for services
+# Server (Vitest) — unit tests for services
 cd testing/server && npm test
 
 # Web (Vitest + jsdom) — component + store tests
@@ -78,7 +78,7 @@ Note: `testing/mobile` has its own `node_modules` (isolated from root `testing/`
 | Backend | Express 4, mysql2, bcryptjs, jsonwebtoken, Zod |
 | Storage | MySQL, AWS S3 (recipe photos) |
 | Auth | JWT — web: token in Zustand; mobile: token in expo-secure-store (key: `pulse-auth`) |
-| Build | Vite (web), tsc (server), GitHub Actions Gradle (mobile APK — push `apk-*` tag); EAS is legacy fallback only |
+| Build | Vite (web), tsc (server), GitHub Actions → ghcr.io (Docker images on push to main), Gradle (mobile APK — push `apk-*` tag); EAS is legacy fallback only |
 
 ## Environment variables (apps/server/.env)
 

@@ -1,0 +1,19 @@
+services:
+  pulse-server:
+    image: ghcr.io/jives00/pulse-server:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    networks:
+      - shared-db
+
+  pulse-web:
+    image: ghcr.io/jives00/pulse-web:latest
+    restart: unless-stopped
+    ports:
+      - "3004:80"
+
+networks:
+  shared-db:
+    external: true

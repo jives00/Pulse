@@ -4,6 +4,19 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## May 31, 2026
+
+### Backend
+
+- **Migrate npm → pnpm** — Added `pnpm-workspace.yaml`, generated `pnpm-lock.yaml`, removed `workspaces` field from root `package.json`, updated all workspace cross-references to `workspace:*` protocol, pinned `packageManager: pnpm@10.33.2` for corepack `4716b60`
+- **Migrate Jest → Vitest (server tests)** — Replaced `jest`/`ts-jest` with `vitest` in `testing/server`; migrated all `jest.*` calls to `vi.*` in mock and service test files; added `vitest.config.ts`; cleaned leftover Jest/Babel deps from `testing/web` `4716b60`
+- **Dockerize server and web** — Multi-stage `Dockerfile` for each: server uses `pnpm deploy` to produce a flat production `node_modules`; web uses Vite build + `nginx:alpine` serving the SPA at `/pulse/` `4716b60`
+- **Add docker-compose.yml** — `pulse-server` on port 3000 (joins `shared-db` external network), `pulse-web` on port 3004; images from `ghcr.io` `4716b60`
+- **Replace CI deploy workflow** — Removed EC2 SSH deploy; now builds and pushes `pulse-server` and `pulse-web` images to `ghcr.io` on merge to main; APK build job updated to use pnpm `4716b60`
+- **Fix TS lib target** — `apps/web/tsconfig.json` bumped from ES2020 to ES2022 to resolve pre-existing `Array.at()` type error `4716b60`
+
+---
+
 ## May 28, 2026
 
 ### Frontend – Mobile

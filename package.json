@@ -2,24 +2,21 @@
   "name": "pulse-health",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/server",
-    "apps/web",
-    "apps/mobile",
-    "packages/api-client",
-    "packages/theme"
-  ],
+  "packageManager": "pnpm@10.33.2",
   "scripts": {
     "postinstall": "patch-package",
-    "dev": "concurrently \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/web\"",
-    "dev:mobile": "npm run start --workspace=apps/mobile",
-    "build": "npm run build --workspace=apps/server && npm run build --workspace=apps/web",
-    "migrate": "npm run migrate --workspace=apps/server",
-    "check": "npm run build --workspace=apps/server && npm run build --workspace=apps/web && npx tsc -p apps/mobile/tsconfig.json --noEmit --pretty false"
+    "dev": "concurrently \"pnpm --filter @pulse/server dev\" \"pnpm --filter @pulse/web dev\"",
+    "dev:mobile": "pnpm --filter @pulse/mobile start",
+    "build": "pnpm --filter @pulse/server build && pnpm --filter @pulse/web build",
+    "migrate": "pnpm --filter @pulse/server migrate",
+    "check": "pnpm --filter @pulse/server build && pnpm --filter @pulse/web build && npx tsc -p apps/mobile/tsconfig.json --noEmit --pretty false"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "patch-package": "^8.0.1",
     "react-refresh": "^0.14.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

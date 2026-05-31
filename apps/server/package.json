@@ -13,7 +13,7 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "@google/generative-ai": "^0.24.1",
-    "@pulse/api-client": "*",
+    "@pulse/api-client": "workspace:*",
     "axios": "^1.7.0",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",
