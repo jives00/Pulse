@@ -1,6 +1,7 @@
 services:
   pulse-server:
     image: ghcr.io/jives00/pulse-server:latest
+    container_name: pulse-server
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -10,6 +11,7 @@ services:
 
   pulse-web:
     image: ghcr.io/jives00/pulse-web:latest
+    container_name: pulse-web
     restart: unless-stopped
     ports:
       - "3004:80"
