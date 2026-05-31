@@ -64,7 +64,7 @@ jobs:
         uses: android-actions/setup-android@v3
       - run: pnpm install --frozen-lockfile
       - name: Write mobile .env
-        run: echo "EXPO_PUBLIC_API_BASE=http://synology:3000" > apps/mobile/.env
+        run: echo "EXPO_PUBLIC_API_BASE=http://100.115.171.80:3000" > apps/mobile/.env
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean
