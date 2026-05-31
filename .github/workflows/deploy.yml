@@ -63,13 +63,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       - run: pnpm install --frozen-lockfile
+      - name: Write mobile .env
+        run: echo "EXPO_PUBLIC_API_BASE=http://synology:3000" > apps/mobile/.env
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean
       - name: Build APK
         working-directory: apps/mobile/android
-        env:
-          EXPO_PUBLIC_API_BASE: http://synology:3000
         run: ./gradlew app:assembleRelease -x lint -x test -PreactNativeArchitectures=arm64-v8a
       - name: Rename APK
         id: apk
