@@ -21,13 +21,13 @@
         "disabled": true
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://berek.xyz/pulse"
+        "EXPO_PUBLIC_API_BASE": "http://synology:3000"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://berek.xyz/pulse"
+        "EXPO_PUBLIC_API_BASE": "http://synology:3000"
       }
     }
   },
