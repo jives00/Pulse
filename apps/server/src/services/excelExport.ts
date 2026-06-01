@@ -382,6 +382,31 @@ export async function buildExport(userId: number, start: string, end: string): P
     });
   });
 
+  // ── Sheet 8: Steps Log ──────────────────────────────────────
+  const stepsSheet = workbook.addWorksheet('Steps Log');
+  stepsSheet.columns = [
+    { header: 'Date',   key: 'date',   width: 12 },
+    { header: 'Steps',  key: 'steps',  width: 10 },
+    { header: 'Source', key: 'source', width: 14 },
+  ];
+  styleHeader(stepsSheet);
+
+  const [stepsRows] = await pool.query<RowDataPacket[]>(
+    `SELECT log_date, steps, source
+     FROM steps_log
+     WHERE user_id = ? AND log_date BETWEEN ? AND ?
+     ORDER BY log_date ASC`,
+    [userId, start, end]
+  );
+
+  stepsRows.forEach((r) => {
+    stepsSheet.addRow({
+      date:   fmtDate(r.log_date),
+      steps:  Number(r.steps),
+      source: r.source ?? '',
+    });
+  });
+
   return workbook.xlsx.writeBuffer();
 }
 

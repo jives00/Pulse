@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Backend
 
+- **Add Steps Log to Excel export** — Sheet 8 "Steps Log" added to the settings data export, querying `steps_log` over the selected date range with Date, Steps, and Source columns `6af0d8a`
 - **Migrate npm → pnpm** — Added `pnpm-workspace.yaml`, generated `pnpm-lock.yaml`, removed `workspaces` field from root `package.json`, updated all workspace cross-references to `workspace:*` protocol, pinned `packageManager: pnpm@10.33.2` for corepack `4716b60`
 - **Migrate Jest → Vitest (server tests)** — Replaced `jest`/`ts-jest` with `vitest` in `testing/server`; migrated all `jest.*` calls to `vi.*` in mock and service test files; added `vitest.config.ts`; cleaned leftover Jest/Babel deps from `testing/web` `4716b60`
 - **Dockerize server and web** — Multi-stage `Dockerfile` for each: server uses `pnpm deploy` to produce a flat production `node_modules`; web uses Vite build + `nginx:alpine` serving the SPA at `/pulse/` `4716b60`
