@@ -326,10 +326,9 @@ interface Props {
   meal: MealSlot;
   entries: LogEntry[];
   onAdd: (meal: MealSlot) => void;
-  photoUrl?: string | null;
 }
 
-export default function MealSection({ meal, entries, onAdd, photoUrl }: Props) {
+export default function MealSection({ meal, entries, onAdd }: Props) {
   const currentDate = useLogStore((s) => s.currentDate);
   const [activeEntry, setActiveEntry] = useState<LogEntry | null>(null);
   const meta = MEAL_META[meal];
@@ -347,27 +346,12 @@ export default function MealSection({ meal, entries, onAdd, photoUrl }: Props) {
   return (
     <div className="flex flex-col bg-dram-card border border-dram-border overflow-hidden">
 
-      {/* Photo header — label · calories · item count */}
-      <div className="relative h-32 overflow-hidden bg-dram-border flex-shrink-0">
-        {photoUrl ? (
-          <img src={photoUrl} alt={meta.label} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl">
-            {meta.emoji}
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute left-3 right-3 bottom-2.5 flex items-baseline justify-between">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-sm font-semibold uppercase tracking-[.14em] text-white/75">{meta.label}</span>
-            <span className="text-[26px] font-bold text-white leading-none">{Math.round(totals.calories)}</span>
-            <span className="text-sm font-mono text-white/60">kcal</span>
-          </div>
-          <span className="text-sm font-mono text-white/55">
-            {entries.length > 0
-              ? `${entries.length} item${entries.length !== 1 ? 's' : ''}`
-              : 'empty'}
-          </span>
+      {/* Card header */}
+      <div className="px-4 py-3 border-b border-dram-border flex items-baseline justify-between">
+        <span className="text-sm font-semibold uppercase tracking-[.14em] text-dram-muted">{meta.label}</span>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-sm font-semibold text-slate-200">{Math.round(totals.calories)}</span>
+          <span className="micro text-dram-muted">kcal</span>
         </div>
       </div>
 
@@ -390,7 +374,7 @@ export default function MealSection({ meal, entries, onAdd, photoUrl }: Props) {
                   style={{ width: `${pct * 100}%`, opacity: MACRO_OPACITY[label] }}
                 />
               </div>
-              <span className="text-sm font-mono text-slate-300 text-right">{Math.round(val)}g</span>
+              <span className="text-sm text-slate-300 text-right">{Math.round(val)}g</span>
             </div>
           );
         })}
@@ -418,7 +402,7 @@ export default function MealSection({ meal, entries, onAdd, photoUrl }: Props) {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-base text-slate-100 truncate">{entry.food.name}</div>
-                    <div className="text-sm font-mono text-slate-500 mt-0.5">
+                    <div className="text-sm text-slate-500 mt-0.5">
                       {entry.quantity !== 1 ? `${entry.quantity} × ` : ''}{entry.servingSize.label}
                       {' · '}{Math.round(entry.nutrition.protein)}p
                       {' · '}{Math.round(entry.nutrition.carbs)}c

@@ -3,17 +3,13 @@ import { useLogStore, todayStr } from '../store/logStore';
 import MealSection from '../components/MealSection';
 import FoodSearchModal from '../components/FoodSearchModal';
 import NutritionSummaryCard from '../components/NutritionSummaryCard';
-import { recipesApi } from '@pulse/api-client';
-import type { MealSlot } from '@pulse/api-client';
-
-const MEAL_SUBCATEGORIES: Record<MealSlot, string> = {
-  breakfast: 'breakfast',
-  lunch:     'side',
-  dinner:    'main',
-  snack:     'dessert',
-};
+import { logApi } from '@pulse/api-client';
+import type { MealSlot, LogEntry, DailyLog } from '@pulse/api-client';
 
 const MEALS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const MEAL_LABEL: Record<MealSlot, string> = {
+  breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snacks',
+};
 
 const ACCENT = '#D4A843';
 const MUTED  = '#828ea8';
@@ -27,34 +23,172 @@ function fmtDate(iso: string) {
   return `${weekday} · ${month} ${day} · ${year}`;
 }
 
+function fmtShort(iso: string) {
+  const today     = todayStr();
+  const yesterday = offsetDate(today, -1);
+  if (iso === today)     return 'Today';
+  if (iso === yesterday) return 'Yesterday';
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function offsetDate(iso: string, days: number) {
   const d = new Date(iso + 'T12:00:00');
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-export default function TodayPage() {
-  const { currentDate, dailyLog, waterDay, loading, setDate, fetchDay, addWater, copyFromDate } = useLogStore();
-  const [showAddModal, setShowAddModal]   = useState(false);
-  const [addModalMeal, setAddModalMeal]   = useState<MealSlot | null>(null);
-  const [mealPhotos, setMealPhotos]       = useState<Record<MealSlot, string | null>>({
-    breakfast: null, lunch: null, dinner: null, snack: null,
-  });
+// ─── Copy-from-day modal ──────────────────────────────────────────────────────
 
-  useEffect(() => { fetchDay(); }, []);
+interface CopyItem { entry: LogEntry; meal: MealSlot }
+
+function CopyFromDayModal({ fromDate, toDate, onClose }: { fromDate: string; toDate: string; onClose: () => void }) {
+  const { fetchDay } = useLogStore();
+  const [loading, setLoading]   = useState(true);
+  const [items, setItems]       = useState<CopyItem[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving]     = useState(false);
 
   useEffect(() => {
-    const meals: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
-    Promise.all(
-      meals.map((meal) =>
-        recipesApi.getAll({ subcategory: MEAL_SUBCATEGORIES[meal], sort: 'random', limit: 1 })
-          .then((results) => ({ meal, url: results[0]?.photo_url ?? null }))
-          .catch(() => ({ meal, url: null }))
-      )
-    ).then((results) => {
-      setMealPhotos(Object.fromEntries(results.map(({ meal, url }) => [meal, url])) as Record<MealSlot, string | null>);
+    logApi.getDay(fromDate)
+      .then((log: DailyLog) => {
+        const all: CopyItem[] = [];
+        for (const meal of MEALS) {
+          for (const entry of log.meals[meal] ?? []) {
+            all.push({ entry, meal });
+          }
+        }
+        setItems(all);
+        setSelected(new Set(all.map((i) => i.entry.id)));
+      })
+      .finally(() => setLoading(false));
+  }, [fromDate]);
+
+  function toggleEntry(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
-  }, []);
+  }
+
+  function toggleMeal(meal: MealSlot) {
+    const mealIds = items.filter((i) => i.meal === meal).map((i) => i.entry.id);
+    const allOn   = mealIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      allOn ? mealIds.forEach((id) => next.delete(id)) : mealIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function handleCopy() {
+    const toCopy = items.filter((i) => selected.has(i.entry.id));
+    if (!toCopy.length) return;
+    setSaving(true);
+    try {
+      await Promise.all(toCopy.map(({ entry, meal }) => logApi.copyEntry(entry, meal, toDate)));
+      await fetchDay();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const count = selected.size;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-dram-card border border-dram-border rounded-2xl w-full max-w-md flex flex-col"
+        style={{ maxHeight: '80vh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-dram-border flex items-center justify-between flex-shrink-0">
+          <h2 className="text-base font-semibold text-slate-200">Copy from {fmtShort(fromDate)}</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-slate-500">Loading…</div>
+          ) : items.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-500">Nothing logged on {fmtShort(fromDate)}</div>
+          ) : (
+            MEALS.map((meal) => {
+              const mealItems = items.filter((i) => i.meal === meal);
+              if (!mealItems.length) return null;
+              const allOn = mealItems.every((i) => selected.has(i.entry.id));
+              return (
+                <div key={meal}>
+                  <div className="px-5 py-2 flex items-center justify-between bg-white/[0.02] border-b border-dram-border/50">
+                    <span className="text-xs font-semibold uppercase tracking-[.14em] text-dram-muted">{MEAL_LABEL[meal]}</span>
+                    <button
+                      onClick={() => toggleMeal(meal)}
+                      className="text-xs text-dram-muted hover:text-slate-200 transition-colors"
+                    >
+                      {allOn ? 'Deselect all' : 'Select all'}
+                    </button>
+                  </div>
+                  {mealItems.map(({ entry }) => (
+                    <label
+                      key={entry.id}
+                      className="flex items-center gap-3 px-5 py-2.5 hover:bg-white/5 cursor-pointer border-b border-dram-border/20"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(entry.id)}
+                        onChange={() => toggleEntry(entry.id)}
+                        className="w-4 h-4 flex-shrink-0 accent-dram-accent"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-100 truncate">{entry.food.name}</div>
+                        <div className="text-xs text-slate-500">
+                          {entry.quantity !== 1 ? `${entry.quantity} × ` : ''}{entry.servingSize.label}
+                        </div>
+                      </div>
+                      <span className="text-sm text-slate-400 flex-shrink-0">{Math.round(entry.nutrition.calories)} kcal</span>
+                    </label>
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loading && items.length > 0 && (
+          <div className="px-5 py-4 border-t border-dram-border flex gap-2 flex-shrink-0">
+            <button
+              onClick={onClose}
+              className="flex-1 text-sm text-slate-400 hover:text-slate-200 transition-colors py-2"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCopy}
+              disabled={saving || count === 0}
+              className="flex-1 bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
+            >
+              {saving ? 'Copying…' : `Copy ${count} item${count !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export default function TodayPage() {
+  const { currentDate, dailyLog, waterDay, loading, setDate, fetchDay, addWater } = useLogStore();
+  const [showAddModal, setShowAddModal]   = useState(false);
+  const [addModalMeal, setAddModalMeal]   = useState<MealSlot | null>(null);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+
+  useEffect(() => { fetchDay(); }, []);
 
   const goals  = dailyLog?.goals;
   const totals = dailyLog?.totals ?? { calories: 0, carbs: 0, protein: 0, fat: 0 };
@@ -129,13 +263,13 @@ export default function TodayPage() {
               />
             </section>
 
-            {/* ── Band: Meals / What you ate today ── */}
+            {/* ── Band: Meals ── */}
             <section style={{ padding: '28px 36px 8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
                 <div style={{ width: 18, height: 2, background: ACCENT, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 600, color: 'white' }}>Meals</span>
                 <button
-                  onClick={() => copyFromDate(offsetDate(currentDate, -1))}
+                  onClick={() => setShowCopyModal(true)}
                   className="border border-dram-border text-dram-muted hover:text-white hover:border-slate-400 transition-colors text-xs px-2.5 py-1"
                   style={{ marginLeft: 'auto', borderRadius: 6 }}
                 >
@@ -149,7 +283,6 @@ export default function TodayPage() {
                     meal={meal}
                     entries={dailyLog?.meals[meal] ?? []}
                     onAdd={(m) => openAddModal(m)}
-                    photoUrl={mealPhotos[meal]}
                   />
                 ))}
               </div>
@@ -164,6 +297,14 @@ export default function TodayPage() {
         <FoodSearchModal
           meal={addModalMeal ?? undefined}
           onClose={() => { setShowAddModal(false); setAddModalMeal(null); }}
+        />
+      )}
+
+      {showCopyModal && (
+        <CopyFromDayModal
+          fromDate={offsetDate(currentDate, -1)}
+          toDate={currentDate}
+          onClose={() => setShowCopyModal(false)}
         />
       )}
     </div>

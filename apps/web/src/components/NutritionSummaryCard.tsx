@@ -31,7 +31,8 @@ function Ring({ pct, color, size = 80 }: { pct: number; color: string; size?: nu
 }
 
 function MacroBar({ label, val, goal, opacity }: { label: string; val: number; goal?: number; opacity: number }) {
-  const pct   = goal ? Math.min(val / goal, 1) : 0;
+  const rawPct = goal ? val / goal : 0;
+  const pct    = Math.min(rawPct, 1);
   const over  = goal != null && val > goal;
   const remaining = goal != null ? Math.round(goal - val) : null;
 
@@ -39,7 +40,7 @@ function MacroBar({ label, val, goal, opacity }: { label: string; val: number; g
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span className="text-sm font-semibold uppercase tracking-[.14em]" style={{ color: MUTED }}>{label}</span>
-        <span className="text-sm font-mono" style={{ color: over ? '#f87171' : MUTED }}>{Math.round(pct * 100)}%</span>
+        <span className="text-sm font-mono" style={{ color: over ? '#f87171' : MUTED }}>{Math.round(rawPct * 100)}%</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 600, color: 'white', letterSpacing: '-.01em' }}>{Math.round(val)}</span>
