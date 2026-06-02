@@ -12,6 +12,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Fix macro % display when over goal** — Protein/carbs/fat percentage now shows the true value (e.g. 104%) instead of capping at 100% while the progress bar still caps at full width `fab53c4`
 - **Add selective copy-from-yesterday modal** — "Copy from yesterday" now opens a modal showing all logged items grouped by meal with checkboxes; user picks which items to copy before confirming `fab53c4`
 - **Make dev proxy API target configurable** — `vite.config.ts` reads `API_TARGET` from `.env.local` so local dev can proxy to the NAS API without a local server `fab53c4`
+- **Fix weekly avg net vs TDEE mismatch** — WeeklyAvgTable now uses `todayTDEE.total` directly for today's row instead of reconstructing from parts, so it matches FuelToday exactly `cf70f83`
 
 ---
 

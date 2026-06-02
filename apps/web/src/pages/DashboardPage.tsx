@@ -856,6 +856,7 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
     if (s.steps) stepsKcalByDate[s.date] = Math.round(s.steps * 0.05);
   }
   const baseline = todayTDEE ? todayTDEE.bmr + todayTDEE.neat : null;
+  const todayStr = localDateStr();
 
   for (const day of foodLogHistory) {
     const ws = getWeekStart(day.date);
@@ -867,10 +868,12 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
     week.fat += day.entries.reduce((s, e) => s + e.fatG, 0);
     week.days++;
     if (baseline != null) {
-      const dayTef = Math.round(day.calories * 0.1);
-      const dayEx = exerciseByDate[day.date] ?? 0;
-      const dayStepsKcal = stepsKcalByDate[day.date] ?? 0;
-      week.tdee = (week.tdee ?? 0) + baseline + dayTef + dayEx + dayStepsKcal;
+      // For today use the server's authoritative TDEE total so it matches FuelToday exactly.
+      // For past days reconstruct from components (no per-day TDEE endpoint available).
+      const dayTDEE = (day.date === todayStr && todayTDEE)
+        ? todayTDEE.total
+        : baseline + Math.round(day.calories * 0.1) + (exerciseByDate[day.date] ?? 0) + (stepsKcalByDate[day.date] ?? 0);
+      week.tdee = (week.tdee ?? 0) + dayTDEE;
     }
   }
 
