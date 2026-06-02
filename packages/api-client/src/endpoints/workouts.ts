@@ -15,6 +15,7 @@ export interface MeasurementGoal {
   targetValue: number;
   unit: string;
   targetDate: string | null;
+  showOnDashboard?: boolean;
 }
 
 export interface PersonalBests {
@@ -60,7 +61,7 @@ export const measurementsApi = {
   getGoals: () =>
     apiClient.get<Record<string, MeasurementGoal>>('/measurements/goals').then((r) => r.data),
 
-  setGoal: (metric: string, data: { targetValue: number; unit: string; targetDate?: string | null }) =>
+  setGoal: (metric: string, data: { targetValue: number; unit: string; targetDate?: string | null; showOnDashboard?: boolean }) =>
     apiClient.put<MeasurementGoal>(`/measurements/goals/${metric}`, data).then((r) => r.data),
 
   deleteGoal: (metric: string) =>

@@ -22,18 +22,19 @@ export type GoalMetricType =
   | 'nutrition_daily_avg';
 
 export interface UserGoal {
-  id:          number;
-  name:        string;
-  category:    GoalCategory;
-  metricType:  GoalMetricType;
-  sourceType:  GoalSourceType;
-  sourceId:    number | null;
-  sourceKey:   string | null;
-  sourceName:  string | null;
-  targetValue: number;
-  unit:        string;
-  targetDate:  string | null;
-  sortOrder:   number;
+  id:              number;
+  name:            string;
+  category:        GoalCategory;
+  metricType:      GoalMetricType;
+  sourceType:      GoalSourceType;
+  sourceId:        number | null;
+  sourceKey:       string | null;
+  sourceName:      string | null;
+  targetValue:     number;
+  unit:            string;
+  targetDate:      string | null;
+  sortOrder:       number;
+  showOnDashboard?: boolean;
 }
 
 export type UserGoalPayload = Omit<UserGoal, 'id' | 'category' | 'sourceName' | 'sortOrder'>;

@@ -8,6 +8,7 @@ import {
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
+  type UserGoal, userGoalsApi,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1605,6 +1606,42 @@ function WorkoutFreqCard({ routines, routineGoals, workouts }: {
   );
 }
 
+// ─── Custom goal card ─────────────────────────────────────────────────────────
+
+function CustomGoalCard({ goal }: { goal: UserGoal }) {
+  const deadline = goal.targetDate
+    ? new Date(goal.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+  const daysLeft = goal.targetDate
+    ? Math.ceil((new Date(goal.targetDate + 'T12:00:00').getTime() - Date.now()) / 86400000)
+    : null;
+  const overdue = daysLeft != null && daysLeft < 0;
+
+  return (
+    <Panel title={goal.name}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span className="font-display" style={{ fontSize: 34, fontWeight: 700, color: 'white', lineHeight: 1 }}>
+            {goal.targetValue.toLocaleString()}
+          </span>
+          <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{goal.unit}</span>
+        </div>
+        {goal.sourceName && (
+          <div className="micro" style={{ fontSize: 10, color: MUTED2 }}>{goal.sourceName}</div>
+        )}
+        {deadline && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="font-mono" style={{ fontSize: 11, color: overdue ? '#f87171' : MUTED }}>
+              {overdue ? `${Math.abs(daysLeft!)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`}
+            </span>
+            <span className="font-mono" style={{ fontSize: 11, color: MUTED2 }}>· {deadline}</span>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1625,6 +1662,7 @@ export default function DashboardPage() {
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
   const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
+  const [customGoals,    setCustomGoals]    = useState<UserGoal[]>([]);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1644,7 +1682,8 @@ export default function DashboardPage() {
       waterApi.getDay(today).catch(() => null),
       stepsApi.getDay(today).catch(() => null),
       stepsApi.getHistory(60).catch(() => []),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh]) => {
+      userGoalsApi.getAll().catch(() => []),
+    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh, ug]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
@@ -1661,6 +1700,7 @@ export default function DashboardPage() {
       if (wd) setTodayWater(wd as WaterDay);
       if (sd) setTodaySteps(sd as StepsDay);
       setStepsHistory(sh as StepsDay[]);
+      setCustomGoals(ug as UserGoal[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1734,14 +1774,40 @@ export default function DashboardPage() {
       </Band>
 
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
-      <Band kicker="Goal progress">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <WeightGoalCard measurements={measurements} goal={measGoals['weight']} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
-          <BodyMeasGoalCard label="Waist" metric="waist" unit="in" dir="down" measurements={measurements} goal={measGoals['waist']} />
-          <BodyMeasGoalCard label="Bicep" metric="bicep" unit="in" dir="up" measurements={measurements} goal={measGoals['bicep']} />
-          <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
-        </div>
-      </Band>
+      {(() => {
+        const MEAS_CARD_CONFIG: Record<string, { label: string; unit: string; dir: 'up' | 'down' }> = {
+          waist:       { label: 'Waist',       unit: 'in',  dir: 'down' },
+          bicep:       { label: 'Bicep',       unit: 'in',  dir: 'up'   },
+          chest:       { label: 'Chest',       unit: 'in',  dir: 'up'   },
+          hips:        { label: 'Hips',        unit: 'in',  dir: 'down' },
+          body_fat:    { label: 'Body Fat',    unit: '%',   dir: 'down' },
+          muscle_mass: { label: 'Muscle Mass', unit: 'lbs', dir: 'up'   },
+          water_pct:   { label: 'Hydration',   unit: '%',   dir: 'up'   },
+        };
+        const showWeight    = measGoals['weight']?.showOnDashboard && measGoals['weight'];
+        const measEntries   = Object.entries(MEAS_CARD_CONFIG).filter(([m]) => measGoals[m]?.showOnDashboard);
+        const showWorkout   = exGoals?.showOnDashboard;
+        const dashGoals     = customGoals.filter((g) => g.showOnDashboard);
+        if (!showWeight && !measEntries.length && !showWorkout && !dashGoals.length) return null;
+        return (
+          <Band kicker="Goal progress">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {showWeight && (
+                <WeightGoalCard measurements={measurements} goal={measGoals['weight']!} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
+              )}
+              {measEntries.map(([metric, cfg]) => (
+                <BodyMeasGoalCard key={metric} label={cfg.label} metric={metric} unit={measGoals[metric].unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={measGoals[metric]!} />
+              ))}
+              {showWorkout && (
+                <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
+              )}
+              {dashGoals.map((g) => (
+                <CustomGoalCard key={g.id} goal={g} />
+              ))}
+            </div>
+          </Band>
+        );
+      })()}
 
       {/* ── SESSIONS ──────────────────────────────────────────────────────────── */}
       <Band kicker="Sessions">

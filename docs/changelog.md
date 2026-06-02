@@ -13,6 +13,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Add selective copy-from-yesterday modal** — "Copy from yesterday" now opens a modal showing all logged items grouped by meal with checkboxes; user picks which items to copy before confirming `fab53c4`
 - **Make dev proxy API target configurable** — `vite.config.ts` reads `API_TARGET` from `.env.local` so local dev can proxy to the NAS API without a local server `fab53c4`
 - **Fix weekly avg net vs TDEE mismatch** — WeeklyAvgTable now uses `todayTDEE.total` directly for today's row instead of reconstructing from parts, so it matches FuelToday exactly `cf70f83`
+- **Dashboard goal visibility toggles** — Each body measurement goal, workout goal, and custom goal now has a "Show on dashboard" toggle in Settings; Goal Progress band renders only flagged cards and hides entirely when none are selected; all body metrics (chest, hips, body fat, etc.) can now show cards, not just weight/waist/bicep; custom goals appear as target cards with countdown `7d2f016`
+- **Fix custom goal invalid date display** — `target_date` from MySQL was returned as a Date object and serialized incorrectly; fixed with instanceof check matching the pattern used in the measurements route `7d2f016`
 
 ---
 

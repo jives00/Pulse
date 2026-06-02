@@ -284,6 +284,7 @@ router.get('/exercise', async (req, res) => {
       workoutsPerWeek: rows[0].workouts_per_week ?? null,
       minutesPerWeek: rows[0].minutes_per_week ?? null,
       volumeLbsPerWeek: rows[0].volume_lbs_per_week ?? null,
+      showOnDashboard: Boolean(rows[0].show_on_dashboard),
       effectiveFrom: rows[0].effective_from instanceof Date
         ? rows[0].effective_from.toISOString().slice(0, 10)
         : String(rows[0].effective_from),
@@ -296,18 +297,20 @@ router.get('/exercise', async (req, res) => {
 
 // POST /api/goals/exercise
 router.post('/exercise', async (req, res) => {
-  const { workoutsPerWeek, minutesPerWeek, volumeLbsPerWeek } = req.body;
+  const { workoutsPerWeek, minutesPerWeek, volumeLbsPerWeek, showOnDashboard } = req.body;
   const today = localDateStr();
+  const dashFlag = showOnDashboard === false ? 0 : 1;
   try {
     await pool.execute(
-      `INSERT INTO exercise_goals (user_id, workouts_per_week, minutes_per_week, volume_lbs_per_week, effective_from)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.userId, workoutsPerWeek ?? null, minutesPerWeek ?? null, volumeLbsPerWeek ?? null, today]
+      `INSERT INTO exercise_goals (user_id, workouts_per_week, minutes_per_week, volume_lbs_per_week, show_on_dashboard, effective_from)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [req.userId, workoutsPerWeek ?? null, minutesPerWeek ?? null, volumeLbsPerWeek ?? null, dashFlag, today]
     );
     res.status(201).json({
       workoutsPerWeek: workoutsPerWeek ?? null,
       minutesPerWeek: minutesPerWeek ?? null,
       volumeLbsPerWeek: volumeLbsPerWeek ?? null,
+      showOnDashboard: Boolean(dashFlag),
     });
   } catch (err) {
     console.error(err);

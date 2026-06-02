@@ -44,6 +44,7 @@ export interface ExerciseGoals {
   workoutsPerWeek: number | null;
   minutesPerWeek: number | null;
   volumeLbsPerWeek: number | null;
+  showOnDashboard?: boolean;
 }
 
 export const goalsApi = {
@@ -68,7 +69,7 @@ export const goalsApi = {
   getExercise: () =>
     apiClient.get<ExerciseGoals>('/goals/exercise').then((r) => r.data),
 
-  saveExercise: (data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null; volumeLbsPerWeek?: number | null }) =>
+  saveExercise: (data: { workoutsPerWeek?: number | null; minutesPerWeek?: number | null; volumeLbsPerWeek?: number | null; showOnDashboard?: boolean }) =>
     apiClient.post<ExerciseGoals>('/goals/exercise', data).then((r) => r.data),
 
   getTDEE: (date?: string) =>

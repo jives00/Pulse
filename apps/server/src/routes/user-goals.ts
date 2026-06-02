@@ -36,8 +36,9 @@ function fmt(r: RowDataPacket) {
     sourceName:  r.source_name ?? null,
     targetValue: Number(r.target_value),
     unit:        r.unit,
-    targetDate:  r.target_date ? String(r.target_date).slice(0, 10) : null,
-    sortOrder:   r.sort_order,
+    targetDate:      r.target_date ? (r.target_date instanceof Date ? r.target_date.toISOString().slice(0, 10) : String(r.target_date).slice(0, 10)) : null,
+    sortOrder:       r.sort_order,
+    showOnDashboard: Boolean(r.show_on_dashboard),
   };
 }
 
@@ -64,7 +65,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/user-goals
 router.post('/', async (req, res) => {
-  const { name, metricType, sourceType, sourceId, sourceKey, targetValue, unit, targetDate } = req.body;
+  const { name, metricType, sourceType, sourceId, sourceKey, targetValue, unit, targetDate, showOnDashboard } = req.body;
   if (!name || !metricType || !sourceType || targetValue == null || !unit) {
     res.status(400).json({ error: 'name, metricType, sourceType, targetValue, unit required' }); return;
   }
@@ -73,9 +74,9 @@ router.post('/', async (req, res) => {
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO custom_goals (user_id, name, category, metric_type, source_type, source_id, source_key, target_value, unit, target_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [req.userId, name, category, metricType, sourceType, sourceId ?? null, sourceKey ?? null, targetValue, unit, targetDate ?? null]
+      `INSERT INTO custom_goals (user_id, name, category, metric_type, source_type, source_id, source_key, target_value, unit, target_date, show_on_dashboard)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [req.userId, name, category, metricType, sourceType, sourceId ?? null, sourceKey ?? null, targetValue, unit, targetDate ?? null, showOnDashboard ? 1 : 0]
     );
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT ug.*,
@@ -93,7 +94,7 @@ router.post('/', async (req, res) => {
 // PUT /api/user-goals/:id
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { name, metricType, sourceType, sourceId, sourceKey, targetValue, unit, targetDate, sortOrder } = req.body;
+  const { name, metricType, sourceType, sourceId, sourceKey, targetValue, unit, targetDate, sortOrder, showOnDashboard } = req.body;
   const updates: string[] = [];
   const values: unknown[] = [];
 
@@ -108,8 +109,9 @@ router.put('/:id', async (req, res) => {
   if (sourceKey   !== undefined) { updates.push('source_key=?');   values.push(sourceKey ?? null); }
   if (targetValue !== undefined) { updates.push('target_value=?'); values.push(targetValue); }
   if (unit        !== undefined) { updates.push('unit=?');         values.push(unit); }
-  if (targetDate  !== undefined) { updates.push('target_date=?');  values.push(targetDate ?? null); }
-  if (sortOrder   !== undefined) { updates.push('sort_order=?');   values.push(sortOrder); }
+  if (targetDate      !== undefined) { updates.push('target_date=?');      values.push(targetDate ?? null); }
+  if (sortOrder       !== undefined) { updates.push('sort_order=?');       values.push(sortOrder); }
+  if (showOnDashboard !== undefined) { updates.push('show_on_dashboard=?'); values.push(showOnDashboard ? 1 : 0); }
 
   if (!updates.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
 

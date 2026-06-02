@@ -530,21 +530,22 @@ function UserGoalForm({
 }
 
 function UserGoalRows({
-  goals, onEdit, onDelete,
+  goals, onEdit, onDelete, onToggleDashboard,
 }: {
   goals: UserGoal[];
   onEdit: (g: UserGoal) => void;
   onDelete: (id: number) => void;
+  onToggleDashboard: (g: UserGoal) => void;
 }) {
   if (!goals.length) return null;
   return (
     <div className="mt-3 pt-3 border-t border-dram-border/50 space-y-0">
       {goals.map((g) => {
         const dateStr = g.targetDate
-          ? 'by ' + new Date(g.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          ? 'by ' + new Date(g.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : null;
         return (
-          <div key={g.id} className="flex items-start justify-between gap-2 py-1.5 border-b border-dram-border/50 last:border-0">
+          <div key={g.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-dram-border/50 last:border-0">
             <div className="min-w-0 flex-1">
               <button onClick={() => onEdit(g)} className="text-sm font-medium text-gray-100 hover:text-dram-accent transition-colors truncate text-left w-full">
                 {g.name}
@@ -555,7 +556,18 @@ function UserGoalRows({
                 {dateStr ? ` · ${dateStr}` : ''}
               </p>
             </div>
-            <button onClick={() => onDelete(g.id)} className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1 shrink-0">✕</button>
+            <div className="flex items-center gap-2 shrink-0">
+              <label className="flex items-center gap-1 cursor-pointer" title="Show on dashboard">
+                <input
+                  type="checkbox"
+                  checked={g.showOnDashboard}
+                  onChange={() => onToggleDashboard(g)}
+                  className="accent-dram-accent w-3.5 h-3.5"
+                />
+                <span className="text-xs text-gray-500">Dashboard</span>
+              </label>
+              <button onClick={() => onDelete(g.id)} className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1">✕</button>
+            </div>
           </div>
         );
       })}
@@ -604,11 +616,14 @@ function GoalsTab() {
   const [routineGoalInputs, setRoutineGoalInputs] = useState<Record<number, string>>({});
 
   // Body measurement goals
-  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
-    const init: Record<string, { value: string; date: string }> = {};
-    for (const key of DISPLAYED_METRICS) init[key] = { value: '', date: '' };
+  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string; showOnDashboard: boolean }>>(() => {
+    const init: Record<string, { value: string; date: string; showOnDashboard: boolean }> = {};
+    for (const key of DISPLAYED_METRICS) init[key] = { value: '', date: '', showOnDashboard: false };
     return init;
   });
+
+  // Exercise goals dashboard visibility
+  const [exDashboard, setExDashboard] = useState(true);
 
   // Custom user goals
   const [userGoals, setUserGoals] = useState<UserGoal[]>([]);
@@ -650,13 +665,18 @@ function GoalsTab() {
       setWorkoutCount(String(exGoals?.workoutsPerWeek ?? ''));
       setMinutesPerWeek(String(exGoals?.minutesPerWeek ?? ''));
       setVolume(String(exGoals?.volumeLbsPerWeek ?? ''));
+      setExDashboard(exGoals?.showOnDashboard ?? true);
 
       // Body measurement goals
       setMGoals((prev) => {
         const updated = { ...prev };
         for (const key of DISPLAYED_METRICS) {
           const g = (mGoalsData as Record<string, MeasurementGoal>)[key];
-          updated[key] = { value: g ? String(g.targetValue) : '', date: g?.targetDate ?? '' };
+          updated[key] = {
+            value: g ? String(g.targetValue) : '',
+            date: g?.targetDate ?? '',
+            showOnDashboard: g?.showOnDashboard ?? true,
+          };
         }
         return updated;
       });
@@ -700,15 +720,17 @@ function GoalsTab() {
           workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
           minutesPerWeek: minutesPerWeek !== '' ? Number(minutesPerWeek) : null,
           volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
+          showOnDashboard: exDashboard,
         }),
         ...DISPLAYED_METRICS.map((key) => {
-          const { value, date } = mGoals[key];
+          const { value, date, showOnDashboard } = mGoals[key];
           if (!value) return Promise.resolve();
           const cfg = METRIC_CONFIG[key];
           return measurementsApi.setGoal(key, {
             targetValue: Number(value),
             unit: cfg.unit,
             targetDate: date || null,
+            showOnDashboard,
           });
         }),
         ...routines.map((r) => {
@@ -733,6 +755,16 @@ function GoalsTab() {
       await userGoalsApi.delete(id);
       setUserGoals((prev) => prev.filter((g) => g.id !== id));
     } catch { }
+  }
+
+  async function toggleUserGoalDashboard(g: UserGoal) {
+    const next = !g.showOnDashboard;
+    setUserGoals((prev) => prev.map((x) => x.id === g.id ? { ...x, showOnDashboard: next } : x));
+    try {
+      await userGoalsApi.update(g.id, { showOnDashboard: next } as Parameters<typeof userGoalsApi.update>[1]);
+    } catch {
+      setUserGoals((prev) => prev.map((x) => x.id === g.id ? { ...x, showOnDashboard: g.showOnDashboard } : x));
+    }
   }
 
   async function onUserGoalSaved() {
@@ -788,6 +820,15 @@ function GoalsTab() {
       </Section>
 
       <Section title="Workouts (per week)">
+        <label className="flex items-center gap-1.5 cursor-pointer select-none mb-3">
+          <input
+            type="checkbox"
+            checked={exDashboard}
+            onChange={(e) => setExDashboard(e.target.checked)}
+            className="accent-dram-accent w-3.5 h-3.5"
+          />
+          <span className="text-xs text-gray-500">Show on dashboard</span>
+        </label>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Workouts</label>
@@ -828,11 +869,25 @@ function GoalsTab() {
           {DISPLAYED_METRICS.map((key) => {
             const cfg = METRIC_CONFIG[key];
             const g = mGoals[key];
+            const hasDashboardCard = key !== 'bmi';
             return (
               <div key={key}>
-                <p className="text-sm font-medium text-gray-300 mb-2">
-                  {cfg.label} <span className="text-gray-500 font-normal">({cfg.unit})</span>
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-300">
+                    {cfg.label} <span className="text-gray-500 font-normal">({cfg.unit})</span>
+                  </p>
+                  {hasDashboardCard && g.value && (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={g.showOnDashboard}
+                        onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], showOnDashboard: e.target.checked } }))}
+                        className="accent-dram-accent w-3.5 h-3.5"
+                      />
+                      <span className="text-xs text-gray-500">Show on dashboard</span>
+                    </label>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-gray-500 mb-1">Target</label>
@@ -870,19 +925,19 @@ function GoalsTab() {
           {bodyGoals.length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Body</p>
-              <UserGoalRows goals={bodyGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} />
+              <UserGoalRows goals={bodyGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
             </div>
           )}
           {nutritionGoals.length > 0 && (
             <div className="mt-3">
               <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Nutrition</p>
-              <UserGoalRows goals={nutritionGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} />
+              <UserGoalRows goals={nutritionGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
             </div>
           )}
           {exerciseGoals.length > 0 && (
             <div className="mt-3">
               <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Exercise</p>
-              <UserGoalRows goals={exerciseGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} />
+              <UserGoalRows goals={exerciseGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
             </div>
           )}
         </div>

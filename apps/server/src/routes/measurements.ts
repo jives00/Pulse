@@ -84,12 +84,12 @@ router.post('/', async (req, res) => {
 router.get('/goals', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT metric, target_value, unit, target_date
+      `SELECT metric, target_value, unit, target_date, show_on_dashboard
        FROM body_measurement_goals
        WHERE user_id = ?`,
       [req.userId]
     );
-    const goals: Record<string, { targetValue: number; unit: string; targetDate: string | null }> = {};
+    const goals: Record<string, { targetValue: number; unit: string; targetDate: string | null; showOnDashboard: boolean }> = {};
     for (const r of rows) {
       goals[r.metric] = {
         targetValue: Number(r.target_value),
@@ -97,6 +97,7 @@ router.get('/goals', async (req, res) => {
         targetDate: r.target_date
           ? (r.target_date instanceof Date ? r.target_date.toISOString().slice(0, 10) : String(r.target_date))
           : null,
+        showOnDashboard: Boolean(r.show_on_dashboard),
       };
     }
     res.json(goals);
@@ -110,8 +111,8 @@ router.get('/goals', async (req, res) => {
 // Upsert a goal for one metric
 router.put('/goals/:metric', async (req, res) => {
   const { metric } = req.params;
-  const { targetValue, unit, targetDate } = req.body as {
-    targetValue: number; unit: string; targetDate?: string | null;
+  const { targetValue, unit, targetDate, showOnDashboard } = req.body as {
+    targetValue: number; unit: string; targetDate?: string | null; showOnDashboard?: boolean;
   };
 
   if (targetValue == null || !unit) {
@@ -121,12 +122,12 @@ router.put('/goals/:metric', async (req, res) => {
 
   try {
     await pool.query(
-      `INSERT INTO body_measurement_goals (user_id, metric, target_value, unit, target_date)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE target_value = VALUES(target_value), unit = VALUES(unit), target_date = VALUES(target_date)`,
-      [req.userId, metric, targetValue, unit, targetDate ?? null]
+      `INSERT INTO body_measurement_goals (user_id, metric, target_value, unit, target_date, show_on_dashboard)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE target_value = VALUES(target_value), unit = VALUES(unit), target_date = VALUES(target_date), show_on_dashboard = VALUES(show_on_dashboard)`,
+      [req.userId, metric, targetValue, unit, targetDate ?? null, showOnDashboard ?? true ? 1 : 0]
     );
-    res.json({ metric, targetValue: Number(targetValue), unit, targetDate: targetDate ?? null });
+    res.json({ metric, targetValue: Number(targetValue), unit, targetDate: targetDate ?? null, showOnDashboard: showOnDashboard ?? true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
