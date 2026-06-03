@@ -282,9 +282,6 @@ export default function GoalsPage() {
 
   const grouped = goalsByCategory(goals);
 
-  const activeCount   = goals.filter(g => g.status === 'active').length;
-  const achievedCount = goals.filter(g => g.status === 'achieved').length;
-
   return (
     <div className="min-h-screen bg-dram-bg">
       {/* Header */}
