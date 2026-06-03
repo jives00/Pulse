@@ -18,7 +18,8 @@ import { Share } from 'react-native';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData, buildWorkoutLine,
-  type WeekBucket,
+  goalsV2Api,
+  type WeekBucket, type Goal,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { useStepsStore } from '../../../src/store/steps';
@@ -358,6 +359,7 @@ export default function DashboardV4Screen() {
   const [routineGoals, setRoutineGoals] = useState<{ routineId: number; targetPerWeek: number }[]>([]);
   const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
   const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
+  const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -395,6 +397,9 @@ export default function DashboardV4Screen() {
       setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
       setTodayWater(wd as WaterDay | null);
       setTodaySteps(sd as StepsEntry | null);
+      goalsV2Api.getAll('active')
+        .then(gs => setPinnedGoals(gs.filter(g => g.showOnDashboard)))
+        .catch(() => {});
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -1047,6 +1052,147 @@ export default function DashboardV4Screen() {
                 </View>
               </View>
             );
+          })()}
+
+          {/* ── Pinned goals (new system) ── */}
+          {(() => {
+            // Legacy-exercise aggregate goals always have dedicated cards above — always skip.
+            const LEGACY_EXERCISE_COVERED = new Set([
+              'exercise_workouts_per_week', 'exercise_minutes_per_week',
+              'exercise_volume_per_week', 'exercise_routine_sessions',
+            ]);
+            // Body goals: skip only if the OLD measurement goal exists (that card already shows a target line).
+            // If there's no legacy goal for this metric, the user pinned it in the new system and we must show it.
+            const BODY_TO_METRIC: Record<string, string> = {
+              body_weight: 'weight', body_waist: 'waist', body_bicep: 'bicep',
+              body_chest: 'chest', body_hips: 'hips', body_fat_pct: 'body_fat',
+              body_muscle_mass: 'muscle_mass', body_water_pct: 'water_pct',
+            };
+            const CATEGORY_COLORS: Record<string, string> = {
+              body: '#7BB389', nutrition: '#60a5fa', exercise: '#f97316', activity: '#a78bfa',
+            };
+            const NUTRITION_FIELD: Record<string, keyof DailyHistoryEntry> = {
+              nutrition_calories_daily_avg: 'calories',
+              nutrition_protein_daily_avg:  'proteinG',
+              nutrition_carbs_daily_avg:    'carbsG',
+              nutrition_fat_daily_avg:      'fatG',
+            };
+
+            const visibleGoals = pinnedGoals.filter(g => {
+              if (LEGACY_EXERCISE_COVERED.has(g.catalogKey)) return false;
+              const metric = BODY_TO_METRIC[g.catalogKey];
+              if (metric) return !measGoals[metric]; // skip body goal if legacy goal already covers it
+              return true;
+            });
+            if (!visibleGoals.length) return null;
+
+            return visibleGoals.map(goal => {
+              const catColor = CATEGORY_COLORS[goal.category] ?? COL_GOLD;
+              const days = goal.deadline
+                ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
+                : null;
+              const pct = goal.startValue != null && goal.targetValue !== goal.startValue && goal.currentValue != null
+                ? Math.min(1, Math.max(0, (goal.currentValue - goal.startValue) / (goal.targetValue - goal.startValue)))
+                : goal.currentValue != null && goal.targetValue > 0
+                  ? Math.min(1, Math.max(0, goal.currentValue / goal.targetValue))
+                  : null;
+
+              // Body measurement goals (no legacy goal) — mini line chart of 90-day measurements
+              const bodyMetric = BODY_TO_METRIC[goal.catalogKey];
+              if (bodyMetric) {
+                const series = measurements
+                  .filter(m => m.metric === bodyMetric)
+                  .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+                  .slice(-90)
+                  .map(m => m.unit === 'kg' ? m.value * KG_TO_LBS : m.value);
+                const current = series.length > 0 ? series[series.length - 1] : null;
+                return (
+                  <View key={goal.id} style={s.card}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <CardHeader
+                        title={goal.name}
+                        meta={current != null ? `${current.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${goal.unit}` : undefined}
+                        c={c}
+                      />
+                      {days != null && (
+                        <Text style={{ color: days < 0 ? COL_WARN : days <= 7 ? '#f97316' : c.muted, fontSize: fontSize.xs }}>
+                          {days < 0 ? `${Math.abs(days)}d over` : `${days}d`}
+                        </Text>
+                      )}
+                    </View>
+                    <MiniLineChart data={series} goalLine={goal.targetValue} color={catColor} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                        {current != null ? `current ${current.toLocaleString(undefined, { maximumFractionDigits: 1 })}` : 'no data'}
+                      </Text>
+                      <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                        target {goal.targetValue.toLocaleString()} {goal.unit}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+
+              // Nutrition goals — mini line chart of 30-day daily values
+              const nutritionField = NUTRITION_FIELD[goal.catalogKey];
+              if (nutritionField) {
+                const last30 = dailyHistory.slice(-30);
+                const series = last30.map(d => Number(d[nutritionField] ?? 0));
+                const avg = series.length > 0 ? series.reduce((s, v) => s + v, 0) / series.length : null;
+                return (
+                  <View key={goal.id} style={s.card}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <CardHeader title={goal.name} meta={avg != null ? `${avg.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${goal.unit} avg` : undefined} c={c} />
+                      {days != null && (
+                        <Text style={{ color: days < 0 ? COL_WARN : days <= 7 ? '#f97316' : c.muted, fontSize: fontSize.xs }}>
+                          {days < 0 ? `${Math.abs(days)}d over` : `${days}d`}
+                        </Text>
+                      )}
+                    </View>
+                    <MiniLineChart data={series} goalLine={goal.targetValue} color={catColor} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <Text style={{ color: c.muted, fontSize: fontSize.xs }}>30-day avg</Text>
+                      <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                        target {goal.targetValue.toLocaleString()} {goal.unit}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+
+              // All other goals — progress bar card
+              return (
+                <View key={goal.id} style={s.card}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <CardHeader title={goal.name} meta={goal.sourceName ?? undefined} c={c} />
+                    {days != null && (
+                      <Text style={{ color: days < 0 ? COL_WARN : days <= 7 ? '#f97316' : c.muted, fontSize: fontSize.xs }}>
+                        {days < 0 ? `${Math.abs(days)}d over` : `${days}d`}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ color: c.text, fontSize: fontSize.base, fontWeight: '700' }}>
+                      {goal.currentValue != null ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'}
+                      <Text style={{ color: c.muted, fontSize: fontSize.sm, fontWeight: '400' }}> {goal.unit}</Text>
+                    </Text>
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+                      target {goal.targetValue.toLocaleString()} {goal.unit}
+                    </Text>
+                  </View>
+                  {pct != null && (
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: c.border, overflow: 'hidden' }}>
+                      <View style={{ height: 6, borderRadius: 3, backgroundColor: catColor, width: `${Math.round(pct * 100)}%` as any }} />
+                    </View>
+                  )}
+                  {pct != null && (
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs, marginTop: 4, textAlign: 'right' }}>
+                      {Math.round(pct * 100)}%
+                    </Text>
+                  )}
+                </View>
+              );
+            });
           })()}
 
         </>)}

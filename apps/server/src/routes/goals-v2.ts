@@ -478,18 +478,45 @@ router.get('/:id/progress', async (req, res) => {
 });
 
 // POST /api/goals-v2/:id/progress
+// For body goals, also writes to body_measurements so currentValue updates immediately.
+const BODY_GOAL_METRIC: Record<string, string> = {
+  body_weight:      'weight',
+  body_waist:       'waist',
+  body_bicep:       'bicep',
+  body_chest:       'chest',
+  body_hips:        'hips',
+  body_fat_pct:     'body_fat',
+  body_muscle_mass: 'muscle_mass',
+  body_water_pct:   'water_pct',
+};
+
 router.post('/:id/progress', async (req, res) => {
   const goalId = Number(req.params.id);
   const { value, loggedAt, notes } = req.body;
   if (value == null) { res.status(400).json({ error: 'value required' }); return; }
+  // ts for DATETIME (goal_progress.logged_at); dateStr for DATE (body_measurements.measured_at)
+  const ts = loggedAt ? new Date(loggedAt) : new Date();
+  const dateStr = loggedAt ? String(loggedAt).slice(0, 10) : ts.toISOString().slice(0, 10);
   try {
-    const [goals] = await pool.query<RowDataPacket[]>('SELECT id FROM goals WHERE id=? AND user_id=?', [goalId, req.userId]);
+    const [goals] = await pool.query<RowDataPacket[]>(
+      'SELECT id, catalog_key, unit FROM goals WHERE id=? AND user_id=?',
+      [goalId, req.userId]
+    );
     if (!(goals as RowDataPacket[]).length) { res.status(404).json({ error: 'Goal not found' }); return; }
+
+    const goal = (goals as RowDataPacket[])[0];
+    const bodyMetric = BODY_GOAL_METRIC[goal.catalog_key];
+    if (bodyMetric) {
+      await pool.query(
+        `INSERT INTO body_measurements (user_id, metric, value, unit, measured_at, notes) VALUES (?,?,?,?,?,?)`,
+        [req.userId, bodyMetric, value, goal.unit, dateStr, notes ?? null]
+      );
+    }
 
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO goal_progress (goal_id, user_id, value, logged_at, source, notes)
        VALUES (?,?,?,?,?,?)`,
-      [goalId, req.userId, value, loggedAt ?? new Date(), 'manual', notes ?? null]
+      [goalId, req.userId, value, ts, 'manual', notes ?? null]
     );
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM goal_progress WHERE id=?', [result.insertId]);
     res.status(201).json(fmtProgress((rows as RowDataPacket[])[0]));

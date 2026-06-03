@@ -30,8 +30,8 @@ export default function CloseGoalModal({ goal, onClose, onClosed }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-dram-card border border-dram-border rounded-lg w-full max-w-sm mx-4 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-dram-card border border-dram-border rounded-lg w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-white mb-1">Close Goal</h2>
         <p className="text-sm text-slate-400 mb-5">{goal.name}</p>
 

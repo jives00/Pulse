@@ -4,13 +4,14 @@ import { useRouter } from 'expo-router';
 
 // Ordered list of all swipeable screens — includes links + settings even though they're under the More menu
 const BOTTOM_TABS = [
-  '/(app)/(tabs)/dashboard',
-  '/(app)/(tabs)/nutrition',
-  '/(app)/(tabs)/workouts',
-  '/(app)/(tabs)/',
-  '/(app)/(tabs)/links',
-  '/(app)/(tabs)/history',
-  '/(app)/(tabs)/settings',
+  '/(app)/(tabs)/dashboard',    // 0
+  '/(app)/(tabs)/nutrition',    // 1
+  '/(app)/(tabs)/workouts',     // 2
+  '/(app)/(tabs)/goals',        // 3
+  '/(app)/(tabs)/',             // 4 (Recipes)
+  '/(app)/(tabs)/links',        // 5
+  '/(app)/(tabs)/history',      // 6
+  '/(app)/(tabs)/settings',     // 7
 ] as const;
 
 const SWIPE_THRESHOLD = 50; // min horizontal distance to register swipe

@@ -162,6 +162,11 @@ export default function TabsLayout() {
         options={{ title: 'Train', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={22} color={color} /> }}
       />
       <Tabs.Screen
+        name="goals"
+        options={{ title: 'Goals', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={22} color={color} /> }}
+      />
+      <Tabs.Screen name="progress" options={{ href: null }} />
+      <Tabs.Screen
         name="index"
         options={{ title: 'Recipes', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'book' : 'book-outline'} size={22} color={color} /> }}
       />
@@ -180,7 +185,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="links" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
-      <Tabs.Screen name="goals" options={{ href: null }} />
     </Tabs>
     <AIAssistant />
     </View>

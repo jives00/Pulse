@@ -7,9 +7,15 @@ interface Props {
   onLogged: (entry: GoalProgressEntry, updatedGoal: Goal) => void;
 }
 
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function LogProgressModal({ goal, onClose, onLogged }: Props) {
-  const [value, setValue] = useState(goal.currentValue?.toString() ?? '');
-  const [notes, setNotes] = useState('');
+  const [value, setValue]   = useState(goal.currentValue?.toString() ?? '');
+  const [notes, setNotes]   = useState('');
+  const [logDate, setLogDate] = useState(todayLocal());
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
@@ -19,7 +25,11 @@ export default function LogProgressModal({ goal, onClose, onLogged }: Props) {
     setSaving(true);
     setError('');
     try {
-      const entry = await goalsV2Api.logProgress(goal.id, { value: Number(value), notes: notes || null });
+      const entry = await goalsV2Api.logProgress(goal.id, {
+        value: Number(value),
+        loggedAt: logDate ? logDate + 'T12:00:00' : undefined,
+        notes: notes || null,
+      });
       const updatedGoal = { ...goal, currentValue: Number(value), currentValueAt: entry.loggedAt };
       onLogged(entry, updatedGoal);
     } catch {
@@ -36,26 +46,38 @@ export default function LogProgressModal({ goal, onClose, onLogged }: Props) {
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-dram-card border border-dram-border rounded-lg w-full max-w-sm mx-4 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-dram-card border border-dram-border rounded-lg w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-white mb-1">Log Progress</h2>
         <p className="text-sm text-slate-400 mb-5">{goal.name}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current value</label>
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Value</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="any"
+                  value={value}
+                  onChange={e => setValue(e.target.value)}
+                  placeholder={goal.currentValue?.toString() ?? '0'}
+                  autoFocus
+                  required
+                  className="flex-1 bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+                />
+                <span className="text-slate-400 text-sm w-10 shrink-0">{goal.unit}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date</label>
               <input
-                type="number"
-                step="any"
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                placeholder={goal.currentValue?.toString() ?? '0'}
-                autoFocus
-                required
-                className="flex-1 bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
+                type="date"
+                value={logDate}
+                onChange={e => setLogDate(e.target.value)}
+                max={todayLocal()}
+                className="w-full bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
               />
-              <span className="text-slate-400 text-sm w-10 shrink-0">{goal.unit}</span>
             </div>
           </div>
 

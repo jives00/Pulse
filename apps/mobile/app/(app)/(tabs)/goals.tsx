@@ -1,928 +1,1008 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, TouchableWithoutFeedback, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import SettingsPlanningTab from '../../../src/components/SettingsPlanningTab';
 import {
-  getGoalsSummary, saveNutritionGoals, saveWeeklyNutritionGoals,
-  getExerciseGoals, saveExerciseGoals,
-  getMeasurementGoals, setMeasurementGoal,
-  getRoutines, getRoutineGoals, setRoutineGoal, deleteRoutineGoal,
-  getUserGoals, createUserGoal, updateUserGoal, deleteUserGoal,
-  getExercises,
-  type GoalsSummary, type ExerciseGoals, type MeasurementGoal,
-  type RoutineSummary, type RoutineGoal,
-  type UserGoal, type UserGoalPayload, type GoalMetricType, type GoalSourceType,
-  type Exercise,
-} from '../../../src/api/client';
+  goalsV2Api, goalsByCategory,
+  CATALOG_BY_CATEGORY,
+  type Goal, type GoalCategory,
+  type CreateGoalPayload,
+  type GoalProgressEntry, type GoalCatalogEntry,
+} from '../../../../../packages/api-client/src/index';
+import { getExercises, getRoutines } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COL_GOLD = "#D4A843";
-const GLASS_OZ = 8;
-
-const DISPLAYED_METRICS = [
-  { key: 'weight',      label: 'Weight',      unit: 'lbs' },
-  { key: 'waist',       label: 'Waist',       unit: 'in'  },
-  { key: 'bicep',       label: 'Bicep',       unit: 'in'  },
-  { key: 'chest',       label: 'Chest',       unit: 'in'  },
-  { key: 'hips',        label: 'Hips',        unit: 'in'  },
-  { key: 'body_fat',    label: 'Body Fat',    unit: '%'   },
-  { key: 'muscle_mass', label: 'Muscle Mass', unit: 'lbs' },
-  { key: 'water_pct',   label: 'Hydration',   unit: '%'   },
-];
-
-type MetricGroup = { label: string; metrics: GoalMetricType[] };
-const METRIC_GROUPS: MetricGroup[] = [
-  { label: 'Strength',  metrics: ['exercise_max_weight', 'exercise_max_reps', 'exercise_session_volume', 'exercise_weekly_volume', 'exercise_session_reps', 'exercise_weekly_reps'] },
-  { label: 'Cardio',    metrics: ['exercise_session_distance', 'exercise_weekly_distance', 'exercise_session_duration', 'exercise_weekly_duration'] },
-  { label: 'Steps',     metrics: ['exercise_session_steps', 'exercise_weekly_steps'] },
-  { label: 'Frequency', metrics: ['exercise_weekly_sessions'] },
-  { label: 'Pedometer', metrics: ['daily_steps_avg', 'weekly_steps_total'] },
-  { label: 'Body',      metrics: ['body_measurement'] },
-  { label: 'Nutrition', metrics: ['nutrition_daily_avg'] },
-];
-
-const METRIC_LABELS: Record<GoalMetricType, string> = {
-  exercise_max_weight:       'Max weight (single lift)',
-  exercise_max_reps:         'Max reps (single set)',
-  exercise_session_volume:   'Session volume',
-  exercise_weekly_volume:    'Weekly volume',
-  exercise_session_reps:     'Session total reps',
-  exercise_weekly_reps:      'Weekly total reps',
-  exercise_session_steps:    'Session steps',
-  exercise_weekly_steps:     'Weekly steps',
-  exercise_session_distance: 'Session distance',
-  exercise_weekly_distance:  'Weekly distance',
-  exercise_session_duration: 'Session duration',
-  exercise_weekly_duration:  'Weekly duration',
-  exercise_weekly_sessions:  'Weekly sessions',
-  daily_steps_avg:           'Daily steps average',
-  weekly_steps_total:        'Weekly steps total',
-  body_measurement:          'Body measurement',
-  nutrition_daily_avg:       'Daily nutrition average',
+const CATEGORY_LABELS: Record<GoalCategory, string> = {
+  body:      'Body Composition',
+  nutrition: 'Nutrition',
+  exercise:  'Exercise',
+  activity:  'Activity',
 };
 
-const METRIC_DEFAULT_UNIT: Record<GoalMetricType, string> = {
-  exercise_max_weight:       'lbs',
-  exercise_max_reps:         'reps',
-  exercise_session_volume:   'lbs',
-  exercise_weekly_volume:    'lbs',
-  exercise_session_reps:     'reps',
-  exercise_weekly_reps:      'reps',
-  exercise_session_steps:    'steps',
-  exercise_weekly_steps:     'steps',
-  exercise_session_distance: 'miles',
-  exercise_weekly_distance:  'miles',
-  exercise_session_duration: 'min',
-  exercise_weekly_duration:  'min',
-  exercise_weekly_sessions:  'sessions',
-  daily_steps_avg:           'steps',
-  weekly_steps_total:        'steps',
-  body_measurement:          '',
-  nutrition_daily_avg:       '',
+const CATEGORY_COLORS: Record<GoalCategory, string> = {
+  body:      '#7BB389',
+  nutrition: '#60a5fa',
+  exercise:  '#f97316',
+  activity:  '#a78bfa',
 };
 
-const METRIC_REQUIRED_FIELD: Partial<Record<GoalMetricType, string>> = {
-  exercise_max_weight:       'weight',
-  exercise_session_volume:   'weight',
-  exercise_weekly_volume:    'weight',
-  exercise_max_reps:         'reps',
-  exercise_session_reps:     'reps',
-  exercise_weekly_reps:      'reps',
-  exercise_session_steps:    'steps',
-  exercise_weekly_steps:     'steps',
-  exercise_session_distance: 'distance',
-  exercise_weekly_distance:  'distance',
-  exercise_session_duration: 'duration',
-  exercise_weekly_duration:  'duration',
+const CATEGORY_ORDER: GoalCategory[] = ['body', 'nutrition', 'exercise', 'activity'];
+
+const STATUS_CFG = {
+  active:    { label: 'Active',    color: '#60a5fa' },
+  achieved:  { label: 'Achieved',  color: '#7BB389' },
+  missed:    { label: 'Missed',    color: '#C9714F' },
+  abandoned: { label: 'Abandoned', color: '#6b7280' },
 };
 
-const METRIC_SOURCE_TYPE: Record<GoalMetricType, GoalSourceType> = {
-  exercise_max_weight:       'exercise',
-  exercise_max_reps:         'exercise',
-  exercise_session_volume:   'exercise',
-  exercise_weekly_volume:    'exercise',
-  exercise_session_reps:     'exercise',
-  exercise_weekly_reps:      'exercise',
-  exercise_session_steps:    'exercise',
-  exercise_weekly_steps:     'exercise',
-  exercise_session_distance: 'exercise',
-  exercise_weekly_distance:  'exercise',
-  exercise_session_duration: 'exercise',
-  exercise_weekly_duration:  'exercise',
-  exercise_weekly_sessions:  'exercise',
-  daily_steps_avg:           'steps',
-  weekly_steps_total:        'steps',
-  body_measurement:          'measurement',
-  nutrition_daily_avg:       'nutrition',
-};
-
-const MEASUREMENT_KEY_OPTIONS = [
-  { key: 'weight',      label: 'Weight',      unit: 'lbs' },
-  { key: 'waist',       label: 'Waist',       unit: 'in'  },
-  { key: 'bicep',       label: 'Bicep',       unit: 'in'  },
-  { key: 'chest',       label: 'Chest',       unit: 'in'  },
-  { key: 'hips',        label: 'Hips',        unit: 'in'  },
-  { key: 'body_fat',    label: 'Body Fat',    unit: '%'   },
-  { key: 'muscle_mass', label: 'Muscle Mass', unit: 'lbs' },
-  { key: 'water_pct',   label: 'Water Mass',  unit: '%'   },
-];
-
-const NUTRITION_KEY_OPTIONS = [
-  { key: 'calories', label: 'Calories', unit: 'kcal'    },
-  { key: 'protein',  label: 'Protein',  unit: 'g'       },
-  { key: 'carbs',    label: 'Carbs',    unit: 'g'       },
-  { key: 'fat',      label: 'Fat',      unit: 'g'       },
-  { key: 'water',    label: 'Water',    unit: 'glasses' },
-];
-
-const CAN_PICK_ROUTINE: GoalMetricType[] = [
-  'exercise_session_volume', 'exercise_weekly_volume', 'exercise_weekly_sessions',
-];
-
-// ─── UserGoalForm ─────────────────────────────────────────────────────────────
-
-function MetricPickerModal({ value, onChange, onClose, c }: {
-  value: GoalMetricType;
-  onChange: (m: GoalMetricType) => void;
-  onClose: () => void;
-  c: Colors;
-}) {
-  const s = makeStyles(c);
-  return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.overlay}>
-        <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '75%' }]}>
-          <View style={s.sheetHeader}>
-            <Text style={[s.sheetTitle, { color: c.text }]}>Select Metric</Text>
-            <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
-          </View>
-          <ScrollView>
-            {METRIC_GROUPS.map((group) => (
-              <View key={group.label}>
-                <Text style={{ color: c.muted, fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
-                  {group.label}
-                </Text>
-                {group.metrics.map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    onPress={() => { onChange(m); onClose(); }}
-                    style={[s.pickerRow, { borderColor: c.border }, m === value && { backgroundColor: `${c.accent}22` }]}
-                  >
-                    <Text style={{ color: c.text, fontSize: fontSize.sm }}>{METRIC_LABELS[m]}</Text>
-                    {m === value && <Text style={{ color: c.accent, fontSize: fontSize.sm }}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function ItemPickerModal<T extends { id: number; name: string }>({ title, items, selectedId, onSelect, onClose, c }: {
-  title: string;
-  items: T[];
-  selectedId: number | '';
-  onSelect: (id: number) => void;
-  onClose: () => void;
-  c: Colors;
-}) {
-  const s = makeStyles(c);
-  return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.overlay}>
-        <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '70%' }]}>
-          <View style={s.sheetHeader}>
-            <Text style={[s.sheetTitle, { color: c.text }]}>{title}</Text>
-            <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
-          </View>
-          <ScrollView>
-            {items.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => { onSelect(item.id); onClose(); }}
-                style={[s.pickerRow, { borderColor: c.border }, item.id === selectedId && { backgroundColor: `${c.accent}22` }]}
-              >
-                <Text style={{ color: c.text, fontSize: fontSize.sm }}>{item.name}</Text>
-                {item.id === selectedId && <Text style={{ color: c.accent, fontSize: fontSize.sm }}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
+function isTargetCrossed(goal: Goal): boolean {
+  if (goal.currentValue == null || goal.startValue == null) return false;
+  return goal.targetValue < goal.startValue
+    ? goal.currentValue <= goal.targetValue
+    : goal.currentValue >= goal.targetValue;
 }
 
-function SimplePickerModal<T extends { key: string; label: string }>({ title, items, selectedKey, onSelect, onClose, c }: {
-  title: string;
-  items: T[];
-  selectedKey: string;
-  onSelect: (key: string, unit: string) => void;
-  onClose: () => void;
-  c: Colors;
-}) {
-  const s = makeStyles(c);
-  return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.overlay}>
-        <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={s.sheetHeader}>
-            <Text style={[s.sheetTitle, { color: c.text }]}>{title}</Text>
-            <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
-          </View>
-          {(items as any[]).map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              onPress={() => { onSelect(item.key, item.unit ?? ''); onClose(); }}
-              style={[s.pickerRow, { borderColor: c.border }, item.key === selectedKey && { backgroundColor: `${c.accent}22` }]}
-            >
-              <Text style={{ color: c.text, fontSize: fontSize.sm }}>{item.label}</Text>
-              {item.key === selectedKey && <Text style={{ color: c.accent, fontSize: fontSize.sm }}>✓</Text>}
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function UserGoalForm({ initial, exercisesList, routinesList, onClose, onSaved }: {
-  initial?: UserGoal;
-  exercisesList: Exercise[];
-  routinesList: RoutineSummary[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const c = useColors();
-  const s = makeStyles(c);
-  const token = useAuthStore((st) => st.token)!;
-
-  const [name,        setName]        = useState(initial?.name        ?? '');
-  const [metricType,  setMetricType]  = useState<GoalMetricType>(initial?.metricType ?? 'exercise_max_weight');
-  const [sourceType,  setSourceType]  = useState<GoalSourceType>(initial?.sourceType ?? 'exercise');
-  const [sourceId,    setSourceId]    = useState<number | ''>(initial?.sourceId ?? '');
-  const [sourceKey,   setSourceKey]   = useState(initial?.sourceKey   ?? '');
-  const [targetValue, setTargetValue] = useState(initial?.targetValue != null ? String(initial.targetValue) : '');
-  const [unit,        setUnit]        = useState(initial?.unit        ?? 'lbs');
-  const [targetDate,  setTargetDate]  = useState(initial?.targetDate  ?? '');
-  const [saving,      setSaving]      = useState(false);
-
-  const [showMetricPicker,   setShowMetricPicker]   = useState(false);
-  const [showSourcePicker,   setShowSourcePicker]   = useState(false);
-  const [showKeyPicker,      setShowKeyPicker]       = useState(false);
-
-  function applyMetric(m: GoalMetricType) {
-    setMetricType(m);
-    const st = METRIC_SOURCE_TYPE[m];
-    setSourceType(st);
-    setSourceId('');
-    setSourceKey('');
-    const defUnit = METRIC_DEFAULT_UNIT[m];
-    if (defUnit) setUnit(defUnit);
+function calcProgress(goal: Goal): number | null {
+  if (goal.currentValue == null) return null;
+  if (goal.startValue != null && goal.targetValue !== goal.startValue) {
+    return Math.min(1, Math.max(0,
+      (goal.currentValue - goal.startValue) / (goal.targetValue - goal.startValue)
+    ));
   }
-
-  const requiredField   = METRIC_REQUIRED_FIELD[metricType];
-  const canPickRoutine  = CAN_PICK_ROUTINE.includes(metricType);
-  const compatibleExs   = requiredField
-    ? exercisesList.filter((e) => e.trackedFields?.includes(requiredField))
-    : exercisesList;
-
-  const sourceItems = sourceType === 'routine' ? routinesList : compatibleExs as { id: number; name: string }[];
-  const selectedSourceName = sourceItems.find((i) => i.id === sourceId)?.name ?? null;
-
-  async function handleSave() {
-    if (!name || !targetValue) return;
-    setSaving(true);
-    try {
-      const payload: UserGoalPayload = {
-        name,
-        metricType,
-        sourceType,
-        sourceId:    sourceId !== '' ? Number(sourceId) : null,
-        sourceKey:   sourceKey || null,
-        targetValue: Number(targetValue),
-        unit,
-        targetDate:  targetDate || null,
-      };
-      if (initial) {
-        await updateUserGoal(token, initial.id, payload);
-      } else {
-        await createUserGoal(token, payload);
-      }
-      onSaved();
-    } catch { Alert.alert('Error', 'Could not save goal.'); }
-    finally { setSaving(false); }
+  if (goal.targetValue > 0) {
+    return Math.min(1, Math.max(0, goal.currentValue / goal.targetValue));
   }
-
-  return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={s.overlay}>
-          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '90%' }]}>
-            <View style={s.sheetHeader}>
-              <Text style={[s.sheetTitle, { color: c.text }]}>{initial ? 'Edit Goal' : 'Add Goal'}</Text>
-              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 520 }}>
-              {/* Name */}
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Goal name</Text>
-                <TextInput style={s.input} value={name} onChangeText={setName} placeholder="e.g. Deadlift 300 lbs" placeholderTextColor={c.muted} />
-              </View>
-
-              {/* Metric */}
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Metric</Text>
-                <TouchableOpacity onPress={() => setShowMetricPicker(true)} style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                  <Text style={{ color: c.text, fontSize: fontSize.sm }}>{METRIC_LABELS[metricType]}</Text>
-                  <Text style={{ color: c.muted }}>›</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Source type toggle (exercise vs routine) */}
-              {canPickRoutine && (
-                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                  {(['exercise', 'routine'] as GoalSourceType[]).map((t) => (
-                    <TouchableOpacity
-                      key={t}
-                      onPress={() => { setSourceType(t); setSourceId(''); }}
-                      style={[s.pill, sourceType === t && s.pillActive]}
-                    >
-                      <Text style={[s.pillText, sourceType === t && s.pillTextActive, { textTransform: 'capitalize' }]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* Exercise / routine picker */}
-              {(sourceType === 'exercise' || (canPickRoutine && sourceType === 'routine')) && (
-                <View style={s.field}>
-                  <Text style={s.fieldLabel}>{sourceType === 'routine' ? 'Routine' : 'Exercise'}</Text>
-                  <TouchableOpacity onPress={() => setShowSourcePicker(true)} style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                    <Text style={{ color: selectedSourceName ? c.text : c.muted, fontSize: fontSize.sm }}>
-                      {selectedSourceName ?? 'Select…'}
-                    </Text>
-                    <Text style={{ color: c.muted }}>›</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Measurement key */}
-              {sourceType === 'measurement' && (
-                <View style={s.field}>
-                  <Text style={s.fieldLabel}>Measurement</Text>
-                  <TouchableOpacity onPress={() => setShowKeyPicker(true)} style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                    <Text style={{ color: sourceKey ? c.text : c.muted, fontSize: fontSize.sm }}>
-                      {MEASUREMENT_KEY_OPTIONS.find((o) => o.key === sourceKey)?.label ?? 'Select…'}
-                    </Text>
-                    <Text style={{ color: c.muted }}>›</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Nutrition key */}
-              {sourceType === 'nutrition' && (
-                <View style={s.field}>
-                  <Text style={s.fieldLabel}>Nutrient</Text>
-                  <TouchableOpacity onPress={() => setShowKeyPicker(true)} style={[s.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                    <Text style={{ color: sourceKey ? c.text : c.muted, fontSize: fontSize.sm }}>
-                      {NUTRITION_KEY_OPTIONS.find((o) => o.key === sourceKey)?.label ?? 'Select…'}
-                    </Text>
-                    <Text style={{ color: c.muted }}>›</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Target value + unit */}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={[s.field, { flex: 2 }]}>
-                  <Text style={s.fieldLabel}>Target value</Text>
-                  <TextInput style={s.input} value={targetValue} onChangeText={setTargetValue} keyboardType="numeric" placeholderTextColor={c.muted} />
-                </View>
-                <View style={[s.field, { flex: 1 }]}>
-                  <Text style={s.fieldLabel}>Unit</Text>
-                  <TextInput style={s.input} value={unit} onChangeText={setUnit} placeholderTextColor={c.muted} />
-                </View>
-              </View>
-
-              {/* Target date */}
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Target date (optional, YYYY-MM-DD)</Text>
-                <TextInput style={s.input} value={targetDate} onChangeText={setTargetDate} placeholder="e.g. 2026-12-31" placeholderTextColor={c.muted} keyboardType="numbers-and-punctuation" />
-              </View>
-            </ScrollView>
-
-            <View style={s.actions}>
-              <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
-                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSave}
-                disabled={saving || !name || !targetValue}
-                style={[s.saveBtn, { backgroundColor: c.accent, opacity: (saving || !name || !targetValue) ? 0.4 : 1 }]}
-              >
-                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>
-                  {saving ? 'Saving…' : initial ? 'Save changes' : 'Add goal'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-
-      {showMetricPicker && (
-        <MetricPickerModal value={metricType} onChange={applyMetric} onClose={() => setShowMetricPicker(false)} c={c} />
-      )}
-      {showSourcePicker && (
-        <ItemPickerModal
-          title={sourceType === 'routine' ? 'Choose Routine' : 'Choose Exercise'}
-          items={sourceItems}
-          selectedId={sourceId}
-          onSelect={(id) => setSourceId(id)}
-          onClose={() => setShowSourcePicker(false)}
-          c={c}
-        />
-      )}
-      {showKeyPicker && sourceType === 'measurement' && (
-        <SimplePickerModal
-          title="Choose Measurement"
-          items={MEASUREMENT_KEY_OPTIONS}
-          selectedKey={sourceKey}
-          onSelect={(key, unit) => { setSourceKey(key); setUnit(unit); }}
-          onClose={() => setShowKeyPicker(false)}
-          c={c}
-        />
-      )}
-      {showKeyPicker && sourceType === 'nutrition' && (
-        <SimplePickerModal
-          title="Choose Nutrient"
-          items={NUTRITION_KEY_OPTIONS}
-          selectedKey={sourceKey}
-          onSelect={(key, unit) => { setSourceKey(key); setUnit(unit); }}
-          onClose={() => setShowKeyPicker(false)}
-          c={c}
-        />
-      )}
-    </Modal>
-  );
+  return null;
 }
 
-// ─── UserGoalRows ─────────────────────────────────────────────────────────────
+// ─── GoalCard ─────────────────────────────────────────────────────────────────
 
-function UserGoalRows({ goals, onEdit, onDelete }: {
-  goals: UserGoal[];
-  onEdit: (g: UserGoal) => void;
+function GoalCard({ goal, onLog, onClose, onDelete, onToggleDashboard, c }: {
+  goal: Goal;
+  onLog: (g: Goal) => void;
+  onClose: (g: Goal) => void;
   onDelete: (id: number) => void;
+  onToggleDashboard: (g: Goal) => void;
+  c: Colors;
 }) {
-  const c = useColors();
-  const s = makeStyles(c);
-  if (!goals.length) return null;
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const catColor = CATEGORY_COLORS[goal.category];
+  const days = goal.deadline
+    ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
+    : null;
+
   return (
-    <View style={{ marginTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
-      {goals.map((g) => {
-        const dateStr = g.targetDate
-          ? 'by ' + new Date(g.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          : null;
-        return (
-          <View key={g.id} style={[s.goalRow, { borderBottomColor: c.border }]}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => onEdit(g)}>
-              <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '500' }}>{g.name}</Text>
-              <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
-                {g.targetValue.toLocaleString()} {g.unit}
-                {g.sourceName ? ` · ${g.sourceName}` : ''}
-                {dateStr ? ` · ${dateStr}` : ''}
+    <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={[s.catBar, { backgroundColor: catColor }]} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }} numberOfLines={1}>
+                {goal.name}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => onDelete(g.id)} style={{ paddingLeft: 12 }}>
-              <Text style={{ color: c.muted, fontSize: fontSize.sm }}>✕</Text>
-            </TouchableOpacity>
+              {goal.sourceName && (
+                <Text style={{ color: c.muted, fontSize: fontSize.xs }} numberOfLines={1}>{goal.sourceName}</Text>
+              )}
+            </View>
+            <Text style={{ color: c.muted, fontSize: fontSize.xs, marginLeft: 8, flexShrink: 0 }}>
+              {goal.currentValue != null
+                ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                : '—'
+              }
+              {' / '}{goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 1 })} {goal.unit}
+            </Text>
           </View>
-        );
-      })}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              {days != null && (
+                <View style={[s.chip, { borderColor: days < 7 ? '#C9714F' : c.border }]}>
+                  <Text style={{ color: days < 7 ? '#C9714F' : c.muted, fontSize: fontSize.xs }}>
+                    {days > 0 ? `${days}d left` : days === 0 ? 'Due today' : `${Math.abs(days)}d overdue`}
+                  </Text>
+                </View>
+              )}
+              {goal.showOnDashboard && (
+                <View style={[s.chip, { borderColor: c.border }]}>
+                  <Ionicons name="pin" size={10} color={c.muted} />
+                </View>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 4 }}>
+              <TouchableOpacity onPress={() => onLog(goal)} style={[s.actionBtn, { borderColor: c.border }]}>
+                <Text style={{ color: c.accent, fontSize: fontSize.xs, fontWeight: '600' }}>Log</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setMenuOpen(true)} style={[s.actionBtn, { borderColor: c.border }]}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>···</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <Modal transparent visible={menuOpen} animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={s.overlay} onPress={() => setMenuOpen(false)} activeOpacity={1}>
+          <View style={[s.menu, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Text style={{ color: c.muted, fontSize: fontSize.xs, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              {goal.name}
+            </Text>
+            {[
+              { label: 'Log Progress',            icon: 'add-circle-outline',    action: () => { setMenuOpen(false); onLog(goal); } },
+              { label: 'View Progress History',   icon: 'bar-chart-outline',     action: () => { setMenuOpen(false); router.push(`/(app)/goal/${goal.id}` as any); } },
+              { label: goal.showOnDashboard ? 'Remove from Dashboard' : 'Pin to Dashboard', icon: 'pin-outline', action: () => { setMenuOpen(false); onToggleDashboard(goal); } },
+              { label: 'Close Goal',              icon: 'checkmark-circle-outline', action: () => { setMenuOpen(false); onClose(goal); } },
+              { label: 'Delete',                  icon: 'trash-outline',         action: () => { setMenuOpen(false); onDelete(goal.id); }, danger: true },
+            ].map(item => (
+              <TouchableOpacity key={item.label} onPress={item.action} style={[s.menuItem, { borderColor: c.border }]}>
+                <Ionicons name={item.icon as any} size={18} color={item.danger ? '#ef4444' : c.text} />
+                <Text style={{ color: item.danger ? '#ef4444' : c.text, fontSize: fontSize.sm }}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={{ height: 8 }} />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── HistoryGoalRow ───────────────────────────────────────────────────────────
 
-export function GoalsTabContent() {
-  const c = useColors();
-  const s = makeStyles(c);
-  const token = useAuthStore((st) => st.token)!;
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setRefreshing(false);
-  }, []);
+function HistoryGoalRow({ goal, c }: { goal: Goal; c: Colors }) {
+  const catColor = CATEGORY_COLORS[goal.category];
+  const statusCfg = STATUS_CFG[goal.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.abandoned;
+  const closedDate = goal.closedAt
+    ? new Date(goal.closedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
 
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
-  const [msg,     setMsg]     = useState('');
+  return (
+    <View style={[s.historyRow, { borderBottomColor: c.border }]}>
+      <View style={[s.catBar, { backgroundColor: catColor, alignSelf: 'stretch' }]} />
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+            {goal.name}
+          </Text>
+          <View style={[s.statusChip, { backgroundColor: statusCfg.color + '22', borderColor: statusCfg.color + '44' }]}>
+            <Text style={{ color: statusCfg.color, fontSize: fontSize.xs, fontWeight: '600' }}>{statusCfg.label}</Text>
+          </View>
+        </View>
+        <Text style={{ color: c.muted, fontSize: fontSize.xs }}>
+          Target: {goal.targetValue.toLocaleString()} {goal.unit}
+          {goal.actualValueAtClose != null ? ` · Actual: ${goal.actualValueAtClose.toLocaleString()} ${goal.unit}` : ''}
+        </Text>
+        {closedDate && (
+          <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Closed {closedDate}</Text>
+        )}
+      </View>
+    </View>
+  );
+}
 
-  // Daily nutrition
-  const [calories,     setCalories]     = useState('');
-  const [carbsG,       setCarbsG]       = useState('');
-  const [proteinG,     setProteinG]     = useState('');
-  const [fatG,         setFatG]         = useState('');
-  const [waterGlasses, setWaterGlasses] = useState('');
+// ─── LogProgressSheet ─────────────────────────────────────────────────────────
 
-  // Weekly nutrition
-  const [wkCalories, setWkCalories] = useState('');
-  const [wkProteinG, setWkProteinG] = useState('');
-  const [wkCarbsG,   setWkCarbsG]   = useState('');
-  const [wkFatG,     setWkFatG]     = useState('');
-
-  // Exercise
-  const [workoutCount,  setWorkoutCount]  = useState('');
-  const [minutesPerWeek, setMinutesPerWeek] = useState('');
-  const [volume,         setVolume]         = useState('');
-
-  // Per-routine goals
-  const [routines,          setRoutines]          = useState<RoutineSummary[]>([]);
-  const [routineGoalInputs, setRoutineGoalInputs] = useState<Record<number, string>>({});
-
-  // Body measurement goals
-  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string }>>(() => {
-    const init: Record<string, { value: string; date: string }> = {};
-    for (const m of DISPLAYED_METRICS) init[m.key] = { value: '', date: '' };
-    return init;
-  });
-
-  // Custom user goals
-  const [userGoals,    setUserGoals]    = useState<UserGoal[]>([]);
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
-  const [editingGoal,  setEditingGoal]  = useState<UserGoal | null>(null);
-  const [addingGoal,   setAddingGoal]   = useState(false);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [summary, ex, mGoalsData, rList, rGoals, uGoals, exs] = await Promise.all([
-        getGoalsSummary(token).catch(() => null),
-        getExerciseGoals(token).catch(() => ({ workoutsPerWeek: null, minutesPerWeek: null, volumeLbsPerWeek: null } as ExerciseGoals)),
-        getMeasurementGoals(token).catch(() => ({})),
-        getRoutines(token).catch(() => []),
-        getRoutineGoals(token).catch(() => []),
-        getUserGoals(token).catch(() => []),
-        getExercises(token).catch(() => []),
-      ]);
-
-      const n = (summary as GoalsSummary | null)?.nutrition.goals;
-      if (n) {
-        setCalories(String(n.calories ?? ''));
-        setCarbsG(String(n.carbsG ?? ''));
-        setProteinG(String(n.proteinG ?? ''));
-        setFatG(String(n.fatG ?? ''));
-        setWaterGlasses(n.waterGoalOz != null ? String(Math.round(n.waterGoalOz / GLASS_OZ)) : '');
-        setWkCalories(String(n.weeklyCalories ?? ''));
-        setWkProteinG(String(n.weeklyProteinG ?? ''));
-        setWkCarbsG(String(n.weeklyCarbsG ?? ''));
-        setWkFatG(String(n.weeklyFatG ?? ''));
-      }
-
-      setWorkoutCount(String((ex as ExerciseGoals).workoutsPerWeek ?? ''));
-      setMinutesPerWeek(String((ex as ExerciseGoals).minutesPerWeek ?? ''));
-      setVolume(String((ex as ExerciseGoals).volumeLbsPerWeek ?? ''));
-
-      setMGoals((prev) => {
-        const updated = { ...prev };
-        for (const { key } of DISPLAYED_METRICS) {
-          const g = (mGoalsData as Record<string, MeasurementGoal>)[key];
-          updated[key] = { value: g ? String(g.targetValue) : '', date: g?.targetDate ?? '' };
-        }
-        return updated;
-      });
-
-      setRoutines(rList as RoutineSummary[]);
-      const goalsMap: Record<number, string> = {};
-      for (const g of (rGoals as RoutineGoal[])) goalsMap[g.routineId] = String(g.targetPerWeek);
-      setRoutineGoalInputs(goalsMap);
-
-      setUserGoals(uGoals as UserGoal[]);
-      setAllExercises(exs as Exercise[]);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }
-
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+function LogProgressSheet({ goal, onClose, onLogged, c }: {
+  goal: Goal;
+  onClose: () => void;
+  onLogged: (entry: GoalProgressEntry, updated: Goal) => void;
+  c: Colors;
+}) {
+  const [value, setValue]   = useState(goal.currentValue?.toString() ?? '');
+  const [notes, setNotes]   = useState('');
+  const [logDate, setLogDate] = useState(todayStr());
+  const [saving, setSaving] = useState(false);
 
   async function handleSave() {
+    if (!value) return;
     setSaving(true);
-    setMsg('');
     try {
-      const tasks: Promise<any>[] = [];
-
-      if (calories && carbsG && proteinG && fatG) {
-        tasks.push(saveNutritionGoals(token, {
-          calories: Number(calories), carbsG: Number(carbsG),
-          proteinG: Number(proteinG), fatG: Number(fatG),
-          waterGoalOz: waterGlasses !== '' ? Number(waterGlasses) * GLASS_OZ : undefined,
-        }));
-      }
-
-      tasks.push(saveWeeklyNutritionGoals(token, {
-        weeklyCalories: wkCalories !== '' ? Number(wkCalories) : null,
-        weeklyProteinG: wkProteinG !== '' ? Number(wkProteinG) : null,
-        weeklyCarbsG:   wkCarbsG   !== '' ? Number(wkCarbsG)   : null,
-        weeklyFatG:     wkFatG     !== '' ? Number(wkFatG)     : null,
-      }));
-
-      tasks.push(saveExerciseGoals(token, {
-        workoutsPerWeek:  workoutCount   !== '' ? Number(workoutCount)   : null,
-        minutesPerWeek:   minutesPerWeek !== '' ? Number(minutesPerWeek) : null,
-        volumeLbsPerWeek: volume         !== '' ? Number(volume)         : null,
-      }));
-
-      for (const { key, unit } of DISPLAYED_METRICS) {
-        const { value, date } = mGoals[key];
-        if (value) {
-          tasks.push(setMeasurementGoal(token, key, { targetValue: Number(value), unit, targetDate: date || null }));
-        }
-      }
-
-      for (const r of routines) {
-        const val = routineGoalInputs[r.id];
-        if (val && Number(val) > 0) {
-          tasks.push(setRoutineGoal(token, r.id, Number(val)));
-        } else if (val === '') {
-          tasks.push(deleteRoutineGoal(token, r.id).catch(() => {}));
-        }
-      }
-
-      await Promise.all(tasks);
-      setMsg('Goals saved.');
-      setTimeout(() => setMsg(''), 3000);
+      const entry = await goalsV2Api.logProgress(goal.id, {
+        value: Number(value),
+        loggedAt: logDate ? logDate + 'T12:00:00' : undefined,
+        notes: notes || null,
+      });
+      onLogged(entry, { ...goal, currentValue: Number(value) });
     } catch {
-      setMsg('Failed to save goals.');
+      Alert.alert('Error', 'Could not log progress.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDeleteUserGoal(id: number) {
-    Alert.alert('Remove goal?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: async () => {
-          try {
-            await deleteUserGoal(token, id);
-            setUserGoals((prev) => prev.filter((g) => g.id !== id));
-          } catch { Alert.alert('Error', 'Could not remove goal.'); }
-        },
-      },
-    ]);
-  }
-
-  async function onUserGoalSaved() {
-    setAddingGoal(false);
-    setEditingGoal(null);
-    const uGoals = await getUserGoals(token).catch(() => []);
-    setUserGoals(uGoals);
-  }
-
-  const bodyGoals      = userGoals.filter((g) => g.category === 'body');
-  const nutritionGoals = userGoals.filter((g) => g.category === 'nutrition');
-  const exerciseGoals  = userGoals.filter((g) => g.category === 'exercise');
-
-  if (loading) {
-    return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
-  }
-
   return (
-    <>
-    <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
-
-        {/* Daily nutrition */}
-        <Text style={[s.sectionLabel, { color: c.muted }]}>Nutrition (daily)</Text>
-        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={s.twoCol}>
-            {([
-              ['Calories (kcal)', calories,     setCalories],
-              ['Carbs (g)',       carbsG,        setCarbsG],
-              ['Protein (g)',     proteinG,      setProteinG],
-              ['Fat (g)',         fatG,          setFatG],
-              ['Water (glasses)', waterGlasses,  setWaterGlasses],
-            ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
-              <View key={label} style={s.twoColField}>
-                <Text style={[s.fieldLabel, { color: c.muted }]}>{label}</Text>
-                <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]} value={val} onChangeText={setter} keyboardType="numeric" placeholderTextColor={c.muted} />
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={{ flex: 1 }} />
+        </TouchableWithoutFeedback>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={s.sheetHeader}>
+              <View>
+                <Text style={[s.sheetTitle, { color: c.text }]}>Log Progress</Text>
+                <Text style={{ color: c.muted, fontSize: fontSize.xs, marginTop: 2 }}>{goal.name}</Text>
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Weekly nutrition */}
-        <Text style={[s.sectionLabel, { color: c.muted }]}>Nutrition (weekly)</Text>
-        <Text style={{ color: c.muted, fontSize: fontSize.xs, marginTop: -4, marginBottom: 8 }}>Leave blank to auto-calculate as daily × 7</Text>
-        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={s.twoCol}>
-            {([
-              ['Calories (kcal)', wkCalories, setWkCalories],
-              ['Protein (g)',     wkProteinG, setWkProteinG],
-              ['Carbs (g)',       wkCarbsG,   setWkCarbsG],
-              ['Fat (g)',         wkFatG,     setWkFatG],
-            ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
-              <View key={label} style={s.twoColField}>
-                <Text style={[s.fieldLabel, { color: c.muted }]}>{label}</Text>
-                <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]} value={val} onChangeText={setter} keyboardType="numeric" placeholderTextColor={c.muted} />
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Exercise */}
-        <Text style={[s.sectionLabel, { color: c.muted }]}>Workouts (per week)</Text>
-        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={s.twoCol}>
-            <View style={s.twoColField}>
-              <Text style={[s.fieldLabel, { color: c.muted }]}>Workouts</Text>
-              <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]} value={workoutCount} onChangeText={setWorkoutCount} keyboardType="numeric" placeholderTextColor={c.muted} />
+              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
             </View>
-            <View style={s.twoColField}>
-              <Text style={[s.fieldLabel, { color: c.muted }]}>Minutes</Text>
-              <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]} value={minutesPerWeek} onChangeText={setMinutesPerWeek} keyboardType="numeric" placeholder="e.g. 300" placeholderTextColor={c.muted} />
-            </View>
-            <View style={s.twoColField}>
-              <Text style={[s.fieldLabel, { color: c.muted }]}>Volume (lbs)</Text>
-              <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]} value={volume} onChangeText={setVolume} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={c.muted} />
-            </View>
-          </View>
-        </View>
 
-        {/* Per-routine goals */}
-        {routines.length > 0 && (
-          <>
-            <Text style={[s.sectionLabel, { color: c.muted }]}>Per-Routine Goals (sessions/week)</Text>
-            <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-              <View style={s.twoCol}>
-                {routines.map((r) => (
-                  <View key={r.id} style={s.twoColField}>
-                    <Text style={[s.fieldLabel, { color: c.muted }]} numberOfLines={1}>{r.name}</Text>
+            <View style={{ gap: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[s.fieldLabel, { color: c.muted }]}>Value</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TextInput
-                      style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                      value={routineGoalInputs[r.id] ?? ''}
-                      onChangeText={(v) => setRoutineGoalInputs((prev) => ({ ...prev, [r.id]: v }))}
-                      keyboardType="numeric"
-                      placeholder="e.g. 3"
+                      style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                      value={value}
+                      onChangeText={setValue}
+                      keyboardType="decimal-pad"
+                      placeholder={goal.currentValue?.toString() ?? '0'}
                       placeholderTextColor={c.muted}
+                      autoFocus
                     />
+                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{goal.unit}</Text>
                   </View>
-                ))}
-              </View>
-            </View>
-          </>
-        )}
-
-        {/* Body measurements */}
-        <Text style={[s.sectionLabel, { color: c.muted }]}>Body Measurements</Text>
-        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          {DISPLAYED_METRICS.map(({ key, label, unit }, i) => (
-            <View key={key} style={[{ gap: 8 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border, paddingTop: 10, marginTop: 2 }]}>
-              <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
-                {label} <Text style={{ fontWeight: '400', color: c.muted }}>({unit})</Text>
-              </Text>
-              <View style={s.twoCol}>
-                <View style={s.twoColField}>
-                  <Text style={[s.fieldLabel, { color: c.muted }]}>Target</Text>
-                  <TextInput
-                    style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                    value={mGoals[key].value}
-                    onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: v } }))}
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={c.muted}
-                  />
                 </View>
-                <View style={s.twoColField}>
-                  <Text style={[s.fieldLabel, { color: c.muted }]}>By date (YYYY-MM-DD)</Text>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[s.fieldLabel, { color: c.muted }]}>Date</Text>
                   <TextInput
                     style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                    value={mGoals[key].date}
-                    onChangeText={(v) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: v } }))}
-                    placeholder="2026-12-31"
+                    value={logDate}
+                    onChangeText={setLogDate}
+                    placeholder="YYYY-MM-DD"
                     placeholderTextColor={c.muted}
                     keyboardType="numbers-and-punctuation"
                   />
                 </View>
               </View>
+
+              <TextInput
+                style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Notes (optional)"
+                placeholderTextColor={c.muted}
+              />
             </View>
-          ))}
-        </View>
 
-        {/* Save button */}
-        {msg ? (
-          <Text style={{ color: msg.includes('saved') ? '#34d399' : '#ef4444', fontSize: fontSize.sm, marginTop: 4 }}>{msg}</Text>
-        ) : null}
-        <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: c.accent, opacity: saving ? 0.5 : 1 }]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Save Goals'}</Text>
-        </TouchableOpacity>
-
-        {/* Custom user goals */}
-        <Text style={[s.sectionLabel, { color: c.muted }]}>Custom Goals</Text>
-        <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <TouchableOpacity onPress={() => setAddingGoal(true)} style={s.addBtn}>
-            <Text style={{ color: c.accent, fontSize: fontSize.sm, fontWeight: '600' }}>+ Add goal</Text>
-          </TouchableOpacity>
-
-          {bodyGoals.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ color: c.muted, fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase' }}>Body</Text>
-              <UserGoalRows goals={bodyGoals} onEdit={setEditingGoal} onDelete={handleDeleteUserGoal} />
+            <View style={[s.actions, { marginTop: 16 }]}>
+              <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving || !value}
+                style={[s.primaryBtn, { backgroundColor: c.accent, opacity: saving || !value ? 0.4 : 1 }]}
+              >
+                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Log'}</Text>
+              </TouchableOpacity>
             </View>
-          )}
-          {nutritionGoals.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ color: c.muted, fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase' }}>Nutrition</Text>
-              <UserGoalRows goals={nutritionGoals} onEdit={setEditingGoal} onDelete={handleDeleteUserGoal} />
-            </View>
-          )}
-          {exerciseGoals.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ color: c.muted, fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase' }}>Exercise</Text>
-              <UserGoalRows goals={exerciseGoals} onEdit={setEditingGoal} onDelete={handleDeleteUserGoal} />
-            </View>
-          )}
-        </View>
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-
-      {addingGoal && (
-        <UserGoalForm
-          exercisesList={allExercises}
-          routinesList={routines}
-          onClose={() => setAddingGoal(false)}
-          onSaved={onUserGoalSaved}
-        />
-      )}
-      {editingGoal && (
-        <UserGoalForm
-          initial={editingGoal}
-          exercisesList={allExercises}
-          routinesList={routines}
-          onClose={() => setEditingGoal(null)}
-          onSaved={onUserGoalSaved}
-        />
-      )}
-    </>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
+// ─── CloseGoalSheet ───────────────────────────────────────────────────────────
+
+function CloseGoalSheet({ goal, onClose, onClosed, c }: {
+  goal: Goal;
+  onClose: () => void;
+  onClosed: (updated: Goal) => void;
+  c: Colors;
+}) {
+  const [status, setStatus] = useState<'achieved' | 'missed' | 'abandoned'>('achieved');
+  const [actual, setActual] = useState(goal.currentValue?.toString() ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const STATUS_OPTS = [
+    { key: 'achieved'  as const, label: 'Achieved',  color: '#7BB389' },
+    { key: 'missed'    as const, label: 'Missed',    color: '#C9714F' },
+    { key: 'abandoned' as const, label: 'Abandoned', color: '#6b7280' },
+  ] as const;
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await goalsV2Api.close(goal.id, {
+        status,
+        actualValueAtClose: actual !== '' ? Number(actual) : null,
+      });
+      onClosed(updated);
+    } catch {
+      Alert.alert('Error', 'Could not close goal.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={{ flex: 1 }} />
+        </TouchableWithoutFeedback>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={s.sheetHeader}>
+              <View>
+                <Text style={[s.sheetTitle, { color: c.text }]}>Close Goal</Text>
+                <Text style={{ color: c.muted, fontSize: fontSize.xs, marginTop: 2 }}>{goal.name}</Text>
+              </View>
+              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 14 }}>
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: c.muted, fontSize: fontSize.xs, textTransform: 'uppercase', letterSpacing: 0.6 }}>Outcome</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {STATUS_OPTS.map(opt => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => setStatus(opt.key)}
+                      style={[s.pill, {
+                        flex: 1,
+                        borderColor: status === opt.key ? opt.color : c.border,
+                        backgroundColor: status === opt.key ? opt.color + '33' : 'transparent',
+                      }]}
+                    >
+                      <Text style={{
+                        color: status === opt.key ? opt.color : c.muted,
+                        fontSize: fontSize.xs, fontWeight: '600', textAlign: 'center',
+                      }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                  value={actual}
+                  onChangeText={setActual}
+                  keyboardType="decimal-pad"
+                  placeholder="Actual value (optional)"
+                  placeholderTextColor={c.muted}
+                />
+                <Text style={{ color: c.muted, fontSize: fontSize.sm, minWidth: 36 }}>{goal.unit}</Text>
+              </View>
+            </View>
+
+            <View style={[s.actions, { marginTop: 16 }]}>
+              <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving}
+                style={[s.primaryBtn, { backgroundColor: c.accent, opacity: saving ? 0.4 : 1 }]}
+              >
+                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Close Goal'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── AddGoalModal ─────────────────────────────────────────────────────────────
+
+type AddStep = 1 | 2 | 3;
+
+function AddGoalModal({ onClose, onCreated, c }: {
+  onClose: () => void;
+  onCreated: (goal: Goal) => void;
+  c: Colors;
+}) {
+  const token = useAuthStore(st => st.token)!;
+  const [step, setStep]         = useState<AddStep>(1);
+  const [activeCategory, setActiveCategory] = useState<GoalCategory>('body');
+  const [selected, setSelected] = useState<GoalCatalogEntry | null>(null);
+  const [sourceId, setSourceId] = useState<number | ''>('');
+  const [sourceName, setSourceName] = useState('');
+  const [sources, setSources]   = useState<{ id: number; name: string }[]>([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+
+  const [name, setName]               = useState('');
+  const [startValue, setStartValue]   = useState('');
+  const [targetValue, setTargetValue] = useState('');
+  const [deadline, setDeadline]       = useState('');
+  const [saving, setSaving]           = useState(false);
+
+  const CATEGORY_LABELS_SHORT: Record<GoalCategory, string> = {
+    body: 'Body', nutrition: 'Nutrition', exercise: 'Exercise', activity: 'Activity',
+  };
+
+  useEffect(() => {
+    if (step !== 2 || !selected) return;
+    setLoadingSources(true);
+    const fetchFn = selected.needsSource === 'exercise'
+      ? getExercises(token).then(r => r.map((e: any) => ({ id: e.id, name: e.name })))
+      : getRoutines(token).then(r => r.map((rt: any) => ({ id: rt.id, name: rt.name })));
+    fetchFn
+      .then(setSources)
+      .catch(() => setSources([]))
+      .finally(() => setLoadingSources(false));
+  }, [step, selected]);
+
+  function pickCatalogEntry(entry: GoalCatalogEntry) {
+    setSelected(entry);
+    setName(entry.label + ' Goal');
+    setStep(entry.needsSource ? 2 : 3);
+  }
+
+  function confirmSource() {
+    if (!sourceId) return;
+    const src = sources.find(s => s.id === Number(sourceId));
+    if (src) {
+      setSourceName(src.name);
+      setName(`${src.name} — ${selected!.label}`);
+    }
+    setStep(3);
+  }
+
+  function goBack() {
+    if (step === 3 && selected?.needsSource) setStep(2);
+    else setStep(1);
+  }
+
+  async function handleCreate() {
+    if (!selected || !targetValue || !deadline) return;
+    setSaving(true);
+    try {
+      const payload: CreateGoalPayload = {
+        catalogKey:      selected.key,
+        name:            name || (selected.label + ' Goal'),
+        category:        selected.category,
+        cardType:        selected.cardType,
+        targetValue:     Number(targetValue),
+        unit:            selected.defaultUnit,
+        startedAt:       todayStr(),
+        startValue:      startValue !== '' ? Number(startValue) : null,
+        deadline:        deadline || null,
+        sourceType:      selected.needsSource ? selected.needsSource : null,
+        sourceId:        sourceId !== '' ? Number(sourceId) : null,
+        sourceName:      sourceName || null,
+        showOnDashboard: false,
+      };
+      const goal = await goalsV2Api.create(payload);
+      onCreated(goal);
+    } catch {
+      Alert.alert('Error', 'Could not create goal.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const stepTitles: Record<AddStep, string> = { 1: 'Choose Goal Type', 2: 'Select Source', 3: 'Set Target' };
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={{ flex: 1 }} />
+        </TouchableWithoutFeedback>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border, maxHeight: '90%' }]}>
+            <View style={s.sheetHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {step > 1 && (
+                  <TouchableOpacity onPress={goBack}>
+                    <Ionicons name="chevron-back" size={20} color={c.muted} />
+                  </TouchableOpacity>
+                )}
+                <Text style={[s.sheetTitle, { color: c.text }]}>{stepTitles[step]}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {([1, 2, 3] as AddStep[]).map(n => (
+                    <View key={n} style={[s.dot, { backgroundColor: n === step ? c.accent : n < step ? c.accent + '66' : c.border }]} />
+                  ))}
+                </View>
+                <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Step 1 — Catalog */}
+            {step === 1 && (
+              <>
+                <View style={{ flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border, marginBottom: 10 }}>
+                  {CATEGORY_ORDER.map(cat => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setActiveCategory(cat)}
+                      style={[s.catTab, activeCategory === cat && { borderBottomWidth: 2, borderBottomColor: CATEGORY_COLORS[cat] }]}
+                    >
+                      <Text style={{ color: activeCategory === cat ? c.text : c.muted, fontSize: fontSize.xs, fontWeight: activeCategory === cat ? '600' : '400' }}>
+                        {CATEGORY_LABELS_SHORT[cat]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 }}>
+                    {CATALOG_BY_CATEGORY[activeCategory].map(entry => (
+                      <TouchableOpacity
+                        key={entry.key}
+                        onPress={() => pickCatalogEntry(entry)}
+                        style={[s.catalogCard, { backgroundColor: c.bg, borderColor: c.border, width: '47%' }]}
+                      >
+                        <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600', marginBottom: 2 }}>{entry.label}</Text>
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs, lineHeight: 16 }} numberOfLines={2}>{entry.description}</Text>
+                        <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
+                          <Text style={{ color: c.muted, fontSize: 11 }}>{entry.defaultUnit}</Text>
+                          {entry.needsSource && <Text style={{ color: c.muted, fontSize: 11 }}>· needs source</Text>}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {/* Step 2 — Source */}
+            {step === 2 && selected && (
+              <View style={{ gap: 12 }}>
+                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>
+                  Select the {selected.needsSource === 'exercise' ? 'exercise' : 'routine'} this goal applies to.
+                </Text>
+                {loadingSources ? (
+                  <ActivityIndicator color={c.accent} style={{ marginVertical: 20 }} />
+                ) : (
+                  <ScrollView style={{ maxHeight: 280 }}>
+                    {sources.map(src => (
+                      <TouchableOpacity
+                        key={src.id}
+                        onPress={() => setSourceId(src.id)}
+                        style={[s.pickerRow, {
+                          borderColor: c.border,
+                          backgroundColor: sourceId === src.id ? c.accent + '22' : 'transparent',
+                        }]}
+                      >
+                        <Text style={{ color: c.text, fontSize: fontSize.sm }}>{src.name}</Text>
+                        {sourceId === src.id && <Ionicons name="checkmark" size={16} color={c.accent} />}
+                      </TouchableOpacity>
+                    ))}
+                    {sources.length === 0 && (
+                      <Text style={{ color: c.muted, fontSize: fontSize.sm, textAlign: 'center', paddingVertical: 20 }}>
+                        No {selected.needsSource === 'exercise' ? 'exercises' : 'routines'} found
+                      </Text>
+                    )}
+                  </ScrollView>
+                )}
+                <TouchableOpacity
+                  onPress={confirmSource}
+                  disabled={!sourceId}
+                  style={[s.primaryBtn, { backgroundColor: c.accent, opacity: !sourceId ? 0.4 : 1 }]}
+                >
+                  <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>Continue</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Step 3 — Target form */}
+            {step === 3 && selected && (
+              <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+                <View style={{ gap: 12 }}>
+                  <View style={{ gap: 4 }}>
+                    <Text style={[s.fieldLabel, { color: c.muted }]}>Goal name</Text>
+                    <TextInput
+                      style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                      value={name}
+                      onChangeText={setName}
+                      placeholderTextColor={c.muted}
+                    />
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[s.fieldLabel, { color: c.muted }]}>Start value{' '}
+                        <Text style={{ fontStyle: 'italic' }}>(opt)</Text>
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TextInput
+                          style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                          value={startValue}
+                          onChangeText={setStartValue}
+                          keyboardType="decimal-pad"
+                          placeholder="Current"
+                          placeholderTextColor={c.muted}
+                        />
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{selected.defaultUnit}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[s.fieldLabel, { color: c.muted }]}>Target value</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TextInput
+                          style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                          value={targetValue}
+                          onChangeText={setTargetValue}
+                          keyboardType="decimal-pad"
+                          placeholderTextColor={c.muted}
+                        />
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{selected.defaultUnit}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={{ gap: 4 }}>
+                    <Text style={[s.fieldLabel, { color: c.muted }]}>Deadline (YYYY-MM-DD)</Text>
+                    <TextInput
+                      style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                      value={deadline}
+                      onChangeText={setDeadline}
+                      placeholder="e.g. 2026-12-31"
+                      placeholderTextColor={c.muted}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                  </View>
+                </View>
+
+                <View style={[s.actions, { marginTop: 16, marginBottom: 8 }]}>
+                  <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+                    <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleCreate}
+                    disabled={saving || !name || !targetValue || !deadline}
+                    style={[s.primaryBtn, { backgroundColor: c.accent, opacity: saving || !name || !targetValue || !deadline ? 0.4 : 1 }]}
+                  >
+                    <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>
+                      {saving ? 'Creating…' : 'Create Goal'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
+const GOALS_NAV_TABS = ['goals', 'progress'] as const;
+type GoalsNavTab = typeof GOALS_NAV_TABS[number];
+
 export default function GoalsScreen() {
   const c = useColors();
-  const s = makeStyles(c);
+  const [navTab, setNavTab] = useState<GoalsNavTab>('goals');
+  const swipe = useSwipeNav(3, GOALS_NAV_TABS, navTab, setNavTab);
+  const [goals, setGoals]             = useState<Goal[]>([]);
+  const [historyGoals, setHistoryGoals] = useState<Goal[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [refreshing, setRefreshing]   = useState(false);
+  const [viewMode, setViewMode]       = useState<'active' | 'history'>('active');
+  const [collapsedCats, setCollapsedCats] = useState<Set<GoalCategory>>(new Set());
+  const [logTarget, setLogTarget]         = useState<Goal | null>(null);
+  const [closeTarget, setCloseTarget]     = useState<Goal | null>(null);
+  const [addingGoal, setAddingGoal]       = useState(false);
+  const [deadlineNudges, setDeadlineNudges] = useState<Goal[]>([]);
+
+  async function load(showRefresh = false) {
+    if (showRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const [active, achieved, missed, abandoned] = await Promise.all([
+        goalsV2Api.getAll('active'),
+        goalsV2Api.getAll('achieved'),
+        goalsV2Api.getAll('missed'),
+        goalsV2Api.getAll('abandoned'),
+      ]);
+      setGoals(active);
+      const history = [...achieved, ...missed, ...abandoned].sort((a, b) => {
+        const ta = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+        const tb = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+        return tb - ta;
+      });
+      setHistoryGoals(history);
+      goalsV2Api.getNudges().then(setDeadlineNudges).catch(() => {});
+    } catch { /* ignore */ }
+    finally { setLoading(false); setRefreshing(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const onRefresh = useCallback(() => load(true), []);
+
+  function toggleCat(cat: GoalCategory) {
+    setCollapsedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+  }
+
+  async function handleDelete(id: number) {
+    Alert.alert('Delete goal?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await goalsV2Api.delete(id);
+            setGoals(prev => prev.filter(g => g.id !== id));
+          } catch { Alert.alert('Error', 'Could not delete goal.'); }
+        },
+      },
+    ]);
+  }
+
+  async function handleToggleDashboard(goal: Goal) {
+    try {
+      const updated = await goalsV2Api.update(goal.id, { showOnDashboard: !goal.showOnDashboard });
+      setGoals(prev => prev.map(g => g.id === updated.id ? updated : g));
+    } catch { /* silent */ }
+  }
+
+  function handleLogged(_: GoalProgressEntry, updated: Goal) {
+    setGoals(prev => prev.map(g => g.id === updated.id ? updated : g));
+    setLogTarget(null);
+  }
+
+  function handleClosed(updated: Goal) {
+    setGoals(prev => prev.filter(g => g.id !== updated.id));
+    setHistoryGoals(prev => [updated, ...prev]);
+    setDeadlineNudges(prev => prev.filter(n => n.id !== updated.id));
+    setCloseTarget(null);
+  }
+
+  function handleCreated(goal: Goal) {
+    setGoals(prev => [...prev, goal]);
+    setAddingGoal(false);
+  }
+
+  const byCategory = goalsByCategory(goals);
+
+  const nudges = useMemo(() => {
+    if (viewMode !== 'active') return [];
+    const seen = new Set<number>();
+    const result: { goal: Goal; reason: 'deadline' | 'target_crossed' }[] = [];
+    for (const g of deadlineNudges) {
+      seen.add(g.id);
+      result.push({ goal: g, reason: 'deadline' });
+    }
+    for (const g of goals) {
+      if (!seen.has(g.id) && g.status === 'active' && isTargetCrossed(g)) {
+        seen.add(g.id);
+        result.push({ goal: g, reason: 'target_crossed' });
+      }
+    }
+    return result;
+  }, [deadlineNudges, goals, viewMode]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+        <ActivityIndicator style={{ marginTop: 60 }} color={c.accent} />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: c.bg }]}>
-      <View style={[s.header, { borderBottomColor: c.border }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} {...swipe.panHandlers}>
+      {/* Screen title + nav tabs */}
+      <View style={[s.screenHeader, { borderBottomColor: c.border }]}>
         <Text style={[s.title, { color: c.text }]}>Goals</Text>
+        <View style={[s.navTabBar, { borderColor: c.border }]}>
+          {GOALS_NAV_TABS.map(t => (
+            <TouchableOpacity
+              key={t}
+              onPress={() => setNavTab(t)}
+              style={[s.navTab, navTab === t && { borderBottomWidth: 2, borderBottomColor: c.accent }]}
+            >
+              <Text style={{ color: navTab === t ? c.text : c.muted, fontSize: fontSize.sm, fontWeight: navTab === t ? '600' : '400', textTransform: 'capitalize' }}>
+                {t === 'goals' ? 'Goals' : 'Planning'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
-      <GoalsTabContent />
+
+      {/* ── Goals sub-tab ── */}
+      {navTab === 'goals' && (<>
+        {/* Goals header: Active/History toggle + Add */}
+        <View style={[s.header, { borderBottomColor: c.border }]}>
+          <View style={[s.toggle, { backgroundColor: c.card, borderColor: c.border }]}>
+            {(['active', 'history'] as const).map(mode => (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => setViewMode(mode)}
+                style={[s.toggleBtn, viewMode === mode && { backgroundColor: c.accent }]}
+              >
+                <Text style={{
+                  color: viewMode === mode ? '#000' : c.muted,
+                  fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize',
+                }}>
+                  {mode === 'active' ? `Active${goals.length > 0 ? ` (${goals.length})` : ''}` : 'History'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {viewMode === 'active' && (
+            <TouchableOpacity onPress={() => setAddingGoal(true)} style={[s.addBtn, { backgroundColor: c.accent }]}>
+              <Ionicons name="add" size={20} color="#000" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+      {viewMode === 'active' ? (
+        <ScrollView
+          contentContainerStyle={{ padding: 14, paddingBottom: 100, gap: 12 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
+        >
+          {/* Nudge banners */}
+          {nudges.map(({ goal: n, reason }) => {
+            const isTargetHit = reason === 'target_crossed';
+            const days = n.deadline
+              ? Math.ceil((new Date(n.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
+              : null;
+            const subtext = isTargetHit
+              ? `You've hit your target of ${n.targetValue} ${n.unit}!`
+              : days != null && days < 0
+                ? `${Math.abs(days)}d past deadline`
+                : 'Deadline reached';
+            return (
+              <View key={n.id} style={[s.nudge, {
+                backgroundColor: isTargetHit ? '#052e1688' : '#431a0388',
+                borderColor: isTargetHit ? '#16653344' : '#92400e44',
+              }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: isTargetHit ? '#6ee7b7' : '#fdba74', fontSize: fontSize.sm, fontWeight: '600' }} numberOfLines={1}>
+                    {n.name}
+                  </Text>
+                  <Text style={{ color: isTargetHit ? '#6ee7b766' : '#fdba7466', fontSize: fontSize.xs }}>{subtext}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setCloseTarget(n)}
+                  style={[s.nudgeBtn, { backgroundColor: isTargetHit ? '#16653366' : '#92400e55', borderColor: isTargetHit ? '#16653388' : '#92400e88' }]}
+                >
+                  <Text style={{ color: isTargetHit ? '#6ee7b7' : '#fdba74', fontSize: fontSize.xs, fontWeight: '600' }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {CATEGORY_ORDER.map(cat => {
+            const catGoals = byCategory[cat];
+            if (catGoals.length === 0) return null;
+            const collapsed = collapsedCats.has(cat);
+            return (
+              <View key={cat}>
+                <TouchableOpacity
+                  onPress={() => toggleCat(cat)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 2, marginBottom: 6 }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: CATEGORY_COLORS[cat] }} />
+                    <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                      {CATEGORY_LABELS[cat]}
+                    </Text>
+                    <View style={[s.chip, { borderColor: c.border }]}>
+                      <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{catGoals.length}</Text>
+                    </View>
+                  </View>
+                  <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={16} color={c.muted} />
+                </TouchableOpacity>
+
+                {!collapsed && catGoals.map(goal => (
+                  <View key={goal.id} style={{ marginBottom: 8 }}>
+                    <GoalCard
+                      goal={goal}
+                      onLog={setLogTarget}
+                      onClose={setCloseTarget}
+                      onDelete={handleDelete}
+                      onToggleDashboard={handleToggleDashboard}
+                      c={c}
+                    />
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+
+          {goals.length === 0 && (
+            <View style={{ alignItems: 'center', paddingTop: 60, gap: 12 }}>
+              <Ionicons name="trophy-outline" size={48} color={c.muted} />
+              <Text style={{ color: c.muted, fontSize: fontSize.sm, textAlign: 'center' }}>No active goals</Text>
+              <Text style={{ color: c.muted, fontSize: fontSize.xs, textAlign: 'center' }}>Tap + to set a new goal</Text>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 14, paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
+        >
+          {historyGoals.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingTop: 60, gap: 12 }}>
+              <Ionicons name="time-outline" size={48} color={c.muted} />
+              <Text style={{ color: c.muted, fontSize: fontSize.sm, textAlign: 'center' }}>No closed goals yet</Text>
+            </View>
+          ) : (
+            historyGoals.map(goal => (
+              <HistoryGoalRow key={goal.id} goal={goal} c={c} />
+            ))
+          )}
+        </ScrollView>
+      )}
+
+        {logTarget && (
+          <LogProgressSheet goal={logTarget} onClose={() => setLogTarget(null)} onLogged={handleLogged} c={c} />
+        )}
+        {closeTarget && (
+          <CloseGoalSheet goal={closeTarget} onClose={() => setCloseTarget(null)} onClosed={handleClosed} c={c} />
+        )}
+        {addingGoal && (
+          <AddGoalModal onClose={() => setAddingGoal(false)} onCreated={handleCreated} c={c} />
+        )}
+      </>)}
+
+      {/* ── Planning sub-tab ── */}
+      {navTab === 'progress' && <SettingsPlanningTab />}
     </SafeAreaView>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-function makeStyles(c: Colors) {
-  return StyleSheet.create({
-    container:    { flex: 1 },
-    header:       { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1 },
-    title:        { fontSize: fontSize.xl, fontWeight: '700', color: c.text },
-    content:      { padding: 14, gap: 8 },
-    sectionLabel: { fontSize: fontSize.sm, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 8, marginBottom: 4 },
-    card:         { borderRadius: 12, borderWidth: 1, padding: 14, gap: 10 },
-    twoCol:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    twoColField:  { flex: 1, minWidth: '40%', gap: 4 },
-    field:        { gap: 4, marginBottom: 10 },
-    fieldLabel:   { fontSize: fontSize.sm, color: c.muted },
-    input:        { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm, color: c.text, backgroundColor: c.bg, borderColor: c.border },
-    saveBtn:      { borderRadius: 8, paddingHorizontal: 18, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-    addBtn:       { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderColor: c.accent },
-    goalRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-    pill:         { borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 7 },
-    pillActive:   { backgroundColor: c.accent, borderColor: c.accent },
-    pillText:     { fontSize: fontSize.sm, color: c.muted },
-    pillTextActive: { color: '#000', fontWeight: '700' },
-    // Modal shared
-    overlay:      { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-    sheet:        { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20, gap: 0 },
-    sheetHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    sheetTitle:   { fontSize: fontSize.lg, fontWeight: '700' },
-    pickerRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderTopWidth: StyleSheet.hairlineWidth },
-    actions:      { flexDirection: 'row', gap: 8, marginTop: 12 },
-    cancelBtn:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
-  });
-}
+const s = StyleSheet.create({
+  screenHeader: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 0, borderBottomWidth: 1 },
+  navTabBar:    { flexDirection: 'row', borderBottomWidth: 0 },
+  navTab:       { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  header:       { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title:        { fontSize: fontSize.xl, fontWeight: '700' },
+  toggle:       { flexDirection: 'row', borderRadius: 20, borderWidth: 1, overflow: 'hidden', padding: 2, gap: 2 },
+  toggleBtn:    { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 18 },
+  addBtn:       { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  card:         { borderRadius: 10, borderWidth: 1, padding: 12 },
+  catBar:       { width: 3, borderRadius: 2, minHeight: 20 },
+  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: 4, borderRadius: 2 },
+  chip:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  nudge:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  nudgeBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
+  actionBtn:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  statusChip:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  historyRow:   { flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  overlay:      { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:        { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20 },
+  sheetHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sheetTitle:   { fontSize: fontSize.lg, fontWeight: '700' },
+  input:        { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: fontSize.sm },
+  fieldLabel:   { fontSize: fontSize.xs, textTransform: 'uppercase', letterSpacing: 0.6 },
+  actions:      { flexDirection: 'row', gap: 8 },
+  cancelBtn:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
+  primaryBtn:   { flex: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  pill:         { borderRadius: 8, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 10 },
+  menu:         { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1 },
+  menuItem:     { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  dot:          { width: 6, height: 6, borderRadius: 3 },
+  catTab:       { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  catalogCard:  { borderRadius: 10, borderWidth: 1, padding: 10 },
+  pickerRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8, marginBottom: 4 },
+  fab:          { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+});

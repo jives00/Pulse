@@ -12,8 +12,6 @@ import {
   getTagDefinitions, saveTagDefinitions, type TagDefinitions,
   getProfile, updateProfile, type ActivityLevel, type UserProfile,
 } from '../../../src/api/client';
-import SettingsPlanningTab from '../../../src/components/SettingsPlanningTab';
-import { GoalsTabContent } from './goals';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
 import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
@@ -506,8 +504,8 @@ function DeleteTab() {
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
-type Tab = 'options' | 'tags' | 'goals' | 'planning' | 'user' | 'delete';
-const SETTINGS_TABS_ORDER = ['options', 'tags', 'goals', 'planning', 'user', 'delete'] as const;
+type Tab = 'options' | 'tags' | 'user' | 'delete';
+const SETTINGS_TABS_ORDER = ['options', 'tags', 'user', 'delete'] as const;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -515,7 +513,7 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
-  const swipe = useSwipeNav(6, SETTINGS_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav(7, SETTINGS_TABS_ORDER, tab, setTab);
 
   return (
     <SafeAreaView style={s.container} {...swipe.panHandlers}>
@@ -528,12 +526,10 @@ export default function SettingsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
         {([
-          { id: 'options',  label: 'Options'  },
-          { id: 'tags',     label: 'Tags'     },
-          { id: 'goals',    label: 'Goals'    },
-          { id: 'planning', label: 'Planning' },
-          { id: 'user',     label: 'User'     },
-          { id: 'delete',   label: 'Delete'   },
+          { id: 'options', label: 'Options' },
+          { id: 'tags',    label: 'Tags'    },
+          { id: 'user',    label: 'User'    },
+          { id: 'delete',  label: 'Delete'  },
         ] as { id: Tab; label: string }[]).map(({ id, label }) => (
           <TouchableOpacity key={id} style={[s.tabBtn, tab === id && s.tabBtnActive]} onPress={() => setTab(id)}>
             <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
@@ -541,12 +537,10 @@ export default function SettingsScreen() {
         ))}
       </ScrollView>
 
-      {tab === 'options'  && <OptionsTab />}
-      {tab === 'tags'     && <TagsTab />}
-      {tab === 'goals'    && <GoalsTabContent />}
-      {tab === 'planning' && <SettingsPlanningTab />}
-      {tab === 'user'     && <UserTab />}
-      {tab === 'delete'   && <DeleteTab />}
+      {tab === 'options' && <OptionsTab />}
+      {tab === 'tags'    && <TagsTab />}
+      {tab === 'user'    && <UserTab />}
+      {tab === 'delete'  && <DeleteTab />}
     </SafeAreaView>
   );
 }
