@@ -18,6 +18,9 @@ import RoutinesPage from './pages/RoutinesPage';
 import RoutineDetailPage from './pages/RoutineDetailPage';
 import ExercisesPage from './pages/ExercisesPage';
 import SettingsPage from './pages/SettingsPage';
+import GoalsPage from './pages/GoalsPage';
+import PlanningPage from './pages/PlanningPage';
+import GoalProgressPage from './pages/GoalProgressPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -82,6 +85,11 @@ export default function App() {
           <Route path="workouts/routines" element={<RoutinesPage />} />
           <Route path="workouts/routines/:id" element={<RoutineDetailPage />} />
           <Route path="workouts/:id" element={<WorkoutDetailPage />} />
+
+          {/* Goals & Planning */}
+          <Route path="goals" element={<GoalsPage />} />
+          <Route path="goals/planning" element={<PlanningPage />} />
+          <Route path="goals/:id/progress" element={<GoalProgressPage />} />
 
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />

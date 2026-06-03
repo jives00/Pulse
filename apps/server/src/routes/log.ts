@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -124,7 +124,7 @@ router.get('/frequent', async (req, res) => {
       fatPerServing: Number(r.fat_per_serving ?? 0),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to fetch frequent foods' });
   }
 });
@@ -193,7 +193,7 @@ router.get('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to fetch log' });
   }
 });
@@ -258,7 +258,7 @@ router.post('/recipe-modified', async (req, res) => {
     res.status(201).json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to log modified recipe' });
   } finally {
     conn.release();
@@ -317,7 +317,7 @@ router.post('/inline', async (req, res) => {
     res.status(201).json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to log inline entry' });
   } finally {
     conn.release();
@@ -357,7 +357,7 @@ router.post('/recipe', async (req, res) => {
     res.status(201).json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to log recipe' });
   } finally {
     conn.release();
@@ -412,7 +412,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(rowToEntry(entry[0]));
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to add log entry' });
   }
 });
@@ -476,7 +476,7 @@ router.put('/:id', async (req, res) => {
 
     res.json(rowToEntry(updated[0]));
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to update log entry' });
   }
 });
@@ -552,7 +552,7 @@ router.get('/history', async (req, res) => {
       protein: Math.round(d.protein * 10) / 10,
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to fetch food log history' });
   }
 });
@@ -580,7 +580,7 @@ router.delete('/:id', async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to delete log entry' });
   }
 });
@@ -612,7 +612,7 @@ router.post('/copy', async (req, res) => {
 
     res.json({ copied: rows.length });
   } catch (err) {
-    console.error(err);
+    console.error('[log] error:', err);
     res.status(500).json({ error: 'Failed to copy log' });
   }
 });

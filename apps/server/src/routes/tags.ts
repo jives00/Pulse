@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
 import { suggestTags } from '../services/claude';
 
@@ -26,7 +26,7 @@ router.get('/', async (req: Request, res: Response) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error('[tags] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -60,7 +60,7 @@ router.get('/definitions', async (req: Request, res: Response) => {
     }
     res.json(result);
   } catch (err) {
-    console.error(err);
+    console.error('[tags] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -99,7 +99,7 @@ router.put('/definitions', async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[tags] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -116,7 +116,7 @@ router.post('/suggest', async (req: Request, res: Response) => {
     );
     res.json(tags);
   } catch (err) {
-    console.error(err);
+    console.error('[tags] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

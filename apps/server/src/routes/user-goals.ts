@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
       [req.userId]
     );
     res.json((rows as RowDataPacket[]).map(fmt));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[user-goals] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // POST /api/user-goals
@@ -88,7 +88,7 @@ router.post('/', async (req, res) => {
       [result.insertId]
     );
     res.status(201).json(fmt((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[user-goals] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // PUT /api/user-goals/:id
@@ -129,7 +129,7 @@ router.put('/:id', async (req, res) => {
     );
     if (!(rows as RowDataPacket[]).length) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(fmt((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[user-goals] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // DELETE /api/user-goals/:id
@@ -141,7 +141,7 @@ router.delete('/:id', async (req, res) => {
     );
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[user-goals] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 export default router;

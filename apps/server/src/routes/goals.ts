@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket } from 'mysql2';
@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
     if (!rows.length) { res.status(404).json({ error: 'No goals set' }); return; }
     res.json(toGoals(rows[0]));
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to fetch goals' });
   }
 });
@@ -54,7 +54,7 @@ router.get('/history', async (req, res) => {
     );
     res.json(rows.map(toGoals));
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to fetch goals history' });
   }
 });
@@ -80,7 +80,7 @@ router.post('/', async (req, res) => {
     );
     res.status(201).json(toGoals(rows[0]));
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to save goals' });
   }
 });
@@ -105,7 +105,7 @@ router.patch('/weekly', async (req, res) => {
     );
     res.json(rows.length ? toGoals(rows[0]) : {});
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to save weekly goals' });
   }
 });
@@ -197,7 +197,7 @@ router.get('/summary', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
@@ -265,7 +265,7 @@ router.get('/tdee', async (req, res) => {
 
     res.json({ available: true, ...breakdown, caloriesIn });
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to compute TDEE' });
   }
 });
@@ -290,7 +290,7 @@ router.get('/exercise', async (req, res) => {
         : String(rows[0].effective_from),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to fetch exercise goals' });
   }
 });
@@ -313,7 +313,7 @@ router.post('/exercise', async (req, res) => {
       showOnDashboard: Boolean(dashFlag),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[goals] error:', err);
     res.status(500).json({ error: 'Failed to save exercise goals' });
   }
 });

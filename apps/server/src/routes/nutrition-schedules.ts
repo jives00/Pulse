@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
@@ -100,7 +100,7 @@ router.get('/', async (req, res) => {
       [req.userId]
     );
     res.json((rows as RowDataPacket[]).map(fmt));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[nutrition-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // GET /api/nutrition-schedules/upcoming?days=60
@@ -162,7 +162,7 @@ router.get('/upcoming', async (req, res) => {
 
     results.sort((a: any, b: any) => a.date.localeCompare(b.date));
     res.json(results);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[nutrition-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // POST /api/nutrition-schedules
@@ -180,7 +180,7 @@ router.post('/', async (req, res) => {
     );
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM nutrition_schedules WHERE id=?', [result.insertId]);
     res.status(201).json(fmt((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[nutrition-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // PUT /api/nutrition-schedules/:id
@@ -209,7 +209,7 @@ router.put('/:id', async (req, res) => {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM nutrition_schedules WHERE id=? AND user_id=?', [id, req.userId]);
     if (!(rows as RowDataPacket[]).length) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(fmt((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[nutrition-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // DELETE /api/nutrition-schedules/:id
@@ -221,7 +221,7 @@ router.delete('/:id', async (req, res) => {
     );
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[nutrition-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 export default router;

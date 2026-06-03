@@ -8,6 +8,7 @@ const TOP_SECTIONS = [
   { prefix: '/drinks',       label: 'Drinks',       icon: '🍸', exact: false },
   { prefix: '/nutrition',    label: 'Food Log',     icon: '🥗', exact: false },
   { prefix: '/workouts',     label: 'Workouts',     icon: '💪', exact: false },
+  { prefix: '/goals',        label: 'Goals & Planning', icon: '🎯', exact: false },
   { prefix: '/history',      label: 'History',      icon: '📋', exact: false },
   { prefix: '/links',        label: 'Links',        icon: '🔗', exact: false },
   { prefix: '/settings',     label: 'Settings',     icon: '⚙️', exact: false },

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket } from 'mysql2';
@@ -31,7 +31,7 @@ router.get('/daily', async (req, res) => {
       entryCount: Number(r.entryCount),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[history] error:', err);
     res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
@@ -72,7 +72,7 @@ router.get('/weekly', async (req, res) => {
       daysLogged:  Number(r.daysLogged),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[history] error:', err);
     res.status(500).json({ error: 'Failed to fetch weekly history' });
   }
 });

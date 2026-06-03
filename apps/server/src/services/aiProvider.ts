@@ -47,6 +47,7 @@ export async function runText(params: {
   const anthropic = getAnthropic();
   if (anthropic) {
     try {
+      console.log(`[ai] calling Anthropic ${ANTHROPIC_MODELS[model]}`);
       const msg = await anthropic.messages.create({
         model: ANTHROPIC_MODELS[model],
         max_tokens: maxTokens,
@@ -56,13 +57,14 @@ export async function runText(params: {
       return (msg.content[0] as Anthropic.TextBlock).text;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;
-      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+      console.warn('[ai] Anthropic failed, falling back to Gemini:', (err as Error).message);
     }
   }
 
   const gemini = getGemini();
   if (!gemini) throw new Error('No AI provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)');
 
+  console.log(`[ai] calling Gemini ${GEMINI_MODELS[model]}`);
   const geminiModel = gemini.getGenerativeModel({ model: GEMINI_MODELS[model] });
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
   const result = await geminiModel.generateContent(fullPrompt);
@@ -85,6 +87,7 @@ export async function runConversation(params: {
   const anthropic = getAnthropic();
   if (anthropic) {
     try {
+      console.log(`[ai] calling Anthropic ${ANTHROPIC_MODELS[model]} (conversation)`);
       const messages: Anthropic.MessageParam[] = [
         ...history.map((m) => ({ role: m.role, content: m.content })),
         { role: 'user', content: userMessage },
@@ -98,13 +101,14 @@ export async function runConversation(params: {
       return (msg.content[0] as Anthropic.TextBlock).text;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;
-      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+      console.warn('[ai] Anthropic failed, falling back to Gemini:', (err as Error).message);
     }
   }
 
   const gemini = getGemini();
   if (!gemini) throw new Error('No AI provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)');
 
+  console.log(`[ai] calling Gemini ${GEMINI_MODELS[model]} (conversation)`);
   const historyText = history
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n');
@@ -159,6 +163,7 @@ export async function runWithTools(params: {
   const anthropic = getAnthropic();
   if (anthropic) {
     try {
+      console.log(`[ai] calling Anthropic ${ANTHROPIC_MODELS[model]} (tools: ${tool.name})`);
       const anthropicTool: Anthropic.Tool = {
         name: tool.name,
         description: tool.description,
@@ -176,12 +181,14 @@ export async function runWithTools(params: {
       return toolUse.input as Record<string, unknown>;
     } catch (err) {
       if (!env.GEMINI_API_KEY) throw err;
-      console.warn('[aiProvider] Anthropic failed, falling back to Gemini:', (err as Error).message);
+      console.warn('[ai] Anthropic failed, falling back to Gemini:', (err as Error).message);
     }
   }
 
   const gemini = getGemini();
   if (!gemini) throw new Error('No AI provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)');
+
+  console.log(`[ai] calling Gemini ${GEMINI_MODELS[model]} (tools: ${tool.name})`);
 
   // Build a required-fields description for the JSON instruction
   const requiredFields = tool.schema.required ?? Object.keys(tool.schema.properties);

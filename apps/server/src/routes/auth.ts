@@ -23,13 +23,15 @@ router.post('/login', loginLimiter, async (req, res) => {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM users WHERE username = ?', [username]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash as string))) {
+      console.log(`[auth] login failed: invalid credentials for username=${username}`);
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+    console.log(`[auth] login success: username=${username}`);
     const token = jwt.sign({ sub: user.id, username: user.username }, env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -65,7 +67,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign({ sub: result.insertId, username }, env.JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -86,7 +88,7 @@ router.post('/generate-invite', requireAuth, async (req, res) => {
     );
     res.json({ token: rawToken, expiresAt });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -116,7 +118,7 @@ router.put('/username', requireAuth, async (req, res) => {
     const token = jwt.sign({ sub: req.userId, username: newUsername.trim() }, env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -141,7 +143,7 @@ router.put('/password', requireAuth, async (req, res) => {
     const token = jwt.sign({ sub: req.userId, username: user.username }, env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -161,7 +163,7 @@ router.get('/profile', requireAuth, async (req, res) => {
       activityLevel: u.activity_level ?? 'sedentary',
     });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -190,7 +192,7 @@ router.put('/profile', requireAuth, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -220,6 +222,7 @@ router.delete('/data', requireAuth, async (req, res) => {
         await Promise.all([
           pool.query('DELETE FROM user_goals WHERE user_id = ?', [uid]),
           pool.query('DELETE FROM exercise_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM goals WHERE user_id = ?', [uid]),
         ]);
         break;
       case 'links':
@@ -230,7 +233,7 @@ router.delete('/data', requireAuth, async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error('[auth] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

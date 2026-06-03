@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { buildExport } from '../services/excelExport';
 
@@ -17,7 +17,7 @@ router.get('/excel', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="pulse-export-${start}-${end}.xlsx"`);
     res.send(buffer);
   } catch (err) {
-    console.error(err);
+    console.error('[export] error:', err);
     res.status(500).json({ error: 'Export failed' });
   }
 });

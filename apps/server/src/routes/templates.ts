@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -81,7 +81,7 @@ router.get('/', async (req, res) => {
     const templates = await Promise.all(rows.map((r) => getTemplate(r.id, req.userId)));
     res.json(templates.filter(Boolean));
   } catch (err) {
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to fetch templates' });
   }
 });
@@ -92,7 +92,7 @@ router.get('/:id', async (req, res) => {
     if (!tmpl) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(tmpl);
   } catch (err) {
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to fetch template' });
   }
 });
@@ -142,7 +142,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(tmpl);
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to create template' });
   } finally {
     conn.release();
@@ -156,7 +156,7 @@ router.put('/:id', async (req, res) => {
     if (!tmpl) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(tmpl);
   } catch (err) {
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to rename template' });
   }
 });
@@ -166,7 +166,7 @@ router.delete('/:id', async (req, res) => {
     await pool.execute('DELETE FROM meal_templates WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to delete template' });
   }
 });
@@ -207,7 +207,7 @@ router.post('/:id/log', async (req, res) => {
 
     res.json({ logged: items.length });
   } catch (err) {
-    console.error(err);
+    console.error('[templates] error:', err);
     res.status(500).json({ error: 'Failed to log template' });
   }
 });

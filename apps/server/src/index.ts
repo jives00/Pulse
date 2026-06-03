@@ -1,6 +1,8 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import morgan from 'morgan';
 import { env } from './config/env';
+import { pool } from './config/database';
 import { requireAuth } from './middleware/auth';
 
 import authRoutes      from './routes/auth';
@@ -29,22 +31,31 @@ import dayTypesRoutes          from './routes/day-types';
 import mealSchedulesRoutes          from './routes/meal-schedules';
 import nutritionSchedulesRoutes     from './routes/nutrition-schedules';
 import userGoalsRoutes              from './routes/user-goals';
+import goalsV2Routes               from './routes/goals-v2';
 
 const app = express();
 
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    if (!origin || allowed.includes(origin)) return cb(null, true);
+    if (!origin || allowed.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin ?? '') || /^http:\/\/synology(:\d+)?$/.test(origin ?? '')) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
+app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 
 // Public
 app.use('/api/auth', authRoutes);
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, db: 'ok' });
+  } catch {
+    res.status(503).json({ ok: false, db: 'error' });
+  }
+});
 
 // Protected — Recipes
 app.use('/api/recipes/scrape', requireAuth, scrapeRoutes);
@@ -76,6 +87,13 @@ app.use('/api/day-types',         requireAuth, dayTypesRoutes);
 app.use('/api/meal-schedules',         requireAuth, mealSchedulesRoutes);
 app.use('/api/nutrition-schedules',    requireAuth, nutritionSchedulesRoutes);
 app.use('/api/user-goals',             requireAuth, userGoalsRoutes);
+app.use('/api/goals-v2',               requireAuth, goalsV2Routes);
+
+// Global error handler — catches anything that bubbles up from routes
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  console.error(`[server] unhandled error ${req.method} ${req.path}:`, err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);

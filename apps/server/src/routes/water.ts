@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[water] error:', err);
     res.status(500).json({ error: 'Failed to fetch water log' });
   }
 });
@@ -54,7 +54,7 @@ router.post('/', async (req, res) => {
     );
     res.status(201).json({ id: result.insertId, logDate: date, amountOz, loggedAt: new Date().toISOString() });
   } catch (err) {
-    console.error(err);
+    console.error('[water] error:', err);
     res.status(500).json({ error: 'Failed to add water entry' });
   }
 });
@@ -84,7 +84,7 @@ router.get('/history', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[water] error:', err);
     res.status(500).json({ error: 'Failed to fetch water history' });
   }
 });
@@ -94,7 +94,7 @@ router.delete('/:id', async (req, res) => {
     await pool.execute('DELETE FROM water_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[water] error:', err);
     res.status(500).json({ error: 'Failed to delete water entry' });
   }
 });

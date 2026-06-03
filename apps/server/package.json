@@ -14,6 +14,7 @@
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "@google/generative-ai": "^0.24.1",
     "@pulse/api-client": "workspace:*",
+    "@types/morgan": "^1.9.10",
     "axios": "^1.7.0",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",
@@ -23,6 +24,7 @@
     "express": "^4.19.0",
     "express-rate-limit": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
     "mysql2": "^3.9.0",
     "node-fetch": "^2.7.0",
     "zod": "^3.23.0"

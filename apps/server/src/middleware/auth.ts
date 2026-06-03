@@ -18,6 +18,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     req.userId = payload.sub;
     next();
   } catch {
+    console.log(`[auth] JWT invalid: ${req.method} ${req.path}`);
     res.status(401).json({ error: 'Invalid token' });
   }
 }

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
@@ -223,7 +223,7 @@ router.get('/', async (req, res) => {
     );
     res.json((rows as RowDataPacket[]).map(formatSchedule));
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -380,7 +380,7 @@ router.get('/upcoming', async (req, res) => {
     results.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.scheduleId - b.scheduleId);
     res.json(results);
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -418,7 +418,7 @@ router.post('/', async (req, res) => {
     if (!row) { res.status(500).json({ error: 'Server error' }); return; }
     res.status(201).json(formatSchedule(row));
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -452,7 +452,7 @@ router.put('/:id', async (req, res) => {
     const updated = await getScheduleRow(id, req.userId);
     res.json(formatSchedule(updated!));
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -469,7 +469,7 @@ router.delete('/:id', async (req, res) => {
     if (result.affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -497,7 +497,7 @@ router.post('/:id/override', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -530,7 +530,7 @@ router.get('/program-templates', async (req, res) => {
       })),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -586,7 +586,7 @@ router.post('/program-templates/:id/import', async (req, res) => {
 
     res.status(201).json(created);
   } catch (err) {
-    console.error(err);
+    console.error('[schedules] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

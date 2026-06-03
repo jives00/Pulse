@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
       notes: r.notes ?? null,
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -75,7 +75,7 @@ router.post('/', async (req, res) => {
       notes: notes ?? null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -102,7 +102,7 @@ router.get('/goals', async (req, res) => {
     }
     res.json(goals);
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -129,7 +129,7 @@ router.put('/goals/:metric', async (req, res) => {
     );
     res.json({ metric, targetValue: Number(targetValue), unit, targetDate: targetDate ?? null, showOnDashboard: showOnDashboard ?? true });
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -144,7 +144,7 @@ router.delete('/goals/:metric', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -173,7 +173,7 @@ router.put('/:id', async (req, res) => {
       notes: r.notes ?? null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -191,7 +191,7 @@ router.delete('/:id', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[measurements] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

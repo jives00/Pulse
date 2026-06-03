@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
@@ -37,7 +37,7 @@ router.get('/presets', async (req, res) => {
       'SELECT * FROM day_type_presets WHERE user_id=? ORDER BY name ASC', [req.userId]
     );
     res.json((rows as RowDataPacket[]).map(fmtPreset));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 router.post('/presets', async (req, res) => {
@@ -50,7 +50,7 @@ router.post('/presets', async (req, res) => {
     );
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM day_type_presets WHERE id=?', [result.insertId]);
     res.status(201).json(fmtPreset((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 router.put('/presets/:id', async (req, res) => {
@@ -64,7 +64,7 @@ router.put('/presets/:id', async (req, res) => {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM day_type_presets WHERE id=? AND user_id=?', [id, req.userId]);
     if (!(rows as RowDataPacket[]).length) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(fmtPreset((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 router.delete('/presets/:id', async (req, res) => {
@@ -72,7 +72,7 @@ router.delete('/presets/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM day_type_presets WHERE id=? AND user_id=?', [id, req.userId]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ─── Daily Nutrition Overrides ────────────────────────────────────────────────
@@ -90,7 +90,7 @@ router.get('/overrides', async (req, res) => {
       [req.userId, from, to]
     );
     res.json((rows as RowDataPacket[]).map(fmtOverride));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 router.put('/overrides/:date', async (req, res) => {
@@ -114,7 +114,7 @@ router.put('/overrides/:date', async (req, res) => {
       [req.userId, date]
     );
     res.json(fmtOverride((rows as RowDataPacket[])[0]));
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 router.delete('/overrides/:date', async (req, res) => {
@@ -122,7 +122,7 @@ router.delete('/overrides/:date', async (req, res) => {
   try {
     await pool.query('DELETE FROM daily_nutrition_overrides WHERE user_id=? AND date=?', [req.userId, date]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error('[day-types] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 export default router;

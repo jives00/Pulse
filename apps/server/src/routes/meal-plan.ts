@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -94,7 +94,7 @@ router.get('/', async (req, res) => {
 
     res.json({ weekStart, days });
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to fetch meal plan' });
   }
 });
@@ -169,7 +169,7 @@ router.post('/entries', async (req, res) => {
 
     res.status(201).json(rowToEntry(entry[0]));
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to add meal plan entry' });
   }
 });
@@ -184,7 +184,7 @@ router.delete('/entries/:id', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to delete meal plan entry' });
   }
 });
@@ -203,7 +203,7 @@ router.get('/templates', async (req, res) => {
       createdAt: r.created_at instanceof Date ? r.created_at.toISOString().slice(0, 10) : String(r.created_at),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to fetch templates' });
   }
 });
@@ -262,7 +262,7 @@ router.post('/templates', async (req, res) => {
     res.status(201).json({ id: templateId, name: name.trim() });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to save template' });
   } finally {
     conn.release();
@@ -309,7 +309,7 @@ router.post('/templates/:id/apply', async (req, res) => {
 
     res.json({ applied: items.length });
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to apply template' });
   }
 });
@@ -324,7 +324,7 @@ router.delete('/templates/:id', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[meal-plan] error:', err);
     res.status(500).json({ error: 'Failed to delete template' });
   }
 });

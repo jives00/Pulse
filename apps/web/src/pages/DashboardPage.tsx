@@ -5,10 +5,10 @@ import {
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, buildWorkoutLine,
   KG_TO_LBS,
   type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
-  type BodyMeasurement, type MeasurementGoal, type PersonalBests,
+  type BodyMeasurement, type PersonalBests,
   type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
-  type UserGoal, userGoalsApi,
+  goalsV2Api, type Goal, type FoodLogHistoryEntry,
 } from '@pulse/api-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1046,6 +1046,16 @@ const STATUS_CFG: Record<GoalStatus, { color: string; label: string }> = {
   no_data:  { color: MUTED,     label: '—'        },
 };
 
+const BODY_GOAL_CARD_CFG: Record<string, { label: string; unit: string; dir: 'up' | 'down'; metric: string }> = {
+  body_waist:       { label: 'Waist',       unit: 'in',  dir: 'down', metric: 'waist' },
+  body_bicep:       { label: 'Bicep',       unit: 'in',  dir: 'up',   metric: 'bicep' },
+  body_chest:       { label: 'Chest',       unit: 'in',  dir: 'up',   metric: 'chest' },
+  body_hips:        { label: 'Hips',        unit: 'in',  dir: 'down', metric: 'hips' },
+  body_fat_pct:     { label: 'Body Fat',    unit: '%',   dir: 'down', metric: 'body_fat' },
+  body_muscle_mass: { label: 'Muscle Mass', unit: 'lbs', dir: 'up',   metric: 'muscle_mass' },
+  body_water_pct:   { label: 'Hydration',   unit: '%',   dir: 'up',   metric: 'water_pct' },
+};
+
 function StatusChip({ status }: { status: GoalStatus }) {
   const { color, label } = STATUS_CFG[status];
   return (
@@ -1084,7 +1094,7 @@ function normDateStr(isoStr: string): string {
 
 function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
   measurements: BodyMeasurement[];
-  goal: MeasurementGoal | undefined;
+  goal: Goal;
   foodLogHistory: FoodLogHistoryDay[];
   tdee: TDEEBreakdown | null;
 }) {
@@ -1096,8 +1106,8 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
     .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
     .map(m => ({ date: m.measuredAt, val: m.unit === 'kg' ? m.value * KG_TO_LBS : m.value }));
 
-  const target   = goal?.targetValue;
-  const deadline = goal?.targetDate ? normDateStr(goal.targetDate) : null;
+  const target   = goal.targetValue;
+  const deadline = goal.deadline ? normDateStr(goal.deadline) : null;
 
   if (!sorted.length) {
     return (
@@ -1188,7 +1198,7 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
   const targetY   = target != null ? Y(target) : null;
 
   return (
-    <Panel title="Weight goal" meta={goal ? `${fmt1(target!)} lb by ${goal.targetDate ? fmtISODate(goal.targetDate) : '—'}` : undefined}>
+    <Panel title="Weight goal" meta={`${fmt1(target)} lb by ${goal.deadline ? fmtISODate(goal.deadline) : '—'}`}>
       {/* Status row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 12, flexWrap: 'wrap' as const }}>
         <div>
@@ -1314,7 +1324,7 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
 
 function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   label: string; metric: string; unit: string; dir: 'up' | 'down';
-  measurements: BodyMeasurement[]; goal: MeasurementGoal | undefined;
+  measurements: BodyMeasurement[]; goal: Goal;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -1324,8 +1334,8 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
     .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
     .map(m => ({ date: m.measuredAt, val: m.value }));
 
-  const target   = goal?.targetValue;
-  const deadline = goal?.targetDate ? normDateStr(goal.targetDate) : null;
+  const target   = goal.targetValue;
+  const deadline = goal.deadline ? normDateStr(goal.deadline) : null;
 
   if (!sorted.length) {
     return (
@@ -1337,7 +1347,6 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
 
   const current  = sorted[sorted.length - 1].val;
   const todayMs  = new Date(localDateStr() + 'T12:00:00').getTime();
-  const t0Ms     = new Date(sorted[0].date + 'T12:00:00').getTime();
 
   // Linear regression slope using last 90 days so old history doesn't skew the projection
   const cutoff90Ms = todayMs - 90 * 86400000;
@@ -1364,10 +1373,14 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   const isAchieved = target != null && (dir === 'down' ? current <= target : current >= target);
   const status     = deadlineStatus(etaDaysVal, deadline, isAchieved);
 
-  // Chart: all history + 30-day projection
+  // Chart: last 180 days + 30-day projection (fallback to last 30 entries)
+  const cutoff180Ms = todayMs - 180 * 86400000;
+  const chart180    = sorted.filter(m => new Date(m.date + 'T12:00:00').getTime() >= cutoff180Ms);
+  const chartData   = chart180.length > 0 ? chart180 : sorted.slice(-30);
   const endMs  = todayMs + 30 * 86400000;
   const W = 760, H = 170;
-  const X = (ms: number) => ((ms - t0Ms) / (endMs - t0Ms)) * W;
+  const chartT0Ms = new Date(chartData[0].date + 'T12:00:00').getTime();
+  const X = (ms: number) => ((ms - chartT0Ms) / (endMs - chartT0Ms)) * W;
   const todayX = X(todayMs);
 
   const projPts = Array.from({ length: 31 }, (_, i) => ({
@@ -1375,21 +1388,21 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
     y: current + slopePerDay * i,
   }));
 
-  const allY = [...sorted.map(m => m.val), ...projPts.map(p => p.y), target ?? 0].filter(Boolean);
+  const allY = [...chartData.map(m => m.val), ...projPts.map(p => p.y), target ?? 0].filter(Boolean);
   const minV = Math.min(...allY) * 0.994;
   const maxV = Math.max(...allY) * 1.006;
   const Y = (v: number) => H - ((v - minV) / (maxV - minV)) * (H - 20) - 10;
 
-  const histPath = sorted.map((m, i) =>
+  const histPath = chartData.map((m, i) =>
     `${i ? 'L' : 'M'}${X(new Date(m.date + 'T12:00:00').getTime()).toFixed(1)},${Y(m.val).toFixed(1)}`
   ).join('');
-  const aPath    = `${histPath} L${todayX.toFixed(1)},${H} L${X(t0Ms).toFixed(1)},${H} Z`;
+  const aPath    = `${histPath} L${todayX.toFixed(1)},${H} L${X(chartT0Ms).toFixed(1)},${H} Z`;
   const projPath = projPts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
   const targetY  = target != null ? Y(target) : null;
   const gradId   = `bmgc-${metric}`;
 
   return (
-    <Panel title={`${label} goal`} meta={goal ? `${fmt1(target!)} ${unit} by ${goal.targetDate ? fmtISODate(goal.targetDate) : '—'}` : undefined}>
+    <Panel title={`${label} goal`} meta={`${fmt1(target)} ${unit} by ${goal.deadline ? fmtISODate(goal.deadline) : '—'}`}>
       {/* Status row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 12, flexWrap: 'wrap' as const }}>
         <div>
@@ -1428,9 +1441,9 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
             if (!svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
             const xRatio = (e.clientX - rect.left) / rect.width;
-            const hoverMs = t0Ms + xRatio * (endMs - t0Ms);
+            const hoverMs = chartT0Ms + xRatio * (endMs - chartT0Ms);
             let closest = 0, minDist = Infinity;
-            sorted.forEach((m, i) => {
+            chartData.forEach((m, i) => {
               const dist = Math.abs(new Date(m.date + 'T12:00:00').getTime() - hoverMs);
               if (dist < minDist) { minDist = dist; closest = i; }
             });
@@ -1456,7 +1469,7 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
           <path d={projPath} fill="none" stroke="#818cf8" strokeWidth="1.4" strokeDasharray="4 3" opacity="0.9" />
           <circle cx={todayX.toFixed(1)} cy={Y(current).toFixed(1)} r="3" fill={ACCENT} />
           {hoverIdx !== null && (() => {
-            const m = sorted[hoverIdx];
+            const m = chartData[hoverIdx];
             const hx = X(new Date(m.date + 'T12:00:00').getTime());
             const hy = Y(m.val);
             return (
@@ -1468,7 +1481,7 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
           })()}
         </svg>
         {hoverIdx !== null && (() => {
-          const m = sorted[hoverIdx];
+          const m = chartData[hoverIdx];
           const hx = X(new Date(m.date + 'T12:00:00').getTime());
           const hy = Y(m.val);
           const leftPct = (hx / W) * 100;
@@ -1495,7 +1508,7 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
         <span style={{ color: ACCENT }}>── actual</span>
         <span style={{ color: '#818cf8' }}>╌╌ trend proj</span>
         {targetY != null && <span>╌╌ target {fmt1(target!)} {unit}</span>}
-        <span style={{ marginLeft: 'auto' }}>{sorted.length} entries · 30d proj</span>
+        <span style={{ marginLeft: 'auto' }}>{chartData.length} entries · 180d window · 30d proj</span>
       </div>
     </Panel>
   );
@@ -1606,29 +1619,48 @@ function WorkoutFreqCard({ routines, routineGoals, workouts }: {
   );
 }
 
-// ─── Custom goal card ─────────────────────────────────────────────────────────
+// ─── Custom goal card (progress bar type) ─────────────────────────────────────
 
-function CustomGoalCard({ goal }: { goal: UserGoal }) {
-  const deadline = goal.targetDate
-    ? new Date(goal.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null;
-  const daysLeft = goal.targetDate
-    ? Math.ceil((new Date(goal.targetDate + 'T12:00:00').getTime() - Date.now()) / 86400000)
+function CustomGoalCard({ goal }: { goal: Goal }) {
+  const daysLeft = goal.deadline
+    ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
     : null;
   const overdue = daysLeft != null && daysLeft < 0;
+  const deadline = goal.deadline
+    ? new Date(goal.deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
+  const current = goal.currentValue ?? goal.startValue;
+  const hasPct  = goal.startValue != null && current != null && goal.targetValue !== goal.startValue;
+  const pct     = hasPct
+    ? Math.min(100, Math.max(0, ((current! - goal.startValue!) / (goal.targetValue - goal.startValue!)) * 100))
+    : null;
 
   return (
-    <Panel title={goal.name}>
+    <Panel title={goal.name} meta={goal.sourceName ?? undefined}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span className="font-display" style={{ fontSize: 34, fontWeight: 700, color: 'white', lineHeight: 1 }}>
-            {goal.targetValue.toLocaleString()}
-          </span>
-          <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{goal.unit}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span className="font-display" style={{ fontSize: 28, fontWeight: 700, color: 'white', lineHeight: 1 }}>
+              {current != null ? current.toLocaleString() : '—'}
+            </span>
+            <span className="font-mono" style={{ fontSize: 12, color: MUTED }}>{goal.unit}</span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>Target</div>
+            <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{goal.targetValue.toLocaleString()} {goal.unit}</span>
+          </div>
         </div>
-        {goal.sourceName && (
-          <div className="micro" style={{ fontSize: 10, color: MUTED2 }}>{goal.sourceName}</div>
+
+        {pct != null && (
+          <div>
+            <div style={{ height: 4, background: LINE_SOFT, borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: ACCENT, borderRadius: 2, transition: 'width 0.3s' }} />
+            </div>
+            <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 3 }}>{Math.round(pct)}% to goal</div>
+          </div>
         )}
+
         {deadline && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="font-mono" style={{ fontSize: 11, color: overdue ? '#f87171' : MUTED }}>
@@ -1642,6 +1674,134 @@ function CustomGoalCard({ goal }: { goal: UserGoal }) {
   );
 }
 
+// ─── Nutrition goal card ───────────────────────────────────────────────────────
+
+const NUTRIENT_FIELD: Record<string, (day: FoodLogHistoryDay) => number> = {
+  nutrition_calories_daily_avg: d => d.calories,
+  nutrition_protein_daily_avg:  d => d.protein,
+  nutrition_carbs_daily_avg:    d => (d.entries as FoodLogHistoryEntry[]).reduce((s, e) => s + (e.carbsG ?? 0), 0),
+  nutrition_fat_daily_avg:      d => (d.entries as FoodLogHistoryEntry[]).reduce((s, e) => s + (e.fatG ?? 0), 0),
+};
+
+function NutritionGoalCard({ goal, foodLogHistory }: { goal: Goal; foodLogHistory: FoodLogHistoryDay[] }) {
+  const getVal = NUTRIENT_FIELD[goal.catalogKey];
+  if (!getVal) return null;
+
+  const sorted = [...foodLogHistory].sort((a, b) => a.date.localeCompare(b.date));
+  const last30 = sorted.slice(-30).filter(d => d.calories > 0);
+  if (!last30.length) return (
+    <Panel title={goal.name} meta={`target ${goal.targetValue} ${goal.unit}/day`}>
+      <div style={{ fontSize: 13, color: MUTED2 }}>No food log data yet.</div>
+    </Panel>
+  );
+
+  const vals   = last30.map(d => getVal(d));
+  const avg    = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const target = goal.targetValue;
+  const W = 760, H = 100;
+  const allY   = [...vals, target];
+  const minV   = Math.min(...allY) * 0.96;
+  const maxV   = Math.max(...allY) * 1.04;
+  const X      = (i: number) => (i / (last30.length - 1)) * W;
+  const Y      = (v: number) => H - ((v - minV) / (maxV - minV)) * H;
+  const path   = vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+  const targetY = Y(target);
+
+  const daysLeft = goal.deadline
+    ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
+    : null;
+
+  return (
+    <Panel title={goal.name} meta={`target ${target} ${goal.unit}/day`}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 10, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>30-day avg</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
+            {Math.round(avg).toLocaleString()}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{goal.unit}</span>
+          </span>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
+            {target.toLocaleString()}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>{goal.unit}</span>
+          </span>
+        </div>
+        {daysLeft != null && (
+          <div style={{ marginLeft: 'auto' }}>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Deadline</div>
+            <span className="font-mono" style={{ fontSize: 12, color: daysLeft < 0 ? '#f87171' : MUTED }}>
+              {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+            </span>
+          </div>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+        <line x1="0" y1={targetY} x2={W} y2={targetY} stroke={MUTED2} strokeWidth="1" strokeDasharray="4 4" />
+        <path d={path} fill="none" stroke={ACCENT} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </Panel>
+  );
+}
+
+// ─── Steps goal card ──────────────────────────────────────────────────────────
+
+function StepsGoalCard({ goal, stepsHistory }: { goal: Goal; stepsHistory: StepsDay[] }) {
+  const sorted = [...stepsHistory].sort((a, b) => a.date.localeCompare(b.date));
+  const last30 = sorted.slice(-30).filter(d => (d.steps ?? 0) > 0);
+  if (!last30.length) return (
+    <Panel title={goal.name} meta={`target ${goal.targetValue.toLocaleString()} steps/day`}>
+      <div style={{ fontSize: 13, color: MUTED2 }}>No steps data yet.</div>
+    </Panel>
+  );
+
+  const vals   = last30.map(d => d.steps ?? 0);
+  const avg    = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const target = goal.targetValue;
+  const W = 760, H = 100;
+  const allY   = [...vals, target];
+  const minV   = Math.min(...allY) * 0.96;
+  const maxV   = Math.max(...allY) * 1.04;
+  const X      = (i: number) => (i / (last30.length - 1)) * W;
+  const Y      = (v: number) => H - ((v - minV) / (maxV - minV)) * H;
+  const path   = vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+  const targetY = Y(target);
+
+  const daysLeft = goal.deadline
+    ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
+    : null;
+
+  return (
+    <Panel title={goal.name} meta={`target ${target.toLocaleString()} steps/day`}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 10, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>30-day avg</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
+            {Math.round(avg).toLocaleString()}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>steps</span>
+          </span>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
+          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
+            {target.toLocaleString()}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>steps</span>
+          </span>
+        </div>
+        {daysLeft != null && (
+          <div style={{ marginLeft: 'auto' }}>
+            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Deadline</div>
+            <span className="font-mono" style={{ fontSize: 12, color: daysLeft < 0 ? '#f87171' : MUTED }}>
+              {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+            </span>
+          </div>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+        <line x1="0" y1={targetY} x2={W} y2={targetY} stroke={MUTED2} strokeWidth="1" strokeDasharray="4 4" />
+        <path d={path} fill="none" stroke={'#a78bfa'} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </Panel>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1650,7 +1810,6 @@ export default function DashboardPage() {
   const [workouts,       setWorkouts]       = useState<WorkoutSummary[]>([]);
   const [exGoals,        setExGoals]        = useState<ExerciseGoals | null>(null);
   const [measurements,   setMeasurements]   = useState<BodyMeasurement[]>([]);
-  const [measGoals,      setMeasGoals]      = useState<Record<string, MeasurementGoal>>({});
   const [summary,        setSummary]        = useState<GoalsSummary | null>(null);
   const [,               setPersonalBests]  = useState<PersonalBests | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
@@ -1662,7 +1821,7 @@ export default function DashboardPage() {
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
   const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
-  const [customGoals,    setCustomGoals]    = useState<UserGoal[]>([]);
+  const [newGoals,       setNewGoals]       = useState<Goal[]>([]);
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
@@ -1671,7 +1830,6 @@ export default function DashboardPage() {
       goalsApi.getExercise().catch(() => null),
       goalsApi.getSummary().catch(() => null),
       measurementsApi.getAll().catch(() => []),
-      measurementsApi.getGoals().catch(() => ({})),
       workoutsApi.getPersonalBests().catch(() => null),
       logApi.getHistory({ limit: 60 }).catch(() => []),
       routinesApi.getAll().catch(() => []),
@@ -1682,13 +1840,12 @@ export default function DashboardPage() {
       waterApi.getDay(today).catch(() => null),
       stepsApi.getDay(today).catch(() => null),
       stepsApi.getHistory(60).catch(() => []),
-      userGoalsApi.getAll().catch(() => []),
-    ]).then(([ws, eg, s, ms, mg, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh, ug]) => {
+      goalsV2Api.getAll('active').catch(() => []),
+    ]).then(([ws, eg, s, ms, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh, ug]) => {
       setWorkouts(ws);
       setExGoals(eg);
       setSummary(s as GoalsSummary | null);
       setMeasurements(ms as BodyMeasurement[]);
-      setMeasGoals(mg as Record<string, MeasurementGoal>);
       setPersonalBests(pb);
       setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
       setRoutines(rl as RoutineSummary[]);
@@ -1700,7 +1857,7 @@ export default function DashboardPage() {
       if (wd) setTodayWater(wd as WaterDay);
       if (sd) setTodaySteps(sd as StepsDay);
       setStepsHistory(sh as StepsDay[]);
-      setCustomGoals(ug as UserGoal[]);
+      setNewGoals(ug as Goal[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1775,33 +1932,39 @@ export default function DashboardPage() {
 
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
       {(() => {
-        const MEAS_CARD_CONFIG: Record<string, { label: string; unit: string; dir: 'up' | 'down' }> = {
-          waist:       { label: 'Waist',       unit: 'in',  dir: 'down' },
-          bicep:       { label: 'Bicep',       unit: 'in',  dir: 'up'   },
-          chest:       { label: 'Chest',       unit: 'in',  dir: 'up'   },
-          hips:        { label: 'Hips',        unit: 'in',  dir: 'down' },
-          body_fat:    { label: 'Body Fat',    unit: '%',   dir: 'down' },
-          muscle_mass: { label: 'Muscle Mass', unit: 'lbs', dir: 'up'   },
-          water_pct:   { label: 'Hydration',   unit: '%',   dir: 'up'   },
-        };
-        const showWeight    = measGoals['weight']?.showOnDashboard && measGoals['weight'];
-        const measEntries   = Object.entries(MEAS_CARD_CONFIG).filter(([m]) => measGoals[m]?.showOnDashboard);
-        const showWorkout   = exGoals?.showOnDashboard;
-        const dashGoals     = customGoals.filter((g) => g.showOnDashboard);
-        if (!showWeight && !measEntries.length && !showWorkout && !dashGoals.length) return null;
+        const EXERCISE_LEGACY_KEYS = new Set([
+          'exercise_workouts_per_week','exercise_minutes_per_week',
+          'exercise_volume_per_week','exercise_routine_sessions',
+        ]);
+        const bodyDashGoals  = newGoals.filter(g => g.category === 'body' && g.showOnDashboard);
+        const weightGoal     = bodyDashGoals.find(g => g.catalogKey === 'body_weight');
+        const measDashGoals  = bodyDashGoals.filter(g => g.catalogKey !== 'body_weight');
+        const showWorkout    = exGoals?.showOnDashboard;
+        const dashNutrition  = newGoals.filter(g => g.category === 'nutrition' && g.showOnDashboard);
+        const dashActivity   = newGoals.filter(g => g.category === 'activity'  && g.showOnDashboard);
+        const dashExercise   = newGoals.filter(g => g.category === 'exercise'  && g.showOnDashboard && !EXERCISE_LEGACY_KEYS.has(g.catalogKey));
+        if (!weightGoal && !measDashGoals.length && !showWorkout && !dashNutrition.length && !dashActivity.length && !dashExercise.length) return null;
         return (
           <Band kicker="Goal progress">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {showWeight && (
-                <WeightGoalCard measurements={measurements} goal={measGoals['weight']!} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
+              {weightGoal && (
+                <WeightGoalCard measurements={measurements} goal={weightGoal} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
               )}
-              {measEntries.map(([metric, cfg]) => (
-                <BodyMeasGoalCard key={metric} label={cfg.label} metric={metric} unit={measGoals[metric].unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={measGoals[metric]!} />
-              ))}
+              {measDashGoals.map(g => {
+                const cfg = BODY_GOAL_CARD_CFG[g.catalogKey];
+                if (!cfg) return null;
+                return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} />;
+              })}
               {showWorkout && (
                 <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
               )}
-              {dashGoals.map((g) => (
+              {dashNutrition.map(g => (
+                <NutritionGoalCard key={g.id} goal={g} foodLogHistory={foodLogHistory} />
+              ))}
+              {dashActivity.map(g => (
+                <StepsGoalCard key={g.id} goal={g} stepsHistory={stepsHistory} />
+              ))}
+              {dashExercise.map(g => (
                 <CustomGoalCard key={g.id} goal={g} />
               ))}
             </div>

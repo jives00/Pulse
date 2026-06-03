@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
@@ -77,7 +77,7 @@ router.get('/', async (req, res) => {
     })));
     res.json(mapped);
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -90,7 +90,7 @@ router.get('/categories', async (_req, res) => {
     );
     res.json(rows.map((r) => r.category));
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -136,7 +136,7 @@ router.post('/', async (req, res) => {
       trackedFields: fields.split(','),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -171,7 +171,7 @@ router.get('/:id', async (req, res) => {
       trackedFields: (r.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
     });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -325,7 +325,7 @@ router.get('/:id/stats', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -381,7 +381,7 @@ router.get('/:id/history', async (req, res) => {
       })),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -404,7 +404,7 @@ router.post('/:id/cover-image-from-url', async (req, res) => {
     clearPresignedUrlCache(key);
     res.json({ key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -419,7 +419,7 @@ router.post('/:id/cover-image', async (req, res) => {
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -445,7 +445,7 @@ router.post('/:id/media-from-url', async (req, res) => {
     clearPresignedUrlCache(key);
     res.json({ key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -460,7 +460,7 @@ router.post('/:id/media', async (req, res) => {
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -483,7 +483,7 @@ router.post('/:id/muscle-image-from-url', async (req, res) => {
     clearPresignedUrlCache(key);
     res.json({ key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -498,7 +498,7 @@ router.post('/:id/muscle-image', async (req, res) => {
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -554,7 +554,7 @@ router.put('/:id', async (req, res) => {
       trackedFields: (r.tracked_fields as string | null)?.split(',').filter(Boolean) ?? ['reps', 'weight'],
     });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -574,7 +574,7 @@ router.delete('/:id', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[exercises] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

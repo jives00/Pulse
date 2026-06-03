@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
       res.json({ date, steps: rows[0].steps, source: rows[0].source });
     }
   } catch (err) {
-    console.error(err);
+    console.error('[steps] error:', err);
     res.status(500).json({ error: 'Failed to fetch steps' });
   }
 });
@@ -38,7 +38,7 @@ router.get('/history', async (req, res) => {
     );
     res.json(rows.map((r) => ({ date: String(r.date).slice(0, 10), steps: r.steps, source: r.source })));
   } catch (err) {
-    console.error(err);
+    console.error('[steps] error:', err);
     res.status(500).json({ error: 'Failed to fetch steps history' });
   }
 });
@@ -60,9 +60,10 @@ router.post('/', async (req, res) => {
        ON DUPLICATE KEY UPDATE steps = VALUES(steps), source = VALUES(source), logged_at = CURRENT_TIMESTAMP`,
       [req.userId, date, count, source]
     );
+    console.log(`[steps] synced ${count.toLocaleString()} steps on ${date} (${source})`);
     res.status(201).json({ date, steps: count, source });
   } catch (err) {
-    console.error(err);
+    console.error('[steps] error:', err);
     res.status(500).json({ error: 'Failed to log steps' });
   }
 });

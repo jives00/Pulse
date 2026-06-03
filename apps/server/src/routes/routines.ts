@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getWorkoutDetail } from './workouts';
@@ -406,7 +406,7 @@ router.get('/', async (req, res) => {
 
     res.json(list);
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -433,7 +433,7 @@ router.get('/goals', async (req, res) => {
         : String(r.effective_from),
     })));
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -451,7 +451,7 @@ router.post('/', async (req, res) => {
     const detail = await getRoutineDetail(result.insertId, req.userId);
     res.status(201).json(detail);
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -467,7 +467,7 @@ router.get('/:id', async (req, res) => {
     if (!detail) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(detail);
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -499,7 +499,7 @@ router.put('/:id', async (req, res) => {
     const detail = await getRoutineDetail(id, req.userId);
     res.json(detail);
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -514,7 +514,7 @@ router.delete('/:id', async (req, res) => {
     await pool.query('DELETE FROM workout_routines WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -542,7 +542,7 @@ router.get('/:id/goal', async (req, res) => {
         : String(r.effective_from),
     });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -574,7 +574,7 @@ router.put('/:id/goal', async (req, res) => {
       effectiveFrom: today,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -592,7 +592,7 @@ router.delete('/:id/goal', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -645,7 +645,7 @@ router.post('/:id/exercises', async (req, res) => {
       lastPerformedSets: lastPerformedSets.length > 0 ? lastPerformedSets.map(mapSet) : null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -667,7 +667,7 @@ router.put('/:id/exercises/reorder', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -685,7 +685,7 @@ router.delete('/:id/exercises/:reId', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -720,7 +720,7 @@ router.post('/:id/exercises/:reId/sets', async (req, res) => {
       steps: steps ?? null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -743,7 +743,7 @@ router.put('/:id/exercises/:reId/sets/:sId', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -762,7 +762,7 @@ router.delete('/:id/exercises/:reId/sets/:sId', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -778,7 +778,7 @@ router.post('/:id/photo', async (req, res) => {
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -870,7 +870,7 @@ router.post('/:id/start', async (req, res) => {
   } catch (err) {
     await conn.rollback();
     conn.release();
-    console.error(err);
+    console.error('[routines] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

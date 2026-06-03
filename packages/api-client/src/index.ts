@@ -51,8 +51,16 @@ export type { RoutineSummary, RoutineDetail, RoutineExercise, RoutineExerciseSet
 export type { FoodLogHistoryDay, FoodLogHistoryEntry, FrequentFood } from './endpoints/log';
 export type { WaterHistory, WaterHistoryDay } from './endpoints/water';
 export { goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi } from './endpoints/calendar';
-export { userGoalsApi, goalsByCategory, findGoalByKey, findGoalByMetric, updateNutritionGoals, updateExerciseGoals } from './endpoints/user-goals';
-export type { UserGoal, UserGoalPayload, GoalCategory, GoalMetricType, GoalSourceType } from './endpoints/user-goals';
+export { userGoalsApi, goalsByCategory as legacyGoalsByCategory, findGoalByKey, findGoalByMetric, updateNutritionGoals, updateExerciseGoals } from './endpoints/user-goals';
+export type { UserGoal, UserGoalPayload, GoalMetricType } from './endpoints/user-goals';
+
+// New unified goals system
+export { goalsV2Api, goalsByCategory } from './endpoints/goals-v2';
+export type { Goal, GoalDetail, GoalMilestone, GoalProgressEntry, GoalStatus, MilestoneStatus, ProgressSource,
+              CreateGoalPayload, UpdateGoalPayload, CloseGoalPayload,
+              CreateMilestonePayload, UpdateMilestonePayload, CreateProgressPayload } from './endpoints/goals-v2';
+export { GOAL_CATALOG, CATALOG_BY_KEY, CATALOG_BY_CATEGORY } from './goalCatalog';
+export type { GoalCatalogKey, GoalCategory, GoalCardType, GoalSourceType, GoalCatalogEntry } from './goalCatalog';
 export type { GoalCheckpoint, DayTypePreset, DailyNutritionOverride, MealSchedule, MealScheduleEvent, MealSlotType, MealRecurrenceType, NutritionSchedule, NutritionScheduleEvent } from './endpoints/calendar';
 
 // Shared utilities

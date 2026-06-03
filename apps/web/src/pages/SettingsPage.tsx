@@ -9,7 +9,6 @@ import {
   type UserProfile, type ActivityLevel, type RoutineSummary, type RoutineGoal, type UserGoal, type Exercise,
   type GoalMetricType, type GoalSourceType,
 } from '@pulse/api-client';
-import PlanningCalendarCard from './PlanningCalendarCard';
 
 // ─── Shared primitives ────────────────────────────────────────
 
@@ -32,12 +31,11 @@ function StatusMsg({ error, success }: { error?: string; success?: string }) {
 
 // ─── Tab bar ──────────────────────────────────────────────────
 
-type Tab = 'options' | 'goals' | 'planning' | 'user' | 'delete' | 'export';
+type Tab = 'options' | 'goals' | 'user' | 'delete' | 'export';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'options',  label: 'Options' },
-  { id: 'goals',    label: 'Goals' },
-  { id: 'planning', label: 'Planning' },
+  { id: 'goals',    label: 'Targets' },
   { id: 'user',     label: 'User' },
   { id: 'delete',   label: 'Delete Data' },
   { id: 'export',   label: 'Export' },
@@ -1398,14 +1396,6 @@ function ExportTab() {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('options');
-  const [planRoutines, setPlanRoutines] = useState<RoutineSummary[]>([]);
-  const [planExercises, setPlanExercises] = useState<Exercise[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'planning') return;
-    routinesApi.getAll().then(r => setPlanRoutines(r)).catch(() => {});
-    exercisesApi.getAll().then(e => setPlanExercises(e)).catch(() => {});
-  }, [activeTab]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -1431,10 +1421,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className={`flex-1 overflow-y-auto px-6 py-6 ${activeTab !== 'planning' ? 'max-w-2xl' : ''}`}>
+      <div className="flex-1 overflow-y-auto px-6 py-6 max-w-2xl">
         {activeTab === 'options' && <OptionsTab />}
         {activeTab === 'goals'   && <GoalsTab />}
-        {activeTab === 'planning' && <PlanningCalendarCard routinesList={planRoutines} exercisesList={planExercises} />}
         {activeTab === 'user'    && <UserTab />}
         {activeTab === 'delete'  && <DeleteDataTab />}
         {activeTab === 'export'  && <ExportTab />}

@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { pool } from '../config/database';
@@ -44,7 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
     const [rows] = await pool.query('SELECT * FROM links WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error('[links] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -67,7 +67,7 @@ router.post('/', async (req: Request, res: Response) => {
     );
     res.status(201).json({ id: (result as ResultSetHeader).insertId, url: url.trim(), title, favicon_url, category: cat });
   } catch (err) {
-    console.error(err);
+    console.error('[links] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -92,7 +92,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[links] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -105,7 +105,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM links WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[links] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import { searchFoods, lookupBarcode } from '../services/foodSearch';
@@ -55,7 +55,7 @@ router.get('/search', async (req, res) => {
     const results = await searchFoods(q, limit);
     res.json(results);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Search failed' });
   }
 });
@@ -66,7 +66,7 @@ router.get('/barcode/:barcode', async (req, res) => {
     if (!food) { res.status(404).json({ error: 'Food not found' }); return; }
     res.json(food);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Barcode lookup failed' });
   }
 });
@@ -76,7 +76,7 @@ router.post('/estimate-macros', async (req, res) => {
     const result = await estimateMacros(req.body);
     res.json(result);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Estimation failed' });
   }
 });
@@ -97,7 +97,7 @@ router.get('/custom', async (req, res) => {
     );
     res.json(foods);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Failed to fetch custom foods' });
   }
 });
@@ -108,7 +108,7 @@ router.get('/:id', async (req, res) => {
     if (!food) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(food);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Failed to fetch food' });
   }
 });
@@ -140,7 +140,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(food);
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Failed to create food' });
   } finally {
     conn.release();
@@ -167,7 +167,7 @@ router.put('/:id', async (req, res) => {
     const food = await getFoodWithServings(Number(req.params.id));
     res.json(food);
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Failed to update food' });
   }
 });
@@ -184,7 +184,7 @@ router.delete('/:id', async (req, res) => {
     await pool.execute('DELETE FROM foods WHERE id = ? AND is_custom = 1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[foods] error:', err);
     res.status(500).json({ error: 'Failed to delete food' });
   }
 });

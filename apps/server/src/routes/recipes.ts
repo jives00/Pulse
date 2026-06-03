@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
 import type { Pool, RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { suggestTags } from '../services/claude';
@@ -79,7 +79,7 @@ router.delete('/history', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM recipe_log WHERE user_id = ?', [req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -90,7 +90,7 @@ router.delete('/', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM recipes WHERE user_id = ?', [req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -113,7 +113,7 @@ router.get('/history', async (req: Request, res: Response) => {
     );
     res.json(entries);
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -211,7 +211,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json(recipes);
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -238,7 +238,7 @@ router.get('/search', async (req: Request, res: Response) => {
     );
     res.json(results);
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -261,7 +261,7 @@ router.get('/barcode/:barcode', async (req: Request, res: Response) => {
       photo_url: r.photo_key ? await getPresignedGetUrl(r.photo_key) : null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -366,7 +366,7 @@ Only return valid JSON, no other text.`;
     const suggestions = JSON.parse(clean);
     res.json(suggestions);
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -425,7 +425,7 @@ router.post('/:id/ai-modify', async (req: Request, res: Response) => {
       res.json({ modified });
     }
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Failed to modify recipe' });
   }
 });
@@ -475,7 +475,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       last_made: (logRows as RowDataPacket[])[0]?.last_made ?? null,
     });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -525,7 +525,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ id: recipeId });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -586,7 +586,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -613,7 +613,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -631,7 +631,7 @@ router.post('/:id/photo', async (req: Request, res: Response) => {
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -656,7 +656,7 @@ router.post('/:id/photo-from-url', async (req: Request, res: Response) => {
     clearPresignedUrlCache(key);
     res.json({ key });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Failed to upload image from URL' });
   }
 });
@@ -672,7 +672,7 @@ router.get('/:id/barcode', async (req: Request, res: Response) => {
     );
     res.json({ barcode: rows[0]?.barcode ?? null });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -698,7 +698,7 @@ router.put('/:id/barcode', async (req: Request, res: Response) => {
     if (err.code === 'ER_DUP_ENTRY') {
       res.status(409).json({ error: 'Barcode already assigned to another recipe' }); return;
     }
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -712,7 +712,7 @@ router.delete('/:id/barcode', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM recipe_barcodes WHERE recipe_id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -756,7 +756,7 @@ router.post('/:id/log', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -776,7 +776,7 @@ router.get('/:id/log', async (req: Request, res: Response) => {
     const entries = rows as RowDataPacket[];
     res.json({ count: entries.length, entries });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -796,7 +796,7 @@ router.patch('/:id/log/:logId', async (req: Request, res: Response) => {
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -814,7 +814,7 @@ router.delete('/:id/log/:logId', async (req: Request, res: Response) => {
     if ((result as ResultSetHeader).affectedRows === 0) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -827,7 +827,7 @@ router.delete('/:id/log', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM recipe_log WHERE recipe_id = ? AND user_id = ?', [id, req.userId]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -851,7 +851,7 @@ router.post('/:id/tags/suggest', async (req: Request, res: Response) => {
     const tags = await suggestTags(recipe, (ingredients as RowDataPacket[]).map((i) => i.name));
     res.json({ tags });
   } catch (err) {
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -869,7 +869,7 @@ router.put('/:id/tags', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('[recipes] error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
