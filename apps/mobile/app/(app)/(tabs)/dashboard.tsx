@@ -1049,13 +1049,14 @@ export default function DashboardV4Screen() {
 
           {/* ── Pinned goals (new system) ── */}
           {(() => {
-            // Legacy-exercise aggregate goals always have dedicated cards above — always skip.
+            // Goals with dedicated cards above — always skip to avoid duplicates.
             const LEGACY_EXERCISE_COVERED = new Set([
               'exercise_workouts_per_week', 'exercise_minutes_per_week',
               'exercise_volume_per_week', 'exercise_routine_sessions',
             ]);
-            // Body goals: skip only if the OLD measurement goal exists (that card already shows a target line).
-            // If there's no legacy goal for this metric, the user pinned it in the new system and we must show it.
+            // weight/waist/bicep have their own detailed cards rendered above.
+            // Other body keys (chest, hips, body_fat_pct, etc.) don't, so they show here.
+            const DEDICATED_BODY_CARDS = new Set(['body_weight', 'body_waist', 'body_bicep']);
             const BODY_TO_METRIC: Record<string, string> = {
               body_weight: 'weight', body_waist: 'waist', body_bicep: 'bicep',
               body_chest: 'chest', body_hips: 'hips', body_fat_pct: 'body_fat',
@@ -1073,8 +1074,7 @@ export default function DashboardV4Screen() {
 
             const visibleGoals = pinnedGoals.filter(g => {
               if (LEGACY_EXERCISE_COVERED.has(g.catalogKey)) return false;
-              const metric = BODY_TO_METRIC[g.catalogKey];
-              if (metric) return true; // legacy measurement goals removed; always show new body goals
+              if (DEDICATED_BODY_CARDS.has(g.catalogKey)) return false;
               return true;
             });
             if (!visibleGoals.length) return null;

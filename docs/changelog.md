@@ -4,6 +4,13 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 4, 2026
+
+### Frontend – Mobile
+- **Fix duplicate body goal cards on dashboard Goals tab** — `body_weight`, `body_waist`, and `body_bicep` goals were appearing both in their dedicated projection cards and again in the pinned goals section; added `DEDICATED_BODY_CARDS` exclusion set to match the web's deduplication logic `94bef13`
+
+---
+
 ## June 3, 2026
 
 ### Backend
