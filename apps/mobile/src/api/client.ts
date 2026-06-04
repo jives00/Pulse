@@ -509,6 +509,16 @@ export async function deleteRoutineGoal(_token: string, routineId: number): Prom
   await routinesApi.deleteGoal(routineId);
 }
 
+// ─── Workout Schedules ────────────────────────────────────────────────────────
+
+export async function getSchedules(_token: string) {
+  return schedulesApi.getAll();
+}
+
+export async function getUpcomingSchedule(_token: string, days = 14) {
+  return schedulesApi.getUpcoming(days);
+}
+
 // ─── Foods ────────────────────────────────────────────────────────────────────
 
 export async function searchFoods(_token: string, q: string): Promise<Food[]> {

@@ -765,7 +765,7 @@ export default function DashboardV4Screen() {
             return (
               <View style={s.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={goal ? `${target!.toFixed(1)} lb${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={weightGoalEntry ? `${target!.toFixed(1)} lb${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
                   <GoalStatusChip status={status} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
@@ -854,7 +854,7 @@ export default function DashboardV4Screen() {
             return (
               <View style={s.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <View style={{ flex: 1 }}><CardHeader title="Waist goal" meta={goal ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <View style={{ flex: 1 }}><CardHeader title="Waist goal" meta={waistGoalEntry ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
                   <GoalStatusChip status={status} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
@@ -936,7 +936,7 @@ export default function DashboardV4Screen() {
             return (
               <View style={s.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <View style={{ flex: 1 }}><CardHeader title="Bicep goal" meta={goal ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
+                  <View style={{ flex: 1 }}><CardHeader title="Bicep goal" meta={bicepGoalEntry ? `${target!.toFixed(1)} ${unit}${deadline ? ` by ${new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : undefined} c={c} /></View>
                   <GoalStatusChip status={status} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>

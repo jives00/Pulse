@@ -11,6 +11,8 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Frontend – Mobile
 - **Defensive `.catch()` on `getWorkouts`** — All bare `getWorkouts` calls in `dashboard.tsx` and `workouts.tsx` now catch errors so a single failing request cannot wipe the entire screen's data `caa5414`
+- **Fix dashboard blank cards** — Restored missing `getUpcomingSchedule` export in `apps/mobile/src/api/client.ts`; the undefined function threw synchronously before `Promise.all` could resolve, silently wiping all dashboard state `a9e918c`
+- **Fix Goals tab goal card headers** — Stale `goal` variable references in weight/waist/bicep goal cards corrected to `weightGoalEntry`/`waistGoalEntry`/`bicepGoalEntry` `a9e918c`
 
 ---
 
