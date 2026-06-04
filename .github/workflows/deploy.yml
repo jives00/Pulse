@@ -74,7 +74,7 @@ jobs:
         uses: android-actions/setup-android@v3
       - run: pnpm install --frozen-lockfile
       - name: Write mobile .env
-        run: echo "EXPO_PUBLIC_API_BASE=http://100.115.171.80:3000" > apps/mobile/.env
+        run: echo "EXPO_PUBLIC_API_BASE=${{ secrets.EXPO_PUBLIC_API_BASE }}" > apps/mobile/.env
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean
@@ -98,10 +98,10 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 465
-          username: jbromberek@gmail.com
+          username: ${{ secrets.NOTIFY_EMAIL }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          to: jbromberek@gmail.com
-          from: Pulse CI <jbromberek@gmail.com>
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: Pulse CI <${{ secrets.NOTIFY_EMAIL }}>
           subject: "Pulse APK build complete — ${{ steps.apk.outputs.name }}"
           body: |
             Build succeeded for ${{ steps.apk.outputs.name }}.

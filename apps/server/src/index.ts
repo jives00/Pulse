@@ -41,7 +41,7 @@ const app = express();
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    if (!origin || allowed.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin ?? '') || /^http:\/\/synology(:\d+)?$/.test(origin ?? '')) return cb(null, true);
+    if (!origin || allowed.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin ?? '')) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,

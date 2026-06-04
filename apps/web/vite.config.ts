@@ -15,11 +15,11 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-        target: env.API_TARGET ?? 'http://synology:3000',
+        target: env.API_TARGET ?? 'http://localhost:3000',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('Origin', 'http://synology:3004');
+            proxyReq.setHeader('Origin', env.API_ORIGIN ?? 'http://localhost:5173');
           });
         },
       },

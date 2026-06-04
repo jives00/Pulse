@@ -7,6 +7,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## June 4, 2026
 
 ### Frontend – Web
+- **Public repo cleanup** — removed hardcoded Tailscale IP, internal `synology` hostname, and personal email from committed files; `EXPO_PUBLIC_API_BASE` now sourced from GitHub secret, `NOTIFY_EMAIL` secret replaces inline address, `vite.config` and `config.ts` fallback to `localhost`, CORS synology exception removed (add host to `CORS_ORIGIN` env instead) `922884d`
 - **WeightGurus sync in weight goal menu** — "Sync from Scale" option added to the `···` menu on active `body_weight` goals on the Goals page; triggers `POST /api/measurements/sync` and shows a brief inline status message `eca2134`
 - **Trakt color scheme** — Added "Trakt" theme to the color scheme picker based on the Trakt dark blue palette (`#24262E` bg, `#323440` cards); also fixed `generateCssVars.ts` to update only the generated theme block instead of overwriting the full CSS file `5013844`
 
@@ -156,7 +157,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Backend
 
 - **Add audio transcription endpoint** — `POST /api/ai/assistant/transcribe` accepts base64 audio and returns the transcript via Gemini 1.5 Flash; added `transcribeAudio()` to `aiProvider`. `76087ab`
-- **APK artifact renamed with timestamp and email notification on success** — Build workflow now renames the artifact to `pulse-MMDDYYYY-HHMM.apk` and emails jbromberek@gmail.com with a direct link to the Actions run on successful build. `aa339a5`
+- **APK artifact renamed with timestamp and email notification on success** — Build workflow now renames the artifact to `pulse-MMDDYYYY-HHMM.apk` and sends an email notification with a direct link to the Actions run on successful build. `aa339a5`
 - **Switched APK builds from EAS to Linux Gradle on GitHub Actions** — EAS tokens are monthly-limited; local Windows Gradle builds fail due to cmake `C_/...` path mangling exceeding 260 chars with no practical workaround. `apk-*` tag trigger now runs `expo prebuild` + Gradle on `ubuntu-latest` (no MAX_PATH) and uploads the APK as a workflow artifact. Zero EAS tokens used. `725fe4a`
 - **Fixed deploy workflow leaving EC2 in dirty state on failure** — Added `package.json` to the pre-pull `git checkout --` reset so a failed previous deploy can't block the next one. `803006d`
 - **Reverted react/react-dom pinning that broke EC2 deploy** — Reverted `apps/web` to `^19.2.0` ranges and removed root `overrides` block; the exact-pin + overrides combination broke Vite's `react-dom/client` subpath resolution during EC2 deploy when mobile workspace is excluded. `e0927dd`
