@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { goalsV2Api, type Goal, type GoalCategory } from '@pulse/api-client';
+import { goalsV2Api, measurementsApi, type Goal, type GoalCategory } from '@pulse/api-client';
 
 interface Props {
   goal: Goal;
@@ -52,12 +52,13 @@ function ProgressBar({ start, current, target }: { start: number; current: numbe
   );
 }
 
-function ThreeDotsMenu({ onLog, onClose, onDelete, onToggleDashboard, showOnDashboard }: {
+function ThreeDotsMenu({ onLog, onClose, onDelete, onToggleDashboard, showOnDashboard, onSyncScale }: {
   onLog: () => void;
   onClose: () => void;
   onDelete: () => void;
   onToggleDashboard: () => void;
   showOnDashboard: boolean;
+  onSyncScale?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -70,6 +71,14 @@ function ThreeDotsMenu({ onLog, onClose, onDelete, onToggleDashboard, showOnDash
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const items: { label: string; action: () => void; danger?: boolean }[] = [
+    { label: 'Log Progress', action: onLog },
+    ...(onSyncScale ? [{ label: 'Sync from Scale', action: onSyncScale }] : []),
+    { label: showOnDashboard ? 'Remove from Dashboard' : 'Pin to Dashboard', action: onToggleDashboard },
+    { label: 'Close Goal', action: onClose },
+    { label: 'Delete', action: onDelete, danger: true },
+  ];
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -80,12 +89,7 @@ function ThreeDotsMenu({ onLog, onClose, onDelete, onToggleDashboard, showOnDash
       </button>
       {open && (
         <div className="absolute right-0 top-6 z-20 bg-dram-card border border-dram-border rounded shadow-lg py-1 w-44">
-          {[
-            { label: 'Log Progress', action: onLog },
-            { label: showOnDashboard ? 'Remove from Dashboard' : 'Pin to Dashboard', action: onToggleDashboard },
-            { label: 'Close Goal', action: onClose },
-            { label: 'Delete', action: onDelete, danger: true },
-          ].map(item => (
+          {items.map(item => (
             <button
               key={item.label}
               onClick={() => { setOpen(false); item.action(); }}
@@ -104,6 +108,7 @@ function ThreeDotsMenu({ onLog, onClose, onDelete, onToggleDashboard, showOnDash
 
 export default function GoalCard({ goal, onUpdated, onDeleted, onLogProgress, onClose }: Props) {
   const [deleting, setDeleting] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const catColor = CATEGORY_COLORS[goal.category];
   const statusCfg = STATUS_CFG[goal.status];
   const days = daysRemaining(goal.deadline);
@@ -127,6 +132,17 @@ export default function GoalCard({ goal, onUpdated, onDeleted, onLogProgress, on
       const updated = await goalsV2Api.update(goal.id, { showOnDashboard: !goal.showOnDashboard });
       onUpdated(updated);
     } catch { /* silent */ }
+  }
+
+  async function handleSyncScale() {
+    setSyncMsg(null);
+    try {
+      const result = await measurementsApi.sync();
+      setSyncMsg(result.inserted > 0 ? `Synced ${result.inserted} new reading${result.inserted !== 1 ? 's' : ''}` : 'Already up to date');
+    } catch {
+      setSyncMsg('Sync failed');
+    }
+    setTimeout(() => setSyncMsg(null), 4000);
   }
 
   return (
@@ -156,10 +172,15 @@ export default function GoalCard({ goal, onUpdated, onDeleted, onLogProgress, on
               onDelete={handleDelete}
               onToggleDashboard={handleToggleDashboard}
               showOnDashboard={goal.showOnDashboard}
+              onSyncScale={goal.catalogKey === 'body_weight' ? handleSyncScale : undefined}
             />
           )}
         </div>
       </div>
+
+      {syncMsg && (
+        <div className="text-xs text-slate-400">{syncMsg}</div>
+      )}
 
       {/* Progress */}
       {hasProgress && current != null ? (

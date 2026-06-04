@@ -7,7 +7,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## June 4, 2026
 
 ### Frontend – Web
+- **WeightGurus sync in weight goal menu** — "Sync from Scale" option added to the `···` menu on active `body_weight` goals on the Goals page; triggers `POST /api/measurements/sync` and shows a brief inline status message `eca2134`
 - **Trakt color scheme** — Added "Trakt" theme to the color scheme picker based on the Trakt dark blue palette (`#24262E` bg, `#323440` cards); also fixed `generateCssVars.ts` to update only the generated theme block instead of overwriting the full CSS file `5013844`
+
+### Frontend – Mobile
+- **WeightGurus sync in weight goal menu** — "Sync from Scale" option added to the `···` bottom-sheet menu on active `body_weight` goals; triggers `POST /api/measurements/sync` and shows an Alert with the result `eca2134`
 
 ---
 

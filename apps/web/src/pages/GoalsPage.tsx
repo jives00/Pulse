@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { goalsV2Api, goalsByCategory, type Goal, type GoalStatus, type GoalCategory, type GoalProgressEntry } from '@pulse/api-client';
+import { goalsV2Api, measurementsApi, goalsByCategory, type Goal, type GoalStatus, type GoalCategory, type GoalProgressEntry } from '@pulse/api-client';
 
 type NudgeReason = 'deadline' | 'target_crossed';
 interface Nudge { goal: Goal; reason: NudgeReason; }
@@ -55,12 +55,13 @@ function ValueCell({ value, unit, muted }: { value: number | null; unit: string;
   );
 }
 
-function GoalRowMenu({ goal, onLog, onClose, onDelete, onToggleDashboard }: {
+function GoalRowMenu({ goal, onLog, onClose, onDelete, onToggleDashboard, onSyncScale }: {
   goal: Goal;
   onLog: () => void;
   onClose: () => void;
   onDelete: () => void;
   onToggleDashboard: () => void;
+  onSyncScale?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
@@ -86,12 +87,13 @@ function GoalRowMenu({ goal, onLog, onClose, onDelete, onToggleDashboard }: {
       <button ref={btnRef} onClick={handleOpen} className="px-2 py-1 text-slate-500 hover:text-white transition-colors text-lg leading-none">···</button>
       {open && (
         <div style={menuStyle} className="z-50 bg-dram-card border border-dram-border rounded shadow-lg py-1 w-44">
-          {[
+          {([
             { label: 'Log Progress', action: onLog },
+            ...(onSyncScale ? [{ label: 'Sync from Scale', action: onSyncScale }] : []),
             { label: goal.showOnDashboard ? 'Remove from Dashboard' : 'Pin to Dashboard', action: onToggleDashboard },
             { label: 'Close Goal', action: onClose },
             { label: 'Delete', action: onDelete, danger: true },
-          ].map(item => (
+          ] as { label: string; action: () => void; danger?: boolean }[]).map(item => (
             <button key={item.label} onClick={() => { setOpen(false); item.action(); }}
               className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${item.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-slate-300 hover:bg-dram-bg hover:text-white'}`}>
               {item.label}
@@ -112,6 +114,7 @@ function GoalRow({ goal, onUpdated, onDeleted, onLogProgress, onClose }: {
 }) {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const catColor = CATEGORY_COLORS[goal.category];
   const statusCfg = STATUS_CFG[goal.status];
   const days = goal.deadline
@@ -128,6 +131,17 @@ function GoalRow({ goal, onUpdated, onDeleted, onLogProgress, onClose }: {
   async function handleToggleDashboard() {
     try { const u = await goalsV2Api.update(goal.id, { showOnDashboard: !goal.showOnDashboard }); onUpdated(u); }
     catch { /* silent */ }
+  }
+
+  async function handleSyncScale() {
+    setSyncMsg(null);
+    try {
+      const result = await measurementsApi.sync();
+      setSyncMsg(result.inserted > 0 ? `Synced ${result.inserted} new reading${result.inserted !== 1 ? 's' : ''}` : 'Already up to date');
+    } catch {
+      setSyncMsg('Sync failed');
+    }
+    setTimeout(() => setSyncMsg(null), 4000);
   }
 
   return (
@@ -163,6 +177,7 @@ function GoalRow({ goal, onUpdated, onDeleted, onLogProgress, onClose }: {
       <td className="px-4 py-3 text-right">
         {goal.status === 'active' ? (
           <div className="flex items-center justify-end gap-1">
+            {syncMsg && <span className="text-xs text-slate-400 mr-1">{syncMsg}</span>}
             <button onClick={() => onLogProgress(goal)}
               className="text-sm text-slate-500 hover:text-white transition-colors px-2 py-1 rounded hover:bg-dram-bg">
               Log
@@ -172,7 +187,8 @@ function GoalRow({ goal, onUpdated, onDeleted, onLogProgress, onClose }: {
               History
             </button>
             <GoalRowMenu goal={goal} onLog={() => onLogProgress(goal)} onClose={() => onClose(goal)}
-              onDelete={handleDelete} onToggleDashboard={handleToggleDashboard} />
+              onDelete={handleDelete} onToggleDashboard={handleToggleDashboard}
+              onSyncScale={goal.catalogKey === 'body_weight' ? handleSyncScale : undefined} />
           </div>
         ) : (
           <span className="text-sm text-slate-600 font-mono">

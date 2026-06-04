@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import SettingsPlanningTab from '../../../src/components/SettingsPlanningTab';
 import {
-  goalsV2Api, goalsByCategory,
+  goalsV2Api, measurementsApi, goalsByCategory,
   CATALOG_BY_CATEGORY,
   type Goal, type GoalCategory,
   type CreateGoalPayload,
@@ -73,12 +73,13 @@ function calcProgress(goal: Goal): number | null {
 
 // ─── GoalCard ─────────────────────────────────────────────────────────────────
 
-function GoalCard({ goal, onLog, onClose, onDelete, onToggleDashboard, c }: {
+function GoalCard({ goal, onLog, onClose, onDelete, onToggleDashboard, onSyncScale, c }: {
   goal: Goal;
   onLog: (g: Goal) => void;
   onClose: (g: Goal) => void;
   onDelete: (id: number) => void;
   onToggleDashboard: (g: Goal) => void;
+  onSyncScale?: () => void;
   c: Colors;
 }) {
   const router = useRouter();
@@ -144,13 +145,14 @@ function GoalCard({ goal, onLog, onClose, onDelete, onToggleDashboard, c }: {
             <Text style={{ color: c.muted, fontSize: fontSize.xs, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>
               {goal.name}
             </Text>
-            {[
+            {([
               { label: 'Log Progress',            icon: 'add-circle-outline',    action: () => { setMenuOpen(false); onLog(goal); } },
               { label: 'View Progress History',   icon: 'bar-chart-outline',     action: () => { setMenuOpen(false); router.push(`/(app)/goal/${goal.id}` as any); } },
+              ...(onSyncScale ? [{ label: 'Sync from Scale', icon: 'sync-outline', action: () => { setMenuOpen(false); onSyncScale(); } }] : []),
               { label: goal.showOnDashboard ? 'Remove from Dashboard' : 'Pin to Dashboard', icon: 'pin-outline', action: () => { setMenuOpen(false); onToggleDashboard(goal); } },
               { label: 'Close Goal',              icon: 'checkmark-circle-outline', action: () => { setMenuOpen(false); onClose(goal); } },
               { label: 'Delete',                  icon: 'trash-outline',         action: () => { setMenuOpen(false); onDelete(goal.id); }, danger: true },
-            ].map(item => (
+            ] as { label: string; icon: string; action: () => void; danger?: boolean }[]).map(item => (
               <TouchableOpacity key={item.label} onPress={item.action} style={[s.menuItem, { borderColor: c.border }]}>
                 <Ionicons name={item.icon as any} size={18} color={item.danger ? '#ef4444' : c.text} />
                 <Text style={{ color: item.danger ? '#ef4444' : c.text, fontSize: fontSize.sm }}>{item.label}</Text>
@@ -775,6 +777,18 @@ export default function GoalsScreen() {
     setAddingGoal(false);
   }
 
+  async function handleSyncScale() {
+    try {
+      const result = await measurementsApi.sync();
+      const msg = result.inserted > 0
+        ? `Synced ${result.inserted} new reading${result.inserted !== 1 ? 's' : ''}`
+        : 'Already up to date';
+      Alert.alert('Sync Complete', msg);
+    } catch {
+      Alert.alert('Sync Failed', 'Could not sync from scale.');
+    }
+  }
+
   const byCategory = goalsByCategory(goals);
 
   const nudges = useMemo(() => {
@@ -916,6 +930,7 @@ export default function GoalsScreen() {
                       onClose={setCloseTarget}
                       onDelete={handleDelete}
                       onToggleDashboard={handleToggleDashboard}
+                      onSyncScale={goal.catalogKey === 'body_weight' ? handleSyncScale : undefined}
                       c={c}
                     />
                   </View>
