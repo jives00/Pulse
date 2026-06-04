@@ -46,6 +46,7 @@ app.use(cors({
 }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
+app.disable('etag'); // Prevent 304 responses — mobile HTTP clients send If-None-Match causing Axios to reject 304s
 
 // Public
 app.use('/api/auth', authRoutes);

@@ -6,6 +6,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 3, 2026
 
+### Backend
+- **Fix 304 blank dashboard** — Disabled Express ETags (`app.disable('etag')`) to prevent Android's HTTP stack from sending `If-None-Match` and receiving `304 Not Modified` responses; Axios rejects 304s, causing `getWorkouts` (no `.catch()`) to silently fail the entire `Promise.all` and leave all dashboard state empty `caa5414`
+
+### Frontend – Mobile
+- **Defensive `.catch()` on `getWorkouts`** — All bare `getWorkouts` calls in `dashboard.tsx` and `workouts.tsx` now catch errors so a single failing request cannot wipe the entire screen's data `caa5414`
+
+---
+
+## June 3, 2026
+
 ### Goals – Phase 3 Cleanup (Web + Mobile + Server)
 
 - **Remove legacy goal tables and routes** — Dropped `exercise_goals`, `body_measurement_goals`, `routine_goals`, `custom_goals`, `goal_checkpoints`, and `_migration_review` tables; all data was migrated to the unified `goals` system in Phase 1

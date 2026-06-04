@@ -58,7 +58,7 @@ function LogTab() {
     setLoading(true);
     try {
       const [data, active, stepsData] = await Promise.all([
-        getWorkouts(token, { limit: 30, offset: 0 }),
+        getWorkouts(token, { limit: 30, offset: 0 }).catch(() => [] as WorkoutSummary[]),
         getActiveWorkout(token).catch(() => null),
         getSteps(token).catch(() => null),
       ]);
@@ -81,7 +81,7 @@ function LogTab() {
     setRefreshing(true);
     try {
       const [data, active, stepsData] = await Promise.all([
-        getWorkouts(token, { limit: 30, offset: 0 }),
+        getWorkouts(token, { limit: 30, offset: 0 }).catch(() => [] as WorkoutSummary[]),
         getActiveWorkout(token).catch(() => null),
         getSteps(token).catch(() => null),
       ]);
@@ -929,7 +929,7 @@ function ProgressTab() {
     if (!silent) setLoading(true);
     try {
       const [ws, ms, pb, ag] = await Promise.all([
-        getWorkouts(token, { limit: 200 }),
+        getWorkouts(token, { limit: 200 }).catch(() => [] as WorkoutSummary[]),
         getMeasurements(token).catch(() => []),
         getPersonalBests(token).catch(() => null),
         goalsV2Api.getAll('active').catch(() => []),

@@ -366,7 +366,7 @@ export default function DashboardV4Screen() {
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
       const [ws, ms, ns, fl, dh, rl, tdee, rec, upc, wd, sd, ag] = await Promise.all([
-        getWorkouts(token, { limit: 200 }),
+        getWorkouts(token, { limit: 200 }).catch(() => [] as WorkoutSummary[]),
         getMeasurements(token).catch(() => []),
         getNutritionSummary(token).catch(() => null),
         getFoodLogHistory(token, { limit: 90 }).catch(() => []),
