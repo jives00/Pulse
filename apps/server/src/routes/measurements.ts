@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express';
 import { pool } from '../config/database';
+import { syncWeightGurus } from '../services/weightGurusSync';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();
@@ -80,7 +81,17 @@ router.post('/', async (req, res) => {
   }
 });
 
-// body_measurement_goals endpoints removed — body measurement goals now in goals-v2
+// POST /api/measurements/sync — trigger WeightGurus sync on demand
+router.post('/sync', async (req, res) => {
+  try {
+    const { inserted } = await syncWeightGurus(7);
+    res.json({ success: true, inserted });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Sync failed';
+    console.error('[measurements/sync] error:', err);
+    res.status(500).json({ error: msg });
+  }
+});
 
 // PUT /api/measurements/:id
 router.put('/:id', async (req, res) => {

@@ -6,6 +6,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 4, 2026
 
+### Backend
+- **WeightGurus sync ported to TypeScript** — Replaced the Synology-scheduled Python Docker container (which was failing with Docker socket permission errors) with a native TypeScript service (`weightGurusSync.ts`) running inside the Express server; added node-cron scheduled at `0 6-12 * * *` America/Chicago, `POST /api/measurements/sync` endpoint for on-demand triggers `5313e19`
+
+### Frontend – Web
+- **Sync button in Body Composition card** — Added "Sync" button to the BodyCompositionCardV3 header; spins while running, shows "+N entries" or "Up to date" for 4s, then refreshes measurements `5313e19`
+
+---
+
+## June 4, 2026
+
 ### Frontend – Mobile
 - **Fix duplicate body goal cards on dashboard Goals tab** — `body_weight`, `body_waist`, and `body_bicep` goals were appearing both in their dedicated projection cards and again in the pinned goals section; added `DEDICATED_BODY_CARDS` exclusion set to match the web's deduplication logic `94bef13`
 - **Steps sync on every app resume** — Added `AppState` listener in root layout so Health Connect steps are read and synced to the backend whenever the app comes to foreground, not just at login; removed duplicate HC read from LogTab pull-to-refresh; `useEffect([liveSteps])` keeps the steps input field reactive to store updates `93e5f07`

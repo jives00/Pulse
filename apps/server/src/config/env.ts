@@ -20,6 +20,10 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY:    z.string().optional(),
   USDA_API_KEY:      z.string().optional(),
+  // WeightGurus sync
+  WG_EMAIL:    z.string().optional(),
+  WG_PASSWORD: z.string().optional(),
+  WG_USER_ID:  z.coerce.number().default(1),
   // Server
   PORT:        z.coerce.number().default(3000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),

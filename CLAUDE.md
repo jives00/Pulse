@@ -91,6 +91,9 @@ AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET   (optional, for
 ANTHROPIC_API_KEY   (optional, for AI features — tried first)
 GEMINI_API_KEY      (optional, Gemini fallback when Anthropic fails/quota exhausted)
 USDA_API_KEY        (optional, food database)
+WG_EMAIL            (optional, WeightGurus account email — enables hourly weight sync)
+WG_PASSWORD         (optional, WeightGurus account password)
+WG_USER_ID          (optional, defaults to 1)
 ```
 
 ## Documentation Index

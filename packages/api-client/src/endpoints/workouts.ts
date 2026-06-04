@@ -58,6 +58,8 @@ export const measurementsApi = {
   delete: (id: number) =>
     apiClient.delete(`/measurements/${id}`).then(() => {}),
 
+  sync: () =>
+    apiClient.post<{ success: boolean; inserted: number }>('/measurements/sync').then((r) => r.data),
 };
 
 // ─── Personal Bests ───────────────────────────────────────────────────────────

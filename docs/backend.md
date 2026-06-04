@@ -38,6 +38,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/exercises/*       Exercise library CRUD — GET /, GET /:id, POST / (custom), PUT /:id (any), DELETE /:id (custom only), GET /:id/stats, GET /:id/history, GET /categories
 /api/routines/*        Saved workout routines CRUD + start (POST /:id/start creates workout from routine)
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
+                       POST /api/measurements/sync  trigger WeightGurus → DB sync (last 7 days)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
 /api/steps/*           Steps CRUD — GET / (today), GET /history?start=&end=, POST / (upsert day)
 /api/schedules/*       Workout schedules — GET / (active), GET /upcoming, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
@@ -57,6 +58,9 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 
 ### AI Provider
 All AI calls go through `apps/server/src/services/aiProvider.ts` which exports `runText()` and `runWithTools()`. Both try Anthropic first; on any error, fall back to Gemini (if `GEMINI_API_KEY` is set). Gemini uses a structured JSON prompt as a tool-use equivalent. Model mapping: `haiku` $\rightarrow$ `claude-haiku-4-5-20251001` / `gemini-1.5-flash`; `sonnet` $\rightarrow$ `claude-sonnet-4-6` / `gemini-1.5-pro`. If neither key is configured, the call throws. Services using AI: `claude.ts` (tag suggestion), `macroEstimation.ts` (per-100g nutrition), `calorieEstimation.ts` (calories burned), `scrape.ts` (recipe extraction + nutrition estimation), `recipes.ts` (/suggest endpoint).
+
+### WeightGurus Sync
+`apps/server/src/services/weightGurusSync.ts` — authenticates to the WeightGurus v3 API (`WG_EMAIL`, `WG_PASSWORD` env vars), fetches operations for the last N days, and upserts rows into `body_measurements`. Skips duplicates via a bulk pre-fetch of existing `(metric, measured_at)` pairs. Triggered two ways: (1) node-cron schedule `0 6-12 * * *` America/Chicago registered in `index.ts` at startup (only if `WG_EMAIL`/`WG_PASSWORD` are set); (2) `POST /api/measurements/sync` endpoint for on-demand calls from the web UI.
 
 ### Calories Burned Estimation
 `POST /api/workouts/:id/estimate-calories` fetches workout exercises/sets, looks up user's body weight from `body_measurements` (falls back to 75 kg), calls `estimateCaloriesBurned()` in `calorieEstimation.ts`, saves result to `workout_logs.calories_burned`. Called non-blocking from `WorkoutDetailPage` `handleFinish()` — result updates the header stat line (`X kcal`) when it returns. Only completed sets are included. `lastCaloriesBurned` is also surfaced on routine cards via `GET /api/routines`. Only populates going forward — past workouts have null.

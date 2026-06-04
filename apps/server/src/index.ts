@@ -1,8 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import cron from 'node-cron';
 import { env } from './config/env';
 import { pool } from './config/database';
+import { syncWeightGurus } from './services/weightGurusSync';
 import { requireAuth } from './middleware/auth';
 
 import authRoutes      from './routes/auth';
@@ -101,3 +103,17 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 app.listen(env.PORT, () => {
   console.log(`Pulse server running on port ${env.PORT}`);
 });
+
+// WeightGurus sync — hourly 6am–noon CT
+if (env.WG_EMAIL && env.WG_PASSWORD) {
+  cron.schedule('0 6-12 * * *', async () => {
+    console.log('[cron] WeightGurus sync starting...');
+    try {
+      const { inserted } = await syncWeightGurus();
+      console.log(`[cron] WeightGurus sync done — ${inserted} rows inserted`);
+    } catch (err) {
+      console.error('[cron] WeightGurus sync failed:', err);
+    }
+  }, { timezone: 'America/Chicago' });
+  console.log('[cron] WeightGurus sync scheduled (6am–noon CT)');
+}

@@ -694,6 +694,23 @@ function BodyCompositionCardV3({ measurements, onMeasurementLogged }: { measurem
   const [logMetric, setLogMetric] = useState<string | null>(null);
   const [logValue, setLogValue] = useState('');
   const [logSaving, setLogSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = await measurementsApi.sync();
+      setSyncMsg(result.inserted > 0 ? `+${result.inserted} entries` : 'Up to date');
+      onMeasurementLogged?.();
+    } catch {
+      setSyncMsg('Sync failed');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  }
 
   async function saveLog() {
     if (!logMetric || !logValue) return;
@@ -714,7 +731,19 @@ function BodyCompositionCardV3({ measurements, onMeasurementLogged }: { measurem
         label="Body Composition"
         meta="latest readings"
         action={
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Sync from WeightGurus"
+              className="flex items-center gap-1 border border-bd hover:border-gold px-2 py-1 rounded transition-colors text-muted hover:gold disabled:opacity-40"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+                className={syncing ? 'animate-spin' : undefined}>
+                <path d="M10 6A4 4 0 1 1 6 2M6 2l2-2M6 2l2 2"/>
+              </svg>
+              <span className="t-xs font-mono">{syncMsg ?? 'Sync'}</span>
+            </button>
             {(['waist', 'bicep'] as const).map((m) => (
               <button
                 key={m}
