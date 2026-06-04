@@ -202,6 +202,7 @@ const THEMES: { id: ColorScheme; label: string; bg: string; card: string; accent
   { id: 'midnight', label: 'Midnight',  bg: '#161c2e', card: '#1f2942', accent: '#D4A843' },
   { id: 'tide',     label: 'Tide',      bg: '#162132', card: '#1f2c40', accent: '#D4A843' },
   { id: 'graphite', label: 'Graphite',  bg: '#1c1d22', card: '#262830', accent: '#D4A843' },
+  { id: 'trakt',    label: 'Trakt',     bg: '#24262e', card: '#323440', accent: '#D4A843' },
 ];
 
 function ColorSchemeSection() {

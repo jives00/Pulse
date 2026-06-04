@@ -6,6 +6,13 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 4, 2026
 
+### Frontend – Web
+- **Trakt color scheme** — Added "Trakt" theme to the color scheme picker based on the Trakt dark blue palette (`#24262E` bg, `#323440` cards); also fixed `generateCssVars.ts` to update only the generated theme block instead of overwriting the full CSS file `5013844`
+
+---
+
+## June 4, 2026
+
 ### Backend
 - **WeightGurus sync ported to TypeScript** — Replaced the Synology-scheduled Python Docker container (which was failing with Docker socket permission errors) with a native TypeScript service (`weightGurusSync.ts`) running inside the Express server; added node-cron scheduled at `0 6-12 * * *` America/Chicago, `POST /api/measurements/sync` endpoint for on-demand triggers `5313e19`
 

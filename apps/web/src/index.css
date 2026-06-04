@@ -88,6 +88,14 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-muted:  174 174 182;
 }
 
+[data-theme="trakt"] {
+  --color-bg:     36 38 46;
+  --color-card:   50 52 64;
+  --color-accent: 212 168 67;
+  --color-border: 64 67 82;
+  --color-muted:  136 144 168;
+}
+
 @layer base {
   html { background-color: rgb(var(--color-bg)); color: white; }
 }
