@@ -44,7 +44,7 @@ function LogTab() {
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
-  const { readTodaySteps, permissionGranted, requestPermission } = useHealthSteps();
+  const { permissionGranted, requestPermission } = useHealthSteps();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [steps, setSteps] = useState<StepsEntry | null>(null);
@@ -65,9 +65,7 @@ function LogTab() {
       setWorkouts(data);
       setActiveWorkout(active);
       setSteps(stepsData);
-      const displaySteps = liveSteps ?? stepsData?.steps ?? null;
-      if (displaySteps != null) setStepsInput(String(displaySteps));
-
+      if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
     } catch {
       Alert.alert('Error', 'Could not load workouts.');
     } finally {
@@ -76,6 +74,11 @@ function LogTab() {
   }, [token]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Keep input in sync when the AppState listener updates the store
+  useEffect(() => {
+    if (liveSteps != null) setStepsInput(String(liveSteps));
+  }, [liveSteps]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -89,20 +92,9 @@ function LogTab() {
       setActiveWorkout(active);
       setSteps(stepsData);
       if (stepsData?.steps != null) setStepsInput(String(stepsData.steps));
-
-      const hcSteps = await readTodaySteps();
-      if (hcSteps != null && hcSteps > 0 && hcSteps !== stepsData?.steps) {
-        try {
-          const synced = await logSteps(token, hcSteps, undefined, 'health_connect');
-          setSteps(synced);
-          setStepsInput(String(hcSteps));
-        } catch (err) {
-          console.warn('[LogTab] Failed to auto-sync Health Connect steps:', err);
-        }
-      }
     } catch { /* ignore */ }
     finally { setRefreshing(false); }
-  }, [token, readTodaySteps]);
+  }, [token]);
 
   async function handleSaveSteps() {
     const count = parseInt(stepsInput, 10);

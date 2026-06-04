@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { DeviceEventEmitter, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, type AppStateStatus, DeviceEventEmitter, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '@react-navigation/native';
 import { configureClient } from '../../../packages/api-client/src/client';
@@ -18,6 +18,7 @@ export default function RootLayout() {
   const c = useColors();
   const { readTodaySteps } = useHealthSteps();
   const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     initializeHealthConnect().then(() => syncGrantedPermissions()).catch(() => {});
@@ -39,8 +40,20 @@ export default function RootLayout() {
         // steps sync is best-effort
       }
     };
+
+    // Run immediately on login
     syncSteps();
-  }, [token]); // re-runs when token becomes available after login
+
+    // Re-run whenever app comes to foreground
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        syncSteps();
+      }
+      appState.current = nextState;
+    });
+
+    return () => sub.remove();
+  }, [token]);
 
   useEffect(() => {
     configureClient({
