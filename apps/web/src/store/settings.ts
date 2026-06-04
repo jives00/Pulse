@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type SortOption = 'random' | 'created_at' | 'name' | 'recently_made' | 'prep_time';
 export type ExerciseSortOption = 'name' | 'created_at';
-export type ColorScheme = 'blue' | 'slate' | 'sand' | 'midnight' | 'tide' | 'graphite';
+export type ColorScheme = 'blue' | 'slate' | 'sand' | 'midnight' | 'tide' | 'graphite' | 'trakt';
 
 interface SettingsState {
   defaultSort: SortOption;
