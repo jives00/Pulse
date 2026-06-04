@@ -1,9 +1,10 @@
 import {
-  authApi, foodsApi, logApi, goalsApi, waterApi, historyApi,
+  authApi, foodsApi, logApi, waterApi, historyApi,
   recipesApi, tagsApi, linksApi, workoutsApi, exercisesApi, measurementsApi,
   routinesApi, schedulesApi, stepsApi, recoveryApi, mealPlanApi,
-  profileApi, assistantApi, userGoalsApi, updateNutritionGoals,
+  profileApi, assistantApi,
   goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi,
+  nutritionTargetsApi,
   localDateStr,
 } from '../../../../packages/api-client/src/index';
 
@@ -306,60 +307,13 @@ export async function getWaterHistory(_token: string, start: string, end: string
   return waterApi.getHistory(start, end);
 }
 
-// ─── Goals ────────────────────────────────────────────────────────────────────
-
-export async function getGoalsSummary(_token: string, date?: string): Promise<GoalsSummary> {
-  return goalsApi.getSummary(date);
+// New nutrition targets API wrappers (replace legacy goalsApi calls)
+export async function getNutritionSummary(_token: string, date?: string) {
+  return nutritionTargetsApi.getSummary(date);
 }
 
-export async function getTDEE(_token: string, date?: string): Promise<TDEEResult> {
-  return goalsApi.getTDEE(date);
-}
-
-export async function getExerciseGoals(_token: string): Promise<ExerciseGoals> {
-  return goalsApi.getExercise();
-}
-
-export async function saveNutritionGoals(_token: string, data: NutritionGoals): Promise<void> {
-  await updateNutritionGoals(data);
-}
-
-export async function saveExerciseGoals(_token: string, data: ExerciseGoals): Promise<void> {
-  const allGoals = await userGoalsApi.getAll();
-  const goals = [
-    { sourceKey: 'workouts_per_week', metricType: 'exercise_weekly_sessions' as GoalMetricType, value: data.workoutsPerWeek, unit: 'sessions', name: 'Workouts per week' },
-    { sourceKey: 'minutes_per_week', metricType: 'exercise_weekly_duration' as GoalMetricType, value: data.minutesPerWeek, unit: 'minutes', name: 'Minutes per week' },
-    { sourceKey: 'volume_lbs_per_week', metricType: 'exercise_weekly_volume' as GoalMetricType, value: data.volumeLbsPerWeek, unit: 'lbs', name: 'Volume per week' },
-  ];
-
-  for (const g of goals) {
-    const existing = allGoals.find((u) => u.sourceKey === g.sourceKey);
-    if (g.value == null) {
-      if (existing) await userGoalsApi.delete(existing.id);
-    } else if (existing) {
-      await userGoalsApi.update(existing.id, { targetValue: g.value });
-    } else {
-      await userGoalsApi.create({
-        name: g.name,
-        metricType: g.metricType,
-        sourceType: 'exercise',
-        sourceId: null,
-        sourceKey: g.sourceKey,
-        targetValue: g.value,
-        unit: g.unit,
-        targetDate: null,
-      });
-    }
-  }
-}
-
-export async function saveWeeklyNutritionGoals(_token: string, data: {
-  weeklyCalories?: number | null;
-  weeklyProteinG?: number | null;
-  weeklyCarbsG?: number | null;
-  weeklyFatG?: number | null;
-}): Promise<void> {
-  await goalsApi.saveWeeklyNutrition(data);
+export async function getNutritionTDEE(_token: string, date?: string) {
+  return nutritionTargetsApi.getTDEE(date);
 }
 
 // ─── Workouts ─────────────────────────────────────────────────────────────────
@@ -546,9 +500,6 @@ export async function deleteRoutineTemplateSet(_token: string, routineId: number
   await routinesApi.deleteTemplateSet(routineId, reId, setId);
 }
 
-export async function getRoutineGoals(_token: string): Promise<{ routineId: number; targetPerWeek: number }[]> {
-  return routinesApi.getAllGoals();
-}
 
 export async function setRoutineGoal(_token: string, routineId: number, targetPerWeek: number): Promise<void> {
   await routinesApi.setGoal(routineId, targetPerWeek);
@@ -608,9 +559,6 @@ export async function deleteMeasurement(_token: string, id: number): Promise<voi
   await measurementsApi.delete(id);
 }
 
-export async function getMeasurementGoals(_token: string): Promise<Record<string, MeasurementGoal>> {
-  return measurementsApi.getGoals();
-}
 
 export async function setMeasurementGoal(_token: string, metric: string, data: { targetValue: number; unit: string; targetDate: string | null }): Promise<void> {
   await measurementsApi.setGoal(metric, data);
@@ -643,116 +591,26 @@ export async function sendAssistantMessage(
   return assistantApi.send(payload.history, payload.message, payload.context);
 }
 
-// ─── User Goals ───────────────────────────────────────────────────────────────
+// ─── Milestones (replaces goal checkpoints) ───────────────────────────────────
 
-export async function getUserGoals(_token: string): Promise<UserGoal[]> {
-  return userGoalsApi.getAll();
+export async function getAllMilestones(_token: string) {
+  return import('../../../../packages/api-client/src/index').then(m => m.goalsV2Api.getAllMilestones());
 }
 
-export async function createUserGoal(_token: string, data: UserGoalPayload): Promise<UserGoal> {
-  return userGoalsApi.create(data);
+export async function getActiveGoals(_token: string) {
+  return import('../../../../packages/api-client/src/index').then(m => m.goalsV2Api.getAll('active'));
 }
 
-export async function updateUserGoal(_token: string, id: number, data: Partial<UserGoalPayload>): Promise<UserGoal> {
-  return userGoalsApi.update(id, data);
+export async function createMilestone(_token: string, goalId: number, data: { targetValue: number; targetDate: string; notes?: string | null }) {
+  return import('../../../../packages/api-client/src/index').then(m => m.goalsV2Api.createMilestone(goalId, data));
 }
 
-export async function deleteUserGoal(_token: string, id: number): Promise<void> {
-  await userGoalsApi.delete(id);
+export async function updateMilestone(_token: string, goalId: number, milestoneId: number, data: { targetValue?: number; targetDate?: string; notes?: string | null }) {
+  return import('../../../../packages/api-client/src/index').then(m => m.goalsV2Api.updateMilestone(goalId, milestoneId, data));
 }
 
-// ─── Workout Schedules ────────────────────────────────────────────────────────
-
-export async function getSchedules(_token: string): Promise<WorkoutSchedule[]> {
-  return schedulesApi.getAll();
-}
-
-export async function getUpcomingSchedule(_token: string, days = 14): Promise<UpcomingSession[]> {
-  return schedulesApi.getUpcoming(days);
-}
-
-export async function createSchedule(_token: string, data: {
-  routineId?: number | null; exerciseId?: number | null; label?: string;
-  isRestDay?: boolean; recurrenceType: RecurrenceType;
-  recurrenceConfig: any; startDate: string; endDate?: string | null;
-}): Promise<WorkoutSchedule> {
-  return schedulesApi.create(data);
-}
-
-export async function updateSchedule(_token: string, id: number, data: Partial<{
-  routineId: number | null; label: string | null; isRestDay: boolean;
-  recurrenceType: RecurrenceType; recurrenceConfig: any;
-  startDate: string; endDate: string | null;
-}>): Promise<WorkoutSchedule> {
-  return schedulesApi.update(id, data as any);
-}
-
-export async function deleteSchedule(_token: string, id: number): Promise<void> {
-  await schedulesApi.delete(id);
-}
-
-export async function overrideScheduleDay(_token: string, scheduleId: number, data: { date: string; status: 'completed' | 'skipped' | 'rest'; workoutLogId?: number }): Promise<void> {
-  await schedulesApi.override(scheduleId, data);
-}
-
-export async function getProgramTemplates(_token: string): Promise<ProgramTemplate[]> {
-  return schedulesApi.getProgramTemplates();
-}
-
-export async function importProgramTemplate(_token: string, templateId: number, data: { startDate: string; slotMap: Record<string, number | null> }): Promise<WorkoutSchedule[]> {
-  return schedulesApi.importProgramTemplate(templateId, data);
-}
-
-// ─── Meal Plan ────────────────────────────────────────────────────────────────
-
-export async function getMealPlanWeek(_token: string, weekStart: string): Promise<MealPlanWeek> {
-  return mealPlanApi.getWeek(weekStart);
-}
-
-export async function addMealPlanFoodEntry(_token: string, payload: { planDate: string; meal: MealSlot; foodId: number; servingSizeId: number; quantity: number }): Promise<MealPlanEntry> {
-  return mealPlanApi.addFoodEntry(payload);
-}
-
-export async function addMealPlanRecipeEntry(_token: string, payload: { planDate: string; meal: MealSlot; recipeId: number; recipeServings: number }): Promise<MealPlanEntry> {
-  return mealPlanApi.addRecipeEntry(payload);
-}
-
-export async function deleteMealPlanEntry(_token: string, id: number): Promise<void> {
-  await mealPlanApi.deleteEntry(id);
-}
-
-export async function getMealPlanTemplates(_token: string): Promise<MealPlanTemplate[]> {
-  return mealPlanApi.getTemplates();
-}
-
-export async function saveMealPlanTemplate(_token: string, name: string, weekStart: string): Promise<{ id: number; name: string }> {
-  return mealPlanApi.saveTemplate(name, weekStart);
-}
-
-export async function applyMealPlanTemplate(_token: string, templateId: number, weekStart: string): Promise<{ applied: number }> {
-  return mealPlanApi.applyTemplate(templateId, weekStart);
-}
-
-export async function deleteMealPlanTemplate(_token: string, id: number): Promise<void> {
-  await mealPlanApi.deleteTemplate(id);
-}
-
-// ─── Goal Checkpoints ─────────────────────────────────────────────────────────
-
-export async function getGoalCheckpoints(_token: string): Promise<GoalCheckpoint[]> {
-  return goalCheckpointsApi.getAll();
-}
-
-export async function createGoalCheckpoint(_token: string, data: Omit<GoalCheckpoint, 'id'>): Promise<GoalCheckpoint> {
-  return goalCheckpointsApi.create(data);
-}
-
-export async function updateGoalCheckpoint(_token: string, id: number, data: Omit<GoalCheckpoint, 'id'>): Promise<GoalCheckpoint> {
-  return goalCheckpointsApi.update(id, data);
-}
-
-export async function deleteGoalCheckpoint(_token: string, id: number): Promise<void> {
-  await goalCheckpointsApi.delete(id);
+export async function deleteMilestone(_token: string, goalId: number, milestoneId: number) {
+  return import('../../../../packages/api-client/src/index').then(m => m.goalsV2Api.deleteMilestone(goalId, milestoneId));
 }
 
 // ─── Day Type Presets & Overrides ─────────────────────────────────────────────

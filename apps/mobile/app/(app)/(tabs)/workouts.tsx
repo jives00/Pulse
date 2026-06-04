@@ -10,13 +10,12 @@ import {
   getExercises, getExerciseCategories, createCustomExercise, updateExercise, deleteExercise,
   type Exercise,
   getRoutines, createRoutine, deleteRoutine, startRoutine, type RoutineSummary,
-  getExerciseGoals, type ExerciseGoals,
-  getMeasurements, addMeasurement, getMeasurementGoals, type BodyMeasurement, type MeasurementGoal,
+  getMeasurements, addMeasurement, type BodyMeasurement,
   getPersonalBests, type PersonalBests,
   getActiveWorkout, type WorkoutDetail,
   getSteps, logSteps, type StepsEntry,
 } from '../../../src/api/client';
-import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate, goalsV2Api, type Goal } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { writeWeightRecord } from '../../../src/services/healthConnectWriter';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
@@ -791,6 +790,9 @@ const METRIC_CONFIG: Record<string, { label: string; unit: string; icon: string;
   waist:  { label: 'Waist',  unit: 'in',  icon: '📏', color: '#fb923c', dir: 'down' },
   bicep:  { label: 'Bicep',  unit: 'in',  icon: '💪', color: '#818cf8', dir: 'up'   },
 };
+const METRIC_TO_CATALOG: Record<string, string> = {
+  weight: 'body_weight', waist: 'body_waist', bicep: 'body_bicep',
+};
 
 
 type WeekBucket = { weekStart: string; label: string; volumeLbs: number; workouts: number };
@@ -914,9 +916,8 @@ function ProgressTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
-  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
-  const [measGoals, setMeasGoals] = useState<Record<string, MeasurementGoal>>({});
+  const [activeGoals, setActiveGoals] = useState<Goal[]>([]);
   const [personalBests, setPersonalBests] = useState<PersonalBests | null>(null);
 
   // Log measurement form
@@ -927,17 +928,15 @@ function ProgressTab() {
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [ws, eg, ms, mg, pb] = await Promise.all([
+      const [ws, ms, pb, ag] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
-        getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
-        getMeasurementGoals(token).catch(() => ({})),
         getPersonalBests(token).catch(() => null),
+        goalsV2Api.getAll('active').catch(() => []),
       ]);
       setWorkouts(ws);
-      setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
-      setMeasGoals(mg as Record<string, MeasurementGoal>);
+      setActiveGoals(ag as Goal[]);
       setPersonalBests(pb);
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
@@ -953,8 +952,8 @@ function ProgressTab() {
   const weeklyData = buildWeeklyData(workouts);
   const weekVolumeLbs = Math.round(weeklyData[weeklyData.length - 1]?.volumeLbs ?? 0);
   const weekWorkouts = weeklyData[weeklyData.length - 1]?.workouts ?? 0;
-  const volumeGoal = exGoals?.volumeLbsPerWeek ?? null;
-  const workoutGoal = exGoals?.workoutsPerWeek ?? null;
+  const volumeGoal = activeGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? null;
+  const workoutGoal = activeGoals.find(g => g.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? null;
 
   async function handleLogMeasurement() {
     if (!logMetric || !logValue.trim()) return;
@@ -1007,7 +1006,9 @@ function ProgressTab() {
         {Object.entries(METRIC_CONFIG).map(([key, cfg]) => {
           const all = measurements.filter((m) => m.metric === key).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
           const latest = all[0] ?? null;
-          const goal = measGoals[key] ?? null;
+          const catalogKey = METRIC_TO_CATALOG[key];
+          const goalEntry = catalogKey ? activeGoals.find(g => g.catalogKey === catalogKey) : null;
+          const goal = goalEntry ? { targetValue: goalEntry.targetValue, targetDate: goalEntry.deadline } : null;
           return (
             <View key={key} style={p.metricRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>

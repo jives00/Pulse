@@ -54,9 +54,13 @@ export { goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesAp
 export { userGoalsApi, goalsByCategory as legacyGoalsByCategory, findGoalByKey, findGoalByMetric, updateNutritionGoals, updateExerciseGoals } from './endpoints/user-goals';
 export type { UserGoal, UserGoalPayload, GoalMetricType } from './endpoints/user-goals';
 
+// Nutrition targets (operational nutrition settings — replaces legacy /api/goals nutrition endpoints)
+export { nutritionTargetsApi } from './endpoints/nutrition-targets';
+export type { NutritionSummary } from './endpoints/nutrition-targets';
+
 // New unified goals system
 export { goalsV2Api, goalsByCategory } from './endpoints/goals-v2';
-export type { Goal, GoalDetail, GoalMilestone, GoalProgressEntry, GoalStatus, MilestoneStatus, ProgressSource,
+export type { Goal, GoalDetail, GoalMilestone, GoalMilestoneWithGoal, GoalProgressEntry, GoalStatus, MilestoneStatus, ProgressSource,
               CreateGoalPayload, UpdateGoalPayload, CloseGoalPayload,
               CreateMilestonePayload, UpdateMilestonePayload, CreateProgressPayload } from './endpoints/goals-v2';
 export { GOAL_CATALOG, CATALOG_BY_KEY, CATALOG_BY_CATEGORY } from './goalCatalog';

@@ -80,74 +80,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/measurements/goals
-router.get('/goals', async (req, res) => {
-  try {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT metric, target_value, unit, target_date, show_on_dashboard
-       FROM body_measurement_goals
-       WHERE user_id = ?`,
-      [req.userId]
-    );
-    const goals: Record<string, { targetValue: number; unit: string; targetDate: string | null; showOnDashboard: boolean }> = {};
-    for (const r of rows) {
-      goals[r.metric] = {
-        targetValue: Number(r.target_value),
-        unit: r.unit,
-        targetDate: r.target_date
-          ? (r.target_date instanceof Date ? r.target_date.toISOString().slice(0, 10) : String(r.target_date))
-          : null,
-        showOnDashboard: Boolean(r.show_on_dashboard),
-      };
-    }
-    res.json(goals);
-  } catch (err) {
-    console.error('[measurements] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// PUT /api/measurements/goals/:metric
-// Upsert a goal for one metric
-router.put('/goals/:metric', async (req, res) => {
-  const { metric } = req.params;
-  const { targetValue, unit, targetDate, showOnDashboard } = req.body as {
-    targetValue: number; unit: string; targetDate?: string | null; showOnDashboard?: boolean;
-  };
-
-  if (targetValue == null || !unit) {
-    res.status(400).json({ error: 'targetValue and unit are required' });
-    return;
-  }
-
-  try {
-    await pool.query(
-      `INSERT INTO body_measurement_goals (user_id, metric, target_value, unit, target_date, show_on_dashboard)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE target_value = VALUES(target_value), unit = VALUES(unit), target_date = VALUES(target_date), show_on_dashboard = VALUES(show_on_dashboard)`,
-      [req.userId, metric, targetValue, unit, targetDate ?? null, showOnDashboard ?? true ? 1 : 0]
-    );
-    res.json({ metric, targetValue: Number(targetValue), unit, targetDate: targetDate ?? null, showOnDashboard: showOnDashboard ?? true });
-  } catch (err) {
-    console.error('[measurements] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// DELETE /api/measurements/goals/:metric
-router.delete('/goals/:metric', async (req, res) => {
-  const { metric } = req.params;
-  try {
-    await pool.query(
-      'DELETE FROM body_measurement_goals WHERE user_id = ? AND metric = ?',
-      [req.userId, metric]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[measurements] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// body_measurement_goals endpoints removed — body measurement goals now in goals-v2
 
 // PUT /api/measurements/:id
 router.put('/:id', async (req, res) => {

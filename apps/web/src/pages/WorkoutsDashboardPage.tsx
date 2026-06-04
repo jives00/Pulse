@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { buildWorkoutLine } from '../utils/workoutLine';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi,
+  workoutsApi, nutritionTargetsApi, measurementsApi, routinesApi,
   waterApi, logApi,
-  type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
+  type WorkoutSummary, type NutritionSummary,
   type BodyMeasurement, type MeasurementGoal, type PersonalBests,
   type RoutineSummary,
   type WaterHistory, type FoodLogHistoryDay, type TDEEBreakdown,
@@ -464,6 +464,7 @@ function FuelTodayCard({
 
 // ── ThisWeekCard ───────────────────────────────────────────────────────────────
 
+type ExGoalsShape = { workoutsPerWeek: number | null; minutesPerWeek: number | null; volumeLbsPerWeek: number | null };
 function ThisWeekCardV3({
   workouts,
   exGoals,
@@ -472,7 +473,7 @@ function ThisWeekCardV3({
   routineGoals,
 }: {
   workouts: WorkoutSummary[];
-  exGoals: ExerciseGoals | null;
+  exGoals: ExGoalsShape | null;
   weeklyData: WeekBucket[];
   routinesList: RoutineSummary[];
   routineGoals: Record<number, number>;
@@ -2032,6 +2033,7 @@ function DashboardV3({
   todayTDEE, exGoals, weeklyData, personalBests,
   loading, onWaterLogged, onMeasurementLogged,
 }: {
+
   workouts: WorkoutSummary[];
   measurements: BodyMeasurement[];
   measurementGoals: Record<string, MeasurementGoal>;
@@ -2044,7 +2046,7 @@ function DashboardV3({
   carbsGoal: number | null;
   fatGoal: number | null;
   todayTDEE: TDEEBreakdown | null;
-  exGoals: ExerciseGoals | null;
+  exGoals: ExGoalsShape | null;
   weeklyData: WeekBucket[];
   personalBests: PersonalBests | null;
   loading: boolean;
@@ -2167,11 +2169,10 @@ function DashboardV3({
 export default function WorkoutsDashboardPage() {
   const navigate = useNavigate();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
-  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
   const [measurementGoals, setMeasurementGoals] = useState<Record<string, MeasurementGoal>>({});
   const [personalBests, setPersonalBests] = useState<PersonalBests | null>(null);
-  const [nutritionSummary, setNutritionSummary] = useState<GoalsSummary | null>(null);
+  const [nutritionSummary, setNutritionSummary] = useState<NutritionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [v2Loading, setV2Loading] = useState(false);
   const [v2Loaded, setV2Loaded] = useState(false);
@@ -2180,6 +2181,7 @@ export default function WorkoutsDashboardPage() {
   const [todayTDEE, setTodayTDEE] = useState<TDEEBreakdown | null>(null);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
   const [routineGoals, setRoutineGoals] = useState<Record<number, number>>({});
+  const [activeGoals, setActiveGoals] = useState<import('@pulse/api-client').Goal[]>([]);
   const [, setStarting] = useState(false);
   const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
@@ -2188,18 +2190,32 @@ export default function WorkoutsDashboardPage() {
   function load() {
     Promise.all([
       workoutsApi.getAll({ limit: 200 }),
-      goalsApi.getExercise().catch(() => null),
-      goalsApi.getSummary().catch(() => null),
+      nutritionTargetsApi.getSummary().catch(() => null),
       measurementsApi.getAll().catch(() => []),
-      measurementsApi.getGoals().catch(() => ({})),
       workoutsApi.getPersonalBests().catch(() => null),
-    ]).then(([ws, eg, summary, ms, mg, pb]) => {
+      import('@pulse/api-client').then(m => m.goalsV2Api.getAll('active').catch(() => [])),
+    ]).then(([ws, summary, ms, pb, ag]) => {
       setWorkouts(ws);
-      setExGoals(eg);
-      setNutritionSummary(summary);
+      setNutritionSummary(summary as NutritionSummary | null);
       setMeasurements(ms as BodyMeasurement[]);
-      setMeasurementGoals(mg as Record<string, MeasurementGoal>);
       setPersonalBests(pb);
+      const goals = ag as import('@pulse/api-client').Goal[];
+      setActiveGoals(goals);
+      const CATALOG_TO_METRIC: Record<string, string> = {
+        body_weight: 'weight', body_waist: 'waist', body_bicep: 'bicep',
+        body_chest: 'chest', body_hips: 'hips', body_fat_pct: 'body_fat',
+        body_muscle_mass: 'muscle_mass', body_water_pct: 'water_pct',
+      };
+      const mGoals: Record<string, MeasurementGoal> = {};
+      for (const g of goals) {
+        const metric = CATALOG_TO_METRIC[g.catalogKey];
+        if (metric) mGoals[metric] = { targetValue: g.targetValue, unit: g.unit, targetDate: g.deadline, showOnDashboard: g.showOnDashboard };
+      }
+      setMeasurementGoals(mGoals);
+      setRoutineGoals(Object.fromEntries(
+        goals.filter(g => g.catalogKey === 'exercise_routine_sessions' && g.sourceId != null)
+             .map(g => [g.sourceId!, g.targetValue])
+      ));
     }).catch(() => {}).finally(() => setLoading(false));
   }
 
@@ -2210,17 +2226,15 @@ export default function WorkoutsDashboardPage() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 29);
       const start = localDateStr(startD);
-      const [wh, fl, rl, tdee, rg] = await Promise.all([
+      const [wh, fl, rl, tdee] = await Promise.all([
         waterApi.getHistory(start, end).catch(() => null),
         logApi.getHistory({ limit: 30 }).catch(() => []),
         routinesApi.getAll().catch(() => []),
-        goalsApi.getTDEE().catch(() => null),
-        routinesApi.getAllGoals().catch(() => []),
+        nutritionTargetsApi.getTDEE().catch(() => null),
       ]);
       setWaterHistory(wh);
       setFoodLogHistory(fl as FoodLogHistoryDay[]);
       setRoutinesList(rl as RoutineSummary[]);
-      setRoutineGoals(Object.fromEntries((rg as import('@pulse/api-client').RoutineGoal[]).map((g) => [g.routineId, g.targetPerWeek])));
       if (tdee && tdee.available) setTodayTDEE(tdee);
       setV2Loaded(true);
     } catch { /* ignore */ } finally { setV2Loading(false); }
@@ -2340,7 +2354,11 @@ export default function WorkoutsDashboardPage() {
           carbsGoal={nutritionSummary?.nutrition.goals?.carbsG ?? null}
           fatGoal={nutritionSummary?.nutrition.goals?.fatG ?? null}
           todayTDEE={todayTDEE}
-          exGoals={exGoals}
+          exGoals={{
+            workoutsPerWeek: activeGoals.find(g => g.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? null,
+            minutesPerWeek: activeGoals.find(g => g.catalogKey === 'exercise_minutes_per_week')?.targetValue ?? null,
+            volumeLbsPerWeek: activeGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? null,
+          }}
           weeklyData={buildWeeklyData(workouts)}
           onWaterLogged={() => {
             const end = localDateStr();

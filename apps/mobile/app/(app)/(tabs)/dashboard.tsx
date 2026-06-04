@@ -7,19 +7,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import {
-  getWorkouts, getGoalsSummary, getMeasurements, getMeasurementGoals,
-  getFoodLogHistory, getDailyHistory, getRoutines, getTDEE,
-  getRoutineGoals, getExerciseGoals, getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
-  type WorkoutSummary, type GoalsSummary, type BodyMeasurement, type MeasurementGoal,
+  getWorkouts, getNutritionSummary, getMeasurements,
+  getFoodLogHistory, getDailyHistory, getRoutines, getNutritionTDEE,
+  getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
+  type WorkoutSummary, type BodyMeasurement,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
-  type TDEEBreakdown, type ExerciseGoals, type UpcomingSession, type RoutineDetail, type WaterDay, type StepsEntry,
+  type TDEEBreakdown, type UpcomingSession, type RoutineDetail, type WaterDay, type StepsEntry,
 } from '../../../src/api/client';
 import { Share } from 'react-native';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData, buildWorkoutLine,
   goalsV2Api,
-  type WeekBucket, type Goal,
+  type WeekBucket, type Goal, type NutritionSummary,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { useStepsStore } from '../../../src/store/steps';
@@ -283,7 +283,7 @@ function buildWeeklyAverages(foodLogHistory: FoodLogHistoryDay[], workouts: Work
 // ── Today Snapshot ────────────────────────────────────────────────────────────
 function TodaySnapshot({ workouts, nutrition, water, steps }: {
   workouts: WorkoutSummary[];
-  nutrition: GoalsSummary['nutrition']['actual'] | null;
+  nutrition: NutritionSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
   steps: StepsEntry | null;
 }) {
@@ -345,10 +345,9 @@ export default function DashboardV4Screen() {
 
   // Data state
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
-  const [exGoals, setExGoals] = useState<ExerciseGoals | null>(null);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
-  const [measGoals, setMeasGoals] = useState<Record<string, MeasurementGoal>>({});
-  const [nutritionSummary, setNutritionSummary] = useState<GoalsSummary | null>(null);
+  const [nutritionSummary, setNutritionSummary] = useState<NutritionSummary | null>(null);
+  const [activeGoals, setActiveGoals] = useState<Goal[]>([]);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [dailyHistory, setDailyHistory] = useState<DailyHistoryEntry[]>([]);
   const [routinesList, setRoutinesList] = useState<RoutineSummary[]>([]);
@@ -356,10 +355,9 @@ export default function DashboardV4Screen() {
   const [recovery,  setRecovery]  = useState<RecoveryData | null>(null);
   const [upcoming,  setUpcoming]  = useState<UpcomingSession[]>([]);
   const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
-  const [routineGoals, setRoutineGoals] = useState<{ routineId: number; targetPerWeek: number }[]>([]);
   const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
   const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
-  const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]);
+  const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]); // derived from activeGoals
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -367,39 +365,34 @@ export default function DashboardV4Screen() {
       const end = localDateStr();
       const startD = new Date(); startD.setDate(startD.getDate() - 89);
       const start = localDateStr(startD);
-      const [ws, eg, ms, mg, ns, fl, dh, rl, tdee, rec, upc, rg, wd, sd] = await Promise.all([
+      const [ws, ms, ns, fl, dh, rl, tdee, rec, upc, wd, sd, ag] = await Promise.all([
         getWorkouts(token, { limit: 200 }),
-        getExerciseGoals(token).catch(() => null),
         getMeasurements(token).catch(() => []),
-        getMeasurementGoals(token).catch(() => ({})),
-        getGoalsSummary(token).catch(() => null),
+        getNutritionSummary(token).catch(() => null),
         getFoodLogHistory(token, { limit: 90 }).catch(() => []),
         getDailyHistory(token, start, end).catch(() => []),
         getRoutines(token).catch(() => []),
-        getTDEE(token).catch(() => null),
+        getNutritionTDEE(token).catch(() => null),
         getRecovery(token).catch(() => null),
         getUpcomingSchedule(token, 7).catch(() => []),
-        getRoutineGoals(token).catch(() => []),
         getWaterDay(token, localDateStr()).catch(() => null),
         getSteps(token).catch(() => null),
+        goalsV2Api.getAll('active').catch(() => []),
       ]);
       setWorkouts(ws);
-      setExGoals(eg);
       setMeasurements(ms as BodyMeasurement[]);
-      setMeasGoals(mg as Record<string, MeasurementGoal>);
-      setNutritionSummary(ns);
+      setNutritionSummary(ns as NutritionSummary | null);
       setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
       setDailyHistory(dh as DailyHistoryEntry[]);
       setRoutinesList(rl as RoutineSummary[]);
       setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
       setRecovery(rec);
       setUpcoming(upc as UpcomingSession[]);
-      setRoutineGoals(rg as { routineId: number; targetPerWeek: number }[]);
       setTodayWater(wd as WaterDay | null);
       setTodaySteps(sd as StepsEntry | null);
-      goalsV2Api.getAll('active')
-        .then(gs => setPinnedGoals(gs.filter(g => g.showOnDashboard)))
-        .catch(() => {});
+      const goals = ag as Goal[];
+      setActiveGoals(goals);
+      setPinnedGoals(goals.filter(g => g.showOnDashboard));
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
   }, [token]);
@@ -449,7 +442,7 @@ export default function DashboardV4Screen() {
 
   // This week
   const weekWorkouts = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).length;
-  const weekWorkoutGoal = exGoals?.workoutsPerWeek ?? null;
+  const weekWorkoutGoal = activeGoals.find(g => g.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? null;
   const foodByDate = Object.fromEntries(foodLogHistory.map((d) => [d.date, d]));
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(currentWeekStart + 'T12:00:00'); d.setDate(d.getDate() + i); return localDateStr(d);
@@ -480,8 +473,7 @@ export default function DashboardV4Screen() {
   let last: number | null = null;
   const weightSeries = days30.map((d) => { if (weightByDate[d] != null) last = weightByDate[d]; return last ?? 0; });
   const hasWeight = weightSeries.some((v) => v > 0);
-  const weightGoalRaw = measGoals['weight'];
-  const weightGoalLbs = weightGoalRaw ? (weightGoalRaw.unit === 'kg' ? weightGoalRaw.targetValue * KG_TO_LBS : weightGoalRaw.targetValue) : null;
+  const weightGoalLbs = activeGoals.find(g => g.catalogKey === 'body_weight')?.targetValue ?? null;
   const allW = [...weightSeries.filter(Boolean), ...(weightGoalLbs != null ? [weightGoalLbs] : [])];
   const weightMin = allW.length ? Math.min(...allW) * 0.98 : 0;
   const weightMax = allW.length ? Math.max(...allW) * 1.02 : 1;
@@ -651,7 +643,7 @@ export default function DashboardV4Screen() {
 
           {/* Weekly Goal Progress */}
           {(() => {
-            const volGoal = exGoals?.volumeLbsPerWeek ?? 0;
+            const volGoal = activeGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? 0;
             const items = [
               (weekCalGoal ?? 0) > 0   ? { label: 'Calories', val: weekCalories,  goal: weekCalGoal!,       fmtv: weekCalories.toLocaleString(),              fmtg: `${weekCalGoal!.toLocaleString()} kcal` }      : null,
               (weekProtGoal ?? 0) > 0  ? { label: 'Protein',  val: weekProtein,   goal: weekProtGoal!,      fmtv: `${Math.round(weekProtein)}g`,               fmtg: `${weekProtGoal!}g` }                          : null,
@@ -691,9 +683,9 @@ export default function DashboardV4Screen() {
               .filter((m) => m.metric === 'weight')
               .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
               .map((m) => ({ date: m.measuredAt, val: m.unit === 'kg' ? m.value * KG_TO_LBS : m.value }));
-            const goal = measGoals['weight'];
-            const target = goal?.targetValue ?? null;
-            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+            const weightGoalEntry = activeGoals.find(g => g.catalogKey === 'body_weight');
+            const target = weightGoalEntry?.targetValue ?? null;
+            const deadline = weightGoalEntry?.deadline ?? null;
 
             if (!sorted.length) {
               return (
@@ -819,9 +811,9 @@ export default function DashboardV4Screen() {
               .filter((m) => m.metric === metric)
               .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
               .map((m) => ({ date: m.measuredAt, val: m.value }));
-            const goal = measGoals[metric];
-            const target = goal?.targetValue ?? null;
-            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+            const waistGoalEntry = activeGoals.find(g => g.catalogKey === 'body_waist');
+            const target = waistGoalEntry?.targetValue ?? null;
+            const deadline = waistGoalEntry?.deadline ?? null;
 
             if (!sorted.length) return null;
 
@@ -901,9 +893,9 @@ export default function DashboardV4Screen() {
               .filter((m) => m.metric === metric)
               .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
               .map((m) => ({ date: m.measuredAt, val: m.value }));
-            const goal = measGoals[metric];
-            const target = goal?.targetValue ?? null;
-            const deadline = goal?.targetDate ? goal.targetDate.slice(0, 10) : null;
+            const bicepGoalEntry = activeGoals.find(g => g.catalogKey === 'body_bicep');
+            const target = bicepGoalEntry?.targetValue ?? null;
+            const deadline = bicepGoalEntry?.deadline ?? null;
 
             if (!sorted.length) return null;
 
@@ -977,10 +969,11 @@ export default function DashboardV4Screen() {
 
           {/* ── Workout frequency ── */}
           {(() => {
-            const activeGoals = Array.from(
-              new Map(routineGoals.map((rg) => [rg.routineId, rg])).values()
-            ).filter((rg) => rg.targetPerWeek > 0 && rg.targetPerWeek <= 7);
-            if (!activeGoals.length) {
+            const routineGoalsList = activeGoals
+              .filter(g => g.catalogKey === 'exercise_routine_sessions' && g.sourceId != null)
+              .map(g => ({ routineId: g.sourceId!, targetPerWeek: g.targetValue }))
+              .filter(rg => rg.targetPerWeek > 0 && rg.targetPerWeek <= 7);
+            if (!routineGoalsList.length) {
               return (
                 <View style={s.card}>
                   <CardHeader title="Workout frequency" c={c} />
@@ -1001,15 +994,15 @@ export default function DashboardV4Screen() {
               const we = weekEnd(ws);
               return workouts.filter((w) => w.routineId === routineId && w.workoutDate >= ws && w.workoutDate <= we).length;
             }
-            const allDone = activeGoals.every((rg) => countForWeek(rg.routineId, thisWeek) >= rg.targetPerWeek);
+            const allDone = routineGoalsList.every((rg) => countForWeek(rg.routineId, thisWeek) >= rg.targetPerWeek);
             return (
               <View style={s.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <View style={{ flex: 1 }}><CardHeader title="Workout frequency" meta={`${activeGoals.length} routine${activeGoals.length !== 1 ? 's' : ''} · weekly`} c={c} /></View>
+                  <View style={{ flex: 1 }}><CardHeader title="Workout frequency" meta={`${routineGoalsList.length} routine${routineGoalsList.length !== 1 ? 's' : ''} · weekly`} c={c} /></View>
                   <GoalStatusChip status={allDone ? 'achieved' : 'on_track'} />
                 </View>
                 <View style={{ gap: 14 }}>
-                  {activeGoals.map((rg) => {
+                  {routineGoalsList.map((rg) => {
                     const name = routineById[rg.routineId]?.name ?? `Routine ${rg.routineId}`;
                     const thisCount = countForWeek(rg.routineId, thisWeek);
                     const hit = thisCount >= rg.targetPerWeek;
@@ -1081,7 +1074,7 @@ export default function DashboardV4Screen() {
             const visibleGoals = pinnedGoals.filter(g => {
               if (LEGACY_EXERCISE_COVERED.has(g.catalogKey)) return false;
               const metric = BODY_TO_METRIC[g.catalogKey];
-              if (metric) return !measGoals[metric]; // skip body goal if legacy goal already covers it
+              if (metric) return true; // legacy measurement goals removed; always show new body goals
               return true;
             });
             if (!visibleGoals.length) return null;

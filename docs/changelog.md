@@ -4,6 +4,22 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 3, 2026
+
+### Goals – Phase 3 Cleanup (Web + Mobile + Server)
+
+- **Remove legacy goal tables and routes** — Dropped `exercise_goals`, `body_measurement_goals`, `routine_goals`, `custom_goals`, `goal_checkpoints`, and `_migration_review` tables; all data was migrated to the unified `goals` system in Phase 1
+- **New `/api/nutrition-targets` route** — Operational nutrition settings (daily/weekly calorie/macro targets, TDEE, summary) moved out of `/api/goals` into a dedicated route that reads only from `user_goals`, which is never dropped
+- **Settings Targets tab simplified** — Removed the exercise goals, body measurement goals, routine goals, and custom goals sections; the tab now contains only daily and weekly nutrition targets
+- **Dashboard migrated off legacy APIs** — Web dashboard and workouts dashboard now derive exercise goal values from goals-v2; workout frequency card visibility and routine goals derived from active goals instead of `routine_goals` table
+- **Planning calendar migrated to milestones** — `goal_checkpoints` replaced with goal milestones on both web (PlanningCalendarCard) and mobile (SettingsPlanningTab); adding a milestone now requires selecting a parent goal
+- **Mobile dashboard and workouts migrated** — `getExerciseGoals`, `getMeasurementGoals`, `getRoutineGoals` removed; body measurement targets and exercise goals now derived from goals-v2 active goals
+- **Fix AI assistant nutrition goal updates** — `updateNutritionGoals` replaced with `nutritionTargetsApi.save()` so AI-suggested nutrition changes correctly write to `user_goals` (the table that drives food log rings) instead of the now-dropped `custom_goals`
+- **Fix delete-account data wipe** — `custom_goals`, `body_measurement_goals`, `routine_goals`, and `goal_checkpoints` rows were never cleaned up on account deletion; now included in the goals scope wipe
+- **Add `/api/goals-v2/milestones` endpoint** — Returns all active-goal milestones for a user in one call, used by the planning calendar
+
+---
+
 ## June 1, 2026
 
 ### Frontend – Web

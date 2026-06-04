@@ -63,7 +63,7 @@ export default function AIAssistant() {
   async function executeAction(action: AssistantAction) {
     // Actions are executed via the existing API using the api-client
     // Import inline to avoid circular deps
-    const { logApi, updateNutritionGoals } = await import('@pulse/api-client');
+    const { logApi, nutritionTargetsApi } = await import('@pulse/api-client');
     if (action.type === 'log_food') {
       const p = action.payload as { name: string; meal?: string; calories: number; proteinG: number; carbsG: number; fatG: number };
       await logApi.logInline({
@@ -76,7 +76,7 @@ export default function AIAssistant() {
       });
     } else if (action.type === 'update_nutrition_goal') {
       const p = action.payload as { calories: number; proteinG: number; carbsG: number; fatG: number };
-      await updateNutritionGoals({
+      await nutritionTargetsApi.save({
         calories: p.calories,
         proteinG: p.proteinG,
         carbsG: p.carbsG,

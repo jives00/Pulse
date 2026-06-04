@@ -3,11 +3,10 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
 import {
-  authApi, tagsApi, goalsApi, measurementsApi, profileApi, routinesApi, exercisesApi, userGoalsApi,
+  authApi, tagsApi, nutritionTargetsApi, profileApi,
   GLASS_OZ, apiClient,
-  type DeleteScope, type TagDefinitions, type MeasurementGoal,
-  type UserProfile, type ActivityLevel, type RoutineSummary, type RoutineGoal, type UserGoal, type Exercise,
-  type GoalMetricType, type GoalSourceType,
+  type DeleteScope, type TagDefinitions,
+  type UserProfile, type ActivityLevel,
 } from '@pulse/api-client';
 
 // ─── Shared primitives ────────────────────────────────────────
@@ -253,441 +252,37 @@ function OptionsTab() {
   );
 }
 
-// ─── User Goals (custom goals) ────────────────────────────────
-
-type MetricGroup = { label: string; metrics: GoalMetricType[] };
-
-const METRIC_GROUPS: MetricGroup[] = [
-  { label: 'Strength', metrics: ['exercise_max_weight', 'exercise_max_reps', 'exercise_session_volume', 'exercise_weekly_volume', 'exercise_session_reps', 'exercise_weekly_reps'] },
-  { label: 'Cardio',   metrics: ['exercise_session_distance', 'exercise_weekly_distance', 'exercise_session_duration', 'exercise_weekly_duration'] },
-  { label: 'Steps',    metrics: ['exercise_session_steps', 'exercise_weekly_steps'] },
-  { label: 'Frequency',metrics: ['exercise_weekly_sessions'] },
-  { label: 'Pedometer',metrics: ['daily_steps_avg', 'weekly_steps_total'] },
-  { label: 'Body',     metrics: ['body_measurement'] },
-  { label: 'Nutrition',metrics: ['nutrition_daily_avg'] },
-];
-
-const METRIC_LABELS: Record<GoalMetricType, string> = {
-  exercise_max_weight:       'Max weight (single lift)',
-  exercise_max_reps:         'Max reps (single set)',
-  exercise_session_volume:   'Session volume',
-  exercise_weekly_volume:    'Weekly volume',
-  exercise_session_reps:     'Session total reps',
-  exercise_weekly_reps:      'Weekly total reps',
-  exercise_session_steps:    'Session steps',
-  exercise_weekly_steps:     'Weekly steps',
-  exercise_session_distance: 'Session distance',
-  exercise_weekly_distance:  'Weekly distance',
-  exercise_session_duration: 'Session duration',
-  exercise_weekly_duration:  'Weekly duration',
-  exercise_weekly_sessions:  'Weekly sessions',
-  daily_steps_avg:           'Daily steps average',
-  weekly_steps_total:        'Weekly steps total',
-  body_measurement:          'Body measurement',
-  nutrition_daily_avg:       'Daily nutrition average',
-};
-
-const METRIC_DEFAULT_UNIT: Record<GoalMetricType, string> = {
-  exercise_max_weight:       'lbs',
-  exercise_max_reps:         'reps',
-  exercise_session_volume:   'lbs',
-  exercise_weekly_volume:    'lbs',
-  exercise_session_reps:     'reps',
-  exercise_weekly_reps:      'reps',
-  exercise_session_steps:    'steps',
-  exercise_weekly_steps:     'steps',
-  exercise_session_distance: 'miles',
-  exercise_weekly_distance:  'miles',
-  exercise_session_duration: 'min',
-  exercise_weekly_duration:  'min',
-  exercise_weekly_sessions:  'sessions',
-  daily_steps_avg:           'steps',
-  weekly_steps_total:        'steps',
-  body_measurement:          '',
-  nutrition_daily_avg:       '',
-};
-
-const METRIC_REQUIRED_FIELD: Partial<Record<GoalMetricType, string>> = {
-  exercise_max_weight:       'weight',
-  exercise_session_volume:   'weight',
-  exercise_weekly_volume:    'weight',
-  exercise_max_reps:         'reps',
-  exercise_session_reps:     'reps',
-  exercise_weekly_reps:      'reps',
-  exercise_session_steps:    'steps',
-  exercise_weekly_steps:     'steps',
-  exercise_session_distance: 'distance',
-  exercise_weekly_distance:  'distance',
-  exercise_session_duration: 'duration',
-  exercise_weekly_duration:  'duration',
-};
-
-const METRIC_SOURCE_TYPE: Record<GoalMetricType, GoalSourceType> = {
-  exercise_max_weight:       'exercise',
-  exercise_max_reps:         'exercise',
-  exercise_session_volume:   'exercise',
-  exercise_weekly_volume:    'exercise',
-  exercise_session_reps:     'exercise',
-  exercise_weekly_reps:      'exercise',
-  exercise_session_steps:    'exercise',
-  exercise_weekly_steps:     'exercise',
-  exercise_session_distance: 'exercise',
-  exercise_weekly_distance:  'exercise',
-  exercise_session_duration: 'exercise',
-  exercise_weekly_duration:  'exercise',
-  exercise_weekly_sessions:  'exercise',
-  daily_steps_avg:           'steps',
-  weekly_steps_total:        'steps',
-  body_measurement:          'measurement',
-  nutrition_daily_avg:       'nutrition',
-};
-
-const MEASUREMENT_KEY_OPTIONS = [
-  { key: 'weight',      label: 'Weight',      unit: 'lbs' },
-  { key: 'waist',       label: 'Waist',       unit: 'in'  },
-  { key: 'bicep',       label: 'Bicep',       unit: 'in'  },
-  { key: 'chest',       label: 'Chest',       unit: 'in'  },
-  { key: 'hips',        label: 'Hips',        unit: 'in'  },
-  { key: 'body_fat',    label: 'Body Fat',    unit: '%'   },
-  { key: 'muscle_mass', label: 'Muscle Mass', unit: 'lbs' },
-  { key: 'water_pct',   label: 'Water Mass',  unit: '%'   },
-];
-
-const NUTRITION_KEY_OPTIONS = [
-  { key: 'calories', label: 'Calories', unit: 'kcal' },
-  { key: 'protein',  label: 'Protein',  unit: 'g'    },
-  { key: 'carbs',    label: 'Carbs',    unit: 'g'    },
-  { key: 'fat',      label: 'Fat',      unit: 'g'    },
-  { key: 'water',    label: 'Water',    unit: 'glasses' },
-];
-
-function UserGoalForm({
-  initial,
-  exercisesList,
-  routinesList,
-  onClose,
-  onSaved,
-}: {
-  initial?: UserGoal;
-  exercisesList: Exercise[];
-  routinesList: RoutineSummary[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [name,        setName]        = useState(initial?.name        ?? '');
-  const [metricType,  setMetricType]  = useState<GoalMetricType>(initial?.metricType ?? 'exercise_max_weight');
-  const [sourceType,  setSourceType]  = useState<GoalSourceType>(initial?.sourceType ?? 'exercise');
-  const [sourceId,    setSourceId]    = useState<number | ''>(initial?.sourceId ?? '');
-  const [sourceKey,   setSourceKey]   = useState(initial?.sourceKey   ?? '');
-  const [targetValue, setTargetValue] = useState(initial?.targetValue != null ? String(initial.targetValue) : '');
-  const [unit,        setUnit]        = useState(initial?.unit        ?? 'lbs');
-  const [targetDate,  setTargetDate]  = useState(initial?.targetDate  ?? '');
-  const [saving,      setSaving]      = useState(false);
-
-  function applyMetric(m: GoalMetricType) {
-    setMetricType(m);
-    const st = METRIC_SOURCE_TYPE[m];
-    setSourceType(st);
-    setSourceId('');
-    setSourceKey('');
-    const defUnit = METRIC_DEFAULT_UNIT[m];
-    if (defUnit) setUnit(defUnit);
-  }
-
-  function applySourceKey(key: string) {
-    setSourceKey(key);
-    if (metricType === 'body_measurement') {
-      const opt = MEASUREMENT_KEY_OPTIONS.find((o) => o.key === key);
-      if (opt) setUnit(opt.unit);
-    } else if (metricType === 'nutrition_daily_avg') {
-      const opt = NUTRITION_KEY_OPTIONS.find((o) => o.key === key);
-      if (opt) setUnit(opt.unit);
-    }
-  }
-
-  const requiredField = METRIC_REQUIRED_FIELD[metricType];
-  const compatibleExercises = requiredField
-    ? exercisesList.filter((e) => e.trackedFields?.includes(requiredField))
-    : exercisesList;
-
-  const canPickRoutine = ['exercise_session_volume', 'exercise_weekly_volume', 'exercise_weekly_sessions'].includes(metricType);
-
-  async function handleSave() {
-    if (!name || !targetValue) return;
-    setSaving(true);
-    try {
-      const payload = {
-        name,
-        metricType,
-        sourceType,
-        sourceId:    sourceId !== '' ? Number(sourceId) : null,
-        sourceKey:   sourceKey || null,
-        targetValue: Number(targetValue),
-        unit,
-        targetDate:  targetDate || null,
-      };
-      if (initial) {
-        await userGoalsApi.update(initial.id, payload);
-      } else {
-        await userGoalsApi.create(payload);
-      }
-      onSaved();
-    } catch { } finally { setSaving(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="bg-dram-card border border-dram-border rounded-xl w-full max-w-md mx-4 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold uppercase tracking-wider text-dram-accent">{initial ? 'Edit Goal' : 'Add Goal'}</h3>
-
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Goal name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Deadlift 300 lbs" className={inputCls} />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Metric</label>
-          <select value={metricType} onChange={(e) => applyMetric(e.target.value as GoalMetricType)} className={inputCls}>
-            {METRIC_GROUPS.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.metrics.map((m) => (
-                  <option key={m} value={m}>{METRIC_LABELS[m]}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        {(sourceType === 'exercise' || (canPickRoutine && sourceType === 'routine')) && (
-          <div className="space-y-2">
-            {canPickRoutine && (
-              <div className="flex gap-1.5">
-                {(['exercise', 'routine'] as GoalSourceType[]).map((t) => (
-                  <button key={t} type="button" onClick={() => { setSourceType(t); setSourceId(''); }}
-                    className={`flex-1 text-sm py-1 rounded-lg transition-colors capitalize ${(sourceType as string) === t ? 'bg-dram-accent text-black font-semibold' : 'bg-dram-border text-gray-300 hover:text-gray-100'}`}
-                  >{t}</button>
-                ))}
-              </div>
-            )}
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">{(sourceType as string) === 'routine' ? 'Routine' : 'Exercise'}</label>
-              <select value={sourceId} onChange={(e) => setSourceId(e.target.value ? Number(e.target.value) : '')} className={inputCls}>
-                <option value="">Select…</option>
-                {(sourceType as string) === 'routine'
-                  ? routinesList.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)
-                  : compatibleExercises.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)
-                }
-              </select>
-            </div>
-          </div>
-        )}
-
-        {sourceType === 'measurement' && (
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Measurement</label>
-            <select value={sourceKey} onChange={(e) => applySourceKey(e.target.value)} className={inputCls}>
-              <option value="">Select…</option>
-              {MEASUREMENT_KEY_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
-          </div>
-        )}
-
-        {sourceType === 'nutrition' && (
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Nutrient</label>
-            <select value={sourceKey} onChange={(e) => applySourceKey(e.target.value)} className={inputCls}>
-              <option value="">Select…</option>
-              {NUTRITION_KEY_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Target value</label>
-            <div className="flex gap-1.5">
-              <input type="number" min="0" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} className={inputCls} />
-              <input value={unit} onChange={(e) => setUnit(e.target.value)} className={`${inputCls} w-20 text-center`} title="Unit" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Target date (optional)</label>
-            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
-          </div>
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 text-sm text-gray-400 hover:text-gray-200 py-2 transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={saving || !name || !targetValue}
-            className="flex-[2] bg-dram-accent text-black text-sm font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-          >{saving ? 'Saving…' : initial ? 'Save changes' : 'Add goal'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UserGoalRows({
-  goals, onEdit, onDelete, onToggleDashboard,
-}: {
-  goals: UserGoal[];
-  onEdit: (g: UserGoal) => void;
-  onDelete: (id: number) => void;
-  onToggleDashboard: (g: UserGoal) => void;
-}) {
-  if (!goals.length) return null;
-  return (
-    <div className="mt-3 pt-3 border-t border-dram-border/50 space-y-0">
-      {goals.map((g) => {
-        const dateStr = g.targetDate
-          ? 'by ' + new Date(g.targetDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          : null;
-        return (
-          <div key={g.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-dram-border/50 last:border-0">
-            <div className="min-w-0 flex-1">
-              <button onClick={() => onEdit(g)} className="text-sm font-medium text-gray-100 hover:text-dram-accent transition-colors truncate text-left w-full">
-                {g.name}
-              </button>
-              <p className="text-sm text-gray-500">
-                {g.targetValue.toLocaleString()} {g.unit}
-                {g.sourceName ? ` · ${g.sourceName}` : ''}
-                {dateStr ? ` · ${dateStr}` : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <label className="flex items-center gap-1 cursor-pointer" title="Show on dashboard">
-                <input
-                  type="checkbox"
-                  checked={g.showOnDashboard}
-                  onChange={() => onToggleDashboard(g)}
-                  className="accent-dram-accent w-3.5 h-3.5"
-                />
-                <span className="text-xs text-gray-500">Dashboard</span>
-              </label>
-              <button onClick={() => onDelete(g.id)} className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1">✕</button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Goals tab ────────────────────────────────────────────────
-
-const METRIC_CONFIG: Record<string, { label: string; unit: string }> = {
-  weight:      { label: 'Weight',      unit: 'lbs' },
-  waist:       { label: 'Waist',       unit: 'in'  },
-  bicep:       { label: 'Bicep',       unit: 'in'  },
-  chest:       { label: 'Chest',       unit: 'in'  },
-  hips:        { label: 'Hips',        unit: 'in'  },
-  body_fat:    { label: 'Body Fat',    unit: '%'   },
-  bmi:         { label: 'BMI',         unit: ''    },
-  muscle_mass: { label: 'Muscle Mass', unit: 'lbs' },
-  water_pct:   { label: 'Hydration',   unit: '%'   },
-};
-const DISPLAYED_METRICS = ['weight', 'waist', 'bicep', 'bmi', 'body_fat', 'muscle_mass', 'water_pct'];
+// ─── Goals tab (nutrition targets only) ──────────────────────
 
 function GoalsTab() {
   const [loading, setLoading] = useState(true);
 
-  // Daily nutrition goals
   const [calories, setCalories] = useState('');
   const [carbsG, setCarbsG] = useState('');
   const [proteinG, setProteinG] = useState('');
   const [fatG, setFatG] = useState('');
   const [waterGlasses, setWaterGlasses] = useState('');
 
-  // Weekly nutrition goals
   const [wkCalories, setWkCalories] = useState('');
   const [wkCarbsG, setWkCarbsG] = useState('');
   const [wkProteinG, setWkProteinG] = useState('');
   const [wkFatG, setWkFatG] = useState('');
-
-  // Exercise goals
-  const [volume, setVolume] = useState('');
-  const [workoutCount, setWorkoutCount] = useState('');
-  const [minutesPerWeek, setMinutesPerWeek] = useState('');
-
-  // Per-routine goals
-  const [routines, setRoutines] = useState<RoutineSummary[]>([]);
-  const [routineGoalInputs, setRoutineGoalInputs] = useState<Record<number, string>>({});
-
-  // Body measurement goals
-  const [mGoals, setMGoals] = useState<Record<string, { value: string; date: string; showOnDashboard: boolean }>>(() => {
-    const init: Record<string, { value: string; date: string; showOnDashboard: boolean }> = {};
-    for (const key of DISPLAYED_METRICS) init[key] = { value: '', date: '', showOnDashboard: false };
-    return init;
-  });
-
-  // Exercise goals dashboard visibility
-  const [exDashboard, setExDashboard] = useState(true);
-
-  // Custom user goals
-  const [userGoals, setUserGoals] = useState<UserGoal[]>([]);
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
-  const [editingGoal, setEditingGoal] = useState<UserGoal | null>(null);
-  const [addingGoal, setAddingGoal] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      goalsApi.getSummary(),
-      goalsApi.getExercise(),
-      measurementsApi.getGoals(),
-      routinesApi.getAll(),
-      routinesApi.getAllGoals(),
-      userGoalsApi.getAll(),
-      exercisesApi.getAll(),
-    ]).then(([summary, exGoals, mGoalsData, rList, rGoals, uGoals, exs]) => {
-      // Daily nutrition from legacy system
-      const nutGoals = summary?.nutrition.goals;
-      setCalories(String(nutGoals?.calories ?? ''));
-      setCarbsG(String(nutGoals?.carbsG ?? ''));
-      setProteinG(String(nutGoals?.proteinG ?? ''));
-      setFatG(String(nutGoals?.fatG ?? ''));
-      if (nutGoals?.waterGoalOz != null) {
-        setWaterGlasses(String(Math.round(nutGoals.waterGoalOz / GLASS_OZ)));
-      }
-
-      // Weekly nutrition from legacy system
-      setWkCalories(String(nutGoals?.weeklyCalories ?? ''));
-      setWkProteinG(String(nutGoals?.weeklyProteinG ?? ''));
-      setWkCarbsG(String(nutGoals?.weeklyCarbsG ?? ''));
-      setWkFatG(String(nutGoals?.weeklyFatG ?? ''));
-
-      // Exercise goals from legacy system
-      setWorkoutCount(String(exGoals?.workoutsPerWeek ?? ''));
-      setMinutesPerWeek(String(exGoals?.minutesPerWeek ?? ''));
-      setVolume(String(exGoals?.volumeLbsPerWeek ?? ''));
-      setExDashboard(exGoals?.showOnDashboard ?? true);
-
-      // Body measurement goals
-      setMGoals((prev) => {
-        const updated = { ...prev };
-        for (const key of DISPLAYED_METRICS) {
-          const g = (mGoalsData as Record<string, MeasurementGoal>)[key];
-          updated[key] = {
-            value: g ? String(g.targetValue) : '',
-            date: g?.targetDate ?? '',
-            showOnDashboard: g?.showOnDashboard ?? true,
-          };
-        }
-        return updated;
-      });
-
-      // Routines and per-routine goals
-      setRoutines(rList as RoutineSummary[]);
-      const goalsMap: Record<number, string> = {};
-      for (const g of (rGoals as RoutineGoal[])) goalsMap[g.routineId] = String(g.targetPerWeek);
-      setRoutineGoalInputs(goalsMap);
-
-      // Custom user goals
-      setUserGoals(uGoals as UserGoal[]);
-      setAllExercises(exs as Exercise[]);
+    nutritionTargetsApi.get().then((t) => {
+      setCalories(String(t.calories ?? ''));
+      setCarbsG(String(t.carbsG ?? ''));
+      setProteinG(String(t.proteinG ?? ''));
+      setFatG(String(t.fatG ?? ''));
+      if (t.waterGoalOz != null) setWaterGlasses(String(Math.round(t.waterGoalOz / GLASS_OZ)));
+      setWkCalories(String(t.weeklyCalories ?? ''));
+      setWkProteinG(String(t.weeklyProteinG ?? ''));
+      setWkCarbsG(String(t.weeklyCarbsG ?? ''));
+      setWkFatG(String(t.weeklyFatG ?? ''));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -698,7 +293,7 @@ function GoalsTab() {
     try {
       await Promise.all([
         calories && carbsG && proteinG && fatG
-          ? goalsApi.saveNutrition({
+          ? nutritionTargetsApi.save({
               calories: Number(calories),
               carbsG: Number(carbsG),
               proteinG: Number(proteinG),
@@ -707,74 +302,22 @@ function GoalsTab() {
             })
           : Promise.resolve(),
         (wkCalories || wkProteinG || wkCarbsG || wkFatG)
-          ? goalsApi.saveWeeklyNutrition({
+          ? nutritionTargetsApi.saveWeekly({
               weeklyCalories: wkCalories !== '' ? Number(wkCalories) : null,
               weeklyProteinG: wkProteinG !== '' ? Number(wkProteinG) : null,
               weeklyCarbsG: wkCarbsG !== '' ? Number(wkCarbsG) : null,
               weeklyFatG: wkFatG !== '' ? Number(wkFatG) : null,
             })
           : Promise.resolve(),
-        goalsApi.saveExercise({
-          workoutsPerWeek: workoutCount !== '' ? Number(workoutCount) : null,
-          minutesPerWeek: minutesPerWeek !== '' ? Number(minutesPerWeek) : null,
-          volumeLbsPerWeek: volume !== '' ? Number(volume) : null,
-          showOnDashboard: exDashboard,
-        }),
-        ...DISPLAYED_METRICS.map((key) => {
-          const { value, date, showOnDashboard } = mGoals[key];
-          if (!value) return Promise.resolve();
-          const cfg = METRIC_CONFIG[key];
-          return measurementsApi.setGoal(key, {
-            targetValue: Number(value),
-            unit: cfg.unit,
-            targetDate: date || null,
-            showOnDashboard,
-          });
-        }),
-        ...routines.map((r) => {
-          const val = routineGoalInputs[r.id];
-          if (val === '' || Number(val) === 0) return routinesApi.deleteGoal(r.id).catch(() => {});
-          if (val && Number(val) > 0) return routinesApi.setGoal(r.id, Number(val));
-          return Promise.resolve();
-        }),
       ]);
-      setSuccess('Goals saved.');
+      setSuccess('Saved.');
       setTimeout(() => setSuccess(''), 3000);
     } catch {
-      setError('Failed to save goals.');
+      setError('Failed to save.');
     } finally {
       setSaving(false);
     }
   }
-
-  async function deleteUserGoal(id: number) {
-    if (!confirm('Remove this goal?')) return;
-    try {
-      await userGoalsApi.delete(id);
-      setUserGoals((prev) => prev.filter((g) => g.id !== id));
-    } catch { }
-  }
-
-  async function toggleUserGoalDashboard(g: UserGoal) {
-    const next = !g.showOnDashboard;
-    setUserGoals((prev) => prev.map((x) => x.id === g.id ? { ...x, showOnDashboard: next } : x));
-    try {
-      await userGoalsApi.update(g.id, { showOnDashboard: next } as Parameters<typeof userGoalsApi.update>[1]);
-    } catch {
-      setUserGoals((prev) => prev.map((x) => x.id === g.id ? { ...x, showOnDashboard: g.showOnDashboard } : x));
-    }
-  }
-
-  async function onUserGoalSaved() {
-    setAddingGoal(false);
-    setEditingGoal(null);
-    const uGoals = await userGoalsApi.getAll();
-    setUserGoals(uGoals);
-  }
-
-  const bodyGoals = userGoals.filter((g) => g.category === 'body');
-  const nutritionGoals = userGoals.filter((g) => g.category === 'nutrition');
-  const exerciseGoals = userGoals.filter((g) => g.category === 'exercise');
 
   if (loading) return <p className="text-sm text-gray-500">Loading…</p>;
 
@@ -800,7 +343,7 @@ function GoalsTab() {
         </div>
       </Section>
 
-      <Section title="Nutrition (weekly)" >
+      <Section title="Nutrition (weekly)">
         <p className="text-xs text-gray-500 mb-3">Leave blank to auto-calculate as daily × 7</p>
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -817,130 +360,6 @@ function GoalsTab() {
         </div>
       </Section>
 
-      <Section title="Workouts (per week)">
-        <label className="flex items-center gap-1.5 cursor-pointer select-none mb-3">
-          <input
-            type="checkbox"
-            checked={exDashboard}
-            onChange={(e) => setExDashboard(e.target.checked)}
-            className="accent-dram-accent w-3.5 h-3.5"
-          />
-          <span className="text-xs text-gray-500">Show on dashboard</span>
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Workouts</label>
-            <input type="number" min="0" value={workoutCount} onChange={(e) => setWorkoutCount(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Minutes</label>
-            <input type="number" min="0" value={minutesPerWeek} onChange={(e) => setMinutesPerWeek(e.target.value)} className={inputCls} placeholder="e.g. 300" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Volume (lbs)</label>
-            <input type="number" min="0" value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls} placeholder="e.g. 10000" />
-          </div>
-        </div>
-      </Section>
-
-      {routines.length > 0 && (
-        <Section title="Per-Routine Goals (sessions per week)">
-          <div className="grid grid-cols-2 gap-3">
-            {routines.map((r) => (
-              <div key={r.id}>
-                <label className="block text-sm text-gray-400 mb-1">{r.name}</label>
-                <input
-                  type="number" min="0" max="14"
-                  value={routineGoalInputs[r.id] ?? ''}
-                  onChange={(e) => setRoutineGoalInputs((prev) => ({ ...prev, [r.id]: e.target.value }))}
-                  className={inputCls}
-                  placeholder="e.g. 3"
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <Section title="Body Measurements">
-        <div className="space-y-4">
-          {DISPLAYED_METRICS.map((key) => {
-            const cfg = METRIC_CONFIG[key];
-            const g = mGoals[key];
-            const hasDashboardCard = key !== 'bmi';
-            return (
-              <div key={key}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium text-gray-300">
-                    {cfg.label} <span className="text-gray-500 font-normal">({cfg.unit})</span>
-                  </p>
-                  {hasDashboardCard && g.value && (
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={g.showOnDashboard}
-                        onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], showOnDashboard: e.target.checked } }))}
-                        className="accent-dram-accent w-3.5 h-3.5"
-                      />
-                      <span className="text-xs text-gray-500">Show on dashboard</span>
-                    </label>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-500 mb-1">Target</label>
-                    <input
-                      type="number" min="0" step="0.1"
-                      value={g.value}
-                      onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], value: e.target.value } }))}
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-500 mb-1">By date</label>
-                    <input
-                      type="date"
-                      value={g.date}
-                      onChange={(e) => setMGoals((prev) => ({ ...prev, [key]: { ...prev[key], date: e.target.value } }))}
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section title="Custom Goals">
-        <div>
-          <button
-            onClick={() => setAddingGoal(true)}
-            className="text-xs text-dram-accent hover:text-dram-accent/80 border border-dram-accent hover:border-dram-accent/80 rounded px-2.5 py-1 transition"
-          >
-            + Add goal
-          </button>
-          {bodyGoals.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Body</p>
-              <UserGoalRows goals={bodyGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
-            </div>
-          )}
-          {nutritionGoals.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Nutrition</p>
-              <UserGoalRows goals={nutritionGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
-            </div>
-          )}
-          {exerciseGoals.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Exercise</p>
-              <UserGoalRows goals={exerciseGoals} onEdit={setEditingGoal} onDelete={deleteUserGoal} onToggleDashboard={toggleUserGoalDashboard} />
-            </div>
-          )}
-        </div>
-      </Section>
-
       <div className="pt-1">
         <StatusMsg error={error} success={success} />
         <button
@@ -948,28 +367,9 @@ function GoalsTab() {
           disabled={saving}
           className="mt-2 bg-dram-accent text-black font-semibold px-5 py-2 rounded-lg text-sm hover:brightness-110 disabled:opacity-40 transition"
         >
-          {saving ? 'Saving…' : 'Save Goals'}
+          {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-
-      {addingGoal && (
-        <UserGoalForm
-          exercisesList={allExercises}
-          routinesList={routines}
-          onClose={() => setAddingGoal(false)}
-          onSaved={onUserGoalSaved}
-        />
-      )}
-
-      {editingGoal && (
-        <UserGoalForm
-          initial={editingGoal}
-          exercisesList={allExercises}
-          routinesList={routines}
-          onClose={() => setEditingGoal(null)}
-          onSaved={onUserGoalSaved}
-        />
-      )}
     </div>
   );
 }

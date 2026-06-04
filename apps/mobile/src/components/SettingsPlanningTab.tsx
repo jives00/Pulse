@@ -7,17 +7,18 @@ import {
   getSchedules, getUpcomingSchedule, createSchedule, updateSchedule, deleteSchedule,
   getRoutines, getExercises,
   searchFoods, searchRecipes,
-  getGoalCheckpoints, createGoalCheckpoint, updateGoalCheckpoint, deleteGoalCheckpoint,
+  getAllMilestones, createMilestone, updateMilestone, deleteMilestone, getActiveGoals,
   getMealSchedules, getMealScheduleUpcoming, createMealSchedule, updateMealSchedule, deleteMealSchedule,
   getNutritionSchedules, getNutritionScheduleUpcoming, createNutritionSchedule, updateNutritionSchedule, deleteNutritionSchedule,
   getDailyNutritionOverrides, upsertDailyNutritionOverride, deleteDailyNutritionOverride,
   type WorkoutSchedule, type UpcomingSession, type RecurrenceType,
-  type RoutineSummary, type Exercise, type GoalCheckpoint,
+  type RoutineSummary, type Exercise,
   type MealSchedule, type MealScheduleEvent, type MealRecurrenceType, type MealSlot,
   type NutritionSchedule, type NutritionScheduleEvent, type DailyNutritionOverride,
   type Food, type RecipeSearchResult,
 } from '../api/client';
 import { localDateStr } from '../../../../packages/api-client/src/index';
+import type { GoalMilestoneWithGoal, Goal } from '../../../../packages/api-client/src/index';
 import { useAuthStore } from '../store/auth';
 import { fontSize, type Colors } from '../theme';
 import { useColors } from '../hooks/useColors';
@@ -901,73 +902,79 @@ function MealTabContent({ date, token, mealSchedules, events, c, s, onSaved }: {
   );
 }
 
-// ─── CheckpointTabContent ──────────────────────────────────────────────────────
+// ─── MilestoneTabContent (replaces CheckpointTabContent) ──────────────────────
 
-function CheckpointTabContent({ date, token, checkpoints, c, s, onSaved }: {
-  date: string; token: string; checkpoints: GoalCheckpoint[];
+function CheckpointTabContent({ date, token, checkpoints, activeGoals, c, s, onSaved }: {
+  date: string; token: string; checkpoints: GoalMilestoneWithGoal[]; activeGoals: Goal[];
   c: Colors; s: ReturnType<typeof makeStyles>; onSaved: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [metric, setMetric] = useState('weight');
+  const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
+  const [goalId, setGoalId] = useState<number | null>(activeGoals[0]?.id ?? null);
   const [value, setValue] = useState('');
   const [targetDate, setTargetDate] = useState(date);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  function startEdit(cp: GoalCheckpoint) {
-    setEditingId(cp.id); setMetric(cp.metric); setValue(String(cp.targetValue));
-    setTargetDate(cp.targetDate); setNotes(cp.notes ?? ''); setAdding(false);
+  function startEdit(cp: GoalMilestoneWithGoal) {
+    setEditingId(cp.id); setEditingGoalId(cp.goalId); setGoalId(cp.goalId);
+    setValue(String(cp.targetValue)); setTargetDate(cp.targetDate);
+    setNotes(cp.notes ?? ''); setAdding(false);
   }
 
   function startAdd() {
-    setEditingId(null); setMetric('weight'); setValue(''); setTargetDate(date); setNotes(''); setAdding(true);
+    setEditingId(null); setEditingGoalId(null); setGoalId(activeGoals[0]?.id ?? null);
+    setValue(''); setTargetDate(date); setNotes(''); setAdding(true);
   }
 
-  function cancel() { setAdding(false); setEditingId(null); }
+  function cancel() { setAdding(false); setEditingId(null); setEditingGoalId(null); }
 
   async function handleSave() {
-    if (!value || !targetDate) return;
+    if (!value || !targetDate || goalId == null) return;
     setSaving(true);
     try {
-      const cfg = METRIC_CONFIG[metric] ?? { unit: '' };
-      const payload = { metric, targetValue: Number(value), unit: cfg.unit, targetDate, notes: notes.trim() || null };
-      if (editingId !== null) await updateGoalCheckpoint(token, editingId, payload);
-      else await createGoalCheckpoint(token, payload);
+      const payload = { targetValue: Number(value), targetDate, notes: notes.trim() || null };
+      if (editingId !== null && editingGoalId !== null) await updateMilestone(token, editingGoalId, editingId, payload);
+      else await createMilestone(token, goalId, payload);
       onSaved(); cancel();
-    } catch { Alert.alert('Error', 'Could not save checkpoint.'); } finally { setSaving(false); }
+    } catch { Alert.alert('Error', 'Could not save milestone.'); } finally { setSaving(false); }
   }
 
-  async function handleDelete(id: number) {
-    Alert.alert('Remove checkpoint?', '', [
+  async function handleDelete(cp: GoalMilestoneWithGoal) {
+    Alert.alert('Remove milestone?', '', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
-        try { await deleteGoalCheckpoint(token, id); onSaved(); } catch { Alert.alert('Error'); }
+        try { await deleteMilestone(token, cp.goalId, cp.id); onSaved(); } catch { Alert.alert('Error'); }
       }},
     ]);
   }
 
   const showForm = adding || editingId !== null;
-  const unitLabel = (METRIC_CONFIG[metric] ?? { unit: '' }).unit;
+  const selectedGoal = activeGoals.find(g => g.id === goalId);
+
+  if (!activeGoals.length && !checkpoints.length) {
+    return <Text style={[s.emptyNote, { color: c.muted }]}>No active goals. Add a goal first to create milestones.</Text>;
+  }
 
   return (
     <View style={{ gap: 8 }}>
       {checkpoints.length === 0 && !showForm && (
-        <Text style={[s.emptyNote, { color: c.muted }]}>No goal checkpoints for this date.</Text>
+        <Text style={[s.emptyNote, { color: c.muted }]}>No milestones for this date.</Text>
       )}
       {checkpoints.map(cp => (
         editingId === cp.id ? null : (
           <View key={cp.id} style={[s.listRow, { borderTopColor: c.border }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: c.text, fontSize: fontSize.sm }}>
-                {METRIC_CONFIG[cp.metric]?.label ?? cp.metric} → {cp.targetValue} {cp.unit}
+                {cp.goalName} → {cp.targetValue} {cp.goalUnit}
               </Text>
               {cp.notes && <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{cp.notes}</Text>}
             </View>
             <TouchableOpacity onPress={() => startEdit(cp)} style={{ paddingLeft: 8 }}>
               <Text style={{ color: c.accent, fontSize: fontSize.sm }}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(cp.id)} style={{ paddingLeft: 8 }}>
+            <TouchableOpacity onPress={() => handleDelete(cp)} style={{ paddingLeft: 8 }}>
               <Text style={{ color: '#C5896E', fontSize: fontSize.sm }}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -976,21 +983,21 @@ function CheckpointTabContent({ date, token, checkpoints, c, s, onSaved }: {
 
       {showForm ? (
         <View style={{ gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
-          <Text style={[s.fieldLabel, { color: c.muted }]}>Metric</Text>
+          <Text style={[s.fieldLabel, { color: c.muted }]}>Goal</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-            {ALL_METRICS.map(m => (
-              <TouchableOpacity key={m} onPress={() => setMetric(m)}
-                style={{ marginRight: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: metric === m ? c.accent : c.border }}>
-                <Text style={{ color: metric === m ? '#000' : c.text, fontSize: fontSize.xs }}>{METRIC_CONFIG[m].label}</Text>
+            {activeGoals.map(g => (
+              <TouchableOpacity key={g.id} onPress={() => setGoalId(g.id)}
+                style={{ marginRight: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: goalId === g.id ? c.accent : c.border }}>
+                <Text style={{ color: goalId === g.id ? '#000' : c.text, fontSize: fontSize.xs }}>{g.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput style={[s.input, { flex: 2, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-              value={value} onChangeText={setValue} placeholder={`Target (${unitLabel})`} placeholderTextColor={c.muted} keyboardType="decimal-pad" autoFocus={adding} />
+              value={value} onChangeText={setValue} placeholder={selectedGoal ? `Target (${selectedGoal.unit})` : 'Target'} placeholderTextColor={c.muted} keyboardType="decimal-pad" autoFocus={adding} />
             <View style={[s.input, { flex: 1, justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}>
-              <Text style={{ color: c.muted, fontSize: fontSize.sm }}>{unitLabel}</Text>
+              <Text style={{ color: c.muted, fontSize: fontSize.sm }}>{selectedGoal?.unit ?? ''}</Text>
             </View>
           </View>
 
@@ -1001,22 +1008,22 @@ function CheckpointTabContent({ date, token, checkpoints, c, s, onSaved }: {
 
           <View style={s.actions}>
             {editingId !== null && (
-              <TouchableOpacity onPress={() => handleDelete(editingId)} style={[s.cancelBtn, { flex: 0, paddingHorizontal: 12 }]}>
+              <TouchableOpacity onPress={() => { const cp = checkpoints.find(x => x.id === editingId); if (cp) handleDelete(cp); }} style={[s.cancelBtn, { flex: 0, paddingHorizontal: 12 }]}>
                 <Text style={{ color: '#C5896E', fontSize: fontSize.sm }}>Delete</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={cancel} style={s.cancelBtn}>
               <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleSave} disabled={saving || !value || !targetDate}
-              style={[s.saveBtn, { backgroundColor: c.accent, opacity: (saving || !value || !targetDate) ? 0.5 : 1 }]}>
+            <TouchableOpacity onPress={handleSave} disabled={saving || !value || !targetDate || goalId == null}
+              style={[s.saveBtn, { backgroundColor: c.accent, opacity: (saving || !value || !targetDate || goalId == null) ? 0.5 : 1 }]}>
               <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <TouchableOpacity onPress={startAdd} style={[s.addBtn, { borderColor: c.accent }]}>
-          <Text style={{ color: c.accent, fontSize: fontSize.sm, fontWeight: '600' }}>+ Add checkpoint</Text>
+          <Text style={{ color: c.accent, fontSize: fontSize.sm, fontWeight: '600' }}>+ Add milestone</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -1261,12 +1268,12 @@ function NutritionTabContent({ date, token, nutritionOverride, nutritionSchedule
 type DayModalTab = 'workout' | 'meal' | 'checkpoint' | 'nutrition';
 
 function DayModal({ date, showDatePicker = false, token, routinesList, exercisesList, workoutSchedules, workoutSessions,
-  mealSchedules, mealEvents, checkpoints, nutritionOverrides, nutritionScheduleEvents,
+  mealSchedules, mealEvents, checkpoints, activeGoals, nutritionOverrides, nutritionScheduleEvents,
   nutritionSchedules, c, s, onClose, onSaved }: {
   date: string; showDatePicker?: boolean; token: string; routinesList: RoutineSummary[]; exercisesList: Exercise[];
   workoutSchedules: WorkoutSchedule[]; workoutSessions: UpcomingSession[];
   mealSchedules: MealSchedule[]; mealEvents: MealScheduleEvent[];
-  checkpoints: GoalCheckpoint[]; nutritionOverrides: DailyNutritionOverride[];
+  checkpoints: GoalMilestoneWithGoal[]; activeGoals: Goal[]; nutritionOverrides: DailyNutritionOverride[];
   nutritionScheduleEvents: NutritionScheduleEvent[]; nutritionSchedules: NutritionSchedule[];
   c: Colors; s: ReturnType<typeof makeStyles>;
   onClose: () => void; onSaved: () => void;
@@ -1347,7 +1354,7 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
                   events={dayMeals} c={c} s={s} onSaved={onSaved} />
               )}
               {tab === 'checkpoint' && (
-                <CheckpointTabContent date={activeDate} token={token} checkpoints={dayCps} c={c} s={s} onSaved={onSaved} />
+                <CheckpointTabContent date={activeDate} token={token} checkpoints={dayCps} activeGoals={activeGoals} c={c} s={s} onSaved={onSaved} />
               )}
               {tab === 'nutrition' && (
                 <NutritionTabContent date={activeDate} token={token}
@@ -1367,7 +1374,7 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
 function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutritionOverrides, nutritionScheduleEvents,
   onSelectDate, c }: {
   today: string; workoutSessions: UpcomingSession[]; mealEvents: MealScheduleEvent[];
-  checkpoints: GoalCheckpoint[]; nutritionOverrides: DailyNutritionOverride[];
+  checkpoints: GoalMilestoneWithGoal[]; nutritionOverrides: DailyNutritionOverride[];
   nutritionScheduleEvents: NutritionScheduleEvent[];
   onSelectDate: (date: string) => void; c: Colors;
 }) {
@@ -1445,7 +1452,7 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
                 <View key={cp.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34d399' }} />
                   <Text style={{ color: '#34d399', fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
-                    {METRIC_CONFIG[cp.metric]?.label ?? cp.metric} → {cp.targetValue}
+                    {cp.goalName} → {cp.targetValue}
                   </Text>
                 </View>
               ))}
@@ -1502,7 +1509,8 @@ export default function SettingsPlanningTab() {
   const [exercisesList, setExercisesList] = useState<Exercise[]>([]);
   const [mealSchedules, setMealSchedules] = useState<MealSchedule[]>([]);
   const [mealEvents, setMealEvents] = useState<MealScheduleEvent[]>([]);
-  const [checkpoints, setCheckpoints] = useState<GoalCheckpoint[]>([]);
+  const [checkpoints, setCheckpoints] = useState<GoalMilestoneWithGoal[]>([]);
+  const [activeGoals, setActiveGoals] = useState<Goal[]>([]);
   const [nutritionOverrides, setNutritionOverrides] = useState<DailyNutritionOverride[]>([]);
   const [nutritionScheduleEvents, setNutritionScheduleEvents] = useState<NutritionScheduleEvent[]>([]);
   const [nutritionSchedules, setNutritionSchedules] = useState<NutritionSchedule[]>([]);
@@ -1520,25 +1528,27 @@ export default function SettingsPlanningTab() {
     try {
       const from = addDays(today, -1);
       const to   = addDays(today, 30);
-      const [scheds, sessions, routines, exercises, mScheds, mEvts, chkpts, nutOvrs, nutEvts, nutScheds] = await Promise.all([
+      const [scheds, sessions, routines, exercises, mScheds, mEvts, milestones, goals, nutOvrs, nutEvts, nutScheds] = await Promise.all([
         getSchedules(token).catch(e => { console.error('getSchedules error:', e); return []; }),
         getUpcomingSchedule(token, 30).catch(e => { console.error('getUpcomingSchedule error:', e); return []; }),
         getRoutines(token).catch(e => { console.error('getRoutines error:', e); return []; }),
         getExercises(token).catch(e => { console.error('getExercises error:', e); return []; }),
         getMealSchedules(token).catch(e => { console.error('getMealSchedules error:', e); return []; }),
         getMealScheduleUpcoming(token, 30).catch(e => { console.error('getMealScheduleUpcoming error:', e); return []; }),
-        getGoalCheckpoints(token).catch(e => { console.error('getGoalCheckpoints error:', e); return []; }),
+        getAllMilestones(token).catch(e => { console.error('getAllMilestones error:', e); return []; }),
+        getActiveGoals(token).catch(e => { console.error('getActiveGoals error:', e); return []; }),
         getDailyNutritionOverrides(token, from, to).catch(e => { console.error('getDailyNutritionOverrides error:', e); return []; }),
         getNutritionScheduleUpcoming(token, 30).catch(e => { console.error('getNutritionScheduleUpcoming error:', e); return []; }),
         getNutritionSchedules(token).catch(e => { console.error('getNutritionSchedules error:', e); return []; }),
       ]);
-setWorkoutSchedules(scheds as WorkoutSchedule[]);
+      setWorkoutSchedules(scheds as WorkoutSchedule[]);
       setWorkoutSessions(sessions as UpcomingSession[]);
       setRoutinesList(routines as RoutineSummary[]);
       setExercisesList(exercises as Exercise[]);
       setMealSchedules(mScheds as MealSchedule[]);
       setMealEvents(mEvts as MealScheduleEvent[]);
-      setCheckpoints(chkpts as GoalCheckpoint[]);
+      setCheckpoints(milestones as GoalMilestoneWithGoal[]);
+      setActiveGoals(goals as Goal[]);
       setNutritionOverrides(nutOvrs as DailyNutritionOverride[]);
       setNutritionScheduleEvents(nutEvts as NutritionScheduleEvent[]);
       setNutritionSchedules(nutScheds as NutritionSchedule[]);
@@ -1574,7 +1584,7 @@ setWorkoutSchedules(scheds as WorkoutSchedule[]);
           date={selectedDate} token={token} routinesList={routinesList} exercisesList={exercisesList}
           workoutSchedules={workoutSchedules} workoutSessions={workoutSessions}
           mealSchedules={mealSchedules} mealEvents={mealEvents}
-          checkpoints={checkpoints} nutritionOverrides={nutritionOverrides}
+          checkpoints={checkpoints} activeGoals={activeGoals} nutritionOverrides={nutritionOverrides}
           nutritionScheduleEvents={nutritionScheduleEvents} nutritionSchedules={nutritionSchedules}
           c={c} s={s}
           onClose={() => setSelectedDate(null)}
@@ -1587,7 +1597,7 @@ setWorkoutSchedules(scheds as WorkoutSchedule[]);
           date={today} showDatePicker token={token} routinesList={routinesList} exercisesList={exercisesList}
           workoutSchedules={workoutSchedules} workoutSessions={workoutSessions}
           mealSchedules={mealSchedules} mealEvents={mealEvents}
-          checkpoints={checkpoints} nutritionOverrides={nutritionOverrides}
+          checkpoints={checkpoints} activeGoals={activeGoals} nutritionOverrides={nutritionOverrides}
           nutritionScheduleEvents={nutritionScheduleEvents} nutritionSchedules={nutritionSchedules}
           c={c} s={s}
           onClose={() => setAddModalOpen(false)}

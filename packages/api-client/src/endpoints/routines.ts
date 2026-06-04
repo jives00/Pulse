@@ -101,15 +101,4 @@ export const routinesApi = {
   start: (id: number) =>
     apiClient.post<WorkoutDetail>(`/routines/${id}/start`).then((r) => r.data),
 
-  getGoal: (id: number) =>
-    apiClient.get<RoutineGoal | null>(`/routines/${id}/goal`).then((r) => r.data),
-
-  setGoal: (id: number, targetPerWeek: number) =>
-    apiClient.put<RoutineGoal>(`/routines/${id}/goal`, { targetPerWeek }).then((r) => r.data),
-
-  deleteGoal: (id: number) =>
-    apiClient.delete(`/routines/${id}/goal`).then(() => {}),
-
-  getAllGoals: () =>
-    apiClient.get<RoutineGoal[]>('/routines/goals').then((r) => r.data),
 };

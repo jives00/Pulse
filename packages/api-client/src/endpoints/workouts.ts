@@ -58,14 +58,6 @@ export const measurementsApi = {
   delete: (id: number) =>
     apiClient.delete(`/measurements/${id}`).then(() => {}),
 
-  getGoals: () =>
-    apiClient.get<Record<string, MeasurementGoal>>('/measurements/goals').then((r) => r.data),
-
-  setGoal: (metric: string, data: { targetValue: number; unit: string; targetDate?: string | null; showOnDashboard?: boolean }) =>
-    apiClient.put<MeasurementGoal>(`/measurements/goals/${metric}`, data).then((r) => r.data),
-
-  deleteGoal: (metric: string) =>
-    apiClient.delete(`/measurements/goals/${metric}`).then(() => {}),
 };
 
 // ─── Personal Bests ───────────────────────────────────────────────────────────

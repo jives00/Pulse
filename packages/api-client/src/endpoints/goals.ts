@@ -1,6 +1,10 @@
 import { apiClient } from '../client';
 import type { UserGoals, SaveGoalsPayload } from '../nutrition';
 
+// This file is deprecated. Use nutritionTargetsApi for operational nutrition endpoints.
+// goalsApi is kept only because it is still imported by legacy api-client/index.ts exports
+// that mobile client.ts references. Remove when mobile client.ts is cleaned up.
+
 export const GLASS_OZ = 8;
 
 export interface GoalsSummary {

@@ -123,10 +123,23 @@ export interface UserGoals {
   fiberG?: number;
   sodiumMg?: number;
   waterGoalOz: number;
+  weeklyCalories?: number | null;
+  weeklyProteinG?: number | null;
+  weeklyCarbsG?: number | null;
+  weeklyFatG?: number | null;
+  weeklyWaterGoalOz?: number | null;
   effectiveFrom: string;
 }
 
-export type SaveGoalsPayload = Omit<UserGoals, 'id' | 'effectiveFrom'>;
+export type SaveGoalsPayload = {
+  calories: number;
+  carbsG: number;
+  proteinG: number;
+  fatG: number;
+  fiberG?: number;
+  sodiumMg?: number;
+  waterGoalOz?: number;
+};
 
 // ── Water ────────────────────────────────────────────────────
 

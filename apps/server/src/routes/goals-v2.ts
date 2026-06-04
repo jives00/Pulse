@@ -232,6 +232,26 @@ router.delete('/:id', async (req, res) => {
 
 // ─── Milestones ───────────────────────────────────────────────────────────────
 
+// GET /api/goals-v2/milestones — all milestones across all goals for this user
+router.get('/milestones', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT m.*, g.catalog_key, g.name AS goal_name, g.unit AS goal_unit
+       FROM goal_milestones m
+       INNER JOIN goals g ON g.id = m.goal_id
+       WHERE g.user_id = ? AND g.status = 'active'
+       ORDER BY m.target_date ASC`,
+      [req.userId]
+    );
+    res.json((rows as RowDataPacket[]).map(r => ({
+      ...fmtMilestone(r),
+      catalogKey: r.catalog_key,
+      goalName: r.goal_name,
+      goalUnit: r.goal_unit,
+    })));
+  } catch (err) { console.error('[goals-v2] GET /milestones', err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // GET /api/goals-v2/:id/milestones
 router.get('/:id/milestones', async (req, res) => {
   const goalId = Number(req.params.id);

@@ -12,7 +12,7 @@ import scrapeRoutes    from './routes/scrape';
 import linksRoutes     from './routes/links';
 import foodsRoutes     from './routes/foods';
 import logRoutes       from './routes/log';
-import goalsRoutes     from './routes/goals';
+// goals.ts removed — endpoints moved to nutrition-targets.ts
 import waterRoutes     from './routes/water';
 import templatesRoutes from './routes/templates';
 import historyRoutes   from './routes/history';
@@ -26,12 +26,13 @@ import stepsRoutes             from './routes/steps';
 import aiAssistantRoutes       from './routes/ai-assistant';
 import recoveryRoutes          from './routes/recovery';
 import mealPlanRoutes          from './routes/meal-plan';
-import goalCheckpointsRoutes   from './routes/goal-checkpoints';
+// goal-checkpoints.ts removed — replaced by goal milestones in goals-v2.ts
 import dayTypesRoutes          from './routes/day-types';
 import mealSchedulesRoutes          from './routes/meal-schedules';
 import nutritionSchedulesRoutes     from './routes/nutrition-schedules';
-import userGoalsRoutes              from './routes/user-goals';
+// user-goals.ts removed — custom goals migrated to goals-v2
 import goalsV2Routes               from './routes/goals-v2';
+import nutritionTargetsRoutes      from './routes/nutrition-targets';
 
 const app = express();
 
@@ -66,7 +67,7 @@ app.use('/api/links',          requireAuth, linksRoutes);
 // Protected — Nutrition
 app.use('/api/foods',     requireAuth, foodsRoutes);
 app.use('/api/log',       requireAuth, logRoutes);
-app.use('/api/goals',     requireAuth, goalsRoutes);
+// /api/goals removed — use /api/nutrition-targets
 app.use('/api/water',     requireAuth, waterRoutes);
 app.use('/api/templates', requireAuth, templatesRoutes);
 app.use('/api/history',   requireAuth, historyRoutes);
@@ -82,12 +83,13 @@ app.use('/api/steps',        requireAuth, stepsRoutes);
 app.use('/api/ai/assistant',      requireAuth, aiAssistantRoutes);
 app.use('/api/recovery',          requireAuth, recoveryRoutes);
 app.use('/api/meal-plan',         requireAuth, mealPlanRoutes);
-app.use('/api/goal-checkpoints',  requireAuth, goalCheckpointsRoutes);
+// /api/goal-checkpoints removed — use /api/goals-v2/:id/milestones
 app.use('/api/day-types',         requireAuth, dayTypesRoutes);
 app.use('/api/meal-schedules',         requireAuth, mealSchedulesRoutes);
 app.use('/api/nutrition-schedules',    requireAuth, nutritionSchedulesRoutes);
-app.use('/api/user-goals',             requireAuth, userGoalsRoutes);
+// /api/user-goals removed — use /api/goals-v2
 app.use('/api/goals-v2',               requireAuth, goalsV2Routes);
+app.use('/api/nutrition-targets',      requireAuth, nutritionTargetsRoutes);
 
 // Global error handler — catches anything that bubbles up from routes
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

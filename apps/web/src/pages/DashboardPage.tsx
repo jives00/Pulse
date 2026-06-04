@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, goalsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
+  workoutsApi, nutritionTargetsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, buildWorkoutLine,
   KG_TO_LBS,
-  type WorkoutSummary, type ExerciseGoals, type GoalsSummary,
+  type WorkoutSummary, type NutritionSummary,
   type BodyMeasurement, type PersonalBests,
-  type RoutineSummary, type RoutineGoal, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
+  type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
   goalsV2Api, type Goal, type FoodLogHistoryEntry,
 } from '@pulse/api-client';
@@ -72,7 +72,7 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
 
 function TodaySnapshot({ workouts, nutrition, water, steps }: {
   workouts: WorkoutSummary[];
-  nutrition: GoalsSummary['nutrition']['actual'] | null;
+  nutrition: NutritionSummary['nutrition']['actual'] | null;
   water: WaterDay | null;
   steps: StepsDay | null;
 }) {
@@ -140,8 +140,8 @@ function MacroBlock({ label, val, goal }: { label: string; val: number; goal: nu
 }
 
 function FuelToday({ actual, goals, tdee }: {
-  actual: GoalsSummary['nutrition']['actual'] | null;
-  goals: GoalsSummary['nutrition']['goals'] | null;
+  actual: NutritionSummary['nutrition']['actual'] | null;
+  goals: NutritionSummary['nutrition']['goals'] | null;
   tdee: TDEEBreakdown | null;
 }) {
   const cal  = actual?.calories ?? 0;
@@ -418,8 +418,8 @@ function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysIn }: {
   );
 }
 
-function ThisWeek({ summary, exGoals, thisWeekBucket, foodLogHistory, weekStart }: {
-  summary: GoalsSummary | null; exGoals: ExerciseGoals | null;
+function ThisWeek({ summary, newGoals, workouts, thisWeekBucket, foodLogHistory, weekStart }: {
+  summary: NutritionSummary | null; newGoals: Goal[]; workouts: WorkoutSummary[];
   thisWeekBucket: WeekBucket; foodLogHistory: FoodLogHistoryDay[]; weekStart: string;
 }) {
   const today = localDateStr();
@@ -430,9 +430,9 @@ function ThisWeek({ summary, exGoals, thisWeekBucket, foodLogHistory, weekStart 
   const weekProt = foodLogHistory.filter(d => d.date >= weekStart && d.date <= today).reduce((s, d) => s + d.protein, 0);
   const calGoal = summary?.nutrition.goals?.calories ?? 0;
   const protGoal = summary?.nutrition.goals?.proteinG ?? 0;
-  const workoutGoal = summary?.workouts.goals?.workoutsPerWeek ?? 0;
-  const workoutActual = summary?.workouts.actual.workoutCount ?? 0;
-  const volGoal = exGoals?.volumeLbsPerWeek ?? 0;
+  const workoutGoal = newGoals.find(g => g.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? 0;
+  const workoutActual = workouts.filter(w => w.workoutDate >= weekStart && w.workoutDate <= today).length;
+  const volGoal = newGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? 0;
   const items = [
     calGoal   > 0 && { label: 'Calories', val: weekCal,                   goal: calGoal * 7,    fmtv: fmt(weekCal),            fmtg: `${fmt(calGoal * 7)} kcal` },
     protGoal  > 0 && { label: 'Protein',  val: weekProt,                  goal: protGoal * 7,   fmtv: `${Math.round(weekProt)}g`, fmtg: `${protGoal * 7}g` },
@@ -1515,13 +1515,13 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
 }
 // ─── Goal Progress: Workout frequency card ────────────────────────────────────
 
+type RoutineGoalShape = { id: number; routineId: number; targetPerWeek: number };
 function WorkoutFreqCard({ routines, routineGoals, workouts }: {
   routines: RoutineSummary[];
-  routineGoals: RoutineGoal[];
+  routineGoals: RoutineGoalShape[];
   workouts: WorkoutSummary[];
 }) {
-  // Deduplicate by routineId, keep highest id (most recent insert), filter to frequency goals only (≤7)
-  const deduped: Record<number, RoutineGoal> = {};
+  const deduped: Record<number, RoutineGoalShape> = {};
   for (const rg of routineGoals.filter(rg => rg.targetPerWeek <= 7 && rg.targetPerWeek > 0)) {
     if (!deduped[rg.routineId] || rg.id > deduped[rg.routineId].id) deduped[rg.routineId] = rg;
   }
@@ -1808,16 +1808,14 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const today = localDateStr();
   const [workouts,       setWorkouts]       = useState<WorkoutSummary[]>([]);
-  const [exGoals,        setExGoals]        = useState<ExerciseGoals | null>(null);
   const [measurements,   setMeasurements]   = useState<BodyMeasurement[]>([]);
-  const [summary,        setSummary]        = useState<GoalsSummary | null>(null);
+  const [summary,        setSummary]        = useState<NutritionSummary | null>(null);
   const [,               setPersonalBests]  = useState<PersonalBests | null>(null);
   const [foodLogHistory, setFoodLogHistory] = useState<FoodLogHistoryDay[]>([]);
   const [routines,       setRoutines]       = useState<RoutineSummary[]>([]);
   const [todayTDEE,      setTodayTDEE]      = useState<TDEEBreakdown | null>(null);
   const [upcoming,       setUpcoming]       = useState<UpcomingSession[]>([]);
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
-  const [routineGoals,   setRoutineGoals]   = useState<RoutineGoal[]>([]);
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
   const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
@@ -1827,24 +1825,21 @@ export default function DashboardPage() {
   useEffect(() => {
     Promise.all([
       workoutsApi.getAll({ limit: 200 }),
-      goalsApi.getExercise().catch(() => null),
-      goalsApi.getSummary().catch(() => null),
+      nutritionTargetsApi.getSummary().catch(() => null),
       measurementsApi.getAll().catch(() => []),
       workoutsApi.getPersonalBests().catch(() => null),
       logApi.getHistory({ limit: 60 }).catch(() => []),
       routinesApi.getAll().catch(() => []),
-      goalsApi.getTDEE().catch(() => null),
+      nutritionTargetsApi.getTDEE().catch(() => null),
       schedulesApi.getUpcoming(7).catch(() => []),
       recoveryApi.get().catch(() => null),
-      routinesApi.getAllGoals().catch(() => []),
       waterApi.getDay(today).catch(() => null),
       stepsApi.getDay(today).catch(() => null),
       stepsApi.getHistory(60).catch(() => []),
       goalsV2Api.getAll('active').catch(() => []),
-    ]).then(([ws, eg, s, ms, pb, fl, rl, tdee, upc, rec, rg, wd, sd, sh, ug]) => {
+    ]).then(([ws, s, ms, pb, fl, rl, tdee, upc, rec, wd, sd, sh, ug]) => {
       setWorkouts(ws);
-      setExGoals(eg);
-      setSummary(s as GoalsSummary | null);
+      setSummary(s as NutritionSummary | null);
       setMeasurements(ms as BodyMeasurement[]);
       setPersonalBests(pb);
       setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
@@ -1853,7 +1848,6 @@ export default function DashboardPage() {
       if (t?.available) setTodayTDEE(t as TDEEBreakdown);
       setUpcoming(upc as UpcomingSession[]);
       if (rec) setRecovery(rec as RecoveryData);
-      if (rg) setRoutineGoals(rg as RoutineGoal[]);
       if (wd) setTodayWater(wd as WaterDay);
       if (sd) setTodaySteps(sd as StepsDay);
       setStepsHistory(sh as StepsDay[]);
@@ -1871,7 +1865,7 @@ export default function DashboardPage() {
 
   const todayWorkout   = workouts.find(w => w.workoutDate === today && w.exerciseCount > 0) ?? null;
   const todayWorkouts  = workouts.filter(w => w.workoutDate === today);
-  const weekStart      = summary?.weekStart ?? getWeekStart(today);
+  const weekStart      = getWeekStart(today);
   const weeklyData     = buildWeeklyData(workouts);
   const thisWeekBucket = weeklyData[weeklyData.length - 1];
 
@@ -1905,7 +1899,7 @@ export default function DashboardPage() {
         </div>
         <div style={{ marginTop: 14 }}>
           <Panel title="Weekly Goal Progress" meta={`day ${Math.min(7, Math.ceil((new Date(today + 'T00:00:00').getTime() - new Date(weekStart + 'T00:00:00').getTime()) / 86400000) + 1)} of 7`}>
-            <ThisWeek summary={summary} exGoals={exGoals} thisWeekBucket={thisWeekBucket} foodLogHistory={foodLogHistory} weekStart={weekStart} />
+            <ThisWeek summary={summary} newGoals={newGoals} workouts={workouts} thisWeekBucket={thisWeekBucket} foodLogHistory={foodLogHistory} weekStart={weekStart} />
           </Panel>
         </div>
       </Band>
@@ -1932,14 +1926,11 @@ export default function DashboardPage() {
 
       {/* ── GOAL PROGRESS ─────────────────────────────────────────────────────── */}
       {(() => {
-        const EXERCISE_LEGACY_KEYS = new Set([
-          'exercise_workouts_per_week','exercise_minutes_per_week',
-          'exercise_volume_per_week','exercise_routine_sessions',
-        ]);
+        const EXERCISE_LEGACY_KEYS = new Set(['exercise_routine_sessions']);
         const bodyDashGoals  = newGoals.filter(g => g.category === 'body' && g.showOnDashboard);
         const weightGoal     = bodyDashGoals.find(g => g.catalogKey === 'body_weight');
         const measDashGoals  = bodyDashGoals.filter(g => g.catalogKey !== 'body_weight');
-        const showWorkout    = exGoals?.showOnDashboard;
+        const showWorkout    = newGoals.some(g => g.catalogKey === 'exercise_routine_sessions' && g.showOnDashboard);
         const dashNutrition  = newGoals.filter(g => g.category === 'nutrition' && g.showOnDashboard);
         const dashActivity   = newGoals.filter(g => g.category === 'activity'  && g.showOnDashboard);
         const dashExercise   = newGoals.filter(g => g.category === 'exercise'  && g.showOnDashboard && !EXERCISE_LEGACY_KEYS.has(g.catalogKey));
@@ -1956,7 +1947,7 @@ export default function DashboardPage() {
                 return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} />;
               })}
               {showWorkout && (
-                <WorkoutFreqCard routines={routines} routineGoals={routineGoals} workouts={workouts} />
+                <WorkoutFreqCard routines={routines} routineGoals={newGoals.filter(g => g.catalogKey === 'exercise_routine_sessions').map(g => ({ id: g.id, routineId: g.sourceId!, targetPerWeek: g.targetValue }))} workouts={workouts} />
               )}
               {dashNutrition.map(g => (
                 <NutritionGoalCard key={g.id} goal={g} foodLogHistory={foodLogHistory} />

@@ -45,6 +45,12 @@ export interface GoalMilestone {
   notes:              string | null;
 }
 
+export interface GoalMilestoneWithGoal extends GoalMilestone {
+  catalogKey: GoalCatalogKey;
+  goalName:   string;
+  goalUnit:   string;
+}
+
 export interface GoalProgressEntry {
   id:       number;
   goalId:   number;
@@ -124,6 +130,9 @@ export const goalsV2Api = {
     apiClient.delete(`/goals-v2/${id}`).then(() => {}),
 
   // Milestones
+  getAllMilestones: () =>
+    apiClient.get<GoalMilestoneWithGoal[]>('/goals-v2/milestones').then(r => r.data),
+
   getMilestones: (goalId: number) =>
     apiClient.get<GoalMilestone[]>(`/goals-v2/${goalId}/milestones`).then(r => r.data),
 

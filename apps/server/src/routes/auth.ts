@@ -222,6 +222,10 @@ router.delete('/data', requireAuth, async (req, res) => {
         await Promise.all([
           pool.query('DELETE FROM user_goals WHERE user_id = ?', [uid]),
           pool.query('DELETE FROM exercise_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM custom_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM body_measurement_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM routine_goals WHERE user_id = ?', [uid]),
+          pool.query('DELETE FROM goal_checkpoints WHERE user_id = ?', [uid]),
           pool.query('DELETE FROM goals WHERE user_id = ?', [uid]),
         ]);
         break;

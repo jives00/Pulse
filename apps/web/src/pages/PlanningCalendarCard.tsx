@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  schedulesApi, goalCheckpointsApi, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi,
+  schedulesApi, goalsV2Api, dayTypesApi, mealSchedulesApi, nutritionSchedulesApi,
   foodsApi, recipesApi,
   GLASS_OZ,
   type UpcomingSession, type WorkoutSchedule, type RoutineSummary, type Exercise,
-  type GoalCheckpoint, type DayTypePreset, type DailyNutritionOverride,
+  type Goal, type GoalMilestoneWithGoal, type DayTypePreset, type DailyNutritionOverride,
   type MealSchedule, type MealScheduleEvent, type MealSlotType, type MealRecurrenceType,
   type NutritionSchedule, type NutritionScheduleEvent,
   type RecurrenceType, type Food, type Recipe,
@@ -22,17 +22,6 @@ const MEAL_SLOTS: { value: MealSlotType | ''; label: string }[] = [
   { value: 'snack', label: 'Snack' },
 ];
 
-const METRIC_CONFIG: Record<string, { label: string; unit: string }> = {
-  weight:      { label: 'Weight',      unit: 'lbs' },
-  waist:       { label: 'Waist',       unit: 'in'  },
-  bicep:       { label: 'Bicep',       unit: 'in'  },
-  chest:       { label: 'Chest',       unit: 'in'  },
-  hips:        { label: 'Hips',        unit: 'in'  },
-  body_fat:    { label: 'Body Fat',    unit: '%'   },
-  muscle_mass: { label: 'Muscle Mass', unit: 'lbs' },
-  water_pct:   { label: 'Water Mass',  unit: '%'   },
-};
-const ALL_METRICS = Object.keys(METRIC_CONFIG);
 
 const inputCls = 'w-full bg-dram-bg border border-slate-600 rounded px-2 py-1.5 text-base text-slate-100 focus:outline-none focus:border-dram-accent';
 
@@ -776,50 +765,60 @@ function AddMealScheduleForm({ defaultDate, onClose, onSaved, editing }: {
   );
 }
 
-// ─── Add Checkpoint Modal ─────────────────────────────────────────────────────
+// ─── Add Milestone Form ───────────────────────────────────────────────────────
 
-function AddCheckpointForm({ defaultDate, onClose, onSaved, editing }: {
+function AddMilestoneForm({ defaultDate, onClose, onSaved, editing, goals }: {
   defaultDate: string;
   onClose: () => void;
   onSaved: () => void;
-  editing?: GoalCheckpoint;
+  editing?: GoalMilestoneWithGoal;
+  goals: Goal[];
 }) {
-  const [metric,  setMetric]  = useState(editing?.metric ?? 'weight');
-  const [value,   setValue]   = useState(editing?.targetValue != null ? String(editing.targetValue) : '');
-  const [date,    setDate]    = useState(editing?.targetDate ?? defaultDate);
-  const [notes,   setNotes]   = useState(editing?.notes ?? '');
-  const [saving,  setSaving]  = useState(false);
+  const [goalId, setGoalId] = useState<number | ''>(editing?.goalId ?? (goals[0]?.id ?? ''));
+  const [value,  setValue]  = useState(editing?.targetValue != null ? String(editing.targetValue) : '');
+  const [date,   setDate]   = useState(editing?.targetDate ?? defaultDate);
+  const [notes,  setNotes]  = useState(editing?.notes ?? '');
+  const [saving, setSaving] = useState(false);
 
-  const cfg = METRIC_CONFIG[metric];
+  const selectedGoal = goals.find(g => g.id === goalId);
 
   async function handleSave() {
-    if (!value || !date) return;
+    if (!value || !date || goalId === '') return;
     setSaving(true);
     try {
-      const payload = { metric, targetValue: Number(value), unit: cfg.unit, targetDate: date, notes: notes.trim() || null };
-      if (editing) await goalCheckpointsApi.update(editing.id, payload);
-      else         await goalCheckpointsApi.create(payload);
+      const payload = { targetValue: Number(value), targetDate: date, notes: notes.trim() || null };
+      if (editing) await goalsV2Api.updateMilestone(editing.goalId, editing.id, payload);
+      else         await goalsV2Api.createMilestone(Number(goalId), payload);
       onSaved();
     } catch { /* ignore */ } finally { setSaving(false); }
   }
 
+  if (!goals.length) {
+    return (
+      <div className="space-y-3">
+        <p className="text-base text-slate-500">No active goals. Add a goal first to create milestones.</p>
+        <button type="button" onClick={onClose} className="text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">Close</button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      <div>
+        <label className="block text-base text-slate-500 mb-1">Goal</label>
+        <select value={goalId} onChange={(e) => setGoalId(Number(e.target.value))} className={inputCls}>
+          {goals.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-base text-slate-500 mb-1">Metric</label>
-          <select value={metric} onChange={(e) => setMetric(e.target.value)} className={inputCls}>
-            {ALL_METRICS.map((m) => <option key={m} value={m}>{METRIC_CONFIG[m].label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-base text-slate-500 mb-1">Target ({cfg.unit})</label>
+          <label className="block text-base text-slate-500 mb-1">Target{selectedGoal ? ` (${selectedGoal.unit})` : ''}</label>
           <input type="number" min="0" step="0.1" value={value} onChange={(e) => setValue(e.target.value)} className={inputCls} />
         </div>
-      </div>
-      <div>
-        <label className="block text-base text-slate-500 mb-1">By date</label>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+        <div>
+          <label className="block text-base text-slate-500 mb-1">By date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+        </div>
       </div>
       <div>
         <label className="block text-base text-slate-500 mb-1">Notes (optional)</label>
@@ -827,9 +826,9 @@ function AddCheckpointForm({ defaultDate, onClose, onSaved, editing }: {
       </div>
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onClose} className="flex-1 text-base text-slate-400 hover:text-slate-200 py-2 transition-colors">Cancel</button>
-        <button type="button" onClick={handleSave} disabled={saving || !value || !date}
+        <button type="button" onClick={handleSave} disabled={saving || !value || !date || goalId === ''}
           className="flex-[2] bg-dram-accent text-black text-base font-semibold rounded-lg py-2 hover:brightness-110 disabled:opacity-50 transition"
-        >{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Checkpoint'}</button>
+        >{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Milestone'}</button>
       </div>
     </div>
   );
@@ -1018,6 +1017,7 @@ function DayModal({
   workoutEvents,
   mealEvents,
   checkpoints,
+  activeGoals,
   nutritionOverride,
   nutritionScheduleEvents,
   nutritionSchedules,
@@ -1032,7 +1032,8 @@ function DayModal({
   date: string;
   workoutEvents: UpcomingSession[];
   mealEvents: MealScheduleEvent[];
-  checkpoints: GoalCheckpoint[];
+  checkpoints: GoalMilestoneWithGoal[];
+  activeGoals: Goal[];
   nutritionOverride: DailyNutritionOverride | null;
   nutritionScheduleEvents: NutritionScheduleEvent[];
   nutritionSchedules: NutritionSchedule[];
@@ -1046,7 +1047,7 @@ function DayModal({
 }) {
   const [tab,          setTab]          = useState<DayModalTab>('workout');
   const [adding,       setAdding]       = useState(false);
-  const [editCheckpoint,   setEditCheckpoint]   = useState<GoalCheckpoint | null>(null);
+  const [editCheckpoint,   setEditCheckpoint]   = useState<GoalMilestoneWithGoal | null>(null);
   const [editWorkout,      setEditWorkout]      = useState<WorkoutSchedule | null>(null);
   const [editMeal,         setEditMeal]         = useState<{ sch: MealSchedule; ev: MealScheduleEvent } | null>(null);
   const [editNutritionSch, setEditNutritionSch] = useState<NutritionSchedule | null>(null);
@@ -1063,9 +1064,9 @@ function DayModal({
     try { await mealSchedulesApi.delete(id); onSaved(); } catch { /* ignore */ }
   }
 
-  async function deleteCheckpoint(id: number) {
-    if (!confirm('Remove this checkpoint?')) return;
-    try { await goalCheckpointsApi.delete(id); onSaved(); } catch { /* ignore */ }
+  async function deleteCheckpoint(cp: GoalMilestoneWithGoal) {
+    if (!confirm('Remove this milestone?')) return;
+    try { await goalsV2Api.deleteMilestone(cp.goalId, cp.id); onSaved(); } catch { /* ignore */ }
   }
 
   async function deleteNutritionSchedule(id: number) {
@@ -1215,14 +1216,15 @@ function DayModal({
           {tab === 'checkpoint' && (
             <>
               {dayCheckpoints.length === 0 && !adding && !editCheckpoint && (
-                <p className="text-base text-slate-500">No goal checkpoints for this date.</p>
+                <p className="text-base text-slate-500">No milestones for this date.</p>
               )}
               {dayCheckpoints.map((cp) => (
                 editCheckpoint?.id === cp.id ? (
-                  <AddCheckpointForm
+                  <AddMilestoneForm
                     key={cp.id}
                     defaultDate={date}
                     editing={cp}
+                    goals={activeGoals}
                     onClose={() => setEditCheckpoint(null)}
                     onSaved={() => { setEditCheckpoint(null); onSaved(); }}
                   />
@@ -1230,25 +1232,26 @@ function DayModal({
                   <div key={cp.id} className="flex items-center gap-3 py-2 border-b border-slate-600 last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-base text-slate-200">
-                        {METRIC_CONFIG[cp.metric]?.label ?? cp.metric} → {cp.targetValue} {cp.unit}
+                        {cp.goalName} → {cp.targetValue} {cp.goalUnit}
                       </p>
                       {cp.notes && <p className="text-base text-slate-500">{cp.notes}</p>}
                     </div>
                     <button onClick={() => setEditCheckpoint(cp)} className="text-base text-dram-accent hover:brightness-110 px-1">Edit</button>
-                    <button onClick={() => deleteCheckpoint(cp.id)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
+                    <button onClick={() => deleteCheckpoint(cp)} className="text-slate-500 hover:text-red-400 text-base px-1 transition-colors">✕</button>
                   </div>
                 )
               ))}
               {!editCheckpoint && (
                 adding ? (
-                  <AddCheckpointForm
+                  <AddMilestoneForm
                     defaultDate={date}
+                    goals={activeGoals}
                     onClose={() => setAdding(false)}
                     onSaved={() => { setAdding(false); onSaved(); }}
                   />
                 ) : (
                   <button onClick={() => setAdding(true)} className="w-full border border-dram-accent text-dram-accent text-base font-semibold rounded-lg py-2 hover:brightness-110 transition">
-                    + Add checkpoint
+                    + Add milestone
                   </button>
                 )
               )}
@@ -1357,7 +1360,8 @@ export default function PlanningCalendarCard({
   const [workoutSchedules,   setWorkoutSchedules]   = useState<WorkoutSchedule[]>([]);
   const [mealEvents,         setMealEvents]         = useState<MealScheduleEvent[]>([]);
   const [mealSchedules,      setMealSchedules]      = useState<MealSchedule[]>([]);
-  const [checkpoints,             setCheckpoints]             = useState<GoalCheckpoint[]>([]);
+  const [checkpoints,             setCheckpoints]             = useState<GoalMilestoneWithGoal[]>([]);
+  const [activeGoals,             setActiveGoals]             = useState<Goal[]>([]);
   const [nutritionOverrides,      setNutritionOverrides]      = useState<DailyNutritionOverride[]>([]);
   const [nutritionScheduleEvents, setNutritionScheduleEvents] = useState<NutritionScheduleEvent[]>([]);
   const [nutritionSchedules,      setNutritionSchedules]      = useState<NutritionSchedule[]>([]);
@@ -1366,21 +1370,23 @@ export default function PlanningCalendarCard({
 
   const load = useCallback(async () => {
     try {
-      const [sessions, wScheds, mEvts, mScheds, cps, presets, nScheds, nSchedEvts] = await Promise.all([
+      const [sessions, wScheds, mEvts, mScheds, milestones, presets, nScheds, nSchedEvts, goals] = await Promise.all([
         schedulesApi.getUpcoming(60).catch(() => []),
         schedulesApi.getAll().catch(() => []),
         mealSchedulesApi.getUpcoming(90).catch(() => []),
         mealSchedulesApi.getAll().catch(() => []),
-        goalCheckpointsApi.getAll().catch(() => []),
+        goalsV2Api.getAllMilestones().catch(() => []),
         dayTypesApi.getPresets().catch(() => []),
         nutritionSchedulesApi.getAll().catch(() => []),
         nutritionSchedulesApi.getUpcoming(60).catch(() => []),
+        goalsV2Api.getAll('active').catch(() => []),
       ]);
       setUpcomingSessions(sessions as UpcomingSession[]);
       setWorkoutSchedules(wScheds as WorkoutSchedule[]);
       setMealEvents(mEvts as MealScheduleEvent[]);
       setMealSchedules(mScheds as MealSchedule[]);
-      setCheckpoints(cps as GoalCheckpoint[]);
+      setCheckpoints(milestones as GoalMilestoneWithGoal[]);
+      setActiveGoals(goals as Goal[]);
       setDayTypePresets(presets as DayTypePreset[]);
       setNutritionSchedules(nScheds as NutritionSchedule[]);
       setNutritionScheduleEvents(nSchedEvts as NutritionScheduleEvent[]);
@@ -1503,7 +1509,7 @@ export default function PlanningCalendarCard({
                           <div className="space-y-1">
                             {cp.map((c) => (
                               <div key={c.id} className="text-sm text-emerald-400 rounded px-2 py-1">
-                                {METRIC_CONFIG[c.metric]?.label ?? c.metric} → {c.targetValue} {c.unit}
+                                {c.goalName} → {c.targetValue} {c.goalUnit}
                               </div>
                             ))}
                           </div>
@@ -1566,6 +1572,7 @@ export default function PlanningCalendarCard({
           workoutEvents={selectedEvents.workoutEvents}
           mealEvents={selectedEvents.mealEvents}
           checkpoints={selectedEvents.checkpoints}
+          activeGoals={activeGoals}
           nutritionOverride={selectedEvents.nutritionOverride}
           nutritionScheduleEvents={selectedEvents.nutritionScheduleEvents}
           nutritionSchedules={nutritionSchedules}

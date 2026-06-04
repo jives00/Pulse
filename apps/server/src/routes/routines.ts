@@ -411,32 +411,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/routines/goals — all routine goals for this user
-router.get('/goals', async (req, res) => {
-  try {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT rg.*
-       FROM routine_goals rg
-       JOIN workout_routines wr ON wr.id = rg.routine_id
-       WHERE rg.user_id = ? AND rg.effective_from = (
-         SELECT MAX(rg2.effective_from) FROM routine_goals rg2
-         WHERE rg2.user_id = rg.user_id AND rg2.routine_id = rg.routine_id
-       )`,
-      [req.userId]
-    );
-    res.json(rows.map((r) => ({
-      id: r.id,
-      routineId: r.routine_id,
-      targetPerWeek: Number(r.target_per_week),
-      effectiveFrom: r.effective_from instanceof Date
-        ? r.effective_from.toISOString().slice(0, 10)
-        : String(r.effective_from),
-    })));
-  } catch (err) {
-    console.error('[routines] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// routine_goals endpoints removed — routine session goals now in goals-v2
 
 // POST /api/routines
 router.post('/', async (req, res) => {
@@ -519,83 +494,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET /api/routines/:id/goal
-router.get('/:id/goal', async (req, res) => {
-  const id = parseId(req.params.id);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
-
-  try {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT * FROM routine_goals WHERE user_id = ? AND routine_id = ?
-       ORDER BY effective_from DESC, id DESC LIMIT 1`,
-      [req.userId, id]
-    );
-    if (!rows.length) { res.json(null); return; }
-    const r = rows[0];
-    res.json({
-      id: r.id,
-      routineId: r.routine_id,
-      targetPerWeek: Number(r.target_per_week),
-      effectiveFrom: r.effective_from instanceof Date
-        ? r.effective_from.toISOString().slice(0, 10)
-        : String(r.effective_from),
-    });
-  } catch (err) {
-    console.error('[routines] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// PUT /api/routines/:id/goal
-router.put('/:id/goal', async (req, res) => {
-  const id = parseId(req.params.id);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
-
-  const { targetPerWeek } = req.body as { targetPerWeek: number };
-  if (targetPerWeek == null || isNaN(Number(targetPerWeek))) {
-    res.status(400).json({ error: 'targetPerWeek required' }); return;
-  }
-
-  try {
-    const today = localDateStr();
-    const [result] = await pool.query<ResultSetHeader>(
-      `INSERT INTO routine_goals (user_id, routine_id, target_per_week, effective_from)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE target_per_week = VALUES(target_per_week)`,
-      [req.userId, id, Number(targetPerWeek), today]
-    );
-    const insertId = result.insertId || 0;
-    res.json({
-      id: insertId,
-      routineId: id,
-      targetPerWeek: Number(targetPerWeek),
-      effectiveFrom: today,
-    });
-  } catch (err) {
-    console.error('[routines] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// DELETE /api/routines/:id/goal
-router.delete('/:id/goal', async (req, res) => {
-  const id = parseId(req.params.id);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
-
-  try {
-    await pool.query(
-      'DELETE FROM routine_goals WHERE user_id = ? AND routine_id = ?',
-      [req.userId, id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[routines] error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// routine per-routine goal endpoints removed — use goals-v2 for exercise_routine_sessions goals
 
 // POST /api/routines/:id/exercises
 router.post('/:id/exercises', async (req, res) => {

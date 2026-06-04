@@ -9,7 +9,7 @@ import {
   ReferenceLine,
   Legend,
 } from 'recharts';
-import { historyApi, goalsApi } from '@pulse/api-client';
+import { historyApi, nutritionTargetsApi } from '@pulse/api-client';
 import type { DailyHistoryEntry, WeeklyHistoryEntry, UserGoals } from '@pulse/api-client';
 
 type Range = '14d' | '30d' | '90d';
@@ -50,7 +50,7 @@ export default function HistoryPage() {
     Promise.all([
       historyApi.daily(dateStr(start), dateStr(end)),
       historyApi.weekly(year),
-      goalsApi.get().catch(() => null),
+      nutritionTargetsApi.get().catch(() => null),
     ]).then(([d, w, g]) => {
       setDaily(d);
       setWeekly(w);
