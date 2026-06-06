@@ -1092,11 +1092,12 @@ function normDateStr(isoStr: string): string {
 
 // ─── Goal Progress: Weight card ───────────────────────────────────────────────
 
-function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
+function WeightGoalCard({ measurements, goal, foodLogHistory, tdee, isLoading }: {
   measurements: BodyMeasurement[];
   goal: Goal;
   foodLogHistory: FoodLogHistoryDay[];
   tdee: TDEEBreakdown | null;
+  isLoading: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -1112,7 +1113,7 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
   if (!sorted.length) {
     return (
       <Panel title="Weight goal" meta={target ? `target ${fmt1(target)} lb` : undefined}>
-        <div style={{ fontSize: 13, color: MUTED2 }}>No weight entries yet.</div>
+        <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No weight entries yet.'}</div>
       </Panel>
     );
   }
@@ -1322,9 +1323,9 @@ function WeightGoalCard({ measurements, goal, foodLogHistory, tdee }: {
 
 // ─── Goal Progress: Body measurement card (waist / bicep) ────────────────────
 
-function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
+function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal, isLoading }: {
   label: string; metric: string; unit: string; dir: 'up' | 'down';
-  measurements: BodyMeasurement[]; goal: Goal;
+  measurements: BodyMeasurement[]; goal: Goal; isLoading: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -1340,7 +1341,7 @@ function BodyMeasGoalCard({ label, metric, unit, dir, measurements, goal }: {
   if (!sorted.length) {
     return (
       <Panel title={`${label} goal`} meta={target ? `target ${fmt1(target)} ${unit}` : undefined}>
-        <div style={{ fontSize: 13, color: MUTED2 }}>No entries yet.</div>
+        <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No entries yet.'}</div>
       </Panel>
     );
   }
@@ -1821,6 +1822,7 @@ export default function DashboardPage() {
   const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
   const [newGoals,       setNewGoals]       = useState<Goal[]>([]);
   const [loading,        setLoading]        = useState(true);
+  const [phase2Ready,    setPhase2Ready]    = useState(false);
 
   useEffect(() => {
     // Fire all requests simultaneously
@@ -1860,6 +1862,9 @@ export default function DashboardPage() {
     upcomingP.then(upc => setUpcoming(upc));
     recoveryP.then(rec => { if (rec) setRecovery(rec as RecoveryData); });
     stepsHistP.then(sh => setStepsHistory(sh));
+
+    // Signal when background data is ready so loading indicators can clear
+    Promise.all([workoutsP, measurementsP, foodHistP, stepsHistP]).finally(() => setPhase2Ready(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
@@ -1901,7 +1906,10 @@ export default function DashboardPage() {
             <FuelToday actual={summary?.nutrition.actual ?? null} goals={summary?.nutrition.goals ?? null} tdee={todayTDEE} />
           </Panel>
           <Panel title="Exercise today">
-            <ExerciseToday workout={todayWorkout} allWorkouts={workouts} upcoming={upcoming} recovery={recovery} navigate={navigate} />
+            {!phase2Ready && workouts.length === 0
+              ? <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+              : <ExerciseToday workout={todayWorkout} allWorkouts={workouts} upcoming={upcoming} recovery={recovery} navigate={navigate} />
+            }
           </Panel>
         </div>
         <div style={{ marginTop: 14 }}>
@@ -1946,12 +1954,12 @@ export default function DashboardPage() {
           <Band kicker="Goal progress">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {weightGoal && (
-                <WeightGoalCard measurements={measurements} goal={weightGoal} foodLogHistory={foodLogHistory} tdee={todayTDEE} />
+                <WeightGoalCard measurements={measurements} goal={weightGoal} foodLogHistory={foodLogHistory} tdee={todayTDEE} isLoading={!phase2Ready} />
               )}
               {measDashGoals.map(g => {
                 const cfg = BODY_GOAL_CARD_CFG[g.catalogKey];
                 if (!cfg) return null;
-                return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} />;
+                return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} isLoading={!phase2Ready} />;
               })}
               {showWorkout && (
                 <WorkoutFreqCard routines={routines} routineGoals={newGoals.filter(g => g.catalogKey === 'exercise_routine_sessions').map(g => ({ id: g.id, routineId: g.sourceId!, targetPerWeek: g.targetValue }))} workouts={workouts} />

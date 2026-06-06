@@ -358,9 +358,10 @@ export default function DashboardV4Screen() {
   const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
   const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
   const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]); // derived from activeGoals
+  const [phase2Ready, setPhase2Ready] = useState(false);
 
   const loadData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) { setLoading(true); setPhase2Ready(false); }
     const end = localDateStr();
     const startD = new Date(); startD.setDate(startD.getDate() - 89);
     const start = localDateStr(startD);
@@ -405,6 +406,7 @@ export default function DashboardV4Screen() {
       setRecovery(rec);
       setUpcoming(upc as UpcomingSession[]);
     } catch { /* ignore */ }
+    setPhase2Ready(true);
   }, [token]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
@@ -643,6 +645,11 @@ export default function DashboardV4Screen() {
                   <Text style={{ fontSize: fontSize.sm, color: COL_GOLD, fontWeight: '600' }}>Start today's session →</Text>
                 </TouchableOpacity>
               </>
+            ) : !phase2Ready ? (
+              <>
+                <CardHeader title="Exercise Today" c={c} />
+                <ActivityIndicator color={COL_GOLD} style={{ marginTop: 8, alignSelf: 'flex-start' }} />
+              </>
             ) : (
               <>
                 <CardHeader title="Exercise Today" meta="Not logged today" c={c} />
@@ -700,11 +707,20 @@ export default function DashboardV4Screen() {
             if (!sorted.length) {
               return (
                 <View style={s.card}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={target ? `target ${target.toFixed(1)} lb` : undefined} c={c} /></View>
-                    <GoalStatusChip status="no_data" />
-                  </View>
-                  <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No weight entries yet.</Text>
+                  {!phase2Ready ? (
+                    <>
+                      <CardHeader title="Weight goal" meta={target ? `target ${target.toFixed(1)} lb` : undefined} c={c} />
+                      <ActivityIndicator color={COL_GOLD} style={{ marginTop: 8, alignSelf: 'flex-start' }} />
+                    </>
+                  ) : (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <View style={{ flex: 1 }}><CardHeader title="Weight goal" meta={target ? `target ${target.toFixed(1)} lb` : undefined} c={c} /></View>
+                        <GoalStatusChip status="no_data" />
+                      </View>
+                      <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No weight entries yet.</Text>
+                    </>
+                  )}
                 </View>
               );
             }
