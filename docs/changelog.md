@@ -11,6 +11,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Backend
 - **`GET /api/app/version` endpoint** — Returns latest GitHub Release tag and APK download URL; used by the mobile update banner `ae7738e`
+- **Fix app-version GitHub repo name** — Route had `jives00/pulse-health` hardcoded; repo was renamed to `jives00/Pulse`, causing GitHub API 404s and silently breaking the update check `83c8c72`
 
 ### Frontend – Web
 - **Dashboard loads immediately** — Split monolithic `Promise.all(13)` into a fast phase (summary, TDEE, water, steps, goals → unblocks render) and a background phase (workout history, measurements, food/step history → fills in after page is visible) `64a8020`

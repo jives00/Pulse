@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 const router = Router();
 
-const GITHUB_REPO = 'jives00/pulse-health';
+const GITHUB_REPO = 'jives00/Pulse';
 
 // GET /api/app/version — returns latest release tag and APK download URL
 router.get('/version', async (_req, res) => {
