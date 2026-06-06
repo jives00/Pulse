@@ -14,7 +14,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **`GET /api/app/version` endpoint** — Returns latest GitHub Release tag and APK download URL; used by the mobile update banner `ae7738e`
 - **Fix app-version GitHub repo name** — Route had `jives00/pulse-health` hardcoded; repo was renamed to `jives00/Pulse`, causing GitHub API 404s and silently breaking the update check `83c8c72`
 
+### Backend
+- **Fix WeightGurus sync bloating body_measurements to 185k rows** — `String(dateObject).slice(0,10)` produced "Thu Jan…" instead of "2026-01-15" when mysql2 returned DATE columns as Date objects, breaking in-memory dedup on every hourly sync run; fixed to handle both Date and string; also switched to `INSERT IGNORE`; migration 041 deduplicates existing rows and adds `UNIQUE (user_id, metric, measured_at)` as a hard backstop `49bea09`
+
 ### Frontend – Web
+- **Dashboard goal cards clear independently** — Weight/waist/bicep goal cards now clear as soon as measurements arrive rather than waiting for workouts + food history to also finish; measurements fetch limited to last 365 days so the query stays fast `49bea09`
 - **Dashboard Trends/Sessions loading indicators** — CalVsBurned, VolumeByWeek, and Recent Sessions panels now show "Loading…" instead of alarming empty states while phase-2 data is in flight; NutritionGoalCard and StepsGoalCard also get `isLoading` guards `34aa41d`
 - **Dashboard phase-2 loading indicators** — Weight, waist, and bicep goal cards now show "Loading…" instead of a misleading "No entries yet" empty state while background data is in flight; Exercise Today panel also shows a loading placeholder until workout history arrives `9ec6fd7`
 - **Dashboard loads immediately** — Split monolithic `Promise.all(13)` into a fast phase (summary, TDEE, water, steps, goals → unblocks render) and a background phase (workout history, measurements, food/step history → fills in after page is visible) `64a8020`

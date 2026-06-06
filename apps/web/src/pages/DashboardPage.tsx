@@ -1821,14 +1821,16 @@ export default function DashboardPage() {
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
   const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
   const [newGoals,       setNewGoals]       = useState<Goal[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [phase2Ready,    setPhase2Ready]    = useState(false);
+  const [loading,            setLoading]            = useState(true);
+  const [phase2Ready,        setPhase2Ready]        = useState(false);
+  const [measurementsReady,  setMeasurementsReady]  = useState(false);
 
   useEffect(() => {
     // Fire all requests simultaneously
     const workoutsP     = workoutsApi.getAll({ limit: 200 }).catch(() => [] as WorkoutSummary[]);
     const summaryP      = nutritionTargetsApi.getSummary().catch(() => null);
-    const measurementsP = measurementsApi.getAll().catch(() => [] as BodyMeasurement[]);
+    const oneYearAgo = (() => { const d = new Date(today + 'T12:00:00'); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); })();
+    const measurementsP = measurementsApi.getAll({ start: oneYearAgo }).catch(() => [] as BodyMeasurement[]);
     const pbP           = workoutsApi.getPersonalBests().catch(() => null);
     const foodHistP     = logApi.getHistory({ limit: 60 }).catch(() => [] as FoodLogHistoryDay[]);
     const routinesP     = routinesApi.getAll().catch(() => [] as RoutineSummary[]);
@@ -1855,7 +1857,7 @@ export default function DashboardPage() {
 
     // Background — fill in charts and history as they arrive
     workoutsP.then(ws => setWorkouts(ws));
-    measurementsP.then(ms => setMeasurements(ms));
+    measurementsP.then(ms => { setMeasurements(ms); setMeasurementsReady(true); });
     pbP.then(pb => setPersonalBests(pb));
     foodHistP.then(fl => setFoodLogHistory(fl.sort((a, b) => a.date.localeCompare(b.date))));
     routinesP.then(rl => setRoutines(rl));
@@ -1960,12 +1962,12 @@ export default function DashboardPage() {
           <Band kicker="Goal progress">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {weightGoal && (
-                <WeightGoalCard measurements={measurements} goal={weightGoal} foodLogHistory={foodLogHistory} tdee={todayTDEE} isLoading={!phase2Ready} />
+                <WeightGoalCard measurements={measurements} goal={weightGoal} foodLogHistory={foodLogHistory} tdee={todayTDEE} isLoading={!measurementsReady} />
               )}
               {measDashGoals.map(g => {
                 const cfg = BODY_GOAL_CARD_CFG[g.catalogKey];
                 if (!cfg) return null;
-                return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} isLoading={!phase2Ready} />;
+                return <BodyMeasGoalCard key={g.id} label={cfg.label} metric={cfg.metric} unit={g.unit || cfg.unit} dir={cfg.dir} measurements={measurements} goal={g} isLoading={!measurementsReady} />;
               })}
               {showWorkout && (
                 <WorkoutFreqCard routines={routines} routineGoals={newGoals.filter(g => g.catalogKey === 'exercise_routine_sessions').map(g => ({ id: g.id, routineId: g.sourceId!, targetPerWeek: g.targetValue }))} workouts={workouts} />

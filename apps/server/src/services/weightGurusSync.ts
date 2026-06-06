@@ -51,7 +51,12 @@ export async function syncWeightGurus(daysBack = 7): Promise<{ inserted: number 
     [userId],
   );
   const existing = new Set(
-    existingRows.map((r) => `${r.metric}|${String(r.measured_at).slice(0, 10)}`),
+    existingRows.map((r) => {
+      const dateStr = r.measured_at instanceof Date
+        ? r.measured_at.toISOString().slice(0, 10)
+        : String(r.measured_at).slice(0, 10);
+      return `${r.metric}|${dateStr}`;
+    }),
   );
 
   const rows: [number, string, number, string, string][] = [];
@@ -70,7 +75,7 @@ export async function syncWeightGurus(daysBack = 7): Promise<{ inserted: number 
 
   if (rows.length) {
     await pool.query(
-      'INSERT INTO body_measurements (user_id, metric, value, unit, measured_at) VALUES ?',
+      'INSERT IGNORE INTO body_measurements (user_id, metric, value, unit, measured_at) VALUES ?',
       [rows],
     );
   }
