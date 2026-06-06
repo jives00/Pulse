@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Frontend – Mobile
 - **In-app update check and self-install** — App checks `/api/app/version` on startup and shows a banner when a newer release exists; tapping downloads the APK with progress tracking and hands it to Android's system installer. APK builds now publish as GitHub Releases instead of artifacts for direct download `ae7738e`
+- **Update UX improvements** — Banner now sits below the notification bar (safe area fix), has a ✕ dismiss button, and rechecks automatically when app comes to foreground without a restart; Settings > About tab added showing installed build tag, update status, and a Download & Install button; pull-to-refresh on About tab also triggers an update check `bbcd05c`
 
 ### Backend
 - **`GET /api/app/version` endpoint** — Returns latest GitHub Release tag and APK download URL; used by the mobile update banner `ae7738e`

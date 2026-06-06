@@ -17,6 +17,7 @@ import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../.
 import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import { useUpdateStore, BUILD_TAG } from '../../../src/store/update';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -502,10 +503,69 @@ function DeleteTab() {
   );
 }
 
+// ── About tab ─────────────────────────────────────────────────────────────────
+
+function AboutTab() {
+  const c = useColors();
+  const s = makeStyles(c);
+  const { updateAvailable, latestTag, checking, downloading, progress, checkForUpdate, startUpdate } = useUpdateStore();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await checkForUpdate();
+    setRefreshing(false);
+  }, [checkForUpdate]);
+
+  // Re-check on page load
+  useEffect(() => { checkForUpdate(); }, []);
+
+  const displayTag = BUILD_TAG || '(dev build)';
+
+  return (
+    <ScrollView
+      contentContainerStyle={s.tabScroll}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}
+    >
+      <SectionHeader title="App Version" />
+      <View style={s.card}>
+        <Text style={[s.fieldLabel, { marginBottom: 2 }]}>Installed build</Text>
+        <Text style={[s.measureLabel, { fontFamily: 'monospace', fontSize: 13 }]}>{displayTag}</Text>
+      </View>
+
+      <SectionHeader title="Updates" />
+      <View style={s.card}>
+        {updateAvailable ? (
+          <>
+            <Text style={[s.fieldLabel, { marginBottom: 2 }]}>New version available</Text>
+            <Text style={[s.measureLabel, { fontFamily: 'monospace', fontSize: 13, marginBottom: 8 }]}>{latestTag}</Text>
+            <TouchableOpacity
+              style={[s.saveBtn, downloading && s.saveBtnDim]}
+              onPress={startUpdate}
+              disabled={downloading}
+            >
+              <Text style={s.saveBtnText}>
+                {downloading ? `Downloading… ${Math.round(progress * 100)}%` : 'Download & Install'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={s.msgSuccess}>{checking ? 'Checking…' : 'Up to date'}</Text>
+        )}
+        {!checking && (
+          <TouchableOpacity onPress={checkForUpdate} style={{ marginTop: 4 }}>
+            <Text style={[s.fieldLabel, { color: c.accent }]}>Check for updates</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ── Root screen ───────────────────────────────────────────────────────────────
 
-type Tab = 'options' | 'tags' | 'user' | 'delete';
-const SETTINGS_TABS_ORDER = ['options', 'tags', 'user', 'delete'] as const;
+type Tab = 'options' | 'tags' | 'user' | 'delete' | 'about';
+const SETTINGS_TABS_ORDER = ['options', 'tags', 'user', 'delete', 'about'] as const;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -530,6 +590,7 @@ export default function SettingsScreen() {
           { id: 'tags',    label: 'Tags'    },
           { id: 'user',    label: 'User'    },
           { id: 'delete',  label: 'Delete'  },
+          { id: 'about',   label: 'About'   },
         ] as { id: Tab; label: string }[]).map(({ id, label }) => (
           <TouchableOpacity key={id} style={[s.tabBtn, tab === id && s.tabBtnActive]} onPress={() => setTab(id)}>
             <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
@@ -541,6 +602,7 @@ export default function SettingsScreen() {
       {tab === 'tags'    && <TagsTab />}
       {tab === 'user'    && <UserTab />}
       {tab === 'delete'  && <DeleteTab />}
+      {tab === 'about'   && <AboutTab />}
     </SafeAreaView>
   );
 }

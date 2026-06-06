@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus, DeviceEventEmitter, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { configureClient } from '../../../packages/api-client/src/client';
 import { API_BASE } from '../src/api/config';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
 import { useHealthSteps } from '../src/hooks/useHealthSteps';
-import { useUpdateCheck } from '../src/hooks/useUpdateCheck';
+import { useUpdateStore } from '../src/store/update';
 import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
 import { useStepsStore } from '../src/store/steps';
 import { useColors } from '../src/hooks/useColors';
@@ -17,13 +18,25 @@ export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
   const token = useAuthStore((s) => s.token);
   const c = useColors();
-  const { updateAvailable, downloading, progress, startUpdate } = useUpdateCheck();
+  const insets = useSafeAreaInsets();
+  const { updateAvailable, downloading, progress, dismissed, checkForUpdate, startUpdate, dismiss } = useUpdateStore();
   const { readTodaySteps } = useHealthSteps();
   const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     initializeHealthConnect().then(() => syncGrantedPermissions()).catch(() => {});
+  }, []);
+
+  // Check for updates on launch and whenever app comes to foreground
+  useEffect(() => {
+    checkForUpdate();
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        checkForUpdate();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -43,10 +56,8 @@ export default function RootLayout() {
       }
     };
 
-    // Run immediately on login
     syncSteps();
 
-    // Re-run whenever app comes to foreground
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
         syncSteps();
@@ -108,7 +119,6 @@ export default function RootLayout() {
         if (url) router.push(url as any);
       });
 
-      // Handle tap when app was killed
       Notifications.getLastNotificationResponseAsync().then((response) => {
         if (!response) return;
         const url = response.notification.request.content.data?.url as string | undefined;
@@ -135,21 +145,26 @@ export default function RootLayout() {
     fonts: { regular: { fontFamily: 'System', fontWeight: '400' as const }, medium: { fontFamily: 'System', fontWeight: '500' as const }, bold: { fontFamily: 'System', fontWeight: '700' as const }, heavy: { fontFamily: 'System', fontWeight: '900' as const } },
   };
 
+  const showBanner = updateAvailable && !dismissed;
+
   return (
     <ThemeProvider value={navTheme}>
       <View style={{ flex: 1, backgroundColor: c.bg }}>
-        {updateAvailable && (
-          <TouchableOpacity
-            onPress={startUpdate}
-            disabled={downloading}
-            style={[styles.updateBanner, { backgroundColor: c.accent }]}
-          >
-            <Text style={styles.updateText}>
-              {downloading
-                ? `Downloading… ${Math.round(progress * 100)}%`
-                : 'Update available — tap to download & install'}
-            </Text>
-          </TouchableOpacity>
+        {showBanner && (
+          <View style={[styles.updateBanner, { backgroundColor: c.accent, paddingTop: insets.top + 8 }]}>
+            <TouchableOpacity style={styles.bannerContent} onPress={startUpdate} disabled={downloading}>
+              <Text style={styles.updateText}>
+                {downloading
+                  ? `Downloading… ${Math.round(progress * 100)}%`
+                  : 'Update available — tap to install'}
+              </Text>
+            </TouchableOpacity>
+            {!downloading && (
+              <TouchableOpacity onPress={dismiss} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.dismissText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
           <Stack.Screen name="index" options={{ animation: 'none' }} />
@@ -161,13 +176,26 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   updateBanner: {
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  bannerContent: {
+    flex: 1,
     alignItems: 'center',
   },
   updateText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 13,
+  },
+  dismissBtn: {
+    paddingLeft: 12,
+  },
+  dismissText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
