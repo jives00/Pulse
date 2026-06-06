@@ -106,7 +106,17 @@ function CopyFromDayModal({ fromDate, toDate, onClose }: { fromDate: string; toD
         {/* Header */}
         <div className="px-5 py-4 border-b border-dram-border flex items-center justify-between flex-shrink-0">
           <h2 className="text-base font-semibold text-slate-200">Copy from {fmtShort(fromDate)}</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+          <div className="flex items-center gap-3">
+            {!loading && items.length > 0 && (
+              <button
+                onClick={() => setSelected(selected.size === items.length ? new Set() : new Set(items.map((i) => i.entry.id)))}
+                className="text-xs text-dram-muted hover:text-slate-200 transition-colors"
+              >
+                {selected.size === items.length ? 'Deselect all' : 'Select all'}
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+          </div>
         </div>
 
         {/* Body */}

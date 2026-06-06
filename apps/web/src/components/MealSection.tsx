@@ -45,7 +45,7 @@ interface MovePickerProps {
 function MoveCopyPicker({ entry, mode, currentMeal, currentDate, onClose }: MovePickerProps) {
   const { moveEntry, copyEntry } = useLogStore();
   const [targetMeal, setTargetMeal] = useState<MealSlot>(currentMeal);
-  const [targetDate, setTargetDate] = useState(currentDate);
+  const [targetDate, setTargetDate] = useState(mode === 'copy' ? todayStr() : currentDate);
   const [saving, setSaving] = useState(false);
 
   const dateOptions = [-1, 0, 1, 2].map((d) => offsetDate(todayStr(), d));
