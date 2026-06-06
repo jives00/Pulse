@@ -15,12 +15,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Fix app-version GitHub repo name** — Route had `jives00/pulse-health` hardcoded; repo was renamed to `jives00/Pulse`, causing GitHub API 404s and silently breaking the update check `83c8c72`
 
 ### Frontend – Web
+- **Dashboard Trends/Sessions loading indicators** — CalVsBurned, VolumeByWeek, and Recent Sessions panels now show "Loading…" instead of alarming empty states while phase-2 data is in flight; NutritionGoalCard and StepsGoalCard also get `isLoading` guards `34aa41d`
 - **Dashboard phase-2 loading indicators** — Weight, waist, and bicep goal cards now show "Loading…" instead of a misleading "No entries yet" empty state while background data is in flight; Exercise Today panel also shows a loading placeholder until workout history arrives `9ec6fd7`
 - **Dashboard loads immediately** — Split monolithic `Promise.all(13)` into a fast phase (summary, TDEE, water, steps, goals → unblocks render) and a background phase (workout history, measurements, food/step history → fills in after page is visible) `64a8020`
 - **Copy-from-yesterday: global select/deselect all** — Added "Select all / Deselect all" toggle to the modal header; per-meal toggles remain unchanged `ed02e7e`
 - **Copy food defaults to today** — The copy-to picker now initialises the date to today instead of the viewed date, matching mobile behaviour; move-to is unchanged `ed02e7e`
 
 ### Frontend – Mobile
+- **Fix Goals tab 6-second freeze** — Replaced unmount-on-tab-switch pattern with keep-alive (`mountedTabs` Set + `display: 'none'`); Goals tab now stays mounted after first visit so its 3 heavy goal charts (360 timezone conversions + SVG renders) never recompute on return `34aa41d`
 - **Dashboard phase-2 loading indicators** — Weight goal card in Goals tab shows an ActivityIndicator instead of the "no data" chip while measurements load; Exercise Today shows a spinner instead of "No workouts yet" during load; `phase2Ready` resets on every focus so indicators reappear correctly on re-entry `9ec6fd7`
 - **Dashboard loads immediately** — Same two-phase loading as web: essential data (nutrition, TDEE, water, steps, goals) unblocks render first; workout charts and trends fill in after `64a8020`
 - **WeightGurus sync visible for all body goals** — Broadened the "Sync from Scale" menu item in the Goals `···` sheet to appear on any body-category goal, not just `body_weight`; previously the option was invisible if no weight goal existed `12b77f5`

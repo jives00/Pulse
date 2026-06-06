@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, RefreshControl, useWindowDimensions,
@@ -359,6 +359,19 @@ export default function DashboardV4Screen() {
   const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
   const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]); // derived from activeGoals
   const [phase2Ready, setPhase2Ready] = useState(false);
+  const [mountedTabs, setMountedTabs] = useState(new Set<Tab>(['today']));
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Lazily mount each tab on first visit, then keep alive (avoids expensive chart remounts)
+  useEffect(() => {
+    setMountedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [activeTab]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setPhase2Ready(false); }
@@ -523,13 +536,14 @@ export default function DashboardV4Screen() {
       </ScrollView>
 
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: c.bg }}
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}
       >
 
         {/* ══ TODAY tab ══ */}
-        {activeTab === 'today' && (<>
+        {mountedTabs.has('today') && (<View style={activeTab !== 'today' ? { display: 'none' } : undefined}>
 
           {/* Fuel Today */}
           <View style={s.card}>
@@ -688,10 +702,10 @@ export default function DashboardV4Screen() {
             steps={liveSteps != null ? { ...(todaySteps ?? {}), steps: liveSteps } as any : todaySteps}
           />
 
-        </>)}
+        </View>)}
 
         {/* ══ GOALS tab ══ */}
-        {activeTab === 'goals' && (<>
+        {mountedTabs.has('goals') && (<View style={activeTab !== 'goals' ? { display: 'none' } : undefined}>
 
           {/* ── Weight ── */}
           {(() => {
@@ -1214,11 +1228,11 @@ export default function DashboardV4Screen() {
             });
           })()}
 
-        </>)}
+        </View>)}
 
         {/* ══ HISTORY tab ══ */}
         {/* ══ TRENDS tab ══ */}
-        {activeTab === 'trends' && (<>
+        {mountedTabs.has('trends') && (<View style={activeTab !== 'trends' ? { display: 'none' } : undefined}>
 
           {/* ── Calories consumed vs burned ── */}
           {(() => {
@@ -1439,16 +1453,18 @@ export default function DashboardV4Screen() {
             </View>
           )}
 
-        </>)}
+        </View>)}
 
         {/* ══ SESSIONS tab ══ */}
         {/* ══ SESSIONS tab ══ */}
-        {activeTab === 'sessions' && (() => {
+        {mountedTabs.has('sessions') && (
+          <View style={activeTab !== 'sessions' ? { display: 'none' } : undefined}>
+          {(() => {
           const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
           const rows = completed.slice(0, 10);
           if (!rows.length) return (
             <View style={s.card}>
-              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No sessions yet.</Text>
+              <Text style={{ fontSize: fontSize.sm, color: c.muted }}>{!phase2Ready ? 'Loading…' : 'No sessions yet.'}</Text>
             </View>
           );
           const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
@@ -1530,6 +1546,8 @@ export default function DashboardV4Screen() {
             </View>
           );
         })()}
+          </View>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>

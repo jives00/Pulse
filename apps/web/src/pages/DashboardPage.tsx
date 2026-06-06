@@ -1684,7 +1684,7 @@ const NUTRIENT_FIELD: Record<string, (day: FoodLogHistoryDay) => number> = {
   nutrition_fat_daily_avg:      d => (d.entries as FoodLogHistoryEntry[]).reduce((s, e) => s + (e.fatG ?? 0), 0),
 };
 
-function NutritionGoalCard({ goal, foodLogHistory }: { goal: Goal; foodLogHistory: FoodLogHistoryDay[] }) {
+function NutritionGoalCard({ goal, foodLogHistory, isLoading }: { goal: Goal; foodLogHistory: FoodLogHistoryDay[]; isLoading: boolean }) {
   const getVal = NUTRIENT_FIELD[goal.catalogKey];
   if (!getVal) return null;
 
@@ -1692,7 +1692,7 @@ function NutritionGoalCard({ goal, foodLogHistory }: { goal: Goal; foodLogHistor
   const last30 = sorted.slice(-30).filter(d => d.calories > 0);
   if (!last30.length) return (
     <Panel title={goal.name} meta={`target ${goal.targetValue} ${goal.unit}/day`}>
-      <div style={{ fontSize: 13, color: MUTED2 }}>No food log data yet.</div>
+      <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No food log data yet.'}</div>
     </Panel>
   );
 
@@ -1746,12 +1746,12 @@ function NutritionGoalCard({ goal, foodLogHistory }: { goal: Goal; foodLogHistor
 
 // ─── Steps goal card ──────────────────────────────────────────────────────────
 
-function StepsGoalCard({ goal, stepsHistory }: { goal: Goal; stepsHistory: StepsDay[] }) {
+function StepsGoalCard({ goal, stepsHistory, isLoading }: { goal: Goal; stepsHistory: StepsDay[]; isLoading: boolean }) {
   const sorted = [...stepsHistory].sort((a, b) => a.date.localeCompare(b.date));
   const last30 = sorted.slice(-30).filter(d => (d.steps ?? 0) > 0);
   if (!last30.length) return (
     <Panel title={goal.name} meta={`target ${goal.targetValue.toLocaleString()} steps/day`}>
-      <div style={{ fontSize: 13, color: MUTED2 }}>No steps data yet.</div>
+      <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No steps data yet.'}</div>
     </Panel>
   );
 
@@ -1923,10 +1923,16 @@ export default function DashboardPage() {
       <Band kicker="Trends">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <Panel title="Calories · consumed vs burned">
-            <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} stepsHistory={stepsHistory} />
+            {!phase2Ready && foodLogHistory.length === 0
+              ? <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+              : <CalVsBurned foodLogHistory={foodLogHistory} workouts={workouts} todayTDEE={todayTDEE} stepsHistory={stepsHistory} />
+            }
           </Panel>
           <Panel title="Exercise volume · week over week">
-            <VolumeByWeek weeklyData={weeklyData} />
+            {!phase2Ready && workouts.length === 0
+              ? <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+              : <VolumeByWeek weeklyData={weeklyData} />
+            }
           </Panel>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, marginTop: 14 }}>
@@ -1965,10 +1971,10 @@ export default function DashboardPage() {
                 <WorkoutFreqCard routines={routines} routineGoals={newGoals.filter(g => g.catalogKey === 'exercise_routine_sessions').map(g => ({ id: g.id, routineId: g.sourceId!, targetPerWeek: g.targetValue }))} workouts={workouts} />
               )}
               {dashNutrition.map(g => (
-                <NutritionGoalCard key={g.id} goal={g} foodLogHistory={foodLogHistory} />
+                <NutritionGoalCard key={g.id} goal={g} foodLogHistory={foodLogHistory} isLoading={!phase2Ready} />
               ))}
               {dashActivity.map(g => (
-                <StepsGoalCard key={g.id} goal={g} stepsHistory={stepsHistory} />
+                <StepsGoalCard key={g.id} goal={g} stepsHistory={stepsHistory} isLoading={!phase2Ready} />
               ))}
               {dashExercise.map(g => (
                 <CustomGoalCard key={g.id} goal={g} />
@@ -1981,7 +1987,10 @@ export default function DashboardPage() {
       {/* ── SESSIONS ──────────────────────────────────────────────────────────── */}
       <Band kicker="Sessions">
         <Panel>
-          <RecentSessions workouts={workouts} navigate={navigate} />
+          {!phase2Ready && workouts.length === 0
+            ? <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+            : <RecentSessions workouts={workouts} navigate={navigate} />
+          }
         </Panel>
       </Band>
 
