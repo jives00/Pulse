@@ -231,12 +231,11 @@ function LogProgressSheet({ goal, onClose, onLogged, c }: {
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
         <TouchableWithoutFeedback onPress={onClose}>
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
         </TouchableWithoutFeedback>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={s.sheetHeader}>
               <View>
                 <Text style={[s.sheetTitle, { color: c.text }]}>Log Progress</Text>
@@ -296,9 +295,8 @@ function LogProgressSheet({ goal, onClose, onLogged, c }: {
                 <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Log'}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -338,12 +336,11 @@ function CloseGoalSheet({ goal, onClose, onClosed, c }: {
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
         <TouchableWithoutFeedback onPress={onClose}>
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
         </TouchableWithoutFeedback>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[s.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={s.sheetHeader}>
               <View>
                 <Text style={[s.sheetTitle, { color: c.text }]}>Close Goal</Text>
@@ -402,9 +399,8 @@ function CloseGoalSheet({ goal, onClose, onClosed, c }: {
                 <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Close Goal'}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
