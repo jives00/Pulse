@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AppState, type AppStateStatus, DeviceEventEmitter, View } from 'react-native';
+import { AppState, type AppStateStatus, DeviceEventEmitter, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '@react-navigation/native';
 import { configureClient } from '../../../packages/api-client/src/client';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
 import { useHealthSteps } from '../src/hooks/useHealthSteps';
+import { useUpdateCheck } from '../src/hooks/useUpdateCheck';
 import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
 import { useStepsStore } from '../src/store/steps';
 import { useColors } from '../src/hooks/useColors';
@@ -16,6 +17,7 @@ export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
   const token = useAuthStore((s) => s.token);
   const c = useColors();
+  const { updateAvailable, downloading, progress, startUpdate } = useUpdateCheck();
   const { readTodaySteps } = useHealthSteps();
   const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
   const appState = useRef(AppState.currentState);
@@ -136,6 +138,19 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navTheme}>
       <View style={{ flex: 1, backgroundColor: c.bg }}>
+        {updateAvailable && (
+          <TouchableOpacity
+            onPress={startUpdate}
+            disabled={downloading}
+            style={[styles.updateBanner, { backgroundColor: c.accent }]}
+          >
+            <Text style={styles.updateText}>
+              {downloading
+                ? `Downloading… ${Math.round(progress * 100)}%`
+                : 'Update available — tap to download & install'}
+            </Text>
+          </TouchableOpacity>
+        )}
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
           <Stack.Screen name="index" options={{ animation: 'none' }} />
         </Stack>
@@ -143,3 +158,16 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  updateBanner: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  updateText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+});

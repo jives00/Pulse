@@ -6,6 +6,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 6, 2026
 
+### Frontend – Mobile
+- **In-app update check and self-install** — App checks `/api/app/version` on startup and shows a banner when a newer release exists; tapping downloads the APK with progress tracking and hands it to Android's system installer. APK builds now publish as GitHub Releases instead of artifacts for direct download `ae7738e`
+
+### Backend
+- **`GET /api/app/version` endpoint** — Returns latest GitHub Release tag and APK download URL; used by the mobile update banner `ae7738e`
+
 ### Frontend – Web
 - **Copy-from-yesterday: global select/deselect all** — Added "Select all / Deselect all" toggle to the modal header; per-meal toggles remain unchanged `ed02e7e`
 - **Copy food defaults to today** — The copy-to picker now initialises the date to today instead of the viewed date, matching mobile behaviour; move-to is unchanged `ed02e7e`

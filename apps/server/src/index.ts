@@ -8,6 +8,7 @@ import { syncWeightGurus } from './services/weightGurusSync';
 import { requireAuth } from './middleware/auth';
 
 import authRoutes      from './routes/auth';
+import appVersionRoutes from './routes/app-version';
 import recipesRoutes   from './routes/recipes';
 import tagsRoutes      from './routes/tags';
 import scrapeRoutes    from './routes/scrape';
@@ -52,6 +53,7 @@ app.disable('etag'); // Prevent 304 responses — mobile HTTP clients send If-No
 
 // Public
 app.use('/api/auth', authRoutes);
+app.use('/api/app', appVersionRoutes);
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');

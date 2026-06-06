@@ -60,6 +60,8 @@ jobs:
     name: Build Android APK (Gradle)
     if: startsWith(github.ref, 'refs/tags/apk-')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -74,7 +76,9 @@ jobs:
         uses: android-actions/setup-android@v3
       - run: pnpm install --frozen-lockfile
       - name: Write mobile .env
-        run: echo "EXPO_PUBLIC_API_BASE=${{ secrets.EXPO_PUBLIC_API_BASE }}" > apps/mobile/.env
+        run: |
+          echo "EXPO_PUBLIC_API_BASE=${{ secrets.EXPO_PUBLIC_API_BASE }}" > apps/mobile/.env
+          echo "EXPO_PUBLIC_BUILD_TAG=${{ github.ref_name }}" >> apps/mobile/.env
       - name: Prebuild Android
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean
@@ -88,11 +92,13 @@ jobs:
           APK_NAME="pulse-${TIMESTAMP}.apk"
           cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "${APK_NAME}"
           echo "name=${APK_NAME}" >> "$GITHUB_OUTPUT"
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.name }}
+          files: ${{ steps.apk.outputs.name }}
+          fail_on_unmatched_files: true
       - name: Send email notification
         uses: dawidd6/action-send-mail@v3
         with:
@@ -106,7 +112,5 @@ jobs:
           body: |
             Build succeeded for ${{ steps.apk.outputs.name }}.
 
-            Download (requires GitHub login):
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            The APK is inside a .zip artifact named ${{ steps.apk.outputs.name }}.
+            Direct download:
+            ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ steps.apk.outputs.name }}
