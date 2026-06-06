@@ -4,6 +4,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 6, 2026
+
+### Frontend – Mobile
+- **WeightGurus sync visible for all body goals** — Broadened the "Sync from Scale" menu item in the Goals `···` sheet to appear on any body-category goal, not just `body_weight`; previously the option was invisible if no weight goal existed `12b77f5`
+
+### Backend
+- **Fix scheduled WeightGurus sync in Docker** — Added `tzdata` to the Alpine server image so `node-cron`'s `America/Chicago` timezone resolves correctly; without it the hourly cron was silently skipped entirely `12b77f5`
+
+---
+
 ## June 4, 2026
 
 ### Frontend – Web

@@ -17,6 +17,7 @@ RUN pnpm --filter @pulse/server build
 RUN pnpm deploy --filter @pulse/server --prod /deploy
 
 FROM node:20-alpine
+RUN apk add --no-cache tzdata
 WORKDIR /app
 COPY --from=builder /deploy/node_modules ./node_modules
 COPY --from=builder /app/apps/server/dist ./dist

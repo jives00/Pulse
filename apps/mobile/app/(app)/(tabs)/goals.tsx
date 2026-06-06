@@ -930,7 +930,7 @@ export default function GoalsScreen() {
                       onClose={setCloseTarget}
                       onDelete={handleDelete}
                       onToggleDashboard={handleToggleDashboard}
-                      onSyncScale={goal.catalogKey === 'body_weight' ? handleSyncScale : undefined}
+                      onSyncScale={goal.category === 'body' ? handleSyncScale : undefined}
                       c={c}
                     />
                   </View>
