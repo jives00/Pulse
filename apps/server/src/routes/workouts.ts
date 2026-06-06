@@ -239,8 +239,23 @@ router.get('/', async (req, res) => {
   const end = typeof req.query.end === 'string' ? req.query.end : null;
 
   try {
+    // Pre-fetch body weight once to avoid correlated subqueries executing per set row
+    const [bwRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COALESCE(
+         (SELECT value / 2.20462 FROM body_measurements
+          WHERE user_id = ? AND metric = 'weight' AND unit IN ('lbs','lb')
+          ORDER BY measured_at DESC, id DESC LIMIT 1),
+         (SELECT value FROM body_measurements
+          WHERE user_id = ? AND metric = 'weight' AND unit NOT IN ('lbs','lb')
+          ORDER BY measured_at DESC, id DESC LIMIT 1),
+         0
+       ) AS body_weight_kg`,
+      [req.userId, req.userId],
+    );
+    const bodyWeightKg = Number((bwRows[0] as RowDataPacket)?.body_weight_kg ?? 0);
+
     const whereParts = ['wl.user_id = ?', 'wl.completed = 1'];
-    const queryParams: unknown[] = [req.userId];
+    const queryParams: unknown[] = [bodyWeightKg, req.userId];
     if (routineId) { whereParts.push('wl.routine_id = ?'); queryParams.push(routineId); }
     if (start && end) { whereParts.push('wl.workout_date BETWEEN ? AND ?'); queryParams.push(start, end); }
     else if (start) { whereParts.push('wl.workout_date >= ?'); queryParams.push(start); }
@@ -255,20 +270,7 @@ router.get('/', async (req, res) => {
               COALESCE(SUM(CASE
                 WHEN es.reps IS NOT NULL AND es.weight_kg IS NOT NULL THEN es.reps * es.weight_kg
                 WHEN es.reps IS NOT NULL AND (wr.routine_type = 'bodyweight' OR e.exercise_type = 'bodyweight')
-                  THEN es.reps * (
-                    COALESCE(es.additional_weight_kg, 0) +
-                    COALESCE(
-                      (SELECT bm.value / 2.20462
-                       FROM body_measurements bm
-                       WHERE bm.user_id = wl.user_id AND bm.metric = 'weight' AND bm.unit IN ('lbs','lb')
-                       ORDER BY bm.measured_at DESC, bm.id DESC LIMIT 1),
-                      (SELECT bm2.value
-                       FROM body_measurements bm2
-                       WHERE bm2.user_id = wl.user_id AND bm2.metric = 'weight' AND bm2.unit NOT IN ('lbs','lb')
-                       ORDER BY bm2.measured_at DESC, bm2.id DESC LIMIT 1),
-                      0
-                    )
-                  )
+                  THEN es.reps * (COALESCE(es.additional_weight_kg, 0) + ?)
                 ELSE 0
               END), 0) AS total_volume_kg,
               COALESCE(SUM(COALESCE(es.steps, 0)), 0) AS total_steps,

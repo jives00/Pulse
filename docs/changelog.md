@@ -16,6 +16,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Backend
 - **Fix scheduled WeightGurus sync in Docker** — Added `tzdata` to the Alpine server image so `node-cron`'s `America/Chicago` timezone resolves correctly; without it the hourly cron was silently skipped entirely `12b77f5`
+- **Fix dashboard slowness** — `GET /api/workouts` was running two correlated subqueries per exercise set row to look up body weight for bodyweight volume; pre-fetch once and pass as a bound parameter, eliminating O(rows) redundant queries `64580c0`
 
 ---
 
