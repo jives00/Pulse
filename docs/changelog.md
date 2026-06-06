@@ -13,10 +13,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **`GET /api/app/version` endpoint** — Returns latest GitHub Release tag and APK download URL; used by the mobile update banner `ae7738e`
 
 ### Frontend – Web
+- **Dashboard loads immediately** — Split monolithic `Promise.all(13)` into a fast phase (summary, TDEE, water, steps, goals → unblocks render) and a background phase (workout history, measurements, food/step history → fills in after page is visible) `64a8020`
 - **Copy-from-yesterday: global select/deselect all** — Added "Select all / Deselect all" toggle to the modal header; per-meal toggles remain unchanged `ed02e7e`
 - **Copy food defaults to today** — The copy-to picker now initialises the date to today instead of the viewed date, matching mobile behaviour; move-to is unchanged `ed02e7e`
 
 ### Frontend – Mobile
+- **Dashboard loads immediately** — Same two-phase loading as web: essential data (nutrition, TDEE, water, steps, goals) unblocks render first; workout charts and trends fill in after `64a8020`
 - **WeightGurus sync visible for all body goals** — Broadened the "Sync from Scale" menu item in the Goals `···` sheet to appear on any body-category goal, not just `body_weight`; previously the option was invisible if no weight goal existed `12b77f5`
 - **Fix keyboard covering goal log modal** — Restructured `LogProgressSheet` and `CloseGoalSheet` so `KeyboardAvoidingView` wraps the full modal content; keyboard now pushes the sheet up correctly on Android instead of covering it `da5d1ec`
 

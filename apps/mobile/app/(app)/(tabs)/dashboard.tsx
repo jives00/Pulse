@@ -361,33 +361,29 @@ export default function DashboardV4Screen() {
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    const end = localDateStr();
+    const startD = new Date(); startD.setDate(startD.getDate() - 89);
+    const start = localDateStr(startD);
+
+    // Fire all requests simultaneously
+    const workoutsP     = getWorkouts(token, { limit: 200 }).catch(() => [] as WorkoutSummary[]);
+    const measurementsP = getMeasurements(token).catch(() => []);
+    const summaryP      = getNutritionSummary(token).catch(() => null);
+    const foodHistP     = getFoodLogHistory(token, { limit: 90 }).catch(() => []);
+    const dailyHistP    = getDailyHistory(token, start, end).catch(() => []);
+    const routinesP     = getRoutines(token).catch(() => []);
+    const tdeeP         = getNutritionTDEE(token).catch(() => null);
+    const recoveryP     = getRecovery(token).catch(() => null);
+    const upcomingP     = getUpcomingSchedule(token, 7).catch(() => []);
+    const waterP        = getWaterDay(token, localDateStr()).catch(() => null);
+    const stepsP        = getSteps(token).catch(() => null);
+    const goalsP        = goalsV2Api.getAll('active').catch(() => []);
+
+    // Unblock the page as soon as essential above-the-fold data arrives
     try {
-      const end = localDateStr();
-      const startD = new Date(); startD.setDate(startD.getDate() - 89);
-      const start = localDateStr(startD);
-      const [ws, ms, ns, fl, dh, rl, tdee, rec, upc, wd, sd, ag] = await Promise.all([
-        getWorkouts(token, { limit: 200 }).catch(() => [] as WorkoutSummary[]),
-        getMeasurements(token).catch(() => []),
-        getNutritionSummary(token).catch(() => null),
-        getFoodLogHistory(token, { limit: 90 }).catch(() => []),
-        getDailyHistory(token, start, end).catch(() => []),
-        getRoutines(token).catch(() => []),
-        getNutritionTDEE(token).catch(() => null),
-        getRecovery(token).catch(() => null),
-        getUpcomingSchedule(token, 7).catch(() => []),
-        getWaterDay(token, localDateStr()).catch(() => null),
-        getSteps(token).catch(() => null),
-        goalsV2Api.getAll('active').catch(() => []),
-      ]);
-      setWorkouts(ws);
-      setMeasurements(ms as BodyMeasurement[]);
+      const [ns, tdee, wd, sd, ag] = await Promise.all([summaryP, tdeeP, waterP, stepsP, goalsP]);
       setNutritionSummary(ns as NutritionSummary | null);
-      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
-      setDailyHistory(dh as DailyHistoryEntry[]);
-      setRoutinesList(rl as RoutineSummary[]);
       setTodayTDEE(tdee && (tdee as any).available ? (tdee as TDEEBreakdown) : null);
-      setRecovery(rec);
-      setUpcoming(upc as UpcomingSession[]);
       setTodayWater(wd as WaterDay | null);
       setTodaySteps(sd as StepsEntry | null);
       const goals = ag as Goal[];
@@ -395,6 +391,20 @@ export default function DashboardV4Screen() {
       setPinnedGoals(goals.filter(g => g.showOnDashboard));
     } catch { /* ignore */ }
     finally { if (!silent) setLoading(false); }
+
+    // Background — fill in charts and history as they arrive
+    try {
+      const [ws, ms, fl, dh, rl, rec, upc] = await Promise.all([
+        workoutsP, measurementsP, foodHistP, dailyHistP, routinesP, recoveryP, upcomingP,
+      ]);
+      setWorkouts(ws);
+      setMeasurements(ms as BodyMeasurement[]);
+      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
+      setDailyHistory(dh as DailyHistoryEntry[]);
+      setRoutinesList(rl as RoutineSummary[]);
+      setRecovery(rec);
+      setUpcoming(upc as UpcomingSession[]);
+    } catch { /* ignore */ }
   }, [token]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));

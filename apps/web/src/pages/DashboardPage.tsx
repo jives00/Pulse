@@ -1823,36 +1823,43 @@ export default function DashboardPage() {
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      workoutsApi.getAll({ limit: 200 }),
-      nutritionTargetsApi.getSummary().catch(() => null),
-      measurementsApi.getAll().catch(() => []),
-      workoutsApi.getPersonalBests().catch(() => null),
-      logApi.getHistory({ limit: 60 }).catch(() => []),
-      routinesApi.getAll().catch(() => []),
-      nutritionTargetsApi.getTDEE().catch(() => null),
-      schedulesApi.getUpcoming(7).catch(() => []),
-      recoveryApi.get().catch(() => null),
-      waterApi.getDay(today).catch(() => null),
-      stepsApi.getDay(today).catch(() => null),
-      stepsApi.getHistory(60).catch(() => []),
-      goalsV2Api.getAll('active').catch(() => []),
-    ]).then(([ws, s, ms, pb, fl, rl, tdee, upc, rec, wd, sd, sh, ug]) => {
-      setWorkouts(ws);
-      setSummary(s as NutritionSummary | null);
-      setMeasurements(ms as BodyMeasurement[]);
-      setPersonalBests(pb);
-      setFoodLogHistory((fl as FoodLogHistoryDay[]).sort((a, b) => a.date.localeCompare(b.date)));
-      setRoutines(rl as RoutineSummary[]);
-      const t = tdee as import('@pulse/api-client').TDEEResult | null;
-      if (t?.available) setTodayTDEE(t as TDEEBreakdown);
-      setUpcoming(upc as UpcomingSession[]);
-      if (rec) setRecovery(rec as RecoveryData);
-      if (wd) setTodayWater(wd as WaterDay);
-      if (sd) setTodaySteps(sd as StepsDay);
-      setStepsHistory(sh as StepsDay[]);
-      setNewGoals(ug as Goal[]);
-    }).catch(() => {}).finally(() => setLoading(false));
+    // Fire all requests simultaneously
+    const workoutsP     = workoutsApi.getAll({ limit: 200 }).catch(() => [] as WorkoutSummary[]);
+    const summaryP      = nutritionTargetsApi.getSummary().catch(() => null);
+    const measurementsP = measurementsApi.getAll().catch(() => [] as BodyMeasurement[]);
+    const pbP           = workoutsApi.getPersonalBests().catch(() => null);
+    const foodHistP     = logApi.getHistory({ limit: 60 }).catch(() => [] as FoodLogHistoryDay[]);
+    const routinesP     = routinesApi.getAll().catch(() => [] as RoutineSummary[]);
+    const tdeeP         = nutritionTargetsApi.getTDEE().catch(() => null);
+    const upcomingP     = schedulesApi.getUpcoming(7).catch(() => [] as UpcomingSession[]);
+    const recoveryP     = recoveryApi.get().catch(() => null);
+    const waterP        = waterApi.getDay(today).catch(() => null);
+    const stepsTodayP   = stepsApi.getDay(today).catch(() => null);
+    const stepsHistP    = stepsApi.getHistory(60).catch(() => [] as StepsDay[]);
+    const goalsP        = goalsV2Api.getAll('active').catch(() => [] as Goal[]);
+
+    // Unblock the page as soon as essential above-the-fold data arrives
+    Promise.all([summaryP, tdeeP, waterP, stepsTodayP, goalsP])
+      .then(([s, tdee, wd, sd, ug]) => {
+        setSummary(s as NutritionSummary | null);
+        const t = tdee as import('@pulse/api-client').TDEEResult | null;
+        if (t?.available) setTodayTDEE(t as TDEEBreakdown);
+        if (wd) setTodayWater(wd as WaterDay);
+        if (sd) setTodaySteps(sd as StepsDay);
+        setNewGoals(ug as Goal[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+
+    // Background — fill in charts and history as they arrive
+    workoutsP.then(ws => setWorkouts(ws));
+    measurementsP.then(ms => setMeasurements(ms));
+    pbP.then(pb => setPersonalBests(pb));
+    foodHistP.then(fl => setFoodLogHistory(fl.sort((a, b) => a.date.localeCompare(b.date))));
+    routinesP.then(rl => setRoutines(rl));
+    upcomingP.then(upc => setUpcoming(upc));
+    recoveryP.then(rec => { if (rec) setRecovery(rec as RecoveryData); });
+    stepsHistP.then(sh => setStepsHistory(sh));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
