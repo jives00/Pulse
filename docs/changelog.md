@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 7, 2026
+
+### Backend
+- **Fix `express-rate-limit` trust proxy error** — Added `app.set('trust proxy', 1)` so rate limiting correctly identifies clients behind Docker/reverse-proxy via `X-Forwarded-For` `8244c66`
+
 ## June 6, 2026
 
 ### Frontend – Mobile

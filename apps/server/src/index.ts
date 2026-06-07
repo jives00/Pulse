@@ -38,6 +38,7 @@ import goalsV2Routes               from './routes/goals-v2';
 import nutritionTargetsRoutes      from './routes/nutrition-targets';
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(cors({
   origin: (origin, cb) => {
