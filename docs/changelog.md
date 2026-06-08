@@ -12,6 +12,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 - **Set renumbering after delete** — Deleting a set now renumbers remaining sets sequentially in local state so gaps like 1,3 no longer appear `d279304`
 
 ### Frontend – Mobile
+- **Fix HelloFresh QR scan** — Scanned URLs are now scraped and queued as inline log entries (per-serving macros, no saved recipe); scanner hint updated to mention QR codes `b32ec32`
 - **Fix rest timer +30s reverts** — Same stale-capture fix applied to mobile timer `useEffect` `d279304`
 - **Add set starts rest timer** — Adding a set on mobile now starts the rest timer `d279304`
 - **Set renumbering after delete** — Remaining sets renumbered in local state after deletion `d279304`

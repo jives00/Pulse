@@ -10,6 +10,7 @@ import {
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
   aiModifyRecipe, logModifiedRecipe, logInline, estimateMacros, getFrequentFoods,
+  scrapeRecipe,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult, type FrequentFood,
 } from '../../../src/api/client';
@@ -52,7 +53,7 @@ type ModalView = 'search' | 'food-pick' | 'recipe-pick' | 'barcode-queue' | 'bar
 
 type BarcodeQueueItem = {
   key: string;
-  type: 'recipe' | 'food';
+  type: 'recipe' | 'food' | 'inline';
   recipe?: RecipeSearchResult;
   food?: Food;
   serving?: ServingSize;
@@ -279,6 +280,26 @@ export default function NutritionScreen() {
     setBarcodeScanning(true);
 
     try {
+      // QR codes from recipe sites (e.g. HelloFresh) resolve to URLs — scrape and log inline
+      if (barcode.startsWith('http://') || barcode.startsWith('https://')) {
+        const scraped = await scrapeRecipe(token, barcode);
+        const servings = scraped.servings ?? 1;
+        const item: BarcodeQueueItem = {
+          key: `${Date.now()}-${Math.random()}`,
+          type: 'inline',
+          quantity: '1',
+          editName: scraped.name,
+          editCalories: scraped.calories != null ? String(Math.round(scraped.calories / servings)) : '',
+          editProtein: scraped.protein_g != null ? String(Math.round(scraped.protein_g / servings)) : '',
+          editCarbs: scraped.carbs_g != null ? String(Math.round(scraped.carbs_g / servings)) : '',
+          editFat: scraped.fat_g != null ? String(Math.round(scraped.fat_g / servings)) : '',
+        };
+        setBarcodeQueue((q) => [...q, item]);
+        scannedRef.current = false;
+        setScanningActive(true);
+        return;
+      }
+
       const [recipe, food] = await Promise.all([
         getRecipeByBarcode(token, barcode).catch(() => null),
         getFoodByBarcode(token, barcode).catch(() => null),
@@ -487,7 +508,17 @@ export default function NutritionScreen() {
     try {
       await Promise.all(validItems.map(async (item) => {
         const qty = parseFloat(item.quantity);
-        if (item.type === 'recipe' && item.recipe) {
+        if (item.type === 'inline') {
+          return logInline(token, {
+            name: item.editName,
+            meal: addMeal!,
+            logDate: date,
+            calories: parseFloat(item.editCalories) * qty || 0,
+            protein_g: parseFloat(item.editProtein) * qty || 0,
+            carbs_g: parseFloat(item.editCarbs) * qty || 0,
+            fat_g: parseFloat(item.editFat) * qty || 0,
+          });
+        } else if (item.type === 'recipe' && item.recipe) {
           return logRecipeToNutrition(token, {
             recipeId: item.recipe.id,
             meal: addMeal!,
@@ -1032,7 +1063,7 @@ export default function NutritionScreen() {
                 <View style={s.scannerOverlay}>
                   <View style={s.scannerFrame} />
                   <Text style={s.scannerHint}>
-                    {barcodeScanning ? 'Looking up barcode…' : 'Point at a barcode to scan'}
+                    {barcodeScanning ? 'Looking up…' : 'Scan a barcode or recipe QR code'}
                   </Text>
                 </View>
               </View>
