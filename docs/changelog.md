@@ -4,6 +4,21 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 8, 2026
+
+### Frontend – Web
+- **Fix rest timer +30s reverts** — Timer `useEffect` was capturing `restDurationRef.current` in a stale local variable at effect start; changed tick function to read the ref directly so +30s updates persist `d279304`
+- **Add set starts rest timer** — Clicking "+ Add set" during an active workout now triggers the rest timer (same as toggling a set complete) `d279304`
+- **Set renumbering after delete** — Deleting a set now renumbers remaining sets sequentially in local state so gaps like 1,3 no longer appear `d279304`
+
+### Frontend – Mobile
+- **Fix rest timer +30s reverts** — Same stale-capture fix applied to mobile timer `useEffect` `d279304`
+- **Add set starts rest timer** — Adding a set on mobile now starts the rest timer `d279304`
+- **Set renumbering after delete** — Remaining sets renumbered in local state after deletion `d279304`
+
+### Backend
+- **Renumber sets after delete** — `DELETE /workouts/:id/exercises/:weId/sets/:setId` now runs a follow-up `UPDATE` using `ROW_NUMBER()` to keep `set_number` sequential in the database `d279304`
+
 ## June 7, 2026
 
 ### Frontend – Web

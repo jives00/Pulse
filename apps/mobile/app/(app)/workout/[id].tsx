@@ -341,10 +341,9 @@ export default function WorkoutDetailScreen() {
 
   useEffect(() => {
     if (restStartedAt === null) return;
-    const duration = restDurationRef.current;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
-      const remaining = Math.max(0, duration - elapsed);
+      const remaining = Math.max(0, restDurationRef.current - elapsed);
       setRestSeconds(remaining);
       if (remaining === 0) {
         setRestStartedAt(null);
@@ -527,6 +526,10 @@ export default function WorkoutDetailScreen() {
         if (next) showWorkoutNotification(next, computeElapsed(), isPaused, bodyWeightKg ?? undefined).catch(() => {});
         return next;
       });
+      restDurationRef.current = REST_SECONDS;
+      setRestDuration(REST_SECONDS);
+      setRestSeconds(REST_SECONDS);
+      setRestStartedAt(Date.now());
     } catch { Alert.alert('Error', 'Could not add set.'); }
   }
 
@@ -536,7 +539,10 @@ export default function WorkoutDetailScreen() {
       setWorkout((prev) => prev ? {
         ...prev,
         exercises: prev.exercises.map((e) =>
-          e.id === we.id ? { ...e, sets: e.sets.filter((s) => s.id !== set.id) } : e
+          e.id === we.id ? {
+            ...e,
+            sets: e.sets.filter((s) => s.id !== set.id).map((s, i) => ({ ...s, setNumber: i + 1 })),
+          } : e
         ),
       } : prev);
     } catch { Alert.alert('Error', 'Could not delete set.'); }

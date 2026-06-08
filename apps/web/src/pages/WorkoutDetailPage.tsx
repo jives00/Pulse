@@ -327,6 +327,7 @@ function ExerciseBlock({
         steps: (last as any)?.steps ?? undefined,
       });
       updateSets([...sets, s]);
+      onSetCompleted?.();
     } catch {
       // ignore
     } finally {
@@ -339,7 +340,7 @@ function ExerciseBlock({
   }
 
   function handleDeleted(id: number) {
-    updateSets(sets.filter((s) => s.id !== id));
+    updateSets(sets.filter((s) => s.id !== id).map((s, i) => ({ ...s, setNumber: i + 1 })));
   }
 
   const tf = we.exercise.trackedFields ?? ['reps', 'weight'];
@@ -704,10 +705,9 @@ export default function WorkoutDetailPage() {
 
   useEffect(() => {
     if (restStartedAt === null) return;
-    const duration = restDurationRef.current;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
-      const remaining = Math.max(0, duration - elapsed);
+      const remaining = Math.max(0, restDurationRef.current - elapsed);
       setRestSeconds(remaining);
       if (remaining === 0) {
         setRestStartedAt(null);

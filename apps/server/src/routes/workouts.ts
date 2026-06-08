@@ -744,6 +744,16 @@ router.delete('/:id/exercises/:weId/sets/:setId', async (req, res) => {
     await pool.query(
       'DELETE FROM exercise_sets WHERE id = ? AND workout_exercise_id = ?', [setId, weId]
     );
+    await pool.query(`
+      UPDATE exercise_sets es
+      JOIN (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY set_number, id) AS new_num
+        FROM exercise_sets
+        WHERE workout_exercise_id = ?
+      ) ranked ON es.id = ranked.id
+      SET es.set_number = ranked.new_num
+      WHERE es.workout_exercise_id = ?
+    `, [weId, weId]);
     res.json({ success: true });
   } catch (err) {
     console.error('[workouts] error:', err);
