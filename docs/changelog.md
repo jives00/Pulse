@@ -6,6 +6,12 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 7, 2026
 
+### Frontend – Web
+- **Dashboard Weekly Blurb** — New section below Today's Blurb showing Mon–Sun summary: macro totals and daily averages (calories, protein, carbs, fat), each routine/exercise with its volume, total weekly volume, total water glasses, total steps, and latest body measurements (weight, chest, bicep, waist) with the prior-week value in parenthesis `aae83aa`
+
+### Frontend – Mobile
+- **Dashboard Weekly Blurb** — Same Weekly Blurb block added to the Today tab, with share button; fetches steps history (14 days) and water history for the current week in background alongside existing phase-2 data `aae83aa`
+
 ### Backend
 - **Fix `express-rate-limit` trust proxy error** — Added `app.set('trust proxy', 1)` so rate limiting correctly identifies clients behind Docker/reverse-proxy via `X-Forwarded-For` `8244c66`
 

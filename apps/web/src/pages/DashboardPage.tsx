@@ -7,7 +7,7 @@ import {
   type WorkoutSummary, type NutritionSummary,
   type BodyMeasurement, type PersonalBests,
   type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
-  type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay,
+  type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay, type WaterHistoryDay,
   goalsV2Api, type Goal, type FoodLogHistoryEntry,
 } from '@pulse/api-client';
 
@@ -98,6 +98,103 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
+  }
+
+  return (
+    <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
+      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
+      <button onClick={copy} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+        {copied ? 'copied' : 'copy'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Weekly Blurb ────────────────────────────────────────────────────────────
+
+function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory, waterWeekHistory, measurements }: {
+  weekStart: string;
+  today: string;
+  workouts: WorkoutSummary[];
+  foodLogHistory: FoodLogHistoryDay[];
+  stepsHistory: StepsDay[];
+  waterWeekHistory: WaterHistoryDay[];
+  measurements: BodyMeasurement[];
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const weekEndDate = new Date(weekStart + 'T12:00:00');
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEnd = weekEndDate.toISOString().slice(0, 10);
+  const fmtDay = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const header = `Weekly stats (${fmtDay(weekStart)} – ${fmtDay(weekEnd)}):`;
+
+  const weekWorkouts = workouts.filter(w => getWeekStart(w.workoutDate) === weekStart && w.exerciseCount > 0);
+  const grouped: Map<string, number> = new Map();
+  for (const w of weekWorkouts) {
+    const name = w.routineName ?? w.name ?? 'Free workout';
+    grouped.set(name, (grouped.get(name) ?? 0) + (w.totalVolumeKg ?? 0) * KG_TO_LBS);
+  }
+  const totalVolumeLbs = [...grouped.values()].reduce((s, v) => s + v, 0);
+
+  const weekFoodDays = foodLogHistory.filter(d => d.date >= weekStart && d.date <= today);
+  const totalCal     = weekFoodDays.reduce((s, d) => s + d.calories, 0);
+  const totalProtein = weekFoodDays.reduce((s, d) => s + d.protein, 0);
+  const totalCarbs   = weekFoodDays.reduce((s, d) => s + d.entries.reduce((e, en) => e + en.carbsG, 0), 0);
+  const totalFat     = weekFoodDays.reduce((s, d) => s + d.entries.reduce((e, en) => e + en.fatG, 0), 0);
+  const daysWithData = weekFoodDays.filter(d => d.calories > 0).length;
+
+  const totalOz      = waterWeekHistory.filter(d => d.date >= weekStart && d.date <= today).reduce((s, d) => s + d.totalOz, 0);
+  const totalGlasses = Math.round(totalOz / 8);
+
+  const weekSteps = stepsHistory.filter(s => s.date >= weekStart && s.date <= today).reduce((s, d) => s + (d.steps ?? 0), 0);
+
+  const priorWeekEndStr = (() => { const d = new Date(weekStart + 'T12:00:00'); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  function getLastStat(metric: string) {
+    const sorted = measurements.filter(m => m.metric === metric).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+    const current = sorted[0] ?? null;
+    const prior   = sorted.find(m => m.measuredAt <= priorWeekEndStr) ?? null;
+    return { current, prior };
+  }
+  function fmtM(m: BodyMeasurement) {
+    const val = m.metric === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
+    return `${val.toFixed(1)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
+  }
+
+  const lines: string[] = [header];
+
+  if (totalCal > 0) {
+    lines.push(`- Macros: ${fmt(totalCal)} cal | ${Math.round(totalProtein)}g protein | ${Math.round(totalCarbs)}g carbs | ${Math.round(totalFat)}g fat`);
+    if (daysWithData > 0) {
+      lines.push(`- Daily avg: ${fmt(Math.round(totalCal / daysWithData))} cal | ${Math.round(totalProtein / daysWithData)}g protein | ${Math.round(totalCarbs / daysWithData)}g carbs | ${Math.round(totalFat / daysWithData)}g fat`);
+    }
+  }
+  for (const [name, volLbs] of grouped) {
+    lines.push(volLbs > 0 ? `- ${name}: ${fmt(Math.round(volLbs))} lbs` : `- ${name}`);
+  }
+  if (weekWorkouts.length > 0 && totalVolumeLbs > 0) {
+    lines.push(`- Total volume: ${fmt(Math.round(totalVolumeLbs))} lbs`);
+  }
+  if (totalGlasses > 0) lines.push(`- Water: ${totalGlasses} glasses`);
+  if (weekSteps > 0) lines.push(`- Steps: ${weekSteps.toLocaleString()}`);
+
+  for (const { metric, label } of [
+    { metric: 'weight', label: 'Weight' },
+    { metric: 'chest',  label: 'Chest'  },
+    { metric: 'bicep',  label: 'Bicep'  },
+    { metric: 'waist',  label: 'Waist'  },
+  ]) {
+    const { current, prior } = getLastStat(metric);
+    if (current) {
+      const priorStr = prior && prior.id !== current.id ? ` (prior: ${fmtM(prior)})` : '';
+      lines.push(`- ${label}: ${fmtM(current)}${priorStr}`);
+    }
+  }
+
+  const text = lines.join('\n');
+
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); });
   }
 
   return (
@@ -1819,8 +1916,9 @@ export default function DashboardPage() {
   const [recovery,       setRecovery]       = useState<RecoveryData | null>(null);
   const [todayWater,     setTodayWater]     = useState<WaterDay | null>(null);
   const [todaySteps,     setTodaySteps]     = useState<StepsDay | null>(null);
-  const [stepsHistory,   setStepsHistory]   = useState<StepsDay[]>([]);
-  const [newGoals,       setNewGoals]       = useState<Goal[]>([]);
+  const [stepsHistory,      setStepsHistory]      = useState<StepsDay[]>([]);
+  const [waterWeekHistory,  setWaterWeekHistory]  = useState<WaterHistoryDay[]>([]);
+  const [newGoals,          setNewGoals]          = useState<Goal[]>([]);
   const [loading,            setLoading]            = useState(true);
   const [phase2Ready,        setPhase2Ready]        = useState(false);
   const [measurementsReady,  setMeasurementsReady]  = useState(false);
@@ -1839,7 +1937,9 @@ export default function DashboardPage() {
     const recoveryP     = recoveryApi.get().catch(() => null);
     const waterP        = waterApi.getDay(today).catch(() => null);
     const stepsTodayP   = stepsApi.getDay(today).catch(() => null);
-    const stepsHistP    = stepsApi.getHistory(60).catch(() => [] as StepsDay[]);
+    const stepsHistP       = stepsApi.getHistory(60).catch(() => [] as StepsDay[]);
+    const thisWeekStart    = getWeekStart(today);
+    const waterWeekHistP   = waterApi.getHistory(thisWeekStart, today).catch(() => ({ goalOz: 0, days: [] as WaterHistoryDay[] }));
     const goalsP        = goalsV2Api.getAll('active').catch(() => [] as Goal[]);
 
     // Unblock the page as soon as essential above-the-fold data arrives
@@ -1864,6 +1964,7 @@ export default function DashboardPage() {
     upcomingP.then(upc => setUpcoming(upc));
     recoveryP.then(rec => { if (rec) setRecovery(rec as RecoveryData); });
     stepsHistP.then(sh => setStepsHistory(sh));
+    waterWeekHistP.then(wh => setWaterWeekHistory(wh.days));
 
     // Signal when background data is ready so loading indicators can clear
     Promise.all([workoutsP, measurementsP, foodHistP, stepsHistP]).finally(() => setPhase2Ready(true));
@@ -2003,6 +2104,19 @@ export default function DashboardPage() {
           nutrition={summary?.nutrition.actual ?? null}
           water={todayWater}
           steps={todaySteps}
+        />
+      </Band>
+
+      {/* ── WEEKLY BLURB ──────────────────────────────────────────────────────── */}
+      <Band kicker="Weekly Blurb">
+        <WeeklyBlurb
+          weekStart={weekStart}
+          today={today}
+          workouts={workouts}
+          foodLogHistory={foodLogHistory}
+          stepsHistory={stepsHistory}
+          waterWeekHistory={waterWeekHistory}
+          measurements={measurements}
         />
       </Band>
 

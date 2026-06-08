@@ -551,6 +551,10 @@ export async function logSteps(_token: string, steps: number, date?: string, sou
   return stepsApi.log(date ?? localDateStr(), steps, source);
 }
 
+export async function getStepsHistory(_token: string, days = 14): Promise<StepsEntry[]> {
+  return stepsApi.getHistory(days);
+}
+
 // ─── Body Measurements ────────────────────────────────────────────────────────
 
 export async function getMeasurements(_token: string, params?: { start?: string; end?: string }): Promise<BodyMeasurement[]> {

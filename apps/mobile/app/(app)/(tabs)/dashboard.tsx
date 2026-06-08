@@ -10,9 +10,11 @@ import {
   getWorkouts, getNutritionSummary, getMeasurements,
   getFoodLogHistory, getDailyHistory, getRoutines, getNutritionTDEE,
   getRecovery, getUpcomingSchedule, getRoutine, getWaterDay, getSteps,
+  getWaterHistory, getStepsHistory,
   type WorkoutSummary, type BodyMeasurement,
   type FoodLogHistoryDay, type DailyHistoryEntry, type RoutineSummary,
   type TDEEBreakdown, type UpcomingSession, type RoutineDetail, type WaterDay, type StepsEntry,
+  type WaterHistoryDay,
 } from '../../../src/api/client';
 import { Share } from 'react-native';
 import {
@@ -323,6 +325,107 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
   );
 }
 
+// ── Weekly Snapshot ───────────────────────────────────────────────────────────
+function WeeklySnapshot({ weekStart, today, workouts, foodLogHistory, stepsWeekHistory, waterWeekHistory, measurements }: {
+  weekStart: string;
+  today: string;
+  workouts: WorkoutSummary[];
+  foodLogHistory: FoodLogHistoryDay[];
+  stepsWeekHistory: StepsEntry[];
+  waterWeekHistory: WaterHistoryDay[];
+  measurements: BodyMeasurement[];
+}) {
+  const [copied, setCopied] = useState(false);
+  const c = useColors();
+
+  const weekEndDate = new Date(weekStart + 'T12:00:00');
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEnd = weekEndDate.toISOString().slice(0, 10);
+  const fmtDay = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const header = `Weekly stats (${fmtDay(weekStart)} – ${fmtDay(weekEnd)}):`;
+
+  const weekWorkouts = workouts.filter(w => getWeekStart(w.workoutDate) === weekStart && w.exerciseCount > 0);
+  const grouped: Map<string, number> = new Map();
+  for (const w of weekWorkouts) {
+    const name = w.routineName ?? w.name ?? 'Free workout';
+    grouped.set(name, (grouped.get(name) ?? 0) + (w.totalVolumeKg ?? 0) * KG_TO_LBS);
+  }
+  const totalVolumeLbs = [...grouped.values()].reduce((s, v) => s + v, 0);
+
+  const weekFoodDays = foodLogHistory.filter(d => d.date >= weekStart && d.date <= today);
+  const totalCal     = weekFoodDays.reduce((s, d) => s + d.calories, 0);
+  const totalProtein = weekFoodDays.reduce((s, d) => s + d.protein, 0);
+  const totalCarbs   = weekFoodDays.reduce((s, d) => s + d.entries.reduce((e, en) => e + en.carbsG, 0), 0);
+  const totalFat     = weekFoodDays.reduce((s, d) => s + d.entries.reduce((e, en) => e + en.fatG, 0), 0);
+  const daysWithData = weekFoodDays.filter(d => d.calories > 0).length;
+
+  const totalOz      = waterWeekHistory.filter(d => d.date >= weekStart && d.date <= today).reduce((s, d) => s + d.totalOz, 0);
+  const totalGlasses = Math.round(totalOz / 8);
+
+  const weekSteps = stepsWeekHistory.filter(s => s.date >= weekStart && s.date <= today).reduce((s, d) => s + (d.steps ?? 0), 0);
+
+  const priorWeekEndStr = (() => { const d = new Date(weekStart + 'T12:00:00'); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  function getLastStat(metric: string) {
+    const sorted = measurements.filter(m => m.metric === metric).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+    const current = sorted[0] ?? null;
+    const prior   = sorted.find(m => m.measuredAt <= priorWeekEndStr) ?? null;
+    return { current, prior };
+  }
+  function fmtM(m: BodyMeasurement) {
+    const val = m.metric === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
+    return `${val.toFixed(1)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
+  }
+
+  const lines: string[] = [header];
+
+  if (totalCal > 0) {
+    lines.push(`- Macros: ${Math.round(totalCal).toLocaleString()} cal | ${Math.round(totalProtein)}g protein | ${Math.round(totalCarbs)}g carbs | ${Math.round(totalFat)}g fat`);
+    if (daysWithData > 0) {
+      lines.push(`- Daily avg: ${Math.round(totalCal / daysWithData).toLocaleString()} cal | ${Math.round(totalProtein / daysWithData)}g protein | ${Math.round(totalCarbs / daysWithData)}g carbs | ${Math.round(totalFat / daysWithData)}g fat`);
+    }
+  }
+  for (const [name, volLbs] of grouped) {
+    lines.push(volLbs > 0 ? `- ${name}: ${Math.round(volLbs).toLocaleString()} lbs` : `- ${name}`);
+  }
+  if (weekWorkouts.length > 0 && totalVolumeLbs > 0) {
+    lines.push(`- Total volume: ${Math.round(totalVolumeLbs).toLocaleString()} lbs`);
+  }
+  if (totalGlasses > 0) lines.push(`- Water: ${totalGlasses} glasses`);
+  if (weekSteps > 0) lines.push(`- Steps: ${weekSteps.toLocaleString()}`);
+
+  for (const { metric, label } of [
+    { metric: 'weight', label: 'Weight' },
+    { metric: 'chest',  label: 'Chest'  },
+    { metric: 'bicep',  label: 'Bicep'  },
+    { metric: 'waist',  label: 'Waist'  },
+  ]) {
+    const { current, prior } = getLastStat(metric);
+    if (current) {
+      const priorStr = prior && prior.id !== current.id ? ` (prior: ${fmtM(prior)})` : '';
+      lines.push(`- ${label}: ${fmtM(current)}${priorStr}`);
+    }
+  }
+
+  const text = lines.join('\n');
+
+  function share() {
+    Share.share({ message: text }).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <View style={{ backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10, position: 'relative' }}>
+      <Text style={{ fontSize: 13, color: c.muted, fontFamily: 'monospace', lineHeight: 22 }}>{text}</Text>
+      <TouchableOpacity onPress={share} style={{ position: 'absolute', top: 12, right: 14 }}>
+        <Text style={{ fontSize: 11, color: copied ? COL_GOOD : c.muted, fontFamily: 'monospace', fontWeight: '600' }}>
+          {copied ? 'copied' : 'copy'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DashboardV4Screen() {
   const token = useAuthStore((s) => s.token)!;
@@ -357,6 +460,8 @@ export default function DashboardV4Screen() {
   const [routineDetail, setRoutineDetail] = useState<RoutineDetail | null>(null);
   const [todayWater, setTodayWater] = useState<WaterDay | null>(null);
   const [todaySteps, setTodaySteps] = useState<StepsEntry | null>(null);
+  const [stepsWeekHistory,   setStepsWeekHistory]   = useState<StepsEntry[]>([]);
+  const [waterWeekHistory,   setWaterWeekHistory]   = useState<WaterHistoryDay[]>([]);
   const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]); // derived from activeGoals
   const [phase2Ready, setPhase2Ready] = useState(false);
   const [mountedTabs, setMountedTabs] = useState(new Set<Tab>(['today']));
@@ -391,6 +496,9 @@ export default function DashboardV4Screen() {
     const upcomingP     = getUpcomingSchedule(token, 7).catch(() => []);
     const waterP        = getWaterDay(token, localDateStr()).catch(() => null);
     const stepsP        = getSteps(token).catch(() => null);
+    const thisWeekStart = getWeekStart(localDateStr());
+    const stepsHistP    = getStepsHistory(token, 14).catch(() => [] as StepsEntry[]);
+    const waterHistP    = getWaterHistory(token, thisWeekStart, localDateStr()).catch(() => ({ goalOz: 0, days: [] as WaterHistoryDay[] }));
     const goalsP        = goalsV2Api.getAll('active').catch(() => []);
 
     // Unblock the page as soon as essential above-the-fold data arrives
@@ -408,8 +516,8 @@ export default function DashboardV4Screen() {
 
     // Background — fill in charts and history as they arrive
     try {
-      const [ws, ms, fl, dh, rl, rec, upc] = await Promise.all([
-        workoutsP, measurementsP, foodHistP, dailyHistP, routinesP, recoveryP, upcomingP,
+      const [ws, ms, fl, dh, rl, rec, upc, sh, wh] = await Promise.all([
+        workoutsP, measurementsP, foodHistP, dailyHistP, routinesP, recoveryP, upcomingP, stepsHistP, waterHistP,
       ]);
       setWorkouts(ws);
       setMeasurements(ms as BodyMeasurement[]);
@@ -418,6 +526,8 @@ export default function DashboardV4Screen() {
       setRoutinesList(rl as RoutineSummary[]);
       setRecovery(rec);
       setUpcoming(upc as UpcomingSession[]);
+      setStepsWeekHistory(sh as StepsEntry[]);
+      setWaterWeekHistory((wh as { goalOz: number; days: WaterHistoryDay[] }).days);
     } catch { /* ignore */ }
     setPhase2Ready(true);
   }, [token]);
@@ -700,6 +810,17 @@ export default function DashboardV4Screen() {
             nutrition={nutritionSummary?.nutrition.actual ?? null}
             water={todayWater}
             steps={liveSteps != null ? { ...(todaySteps ?? {}), steps: liveSteps } as any : todaySteps}
+          />
+
+          {/* Weekly Blurb */}
+          <WeeklySnapshot
+            weekStart={currentWeekStart}
+            today={todayStr}
+            workouts={workouts}
+            foodLogHistory={foodLogHistory}
+            stepsWeekHistory={stepsWeekHistory}
+            waterWeekHistory={waterWeekHistory}
+            measurements={measurements}
           />
 
         </View>)}
