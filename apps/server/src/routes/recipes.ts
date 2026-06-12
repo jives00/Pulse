@@ -58,7 +58,7 @@ async function upsertRecipeIngredients(
     seenIngredientIds.add(ingredientId);
     await conn.query(
       'INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, sort_order) VALUES (?, ?, ?, ?, ?)',
-      [recipeId, ingredientId, quantity, unit, sortOrder++]
+      [recipeId, ingredientId, quantity || null, unit || null, sortOrder++]
     );
   }
 }

@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 12, 2026
+
+### Backend
+- **Fix recipe save with empty quantity** — Coerce empty string `quantity`/`unit` to `null` before INSERT to avoid MySQL `ER_TRUNCATED_WRONG_VALUE_FOR_FIELD` on DECIMAL columns `483a791`
+
 ## June 8, 2026
 
 ### Frontend – Web
