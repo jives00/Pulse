@@ -3,6 +3,7 @@ import {
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   getSchedules, getUpcomingSchedule, createSchedule, updateSchedule, deleteSchedule,
   getRoutines, getExercises,
@@ -126,6 +127,9 @@ function parseRecConfig(rt: AnyRec, cfg: any): {
 }
 
 function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnType<typeof makeStyles>; opts: { value: AnyRec; label: string }[] }) {
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
   return (
     <>
       <Text style={[s.fieldLabel, { color: c.muted, marginBottom: 4 }]}>Repeats</Text>
@@ -184,16 +188,82 @@ function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnTy
             </View>
           )}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-            <TextInput style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-              value={r.startDate} onChangeText={r.setStartDate} placeholder="Start (YYYY-MM-DD)" placeholderTextColor={c.muted} />
-            <TextInput style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-              value={r.endDate} onChangeText={r.setEndDate} placeholder="End (optional)" placeholderTextColor={c.muted} />
+            <TouchableOpacity
+              onPress={() => setShowStartPicker(true)}
+              style={[s.input, { flex: 1, justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+            >
+              <Text style={{ color: r.startDate ? c.text : c.muted, fontSize: fontSize.xs }}>
+                {r.startDate || 'Start date'}
+              </Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <TouchableOpacity
+                onPress={() => setShowEndPicker(true)}
+                style={[s.input, { flex: 1, justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+              >
+                <Text style={{ color: r.endDate ? c.text : c.muted, fontSize: fontSize.xs }}>
+                  {r.endDate || 'No end'}
+                </Text>
+              </TouchableOpacity>
+              {!!r.endDate && (
+                <TouchableOpacity onPress={() => r.setEndDate('')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                  <Text style={{ color: c.muted, fontSize: 16, lineHeight: 18 }}>×</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+          {showStartPicker && (
+            <DateTimePicker
+              value={r.startDate ? new Date(r.startDate + 'T12:00:00') : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selected) => {
+                setShowStartPicker(false);
+                if (selected && event.type !== 'dismissed') {
+                  r.setStartDate(selected.toISOString().slice(0, 10));
+                }
+              }}
+            />
+          )}
+          {showEndPicker && (
+            <DateTimePicker
+              value={r.endDate ? new Date(r.endDate + 'T12:00:00') : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selected) => {
+                setShowEndPicker(false);
+                if (selected && event.type !== 'dismissed') {
+                  r.setEndDate(selected.toISOString().slice(0, 10));
+                }
+              }}
+            />
+          )}
         </>
       )}
       {r.recType === 'once' && (
-        <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg, marginBottom: 8 }]}
-          value={r.startDate} onChangeText={r.setStartDate} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={c.muted} />
+        <>
+          <TouchableOpacity
+            onPress={() => setShowStartPicker(true)}
+            style={[s.input, { justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg, marginBottom: 8 }]}
+          >
+            <Text style={{ color: r.startDate ? c.text : c.muted, fontSize: fontSize.xs }}>
+              {r.startDate || 'Select date'}
+            </Text>
+          </TouchableOpacity>
+          {showStartPicker && (
+            <DateTimePicker
+              value={r.startDate ? new Date(r.startDate + 'T12:00:00') : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selected) => {
+                setShowStartPicker(false);
+                if (selected && event.type !== 'dismissed') {
+                  r.setStartDate(selected.toISOString().slice(0, 10));
+                }
+              }}
+            />
+          )}
+        </>
       )}
     </>
   );
@@ -916,6 +986,7 @@ function CheckpointTabContent({ date, token, checkpoints, activeGoals, c, s, onS
   const [targetDate, setTargetDate] = useState(date);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showTargetDatePicker, setShowTargetDatePicker] = useState(false);
 
   function startEdit(cp: GoalMilestoneWithGoal) {
     setEditingId(cp.id); setEditingGoalId(cp.goalId); setGoalId(cp.goalId);
@@ -1001,8 +1072,27 @@ function CheckpointTabContent({ date, token, checkpoints, activeGoals, c, s, onS
             </View>
           </View>
 
-          <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-            value={targetDate} onChangeText={setTargetDate} placeholder="By date (YYYY-MM-DD)" placeholderTextColor={c.muted} keyboardType="numbers-and-punctuation" />
+          <TouchableOpacity
+            onPress={() => setShowTargetDatePicker(true)}
+            style={[s.input, { justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+          >
+            <Text style={{ color: targetDate ? c.text : c.muted, fontSize: fontSize.sm }}>
+              {targetDate || 'Select target date'}
+            </Text>
+          </TouchableOpacity>
+          {showTargetDatePicker && (
+            <DateTimePicker
+              value={targetDate ? new Date(targetDate + 'T12:00:00') : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selected) => {
+                setShowTargetDatePicker(false);
+                if (selected && event.type !== 'dismissed') {
+                  setTargetDate(selected.toISOString().slice(0, 10));
+                }
+              }}
+            />
+          )}
           <TextInput style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
             value={notes} onChangeText={setNotes} placeholder="Notes (optional)" placeholderTextColor={c.muted} multiline />
 

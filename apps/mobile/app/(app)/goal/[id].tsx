@@ -3,6 +3,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +38,7 @@ function EditSheet({ entry, unit, goalId, onClose, onSaved, c }: {
   const [notes, setNotes]   = useState(entry.notes ?? '');
   const [logDate, setLogDate] = useState(isoToDateStr(entry.loggedAt));
   const [saving, setSaving] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   async function handleSave() {
     if (!value) return;
@@ -58,67 +60,76 @@ function EditSheet({ entry, unit, goalId, onClose, onSaved, c }: {
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={[es.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
-            <View style={es.sheetHeader}>
-              <Text style={{ color: c.text, fontSize: fontSize.lg, fontWeight: '700' }}>Edit Entry</Text>
-              <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
-            </View>
-            <View style={{ gap: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={es.label}>Value</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <TextInput
-                      style={[es.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                      value={value}
-                      onChangeText={setValue}
-                      keyboardType="decimal-pad"
-                      autoFocus
-                    />
-                    <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{unit}</Text>
-                  </View>
-                </View>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={es.label}>Date</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={onClose} activeOpacity={1} />
+        <View style={[es.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={es.sheetHeader}>
+            <Text style={{ color: c.text, fontSize: fontSize.lg, fontWeight: '700' }}>Edit Entry</Text>
+            <TouchableOpacity onPress={onClose}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></TouchableOpacity>
+          </View>
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={es.label}>Value</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <TextInput
-                    style={[es.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                    value={logDate}
-                    onChangeText={setLogDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={c.muted}
-                    keyboardType="numbers-and-punctuation"
+                    style={[es.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                    value={value}
+                    onChangeText={setValue}
+                    keyboardType="decimal-pad"
+                    autoFocus
                   />
+                  <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{unit}</Text>
                 </View>
               </View>
-              <View style={{ gap: 4 }}>
-                <Text style={es.label}>Notes</Text>
-                <TextInput
-                  style={[es.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Optional"
-                  placeholderTextColor={c.muted}
-                />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={es.label}>Date</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={[es.input, { justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+                >
+                  <Text style={{ color: c.text, fontSize: fontSize.sm }}>{logDate}</Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={new Date(logDate + 'T12:00:00')}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selected) => {
+                      setShowDatePicker(false);
+                      if (selected && event.type !== 'dismissed') {
+                        setLogDate(selected.toISOString().slice(0, 10));
+                      }
+                    }}
+                  />
+                )}
               </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <TouchableOpacity onPress={onClose} style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}>
-                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSave}
-                disabled={saving || !value}
-                style={[es.saveBtn, { backgroundColor: c.accent, opacity: saving || !value ? 0.4 : 1 }]}
-              >
-                <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Save'}</Text>
-              </TouchableOpacity>
+            <View style={{ gap: 4 }}>
+              <Text style={es.label}>Notes</Text>
+              <TextInput
+                style={[es.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Optional"
+                placeholderTextColor={c.muted}
+              />
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+            <TouchableOpacity onPress={onClose} style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}>
+              <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={saving || !value}
+              style={[es.saveBtn, { backgroundColor: c.accent, opacity: saving || !value ? 0.4 : 1 }]}
+            >
+              <Text style={{ color: '#000', fontWeight: '700', fontSize: fontSize.sm }}>{saving ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

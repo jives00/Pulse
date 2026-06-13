@@ -6,6 +6,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## June 12, 2026
 
+### Frontend – Mobile
+- **Keyboard no longer hides modals** — Added `KeyboardAvoidingView` to measurement, rename, new-routine, and goal-edit modals; fixed `behavior="padding"` → platform-aware `padding`/`height` in goal log/close sheets so Android lifts correctly `5d2061b`
+- **Date pickers replace manual text entry** — All YYYY-MM-DD `TextInput` fields (measurement date, goal log date, goal deadline, goal entry edit date, planning start/end/once dates, milestone target date) now open the system date picker via `@react-native-community/datetimepicker` `5d2061b`
+
 ### Backend
 - **Fix recipe save with empty quantity** — Coerce empty string `quantity`/`unit` to `null` before INSERT to avoid MySQL `ER_TRUNCATED_WRONG_VALUE_FOR_FIELD` on DECIMAL columns `483a791`
 

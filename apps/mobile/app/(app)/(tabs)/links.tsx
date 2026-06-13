@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -189,6 +191,7 @@ export default function LinksScreen() {
 
       {/* Edit modal */}
       <Modal visible={editTarget !== null} transparent animationType="fade">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.overlay}>
           <View style={styles.editModal}>
             <Text style={styles.editModalTitle}>Rename</Text>
@@ -211,6 +214,7 @@ export default function LinksScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

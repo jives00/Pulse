@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   SectionList,
   StyleSheet,
@@ -12,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -143,6 +146,7 @@ export default function HistoryScreen() {
   const [metricFilter, setMetricFilter] = useState<string>('all');
   const [measModal, setMeasModal] = useState<MeasModalState | null>(null);
   const [measSaving, setMeasSaving] = useState(false);
+  const [showMeasDatePicker, setShowMeasDatePicker] = useState(false);
 
   useEffect(() => {
     setWorkoutsLoading(true);
@@ -519,48 +523,62 @@ export default function HistoryScreen() {
 
       {/* Measurement add/edit modal */}
       <Modal visible={measModal !== null} transparent animationType="fade" onRequestClose={() => setMeasModal(null)}>
-        <View style={styles.overlay}>
-          <View style={styles.measModal}>
-            <Text style={styles.measModalTitle}>
-              {measModal?.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === measModal?.metric)?.label}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.measModalLabel}>Value ({METRICS.find((m) => m.key === measModal?.metric)?.unit})</Text>
-                <TextInput
-                  style={styles.measModalInput}
-                  value={measModal?.value ?? ''}
-                  onChangeText={(v) => setMeasModal((prev) => prev ? { ...prev, value: v } : prev)}
-                  keyboardType="decimal-pad"
-                  autoFocus
-                  placeholder="0.0"
-                  placeholderTextColor={c.muted}
-                />
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.overlay}>
+            <View style={styles.measModal}>
+              <Text style={styles.measModalTitle}>
+                {measModal?.isNew ? 'Add' : 'Edit'} {METRICS.find((m) => m.key === measModal?.metric)?.label}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.measModalLabel}>Value ({METRICS.find((m) => m.key === measModal?.metric)?.unit})</Text>
+                  <TextInput
+                    style={styles.measModalInput}
+                    value={measModal?.value ?? ''}
+                    onChangeText={(v) => setMeasModal((prev) => prev ? { ...prev, value: v } : prev)}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    placeholder="0.0"
+                    placeholderTextColor={c.muted}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.measModalLabel}>Date</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowMeasDatePicker(true)}
+                    style={[styles.measModalInput, { justifyContent: 'center' }]}
+                  >
+                    <Text style={{ color: measModal?.date ? c.text : c.muted, fontSize: fontSize.sm }}>
+                      {measModal?.date ? fmtMeasDate(measModal.date) : 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showMeasDatePicker && (
+                    <DateTimePicker
+                      value={measModal?.date ? new Date(measModal.date + 'T12:00:00') : new Date()}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selected) => {
+                        setShowMeasDatePicker(false);
+                        if (selected && event.type !== 'dismissed') {
+                          const dateStr = selected.toISOString().slice(0, 10);
+                          setMeasModal((prev) => prev ? { ...prev, date: dateStr } : prev);
+                        }
+                      }}
+                    />
+                  )}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.measModalLabel}>Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.measModalInput}
-                  value={measModal?.date ?? ''}
-                  onChangeText={(v) => setMeasModal((prev) => prev ? { ...prev, date: v } : prev)}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="2026-01-01"
-                  placeholderTextColor={c.muted}
-                  returnKeyType="done"
-                  onSubmitEditing={saveMeasurement}
-                />
+              <View style={styles.measModalButtons}>
+                <TouchableOpacity onPress={() => setMeasModal(null)} style={styles.measCancelBtn}>
+                  <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={saveMeasurement} disabled={measSaving} style={[styles.measSaveBtn, measSaving && { opacity: 0.5 }]}>
+                  <Text style={{ color: c.bg, fontWeight: '700', fontSize: fontSize.sm }}>{measSaving ? 'Saving…' : 'Save'}</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-            <View style={styles.measModalButtons}>
-              <TouchableOpacity onPress={() => setMeasModal(null)} style={styles.measCancelBtn}>
-                <Text style={{ color: c.muted, fontSize: fontSize.sm }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveMeasurement} disabled={measSaving} style={[styles.measSaveBtn, measSaving && { opacity: 0.5 }]}>
-                <Text style={{ color: c.bg, fontWeight: '700', fontSize: fontSize.sm }}>{measSaving ? 'Saving…' : 'Save'}</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

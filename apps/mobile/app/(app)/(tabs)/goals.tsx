@@ -4,6 +4,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, TouchableWithoutFeedback, View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -211,6 +212,7 @@ function LogProgressSheet({ goal, onClose, onLogged, c }: {
   const [notes, setNotes]   = useState('');
   const [logDate, setLogDate] = useState(todayStr());
   const [saving, setSaving] = useState(false);
+  const [showLogDatePicker, setShowLogDatePicker] = useState(false);
 
   async function handleSave() {
     if (!value) return;
@@ -231,7 +233,7 @@ function LogProgressSheet({ goal, onClose, onLogged, c }: {
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableWithoutFeedback onPress={onClose}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
         </TouchableWithoutFeedback>
@@ -263,14 +265,25 @@ function LogProgressSheet({ goal, onClose, onLogged, c }: {
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={[s.fieldLabel, { color: c.muted }]}>Date</Text>
-                  <TextInput
-                    style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                    value={logDate}
-                    onChangeText={setLogDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={c.muted}
-                    keyboardType="numbers-and-punctuation"
-                  />
+                  <TouchableOpacity
+                    onPress={() => setShowLogDatePicker(true)}
+                    style={[s.input, { justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+                  >
+                    <Text style={{ color: c.text, fontSize: fontSize.sm }}>{logDate}</Text>
+                  </TouchableOpacity>
+                  {showLogDatePicker && (
+                    <DateTimePicker
+                      value={new Date(logDate + 'T12:00:00')}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selected) => {
+                        setShowLogDatePicker(false);
+                        if (selected && event.type !== 'dismissed') {
+                          setLogDate(selected.toISOString().slice(0, 10));
+                        }
+                      }}
+                    />
+                  )}
                 </View>
               </View>
 
@@ -336,7 +349,7 @@ function CloseGoalSheet({ goal, onClose, onClosed, c }: {
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableWithoutFeedback onPress={onClose}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
         </TouchableWithoutFeedback>
@@ -428,6 +441,7 @@ function AddGoalModal({ onClose, onCreated, c }: {
   const [targetValue, setTargetValue] = useState('');
   const [deadline, setDeadline]       = useState('');
   const [saving, setSaving]           = useState(false);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
 
   const CATEGORY_LABELS_SHORT: Record<GoalCategory, string> = {
     body: 'Body', nutrition: 'Nutrition', exercise: 'Exercise', activity: 'Activity',
@@ -647,15 +661,28 @@ function AddGoalModal({ onClose, onCreated, c }: {
                   </View>
 
                   <View style={{ gap: 4 }}>
-                    <Text style={[s.fieldLabel, { color: c.muted }]}>Deadline (YYYY-MM-DD)</Text>
-                    <TextInput
-                      style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
-                      value={deadline}
-                      onChangeText={setDeadline}
-                      placeholder="e.g. 2026-12-31"
-                      placeholderTextColor={c.muted}
-                      keyboardType="numbers-and-punctuation"
-                    />
+                    <Text style={[s.fieldLabel, { color: c.muted }]}>Deadline</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowDeadlinePicker(true)}
+                      style={[s.input, { justifyContent: 'center', borderColor: c.border, backgroundColor: c.bg }]}
+                    >
+                      <Text style={{ color: deadline ? c.text : c.muted, fontSize: fontSize.sm }}>
+                        {deadline || 'Select deadline'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showDeadlinePicker && (
+                      <DateTimePicker
+                        value={deadline ? new Date(deadline + 'T12:00:00') : new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(event, selected) => {
+                          setShowDeadlinePicker(false);
+                          if (selected && event.type !== 'dismissed') {
+                            setDeadline(selected.toISOString().slice(0, 10));
+                          }
+                        }}
+                      />
+                    )}
                   </View>
                 </View>
 

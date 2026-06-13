@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Image, Modal, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -392,6 +393,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
       />
 
       <Modal visible={createVisible} animationType="fade" transparent onRequestClose={() => { onCreateClose(); setNewName(''); }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={grid.overlay}>
           <View style={grid.dialog}>
             <Text style={grid.dialogTitle}>New Routine</Text>
@@ -413,6 +415,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
