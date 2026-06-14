@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 14, 2026
+
+### Frontend – Web
+- **Ponytail refactor on DashboardPage** — Extract `useCopy` hook (removes duplicate `copy()` in TodaySnapshot + WeeklyBlurb), collapse `NutritionGoalCard` + `StepsGoalCard` into shared `SimpleGoalLineCard`, replace two local `fmtNum` declarations with top-level `fmt`; 2129 → 2079 lines `ee54591`
+
 ## June 12, 2026
 
 ### Frontend – Mobile

@@ -27,6 +27,15 @@ const clamp = (n: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const fmt   = (n: number) => Math.round(n).toLocaleString();
 const fmt1  = (n: number) => n.toFixed(1);
 
+// ─── Shared copy-to-clipboard hook ───────────────────────────────────────────
+
+function useCopy() {
+  const [copied, setCopied] = useState(false);
+  const copy = (text: string) =>
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); });
+  return { copied, copy };
+}
+
 // ─── Band section header ──────────────────────────────────────────────────────
 
 function Band({ kicker, title, meta, children }: { kicker: string; title?: string; meta?: string; children: React.ReactNode }) {
@@ -76,7 +85,7 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
   water: WaterDay | null;
   steps: StepsDay | null;
 }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
 
   const glasses      = water ? Math.round(water.totalOz / 8) : 0;
   const hasNutrition = (nutrition?.calories ?? 0) > 0;
@@ -93,17 +102,10 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
 
   const text = lines.join('\n');
 
-  function copy() {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    });
-  }
-
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={copy} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : 'copy'}
       </button>
     </div>
@@ -121,7 +123,7 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
   waterWeekHistory: WaterHistoryDay[];
   measurements: BodyMeasurement[];
 }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
 
   const weekEndDate = new Date(weekStart + 'T12:00:00');
   weekEndDate.setDate(weekEndDate.getDate() + 6);
@@ -193,14 +195,10 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
 
   const text = lines.join('\n');
 
-  function copy() {
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); });
-  }
-
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={copy} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : 'copy'}
       </button>
     </div>
@@ -989,7 +987,6 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
   }
 
   const displayWeeks = [...weeks].reverse().filter(w => w.days > 0 || w.isCurrentWeek).slice(0, 5);
-  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
   const hdStyle: React.CSSProperties = { fontSize: 11, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right' as const, paddingBottom: 6, paddingLeft: 12 };
 
   return (
@@ -1011,16 +1008,16 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
             <td style={{ padding: '10px 0', fontSize: 13, color: week.isCurrentWeek ? 'white' : MUTED, fontFamily: 'var(--font-ui)', whiteSpace: 'nowrap' }}>
               {week.label}{week.isCurrentWeek && <span style={{ marginLeft: 8, color: ACCENT, fontWeight: 600 }}>current</span>}
             </td>
-            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: week.isCurrentWeek ? 'white' : MUTED }}>{week.days > 0 ? fmtNum(week.calories) : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: week.isCurrentWeek ? 'white' : MUTED }}>{week.days > 0 ? fmt(week.calories) : <span style={{ color: MUTED2 }}>—</span>}</td>
             <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#D4A843' }}>{week.days > 0 ? week.protein : <span style={{ color: MUTED2 }}>—</span>}</td>
             <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#7C9ECB' }}>{week.days > 0 ? week.carbs : <span style={{ color: MUTED2 }}>—</span>}</td>
             <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#C5896E' }}>{week.days > 0 ? week.fat : <span style={{ color: MUTED2 }}>—</span>}</td>
-            {todayTDEE && <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: MUTED2 }}>{week.tdee != null && week.days > 0 ? fmtNum(week.tdee) : '—'}</td>}
+            {todayTDEE && <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: MUTED2 }}>{week.tdee != null && week.days > 0 ? fmt(week.tdee) : '—'}</td>}
             {todayTDEE && (
               <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                 {week.net != null && week.days > 0 ? (
                   <span style={{ color: week.net < 0 ? '#86AA80' : week.net > 300 ? '#C5896E' : MUTED }}>
-                    {week.net > 0 ? '+' : ''}{fmtNum(week.net)}
+                    {week.net > 0 ? '+' : ''}{fmt(week.net)}
                   </span>
                 ) : <span style={{ color: MUTED2 }}>—</span>}
               </td>
@@ -1040,7 +1037,6 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
   if (!rows.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No sessions yet.</div>;
   const cols = '60px 1fr 140px 120px 1fr 70px';
   const hdStyle = { fontSize: 12, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase' as const };
-  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '6px 0 8px', borderBottom: `1px solid ${LINE_SOFT}` }}>
@@ -1105,10 +1101,10 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
               {s.routineName ?? s.name ?? (s.exercises.length > 0 ? s.exercises.map(e => e.name).join(', ') : 'Workout')}
             </span>
             <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'white', whiteSpace: 'nowrap', textAlign: 'right', paddingRight: 20 }}>
-              {primaryVal != null ? <>{primaryUnit === 'lbs' ? fmtNum(primaryVal) : primaryVal}<span style={{ color: MUTED2 }}> {primaryUnit}</span></> : <span style={{ color: MUTED2 }}>—</span>}
+              {primaryVal != null ? <>{primaryUnit === 'lbs' ? fmt(primaryVal) : primaryVal}<span style={{ color: MUTED2 }}> {primaryUnit}</span></> : <span style={{ color: MUTED2 }}>—</span>}
             </div>
             <span className="font-mono" style={{ fontSize: 13, color: MUTED, paddingLeft: 20, whiteSpace: 'nowrap' }}>
-              {s.caloriesBurned ? <>{fmtNum(s.caloriesBurned)}<span style={{ color: MUTED2 }}> kcal</span></> : <span style={{ color: MUTED2 }}>—</span>}
+              {s.caloriesBurned ? <>{fmt(s.caloriesBurned)}<span style={{ color: MUTED2 }}> kcal</span></> : <span style={{ color: MUTED2 }}>—</span>}
             </span>
             <span style={{ fontSize: 13, color: highlights.length ? ACCENT : MUTED2, paddingLeft: 20 }}>
               {highlights.length ? highlights.map((h, i) => <span key={i} style={{ display: 'block' }}>★ {h}</span>) : '—'}
@@ -1781,47 +1777,44 @@ const NUTRIENT_FIELD: Record<string, (day: FoodLogHistoryDay) => number> = {
   nutrition_fat_daily_avg:      d => (d.entries as FoodLogHistoryEntry[]).reduce((s, e) => s + (e.fatG ?? 0), 0),
 };
 
-function NutritionGoalCard({ goal, foodLogHistory, isLoading }: { goal: Goal; foodLogHistory: FoodLogHistoryDay[]; isLoading: boolean }) {
-  const getVal = NUTRIENT_FIELD[goal.catalogKey];
-  if (!getVal) return null;
+// ─── Shared line card for simple daily-average goals ─────────────────────────
 
-  const sorted = [...foodLogHistory].sort((a, b) => a.date.localeCompare(b.date));
-  const last30 = sorted.slice(-30).filter(d => d.calories > 0);
-  if (!last30.length) return (
-    <Panel title={goal.name} meta={`target ${goal.targetValue} ${goal.unit}/day`}>
-      <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No food log data yet.'}</div>
+function SimpleGoalLineCard({ goal, values, unit, color = ACCENT, isLoading, emptyMsg }: {
+  goal: Goal; values: number[]; unit: string; color?: string; isLoading: boolean; emptyMsg?: string;
+}) {
+  if (!values.length) return (
+    <Panel title={goal.name} meta={`target ${goal.targetValue.toLocaleString()} ${unit}/day`}>
+      <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : emptyMsg ?? 'No data yet.'}</div>
     </Panel>
   );
 
-  const vals   = last30.map(d => getVal(d));
-  const avg    = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const avg    = values.reduce((s, v) => s + v, 0) / values.length;
   const target = goal.targetValue;
   const W = 760, H = 100;
-  const allY   = [...vals, target];
+  const allY   = [...values, target];
   const minV   = Math.min(...allY) * 0.96;
   const maxV   = Math.max(...allY) * 1.04;
-  const X      = (i: number) => (i / (last30.length - 1)) * W;
+  const X      = (i: number) => (i / (values.length - 1)) * W;
   const Y      = (v: number) => H - ((v - minV) / (maxV - minV)) * H;
-  const path   = vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+  const path   = values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
   const targetY = Y(target);
-
   const daysLeft = goal.deadline
     ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
     : null;
 
   return (
-    <Panel title={goal.name} meta={`target ${target} ${goal.unit}/day`}>
+    <Panel title={goal.name} meta={`target ${target.toLocaleString()} ${unit}/day`}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 10, flexWrap: 'wrap' as const }}>
         <div>
           <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>30-day avg</div>
           <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
-            {Math.round(avg).toLocaleString()}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{goal.unit}</span>
+            {Math.round(avg).toLocaleString()}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{unit}</span>
           </span>
         </div>
         <div>
           <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
           <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
-            {target.toLocaleString()}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>{goal.unit}</span>
+            {target.toLocaleString()}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>{unit}</span>
           </span>
         </div>
         {daysLeft != null && (
@@ -1835,69 +1828,26 @@ function NutritionGoalCard({ goal, foodLogHistory, isLoading }: { goal: Goal; fo
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
         <line x1="0" y1={targetY} x2={W} y2={targetY} stroke={MUTED2} strokeWidth="1" strokeDasharray="4 4" />
-        <path d={path} fill="none" stroke={ACCENT} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
     </Panel>
   );
+}
+
+function NutritionGoalCard({ goal, foodLogHistory, isLoading }: { goal: Goal; foodLogHistory: FoodLogHistoryDay[]; isLoading: boolean }) {
+  const getVal = NUTRIENT_FIELD[goal.catalogKey];
+  if (!getVal) return null;
+  const sorted = [...foodLogHistory].sort((a, b) => a.date.localeCompare(b.date));
+  const values = sorted.slice(-30).filter(d => d.calories > 0).map(d => getVal(d));
+  return <SimpleGoalLineCard goal={goal} values={values} unit={goal.unit} isLoading={isLoading} emptyMsg="No food log data yet." />;
 }
 
 // ─── Steps goal card ──────────────────────────────────────────────────────────
 
 function StepsGoalCard({ goal, stepsHistory, isLoading }: { goal: Goal; stepsHistory: StepsDay[]; isLoading: boolean }) {
   const sorted = [...stepsHistory].sort((a, b) => a.date.localeCompare(b.date));
-  const last30 = sorted.slice(-30).filter(d => (d.steps ?? 0) > 0);
-  if (!last30.length) return (
-    <Panel title={goal.name} meta={`target ${goal.targetValue.toLocaleString()} steps/day`}>
-      <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : 'No steps data yet.'}</div>
-    </Panel>
-  );
-
-  const vals   = last30.map(d => d.steps ?? 0);
-  const avg    = vals.reduce((s, v) => s + v, 0) / vals.length;
-  const target = goal.targetValue;
-  const W = 760, H = 100;
-  const allY   = [...vals, target];
-  const minV   = Math.min(...allY) * 0.96;
-  const maxV   = Math.max(...allY) * 1.04;
-  const X      = (i: number) => (i / (last30.length - 1)) * W;
-  const Y      = (v: number) => H - ((v - minV) / (maxV - minV)) * H;
-  const path   = vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
-  const targetY = Y(target);
-
-  const daysLeft = goal.deadline
-    ? Math.ceil((new Date(goal.deadline + 'T12:00:00').getTime() - Date.now()) / 86400000)
-    : null;
-
-  return (
-    <Panel title={goal.name} meta={`target ${target.toLocaleString()} steps/day`}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 10, flexWrap: 'wrap' as const }}>
-        <div>
-          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>30-day avg</div>
-          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>
-            {Math.round(avg).toLocaleString()}<span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>steps</span>
-          </span>
-        </div>
-        <div>
-          <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Target</div>
-          <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: MUTED }}>
-            {target.toLocaleString()}<span style={{ fontSize: 11, color: MUTED2, marginLeft: 4 }}>steps</span>
-          </span>
-        </div>
-        {daysLeft != null && (
-          <div style={{ marginLeft: 'auto' }}>
-            <div className="micro" style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>Deadline</div>
-            <span className="font-mono" style={{ fontSize: 12, color: daysLeft < 0 ? '#f87171' : MUTED }}>
-              {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
-            </span>
-          </div>
-        )}
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
-        <line x1="0" y1={targetY} x2={W} y2={targetY} stroke={MUTED2} strokeWidth="1" strokeDasharray="4 4" />
-        <path d={path} fill="none" stroke={'#a78bfa'} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
-    </Panel>
-  );
+  const values = sorted.slice(-30).filter(d => (d.steps ?? 0) > 0).map(d => d.steps ?? 0);
+  return <SimpleGoalLineCard goal={goal} values={values} unit="steps" color="#a78bfa" isLoading={isLoading} emptyMsg="No steps data yet." />;
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
