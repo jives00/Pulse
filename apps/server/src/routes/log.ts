@@ -5,6 +5,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { upsertRecipeNutritionLog } from './recipes';
 import type { MealSlot, NutritionSnapshot } from '../types';
 import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';
+import { localDateStr } from '../utils/routes';
 
 const router = Router();
 router.use(requireAuth);
@@ -132,7 +133,7 @@ router.get('/frequent', async (req, res) => {
 // ── GET /log?date=YYYY-MM-DD ──────────────────────────────────
 
 router.get('/', async (req, res) => {
-  const date = String(req.query.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }));
+  const date = String(req.query.date ?? localDateStr());
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(

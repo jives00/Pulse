@@ -7,7 +7,7 @@ import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDat
 const router = Router();
 router.use(requireAuth);
 
-const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+import { localDateStr } from '../utils/routes';
 
 router.get('/', async (req, res) => {
   const date = String(req.query.date ?? localDateStr());

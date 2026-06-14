@@ -8,7 +8,7 @@ import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDat
 const router = Router();
 router.use(requireAuth);
 
-const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+import { localDateStr } from '../utils/routes';
 
 function toTargets(row: RowDataPacket) {
   return {

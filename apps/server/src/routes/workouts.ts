@@ -2,22 +2,10 @@
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { estimateCaloriesBurned } from '../services/calorieEstimation';
-import { getPresignedGetUrl } from '../services/s3';
-
-async function resolveMediaUrl(stored: string | null): Promise<string | null> {
-  if (!stored) return null;
-  if (stored.startsWith('http')) return stored;
-  return await getPresignedGetUrl(stored);
-}
+import { parseId, localDateStr } from '../utils/routes';
+import { resolveMediaUrl } from '../utils/media';
 
 const router = Router();
-
-const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
 
 async function ownsWorkout(workoutId: number, userId: number): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(

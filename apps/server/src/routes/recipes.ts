@@ -8,28 +8,16 @@ import { estimateMacros } from '../services/macroEstimation';
 import { lookupBarcode } from '../services/foodSearch';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
 
-const router = Router();
+import { parseId, localDateStr } from '../utils/routes';
+import { isSafePhotoUrl } from '../utils/media';
 
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+const router = Router();
 
 async function ownsRecipe(recipeId: number, userId: number): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
     'SELECT id FROM recipes WHERE id = ? AND user_id = ?', [recipeId, userId]
   );
   return rows.length > 0;
-}
-
-/** Block SSRF: reject loopback, RFC-1918, link-local, and AWS metadata addresses. */
-function isSafePhotoUrl(raw: string): boolean {
-  try {
-    const { protocol, hostname } = new URL(raw);
-    if (!['http:', 'https:'].includes(protocol)) return false;
-    if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1)/i.test(hostname)) return false;
-    return true;
-  } catch { return false; }
 }
 
 async function upsertRecipeIngredients(
@@ -943,7 +931,7 @@ export async function upsertRecipeNutritionLog(
   const fiber    = recipe.fiber_g  != null ? Math.round(Number(recipe.fiber_g)  * f * 10) / 10 : null;
   const sodium   = recipe.sodium_mg != null ? Math.round(Number(recipe.sodium_mg) * f * 10) / 10 : null;
 
-  const date = logDate ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const date = logDate ?? localDateStr();
   await db.execute(
     `INSERT INTO food_log
        (user_id, log_date, meal, food_id, serving_size_id, quantity,

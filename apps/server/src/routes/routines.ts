@@ -4,20 +4,10 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getWorkoutDetail } from './workouts';
 import { getPresignedUploadUrl, getPresignedGetUrl, clearPresignedUrlCache } from '../services/s3';
 
+import { parseId, localDateStr } from '../utils/routes';
+import { getDow } from '../utils/recurrence';
+
 const router = Router();
-
-const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-// Get day-of-week: 0=Mon ... 6=Sun (different from JS Date.getDay() where 0=Sun)
-function getDow(d: Date): number {
-  const js = d.getUTCDay();
-  return js === 0 ? 6 : js - 1;
-}
 
 // Find the next date that matches a recurrence pattern
 function getNextOccurrenceDate(recurrenceType: string, config: any, startDate: Date): Date | null {

@@ -4,12 +4,9 @@ import * as cheerio from 'cheerio';
 import { pool } from '../config/database';
 import type { ResultSetHeader } from 'mysql2/promise';
 
-const router = Router();
+import { parseId } from '../utils/routes';
 
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+const router = Router();
 
 const BLOCKED_TITLES = ['just a moment', 'attention required', 'are you human', 'ddos protection', 'access denied', 'robot or human'];
 

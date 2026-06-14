@@ -3,35 +3,16 @@ import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresignedUrlCache } from '../services/s3';
 
+import { parseId } from '../utils/routes';
+import { isSafePhotoUrl, resolveMediaUrl } from '../utils/media';
+
 const router = Router();
-
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/** Block SSRF: reject loopback, RFC-1918, link-local, and AWS metadata addresses. */
-function isSafePhotoUrl(raw: string): boolean {
-  try {
-    const { protocol, hostname } = new URL(raw);
-    if (!['http:', 'https:'].includes(protocol)) return false;
-    if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1)/i.test(hostname)) return false;
-    return true;
-  } catch { return false; }
-}
 
 function isYouTubeUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
     return ['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com'].includes(hostname);
   } catch { return false; }
-}
-
-/** Resolve a stored value (S3 key or legacy URL) to a display URL. */
-async function resolveMediaUrl(stored: string | null): Promise<string | null> {
-  if (!stored) return null;
-  if (stored.startsWith('http')) return stored; // YouTube or legacy external URL
-  return await getPresignedGetUrl(stored); // S3 key → presigned URL
 }
 
 // GET /api/exercises?search=&category=

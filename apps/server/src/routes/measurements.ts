@@ -3,14 +3,9 @@ import { pool } from '../config/database';
 import { syncWeightGurus } from '../services/weightGurusSync';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
+import { parseId, localDateStr } from '../utils/routes';
+
 const router = Router();
-
-const localDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
 
 // GET /api/measurements?start=YYYY-MM-DD&end=YYYY-MM-DD
 // Returns entries newest first. When start/end omitted, returns all (backward compat).

@@ -2,13 +2,14 @@ import { Router } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { localDateStr } from '../utils/routes';
 
 const router = Router();
 router.use(requireAuth);
 
 // GET /api/steps?date=YYYY-MM-DD  (defaults to today)
 router.get('/', async (req, res) => {
-  const date = String(req.query.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }));
+  const date = String(req.query.date ?? localDateStr());
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT steps, source, log_date FROM steps_log WHERE user_id = ? AND log_date = ?',
@@ -46,7 +47,7 @@ router.get('/history', async (req, res) => {
 // POST /api/steps  { date?, steps, source? }
 router.post('/', async (req, res) => {
   const { steps, source = 'manual' } = req.body;
-  const date = req.body.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const date = req.body.date ?? localDateStr();
 
   const count = Number(steps);
   if (!Number.isInteger(count) || count < 0 || count > 200000) {

@@ -1,64 +1,10 @@
 ﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { parseId } from '../utils/routes';
+import { getDow, DOW_NAMES, dateStr, utcDate, describeRecurrence } from '../utils/recurrence';
 
 const router = Router();
-
-function parseId(param: string): number | null {
-  const n = Number(param);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function dateStr(d: Date | string): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d);
-}
-
-function utcDate(s: string): Date {
-  return new Date(s + 'T00:00:00.000Z');
-}
-
-// Our day-of-week: 0=Mon ... 6=Sun (different from JS Date.getUTCDay() where 0=Sun)
-function getDow(d: Date): number {
-  const js = d.getUTCDay();
-  return js === 0 ? 6 : js - 1;
-}
-
-const DOW_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const ORDINALS  = ['', '1st', '2nd', '3rd', '4th', '5th'];
-
-function ordinalStr(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
-function describeRecurrence(type: string, cfg: any): string {
-  switch (type) {
-    case 'daily':           return 'Every day';
-    case 'every_other_day': return 'Every other day';
-    case 'days_of_week':
-      return [...(cfg.days as number[])].sort((a, b) => a - b).map((d) => DOW_NAMES[d]).join(' · ');
-    case 'every_x_days':
-      return `Every ${cfg.interval} days`;
-    case 'day_of_month':
-      if (cfg.type === 'nth_weekday')
-        return `${ORDINALS[cfg.n]} ${DOW_NAMES[cfg.weekday]}`;
-      if (cfg.type === 'specific_dates')
-        return (cfg.dates as number[]).map(ordinalStr).join(' & ');
-      return '';
-    case 'custom_cycle': {
-      const itemCount = (cfg.items || cfg.exercises || []).length;
-      const itemLabel = itemCount ? `${itemCount}-item cycle` : 'Cycle';
-      const rest = cfg.restFrequency ? ` with rest every ${cfg.restFrequency}` : '';
-      const days = Array.isArray(cfg.days) && cfg.days.length > 0
-        ? ` on ${cfg.days.map((d: number) => DOW_NAMES[d]).join(' · ')}`
-        : '';
-      return itemLabel + rest + days;
-    }
-    default: return '';
-  }
-}
 
 // Get the specific item in a custom_cycle for a given date
 // Returns { type: 'exercise' | 'routine' | 'rest', id: number | null }
