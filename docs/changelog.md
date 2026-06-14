@@ -7,6 +7,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## June 14, 2026
 
 ### Frontend – Web
+- **Ponytail refactor — full web module** — Extract `useEscapeKey` hook, `utils/exercises.ts`, `utils/meals.ts`, `components/goals/goalConstants.ts`, and `longDate` to `@pulse/api-client`; eliminate 170 lines of duplicate constants/helpers spread across 18 files `7240701`
 - **Ponytail refactor on DashboardPage** — Extract `useCopy` hook (removes duplicate `copy()` in TodaySnapshot + WeeklyBlurb), collapse `NutritionGoalCard` + `StepsGoalCard` into shared `SimpleGoalLineCard`, replace two local `fmtNum` declarations with top-level `fmt`; 2129 → 2079 lines `ee54591`
 
 ## June 12, 2026

@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, workoutsApi, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate } from '@pulse/api-client';
+import { exercisesApi, workoutsApi, defaultTrackedFields, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, longDate } from '@pulse/api-client';
+import { useEscapeKey } from '../hooks/useEscapeKey';
+import { EXERCISE_TYPES, TRACKED_FIELD_OPTIONS } from '../utils/exercises';
 
 function kgToLbs(kg: number) {
   return Math.round(kg * KG_TO_LBS * 10) / 10;
-}
-
-function longDate(dateStr: string): string {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function fmtLbs(kg: number | null) {
@@ -320,25 +318,6 @@ function MediaEmbed({ url }: { url: string }) {
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
 
-const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
-
-const TRACKED_FIELD_OPTIONS = [
-  { key: 'reps',     label: 'Reps' },
-  { key: 'weight',   label: 'Weight (lbs)' },
-  { key: 'duration', label: 'Duration (min:sec)' },
-  { key: 'distance', label: 'Distance' },
-] as const;
-
-function defaultTrackedFields(exerciseType: string): string[] {
-  switch (exerciseType) {
-    case 'cardio':     return ['duration', 'distance'];
-    case 'duration':   return ['duration'];
-    case 'bodyweight': return ['reps'];
-    case 'resistance': return ['reps'];
-    default:           return ['reps', 'weight'];
-  }
-}
-
 interface EditForm {
   name: string;
   category: string;
@@ -398,11 +377,7 @@ function EditModal({ exercise, categories, onSave, onClose }: {
   onSave: (updated: Exercise) => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   const [form, setForm] = useState<EditForm>({
     name: exercise.name,

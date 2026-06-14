@@ -1,26 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { exercisesApi, type Exercise } from '@pulse/api-client';
+import { exercisesApi, defaultTrackedFields, type Exercise } from '@pulse/api-client';
 import { useSettingsStore } from '../store/settings';
 import Spinner from '../components/Spinner';
-
-const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
-
-const TRACKED_FIELD_OPTIONS = [
-  { key: 'reps',     label: 'Reps' },
-  { key: 'weight',   label: 'Weight (lbs)' },
-  { key: 'duration', label: 'Duration (min:sec)' },
-  { key: 'distance', label: 'Distance' },
-] as const;
-
-function defaultTrackedFields(exerciseType: string): string[] {
-  switch (exerciseType) {
-    case 'cardio':     return ['duration', 'distance'];
-    case 'duration':   return ['duration'];
-    case 'bodyweight': return ['reps'];
-    default:           return ['reps', 'weight'];
-  }
-}
+import { EXERCISE_TYPES, TRACKED_FIELD_OPTIONS, CATEGORY_EMOJI } from '../utils/exercises';
 
 interface FormState {
   name: string;
@@ -33,12 +16,6 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   name: '', category: '', customCategory: '', exerciseType: 'weight',
   trackedFields: ['reps', 'weight'],
-};
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  chest: '🫁', back: '🦾', shoulders: '💪', arms: '💪',
-  legs: '🦵', glutes: '🍑', core: '⚡', cardio: '🏃',
-  olympic: '🥇', plyometrics: '🦘', stretching: '🧘',
 };
 
 // ── Exercise card ─────────────────────────────────────────────────────────────

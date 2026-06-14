@@ -9,6 +9,7 @@ import {
   type Ingredient,
   type MealSlot,
 } from '@pulse/api-client';
+import { todayStr } from '../store/logStore';
 
 interface Props {
   initialData?: RecipeDetail;
@@ -58,10 +59,6 @@ export default function RecipeForm({ initialData, initialType, enableLogOption, 
   const [logMode, setLogMode] = useState<'none' | 'save_and_log' | 'log_only'>('none');
   const [logMeal, setLogMeal] = useState<MealSlot>('lunch');
 
-  function todayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }
 
   const [type, setType] = useState<'cocktail' | 'food' | 'prepackaged'>(initialData?.type || initialType || 'food');
   const [name, setName] = useState(initialData?.name || '');

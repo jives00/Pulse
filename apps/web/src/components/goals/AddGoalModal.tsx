@@ -5,6 +5,9 @@ import {
   type Goal, type GoalCategory, type GoalCatalogEntry,
   type CreateGoalPayload,
 } from '@pulse/api-client';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { CATEGORY_COLORS, CATEGORY_LABELS } from './goalConstants';
+import { todayStr } from '../../store/logStore';
 
 interface Props {
   onClose: () => void;
@@ -13,31 +16,8 @@ interface Props {
 
 type Step = 1 | 2 | 3;
 
-const CATEGORY_LABELS: Record<GoalCategory, string> = {
-  body:      'Body',
-  nutrition: 'Nutrition',
-  exercise:  'Exercise',
-  activity:  'Activity',
-};
-
-const CATEGORY_COLORS: Record<GoalCategory, string> = {
-  body:      '#7BB389',
-  nutrition: '#60a5fa',
-  exercise:  '#f97316',
-  activity:  '#a78bfa',
-};
-
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 export default function AddGoalModal({ onClose, onCreated }: Props) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscapeKey(onClose);
   const [step, setStep]           = useState<Step>(1);
   const [activeCategory, setActiveCategory] = useState<GoalCategory>('body');
   const [selected, setSelected]   = useState<GoalCatalogEntry | null>(null);

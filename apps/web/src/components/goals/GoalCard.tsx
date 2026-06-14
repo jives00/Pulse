@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { goalsV2Api, measurementsApi, type Goal, type GoalCategory } from '@pulse/api-client';
+import { goalsV2Api, measurementsApi, type Goal } from '@pulse/api-client';
+import { CATEGORY_COLORS } from './goalConstants';
 
 interface Props {
   goal: Goal;
@@ -8,13 +9,6 @@ interface Props {
   onLogProgress: (goal: Goal) => void;
   onClose: (goal: Goal) => void;
 }
-
-const CATEGORY_COLORS: Record<GoalCategory, string> = {
-  body:      '#7BB389',
-  nutrition: '#60a5fa',
-  exercise:  '#f97316',
-  activity:  '#a78bfa',
-};
 
 const STATUS_CFG = {
   active:    { label: 'Active',    color: '#60a5fa' },

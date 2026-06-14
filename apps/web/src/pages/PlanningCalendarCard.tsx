@@ -9,6 +9,7 @@ import {
   type NutritionSchedule, type NutritionScheduleEvent,
   type RecurrenceType, type Food, type Recipe,
 } from '@pulse/api-client';
+import { todayStr } from '../store/logStore';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,14 +27,6 @@ const MEAL_SLOTS: { value: MealSlotType | ''; label: string }[] = [
 const inputCls = 'w-full bg-dram-bg border border-slate-600 rounded px-2 py-1.5 text-base text-slate-100 focus:outline-none focus:border-dram-accent';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function todayStr() {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function localDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

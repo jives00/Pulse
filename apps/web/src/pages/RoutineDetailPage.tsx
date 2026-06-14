@@ -5,9 +5,10 @@ import {
   routinesApi, workoutsApi, exercisesApi,
   type RoutineDetail,
   type Exercise, type WorkoutSummary, type WorkoutDetail, type RoutineType,
-  KG_TO_LBS, shortDate, formatDate,
+  KG_TO_LBS, shortDate, formatDate, longDate,
   secondsToMMSS as _secondsToMMSS,
 } from '@pulse/api-client';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const ROUTINE_TYPE_LABELS: Record<RoutineType, string> = {
   strength:        'Strength / Weight',
@@ -26,9 +27,6 @@ function fmtWeight(kg: number | null) {
 function secondsToMMSS(sec: number | null): string {
   if (sec == null) return '';
   return _secondsToMMSS(sec);
-}
-function longDate(dateStr: string): string {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 function dayOfWeek(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
@@ -408,11 +406,7 @@ function ExercisePicker({ onSelect, onClose }: { onSelect: (ex: Exercise) => voi
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   const filtered = exercises.filter((e) => {
     const matchCat = !category || e.category === category;

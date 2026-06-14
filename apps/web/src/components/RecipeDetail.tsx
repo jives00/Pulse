@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { recipesApi, type RecipeDetail as RecipeDetailType, type MakeLogEntry, type MealSlot, type RecipeFormData } from '@pulse/api-client';
 import Spinner from './Spinner';
+import { useEscapeKey } from '../hooks/useEscapeKey';
+import { MEAL_LABELS } from '../utils/meals';
 
 // ── AI Modify Modal ───────────────────────────────────────────────────────────
 // Extracted as its own component so textarea keystrokes only re-render this
@@ -27,11 +29,7 @@ function AiModifyModal({ recipe, onClose, onSaved }: AiModifyModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   async function handleSubmit() {
     if (!prompt.trim()) return;
@@ -229,13 +227,6 @@ interface Props {
   onDeleted: () => void;
   onUpdated: () => void;
 }
-
-const MEAL_LABELS: Record<MealSlot, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snack',
-};
 
 function defaultMealByTime(): MealSlot {
   const h = new Date().getHours();

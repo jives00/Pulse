@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { foodsApi, logApi } from '@pulse/api-client';
 import type { Food, MealSlot } from '@pulse/api-client';
+import { todayStr } from '../store/logStore';
 
 type Tab = 'search' | 'custom';
 
@@ -60,11 +61,6 @@ function CreateFoodForm({ onCreated }: { onCreated: (food: Food) => void }) {
   const [error, setError] = useState('');
   const [logAfterSave, setLogAfterSave] = useState(false);
   const [logMeal, setLogMeal] = useState<MealSlot>('lunch');
-
-  function todayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }
 
   function reset() {
     setName(''); setBrand(''); setDesc('');

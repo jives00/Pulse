@@ -19,6 +19,7 @@ function isTargetCrossed(goal: Goal): boolean {
 import AddGoalModal from '../components/goals/AddGoalModal';
 import LogProgressModal from '../components/goals/LogProgressModal';
 import CloseGoalModal from '../components/goals/CloseGoalModal';
+import { CATEGORY_COLORS } from '../components/goals/goalConstants';
 
 const CATEGORY_LABELS: Record<GoalCategory, string> = {
   body:      'Body Composition',
@@ -30,13 +31,6 @@ const CATEGORY_LABELS: Record<GoalCategory, string> = {
 const CATEGORY_ORDER: GoalCategory[] = ['body', 'nutrition', 'exercise', 'activity'];
 
 type ViewMode = 'active' | 'history';
-
-const CATEGORY_COLORS: Record<GoalCategory, string> = {
-  body:      '#7BB389',
-  nutrition: '#60a5fa',
-  exercise:  '#f97316',
-  activity:  '#a78bfa',
-};
 
 const STATUS_CFG = {
   active:    { label: 'Active',    color: '#60a5fa' },

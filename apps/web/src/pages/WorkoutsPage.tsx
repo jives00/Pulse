@@ -3,44 +3,16 @@ import { useNavigate, Link } from 'react-router-dom';
 import QuickLogModal from '../components/QuickLogModal';
 import {
   workoutsApi, routinesApi, exercisesApi, stepsApi,
+  defaultTrackedFields, localDateStr,
   type WorkoutSummary, type WorkoutDetail,
   type RoutineSummary, type Exercise,
   KG_TO_LBS, secondsToMMSS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { useSettingsStore } from '../store/settings';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function localDateStr(d: Date = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+import { EXERCISE_TYPES, TRACKED_FIELD_OPTIONS, CATEGORY_EMOJI } from '../utils/exercises';
 
 // ─── Routines tab ────────────────────────────────────────────────────────────
-
-const EXERCISE_TYPES_TAB = ['weight', 'bodyweight', 'cardio', 'duration', 'resistance'] as const;
-
-const TRACKED_FIELD_OPTIONS_TAB = [
-  { key: 'reps',     label: 'Reps' },
-  { key: 'weight',   label: 'Weight (lbs)' },
-  { key: 'duration', label: 'Duration (min:sec)' },
-  { key: 'distance', label: 'Distance' },
-] as const;
-
-function defaultTrackedFieldsTab(exerciseType: string): string[] {
-  switch (exerciseType) {
-    case 'cardio':     return ['duration', 'distance'];
-    case 'duration':   return ['duration'];
-    case 'bodyweight': return ['reps'];
-    default:           return ['reps', 'weight'];
-  }
-}
-
-const CATEGORY_EMOJI_TAB: Record<string, string> = {
-  chest: '🫁', back: '🦾', shoulders: '💪', arms: '💪',
-  legs: '🦵', glutes: '🍑', core: '⚡', cardio: '🏃',
-  olympic: '🥇', plyometrics: '🦘', stretching: '🧘',
-};
 
 function RoutineCardInTab({ routine }: { routine: RoutineSummary }) {
   const navigate = useNavigate();
@@ -212,7 +184,7 @@ const EMPTY_EX_FORM: ExerciseFormState = { name: '', category: '', customCategor
 
 function ExerciseCardInTab({ exercise }: { exercise: Exercise }) {
   const imgSrc = exercise.coverImageUrl ?? null;
-  const emoji = CATEGORY_EMOJI_TAB[exercise.category.toLowerCase()] ?? '🏋️';
+  const emoji = CATEGORY_EMOJI[exercise.category.toLowerCase()] ?? '🏋️';
   return (
     <div className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition group">
       <Link to={`/workouts/exercises/${exercise.id}`} className="block">
@@ -369,8 +341,8 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Type</label>
               <div className="flex flex-wrap gap-1.5">
-                {EXERCISE_TYPES_TAB.map((t) => (
-                  <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFieldsTab(t) }))}
+                {EXERCISE_TYPES.map((t) => (
+                  <button key={t} onClick={() => setForm((f) => ({ ...f, exerciseType: t, trackedFields: defaultTrackedFields(t) }))}
                     className={`text-sm px-3 py-1 rounded-full border transition-colors ${form.exerciseType === t ? 'bg-dram-accent text-dram-bg border-dram-accent font-semibold' : 'text-dram-accent/60 border-dram-border hover:border-dram-accent/40'}`}
                   >{t}</button>
                 ))}
@@ -379,7 +351,7 @@ const ExercisesTab = forwardRef<ExercisesTabHandle>(function ExercisesTab(_, ref
             <div className="space-y-2">
               <label className="text-sm font-semibold text-dram-accent/50 uppercase tracking-wide">Track Per Set</label>
               <div className="flex flex-wrap gap-2">
-                {TRACKED_FIELD_OPTIONS_TAB.map(({ key, label }) => {
+                {TRACKED_FIELD_OPTIONS.map(({ key, label }) => {
                   const checked = form.trackedFields.includes(key);
                   return (
                     <button key={key} type="button"

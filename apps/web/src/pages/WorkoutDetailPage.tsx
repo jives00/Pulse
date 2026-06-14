@@ -1,16 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed, longDate } from '@pulse/api-client';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const REST_SECONDS = 90;
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function longDate(dateStr: string): string {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 function getYouTubeEmbedUrl(url: string): string | null {
   try {
@@ -524,11 +519,7 @@ function ExercisePicker({
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   const filtered = exercises.filter((e) => {
     const matchCat = !category || e.category === category;

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { foodsApi, recipesApi, logApi } from '@pulse/api-client';
 import { useLogStore } from '../store/logStore';
 import type { Food, MealSlot, RecipeSearchResult, FrequentFood } from '@pulse/api-client';
+import { MEAL_META, MEAL_LABELS } from '../utils/meals';
 
 type View     = 'meal' | 'search' | 'pick' | 'recipe-pick';
 type SearchTab = 'search' | 'add-recipe' | 'describe-meal';
@@ -19,20 +20,6 @@ function defaultMealByTime(): MealSlot {
   if (h >= 17 && h < 20) return 'dinner';
   return 'snack';
 }
-
-const MEAL_LABELS: Record<MealSlot, string> = {
-  breakfast: 'Breakfast',
-  lunch:     'Lunch',
-  dinner:    'Dinner',
-  snack:     'Snacks',
-};
-
-const MEAL_META: Record<MealSlot, { emoji: string; color: string }> = {
-  breakfast: { emoji: '🍳', color: '#f59e0b' },
-  lunch:     { emoji: '🥗', color: '#22c55e' },
-  dinner:    { emoji: '🍽️', color: '#60a5fa' },
-  snack:     { emoji: '🍎', color: '#f87171' },
-};
 
 const CONFIDENCE_COLORS = {
   high:   'text-emerald-400',

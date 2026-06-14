@@ -20,3 +20,8 @@ export function shortDate(dateStr: string): string {
 export function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
+
+/** Returns "Mon DD" display date from a YYYY-MM-DD string, e.g. "Jun 14". */
+export function longDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}

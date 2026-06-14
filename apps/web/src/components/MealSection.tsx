@@ -2,15 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LogEntry, MealSlot, ServingSize } from '@pulse/api-client';
 import { foodsApi } from '@pulse/api-client';
 import { useLogStore, todayStr } from '../store/logStore';
-
-const MEAL_META: Record<MealSlot, { label: string; emoji: string; from: string; color: string }> = {
-  breakfast: { label: 'Breakfast', emoji: '🍳', from: 'from-amber-500/20',  color: '#f59e0b' },
-  lunch:     { label: 'Lunch',     emoji: '🥗', from: 'from-green-500/20',  color: '#22c55e' },
-  dinner:    { label: 'Dinner',    emoji: '🍽️', from: 'from-blue-500/20',   color: '#60a5fa' },
-  snack:     { label: 'Snacks',    emoji: '🍎', from: 'from-rose-500/20',   color: '#f87171' },
-};
-
-const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+import { MEAL_META, MEAL_SLOTS } from '../utils/meals';
 
 // Visual max per macro (per-meal reference, purely for bar fill proportion)
 const MACRO_MAX = { Protein: 70, Carbs: 90, Fat: 30 };

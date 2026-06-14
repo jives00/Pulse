@@ -8,6 +8,7 @@ import {
   KG_TO_LBS,
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
+import { todayStr } from '../store/logStore';
 
 type Tab = 'workouts' | 'nutrition' | 'measurements';
 
@@ -155,13 +156,6 @@ function MeasurementModal({
   );
 }
 
-function todayStr() {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 export default function History() {
   const navigate = useNavigate();

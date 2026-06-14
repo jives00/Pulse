@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { exercisesApi, workoutsApi, type Exercise, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '@pulse/api-client';
 import Spinner from './Spinner';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -342,11 +343,7 @@ export default function QuickLogModal({ onClose }: { onClose: () => void }) {
   const [starting, setStarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [logState]);
+  useEscapeKey(handleClose);
 
   async function handleSelectExercise(ex: Exercise) {
     setExercise(ex);
