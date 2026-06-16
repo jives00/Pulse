@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AppState, type AppStateStatus, DeviceEventEmitter, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { AppState, type AppStateStatus, DeviceEventEmitter, Platform, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -104,6 +104,15 @@ export default function RootLayout() {
       Notifications.setNotificationCategoryAsync('workout-paused', [
         { identifier: 'RESUME', buttonTitle: 'Resume', options: { opensAppToForeground: true } },
       ]).catch(() => {});
+
+      if (Platform.OS === 'android') {
+        Notifications.setNotificationChannelAsync('rest-complete', {
+          name: 'Rest Timer',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          audioAttributes: { usage: 4 }, // AudioAttributesUsage.ALARM — bypasses DND/silent
+        }).catch(() => {});
+      }
 
       sub = Notifications.addNotificationResponseReceivedListener((response) => {
         const actionId = response.actionIdentifier;

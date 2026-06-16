@@ -52,6 +52,7 @@ function mmssToSeconds(val: string): number | null {
 }
 
 const WORKOUT_NOTIF_ID = 'active-workout';
+const REST_COMPLETE_NOTIF_ID = 'rest-complete';
 const SUCCESS = '#34d399';
 const PAUSED = '#f59e0b';
 const REST_SECONDS = 90;
@@ -123,6 +124,7 @@ async function showWorkoutNotification(
   elapsed: number,
   isPaused: boolean,
   bodyWeightKg?: number,
+  restRemaining?: number | null,
 ) {
   const title = workout.routineName ?? 'Workout';
   const vol = workout.exercises.reduce((total, we) => {
@@ -141,6 +143,8 @@ async function showWorkoutNotification(
   let body: string;
   if (isPaused) {
     body = `PAUSED · ${formatTimer(elapsed)}`;
+  } else if (restRemaining != null && restRemaining > 0) {
+    body = `Rest · ${restRemaining}s remaining`;
   } else if (vol > 0) {
     body = `${Math.round(vol).toLocaleString()} lbs · ${formatTimer(elapsed)}`;
   } else {
@@ -169,6 +173,27 @@ async function dismissWorkoutNotification() {
     const Notifications = await getNotifications();
     await Notifications?.dismissNotificationAsync(WORKOUT_NOTIF_ID);
   } catch { /* notification may not exist */ }
+}
+
+async function scheduleRestEndNotification(secondsFromNow: number) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
+  await Notifications.cancelScheduledNotificationAsync(REST_COMPLETE_NOTIF_ID).catch(() => {});
+  if (secondsFromNow <= 0) return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: REST_COMPLETE_NOTIF_ID,
+    content: {
+      title: 'Rest Complete',
+      body: 'Ready for your next set!',
+      android: { channelId: 'rest-complete', priority: 'max' },
+    } as any,
+    trigger: { type: 'timeInterval', seconds: secondsFromNow, repeats: false } as any,
+  });
+}
+
+async function cancelRestEndNotification() {
+  const Notifications = await getNotifications();
+  await Notifications?.cancelScheduledNotificationAsync(REST_COMPLETE_NOTIF_ID).catch(() => {});
 }
 
 async function playRestDing() {
@@ -216,6 +241,7 @@ export default function WorkoutDetailScreen() {
   const totalPausedSecondsRef = useRef<number>(0);
   const workoutRef = useRef<WorkoutDetail | null>(null);
   const isPausedRef = useRef(false);
+  const restSecondsRef = useRef(0);
 
   // Exercise picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -344,9 +370,12 @@ export default function WorkoutDetailScreen() {
     const tick = () => {
       const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
       const remaining = Math.max(0, restDurationRef.current - elapsed);
+      restSecondsRef.current = remaining;
       setRestSeconds(remaining);
       if (remaining === 0) {
+        restSecondsRef.current = 0;
         setRestStartedAt(null);
+        cancelRestEndNotification().catch(() => {}); // in-app: cancel scheduled, use haptics
         playRestDing();
       }
     };
@@ -374,7 +403,8 @@ export default function WorkoutDetailScreen() {
       const newElapsed = Math.max(0, raw - totalPausedSecondsRef.current);
       setElapsed(newElapsed);
       if (workoutRef.current && !isPausedRef.current) {
-        showWorkoutNotification(workoutRef.current, newElapsed, false, bodyWeightKg ?? undefined).catch(() => {});
+        const restRem = restSecondsRef.current > 0 ? restSecondsRef.current : null;
+        showWorkoutNotification(workoutRef.current, newElapsed, false, bodyWeightKg ?? undefined, restRem).catch(() => {});
       }
     };
     tick();
@@ -391,6 +421,7 @@ export default function WorkoutDetailScreen() {
             await deleteWorkout(token, workoutId);
             await deleteExerciseRecord(String(workoutId));
             dismissWorkoutNotification();
+            cancelRestEndNotification().catch(() => {});
             router.back();
           } catch {
             Alert.alert('Error', 'Could not cancel workout.');
@@ -437,6 +468,7 @@ export default function WorkoutDetailScreen() {
       const updated = await updateWorkout(token, workoutId, { durationMinutes, completed: true });
       await writeExerciseRecord(updated, String(updated.id));
       dismissWorkoutNotification();
+      cancelRestEndNotification().catch(() => {});
       // Non-blocking: estimate calories burned in the background (mirrors web behavior)
       estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });
       router.back();
@@ -530,6 +562,7 @@ export default function WorkoutDetailScreen() {
       setRestDuration(REST_SECONDS);
       setRestSeconds(REST_SECONDS);
       setRestStartedAt(Date.now());
+      scheduleRestEndNotification(REST_SECONDS).catch(() => {});
     } catch { Alert.alert('Error', 'Could not add set.'); }
   }
 
@@ -675,6 +708,7 @@ export default function WorkoutDetailScreen() {
       setRestDuration(REST_SECONDS);
       setRestSeconds(REST_SECONDS);
       setRestStartedAt(Date.now());
+      scheduleRestEndNotification(REST_SECONDS).catch(() => {});
     }
     // Optimistic update
     setWorkout((prev) => {
@@ -810,11 +844,18 @@ export default function WorkoutDetailScreen() {
           duration={restDuration}
           c={c}
           onAdd={() => {
+            const newRemaining = restSecondsRef.current + 30;
             restDurationRef.current += 30;
             setRestDuration((d) => d + 30);
-            setRestSeconds((sec) => sec + 30);
+            setRestSeconds(newRemaining);
+            scheduleRestEndNotification(newRemaining).catch(() => {});
           }}
-          onSkip={() => { setRestStartedAt(null); setRestSeconds(0); }}
+          onSkip={() => {
+            setRestStartedAt(null);
+            setRestSeconds(0);
+            restSecondsRef.current = 0;
+            cancelRestEndNotification().catch(() => {});
+          }}
         />
       )}
 

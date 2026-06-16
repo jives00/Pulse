@@ -7,6 +7,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## June 16, 2026
 
 ### Frontend – Mobile
+- **Rest timer countdown in workout notification + alarm alert on completion** — Notification body shows "Rest · Xs remaining" during rest, counting down each second; schedules a local alarm-channel notification when rest starts so the phone beeps/vibrates when rest ends even if the app is backgrounded or in silent mode (Android USAGE_ALARM audio attributes bypass DND/silent); +30s reschedules the alert; Skip and finish/cancel clean it up `fe5fff1`
 - **Truncate long exercise names in dashboard Exercise Today card** — Added `numberOfLines={1}` + `ellipsizeMode="tail"` to the scheduled workout title and per-exercise names in the list; added `marginRight` spacing between title and Start button `13a55f0`
 
 ## June 15, 2026
