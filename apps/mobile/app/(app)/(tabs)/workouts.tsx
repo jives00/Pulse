@@ -133,7 +133,7 @@ function LogTab() {
           {activeWorkout && (
             <TouchableOpacity
               style={s.resumeBanner}
-              onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
+              onPress={() => router.push(`/(app)/(tabs)/workout/${activeWorkout.id}`)}
             >
               <View style={{ flex: 1 }}>
                 <Text style={s.resumeTitle}>Workout in progress</Text>
@@ -189,7 +189,7 @@ function LogTab() {
       renderItem={({ item }) => (
         <TouchableOpacity
           style={s.card}
-          onPress={() => router.push(`/(app)/workout/${item.id}`)}
+          onPress={() => router.push(`/(app)/(tabs)/workout/${item.id}`)}
           onLongPress={() => handleDelete(item.id)}
         >
           <View style={s.cardTop}>
@@ -340,7 +340,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         ListHeaderComponent={activeWorkout ? (
           <TouchableOpacity
             style={[s.resumeBanner, { marginBottom: 12 }]}
-            onPress={() => router.push(`/(app)/workout/${activeWorkout.id}`)}
+            onPress={() => router.push(`/(app)/(tabs)/workout/${activeWorkout.id}`)}
           >
             <View style={{ flex: 1 }}>
               <Text style={s.resumeTitle}>Workout in progress</Text>
@@ -1164,7 +1164,7 @@ export default function WorkoutsScreen() {
     setStarting(true);
     try {
       const w = await createWorkout(token);
-      router.push(`/(app)/workout/${w.id}`);
+      router.push(`/(app)/(tabs)/workout/${w.id}`);
     } catch {
       Alert.alert('Error', 'Could not start workout.');
     } finally {
@@ -1177,7 +1177,7 @@ export default function WorkoutsScreen() {
     setStarting(true);
     try {
       const w = await startRoutine(token, r.id);
-      router.push(`/(app)/workout/${w.id}`);
+      router.push(`/(app)/(tabs)/workout/${w.id}`);
     } catch {
       Alert.alert('Error', 'Could not start routine.');
     } finally {
@@ -1230,7 +1230,7 @@ export default function WorkoutsScreen() {
       {tab === 'log' && <LogTab />}
       {tab === 'routines' && (
         <RoutinesTab
-          onStarted={(workoutId) => router.push(`/(app)/workout/${workoutId}`)}
+          onStarted={(workoutId) => router.push(`/(app)/(tabs)/workout/${workoutId}`)}
           createVisible={routinesCreateVisible}
           onCreateClose={() => setRoutinesCreateVisible(false)}
         />

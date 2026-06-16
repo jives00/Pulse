@@ -311,7 +311,7 @@ export default function RoutineDetailScreen() {
     setStarting(true);
     try {
       const workout = await startRoutine(token, routine.id);
-      router.push(`/(app)/workout/${workout.id}`);
+      router.push(`/(app)/(tabs)/workout/${workout.id}`);
     } catch { setStarting(false); }
   }
 

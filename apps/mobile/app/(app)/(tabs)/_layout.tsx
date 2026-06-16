@@ -185,6 +185,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="links" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
+      <Tabs.Screen name="workout/[id]" options={{ href: null }} />
     </Tabs>
     <AIAssistant />
     </View>

@@ -15,13 +15,13 @@ import {
   getRoutine,
   getMeasurements,
   type WorkoutDetail, type WorkoutExercise, type ExerciseSet, type Exercise,
-} from '../../../src/api/client';
-import { writeExerciseRecord, deleteExerciseRecord } from '../../../src/services/healthConnectWriter';
-import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../packages/api-client/src/index';
-import { useAuthStore } from '../../../src/store/auth';
-import { fontSize, type Colors } from '../../../src/theme';
-import { useColors } from '../../../src/hooks/useColors';
-import { getNotifications } from '../../../src/notifications';
+} from '../../../../src/api/client';
+import { writeExerciseRecord, deleteExerciseRecord } from '../../../../src/services/healthConnectWriter';
+import { KG_TO_LBS, secondsToMMSS as _secondsToMMSS } from '../../../../../../packages/api-client/src/index';
+import { useAuthStore } from '../../../../src/store/auth';
+import { fontSize, type Colors } from '../../../../src/theme';
+import { useColors } from '../../../../src/hooks/useColors';
+import { getNotifications } from '../../../../src/notifications';
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -155,7 +155,7 @@ async function showWorkoutNotification(
     content: {
       title,
       body,
-      data: { url: `/(app)/workout/${workout.id}` },
+      data: { url: `/(app)/(tabs)/workout/${workout.id}` },
       sticky: true,
       autoDismiss: false,
       categoryIdentifier: isPaused ? 'workout-paused' : 'workout-running',

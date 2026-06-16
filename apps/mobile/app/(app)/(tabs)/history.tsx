@@ -302,7 +302,7 @@ export default function HistoryScreen() {
               renderItem={({ item: w }) => (
                 <TouchableOpacity
                   style={[styles.card, { flexDirection: 'row', alignItems: 'flex-start', padding: 14, marginBottom: 8 }]}
-                  onPress={() => router.push(`/(app)/workout/${w.id}` as any)}
+                  onPress={() => router.push(`/(app)/(tabs)/workout/${w.id}` as any)}
                   activeOpacity={0.7}
                 >
                   <View style={{ flex: 1 }}>

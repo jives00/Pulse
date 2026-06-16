@@ -158,7 +158,19 @@ async function ownsRoutine(routineId: number, userId: number): Promise<boolean> 
   return rows.length > 0;
 }
 
-async function getLastPerformedSets(exerciseId: number, userId: number, routineId?: number): Promise<RowDataPacket[]> {
+async function getLastPerformedSets(exerciseId: number, userId: number, routineId?: number, pinnedWorkoutId?: number): Promise<RowDataPacket[]> {
+  if (pinnedWorkoutId != null) {
+    // Pinned to a specific workout — used when all exercises should reference the same session
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT es.*
+       FROM exercise_sets es
+       JOIN workout_exercises we ON we.id = es.workout_exercise_id
+       WHERE we.workout_log_id = ? AND we.exercise_id = ?
+       ORDER BY es.set_number ASC`,
+      [pinnedWorkoutId, exerciseId]
+    );
+    return rows;
+  }
   const routineFilter = routineId != null ? 'AND wl.routine_id = ?' : '';
   const routineFilter2 = routineId != null ? 'AND wl2.routine_id = ?' : '';
   const params = routineId != null
@@ -213,12 +225,19 @@ async function getRoutineDetail(routineId: number, userId: number) {
     [routineId]
   );
 
+  // Find the most recent completed workout for this routine so all exercises reference the same session
+  const [lastWkRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM workout_logs WHERE user_id = ? AND routine_id = ? AND completed = 1 ORDER BY workout_date DESC, id DESC LIMIT 1`,
+    [userId, routineId]
+  );
+  const lastWorkoutId: number | undefined = lastWkRows.length > 0 ? (lastWkRows[0] as any).id : undefined;
+
   const exercises = await Promise.all(exRows.map(async (ex) => {
     const [templateSets] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM routine_exercise_sets WHERE routine_exercise_id = ? ORDER BY set_number ASC',
       [ex.re_id]
     );
-    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, userId, routineId);
+    const lastPerformedSets = await getLastPerformedSets(ex.ex_id, userId, routineId, lastWorkoutId);
 
     return {
       id: ex.re_id,

@@ -4,6 +4,14 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 15, 2026
+
+### Frontend – Mobile
+- **Restore tab bar during active workout** — Moved `workout/[id]` screen from `(app)/workout/` into `(app)/(tabs)/workout/` (registered with `href: null`) so the bottom nav stays visible; updated all navigation references and notification deep-link URL `bf5f3cb`
+
+### Backend
+- **Fix "last session" bar showing data from wrong session** — `getRoutineDetail` now pins all per-exercise `getLastPerformedSets` calls to a single `lastWorkoutId` (most recent completed workout for the routine) so the top bar and "Beat last" chips always reflect the same session rather than mixing data from different dates `bf5f3cb`
+
 ## June 14, 2026
 
 ### Backend
