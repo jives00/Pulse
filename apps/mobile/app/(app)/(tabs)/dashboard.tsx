@@ -720,9 +720,9 @@ export default function DashboardV4Screen() {
               <>
                 <CardHeader title="Exercise Today" c={c} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
                     <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Scheduled today</Text>
-                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text }}>{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</Text>
+                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: c.text }} numberOfLines={1} ellipsizeMode="tail">{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</Text>
                   </View>
                   <TouchableOpacity
                     style={{ backgroundColor: COL_GOLD, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 7 }}
@@ -738,7 +738,7 @@ export default function DashboardV4Screen() {
                   const topReps = last?.find((s) => s.weightKg === maxWeightKg)?.reps ?? null;
                   return (
                     <View key={i} style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>
-                      <Text style={{ fontSize: fontSize.sm, color: c.text }}>{re.exercise.name}</Text>
+                      <Text style={{ fontSize: fontSize.sm, color: c.text, flex: 1, marginRight: 8 }} numberOfLines={1} ellipsizeMode="tail">{re.exercise.name}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
                         <Text style={{ fontSize: 12, color: c.muted }}>{setCount} sets</Text>
                         {maxWeightKg > 0 && (

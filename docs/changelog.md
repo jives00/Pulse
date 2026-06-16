@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 16, 2026
+
+### Frontend – Mobile
+- **Truncate long exercise names in dashboard Exercise Today card** — Added `numberOfLines={1}` + `ellipsizeMode="tail"` to the scheduled workout title and per-exercise names in the list; added `marginRight` spacing between title and Start button `13a55f0`
+
 ## June 15, 2026
 
 ### Frontend – Mobile
