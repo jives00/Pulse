@@ -467,17 +467,22 @@ export default function WorkoutDetailScreen() {
 
   async function handleFinish() {
     setFinishing(true);
+    // Stop the timer before touching notifications so in-flight ticks can't re-create the notification
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    dismissWorkoutNotification();
+    cancelRestEndNotification().catch(() => {});
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
       const updated = await updateWorkout(token, workoutId, { durationMinutes, completed: true });
       await writeExerciseRecord(updated, String(updated.id));
-      dismissWorkoutNotification();
-      cancelRestEndNotification().catch(() => {});
       // Non-blocking: estimate calories burned in the background (mirrors web behavior)
       estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });
       router.back();
     } catch {
-      Alert.alert('Error', 'Could not finish workout.');
+      Alert.alert('Error', 'Could not finish workout. Your session is still active — please try again.');
     } finally {
       setFinishing(false);
     }

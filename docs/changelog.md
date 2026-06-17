@@ -8,6 +8,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Frontend – Mobile
 - **Fix rest timer notification: absolute end time + single notification** — Replaced "Xs remaining" countdown text with "ready at HH:MM" so the notification body stays accurate when the app is backgrounded (JS timers pause but absolute time does not); rest-end alarm now uses `WORKOUT_NOTIF_ID` so it replaces the workout notification in-place instead of showing a second notification alongside it `a8d98f0`
+- **Fix notification/timer persisting after finish workout** — Stop the interval timer before dismissing notifications in `handleFinish` so in-flight ticks can't re-create the notification after it is cleared; move notification cleanup before the API call so it runs even if save fails `a0b4a1c`
 
 ## June 16, 2026
 
