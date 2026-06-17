@@ -818,6 +818,13 @@ export default function WorkoutDetailPage() {
     } catch {
       // ignore
     }
+    if (newDur !== workout.durationMinutes) {
+      workoutsApi.estimateCalories(workout.id)
+        .then(({ caloriesBurned }) => {
+          setWorkout((prev) => prev ? { ...prev, caloriesBurned } : prev);
+        })
+        .catch(() => {});
+    }
   }
 
   async function saveDate() {

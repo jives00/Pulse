@@ -512,12 +512,14 @@ router.put('/:id', async (req, res) => {
   const { name, notes, durationMinutes, caloriesBurned, workoutDate, completed } = req.body;
   try {
     const setClauses = [
-      'name=?', 'notes=?', 'duration_minutes=?', 'calories_burned=?',
+      'name=?', 'notes=?', 'duration_minutes=?',
+      ...(caloriesBurned !== undefined ? ['calories_burned=?'] : []),
       ...(workoutDate !== undefined ? ['workout_date=?'] : []),
       'completed=COALESCE(?, completed)',
     ].join(', ');
     const params = [
-      name ?? null, notes ?? null, durationMinutes ?? null, caloriesBurned ?? null,
+      name ?? null, notes ?? null, durationMinutes ?? null,
+      ...(caloriesBurned !== undefined ? [caloriesBurned ?? null] : []),
       ...(workoutDate !== undefined ? [workoutDate] : []),
       completed != null ? (completed ? 1 : 0) : null, id, req.userId,
     ];
