@@ -52,7 +52,6 @@ function mmssToSeconds(val: string): number | null {
 }
 
 const WORKOUT_NOTIF_ID = 'active-workout';
-const REST_COMPLETE_NOTIF_ID = 'rest-complete';
 const SUCCESS = '#34d399';
 const PAUSED = '#f59e0b';
 const REST_SECONDS = 90;
@@ -144,7 +143,8 @@ async function showWorkoutNotification(
   if (isPaused) {
     body = `PAUSED · ${formatTimer(elapsed)}`;
   } else if (restRemaining != null && restRemaining > 0) {
-    body = `Rest · ${restRemaining}s remaining`;
+    const endTime = new Date(Date.now() + restRemaining * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    body = `Rest · ready at ${endTime}`;
   } else if (vol > 0) {
     body = `${Math.round(vol).toLocaleString()} lbs · ${formatTimer(elapsed)}`;
   } else {
@@ -175,25 +175,29 @@ async function dismissWorkoutNotification() {
   } catch { /* notification may not exist */ }
 }
 
-async function scheduleRestEndNotification(secondsFromNow: number) {
+async function scheduleRestEndNotification(secondsFromNow: number, workoutId: number, workoutTitle: string) {
   const Notifications = await getNotifications();
   if (!Notifications) return;
-  await Notifications.cancelScheduledNotificationAsync(REST_COMPLETE_NOTIF_ID).catch(() => {});
+  await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
   if (secondsFromNow <= 0) return;
   await Notifications.scheduleNotificationAsync({
-    identifier: REST_COMPLETE_NOTIF_ID,
+    identifier: WORKOUT_NOTIF_ID,
     content: {
-      title: 'Rest Complete',
+      title: workoutTitle,
       body: 'Ready for your next set!',
-      android: { channelId: 'rest-complete', priority: 'max' },
-    } as any,
+      data: { url: `/(app)/(tabs)/workout/${workoutId}` },
+      sticky: true,
+      autoDismiss: false,
+      categoryIdentifier: 'workout-running',
+      android: { channelId: 'rest-complete', priority: 'max' } as any,
+    },
     trigger: { type: 'timeInterval', seconds: secondsFromNow, repeats: false } as any,
   });
 }
 
 async function cancelRestEndNotification() {
   const Notifications = await getNotifications();
-  await Notifications?.cancelScheduledNotificationAsync(REST_COMPLETE_NOTIF_ID).catch(() => {});
+  await Notifications?.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
 }
 
 async function playRestDing() {
@@ -562,7 +566,7 @@ export default function WorkoutDetailScreen() {
       setRestDuration(REST_SECONDS);
       setRestSeconds(REST_SECONDS);
       setRestStartedAt(Date.now());
-      scheduleRestEndNotification(REST_SECONDS).catch(() => {});
+      scheduleRestEndNotification(REST_SECONDS, workoutId, workoutRef.current?.routineName ?? 'Workout').catch(() => {});
     } catch { Alert.alert('Error', 'Could not add set.'); }
   }
 
@@ -708,7 +712,7 @@ export default function WorkoutDetailScreen() {
       setRestDuration(REST_SECONDS);
       setRestSeconds(REST_SECONDS);
       setRestStartedAt(Date.now());
-      scheduleRestEndNotification(REST_SECONDS).catch(() => {});
+      scheduleRestEndNotification(REST_SECONDS, workoutId, workoutRef.current?.routineName ?? 'Workout').catch(() => {});
     }
     // Optimistic update
     setWorkout((prev) => {
@@ -848,7 +852,7 @@ export default function WorkoutDetailScreen() {
             restDurationRef.current += 30;
             setRestDuration((d) => d + 30);
             setRestSeconds(newRemaining);
-            scheduleRestEndNotification(newRemaining).catch(() => {});
+            scheduleRestEndNotification(newRemaining, workoutId, workoutRef.current?.routineName ?? 'Workout').catch(() => {});
           }}
           onSkip={() => {
             setRestStartedAt(null);
