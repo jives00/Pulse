@@ -721,6 +721,8 @@ router.post('/:id/log', async (req: Request, res: Response) => {
     await conn.query('INSERT INTO recipe_log (recipe_id, user_id) VALUES (?, ?)', [id, req.userId]);
 
     // If meal + servings provided, also log to nutrition
+    let nutritionLogged = false;
+    let nutritionSkipped: 'no_nutrition' | null = null;
     if (meal && servings != null) {
       if (!validMeals.includes(meal)) {
         await conn.rollback();
@@ -737,11 +739,16 @@ router.post('/:id/log', async (req: Request, res: Response) => {
       const recipe = recipeRows[0];
       if (recipe?.calories != null) {
         await upsertRecipeNutritionLog(conn, recipe, req.userId, meal, qty, logDate ?? null);
+        nutritionLogged = true;
+      } else {
+        // Recipe has no nutrition data — made-history is recorded, but we can't
+        // add it to the food diary. Tell the client so it can surface this.
+        nutritionSkipped = 'no_nutrition';
       }
     }
 
     await conn.commit();
-    res.json({ success: true });
+    res.json({ success: true, nutritionLogged, nutritionSkipped });
   } catch (err) {
     await conn.rollback();
     console.error('[recipes] error:', err);

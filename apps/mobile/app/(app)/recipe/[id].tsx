@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRecipe, logRecipe, logRecipeToNutrition, updateRecipe, getRecipeLog, deleteLogEntry, deleteAllLog, type RecipeDetail, type MakeLogEntry, type MealSlot } from '../../../src/api/client';
+import { getRecipe, logRecipe, updateRecipe, getRecipeLog, deleteLogEntry, deleteAllLog, type RecipeDetail, type MakeLogEntry, type MealSlot } from '../../../src/api/client';
 import { localDateStr } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
@@ -100,13 +100,17 @@ export default function RecipeDetailScreen() {
     setShowLogModal(false);
     setLogSaving(true);
     try {
-      await Promise.all([
-        logRecipe(token, recipe.id),
-        logRecipeToNutrition(token, { recipeId: recipe.id, meal: logMeal, servings: logServings, logDate: localDateStr() }),
-      ]);
+      const result = await logRecipe(token, recipe.id, { meal: logMeal, servings: logServings, logDate: localDateStr() });
       const logData = await getRecipeLog(token, recipe.id);
       setMakeLog(logData.entries);
-      Alert.alert('Logged!', `${recipe.name} added to ${logMeal}.`);
+      if (result.nutritionLogged) {
+        Alert.alert('Logged!', `${recipe.name} added to ${logMeal}.`);
+      } else {
+        Alert.alert(
+          'Marked as made',
+          `${recipe.name} was added to your made history, but it has no nutrition data so it wasn't added to your food log. Edit the recipe to add nutrition first.`,
+        );
+      }
     } catch { Alert.alert('Error', 'Could not log recipe.'); }
     finally { setLogSaving(false); }
   }
@@ -416,6 +420,12 @@ export default function RecipeDetailScreen() {
                   <Text style={styles.stepBtnText}>+</Text>
                 </TouchableOpacity>
               </View>
+
+              {recipe.calories == null && (
+                <Text style={{ color: c.error, fontSize: fontSize.sm, marginBottom: 12, textAlign: 'center' }}>
+                  ⚠ This recipe has no nutrition data. It'll be added to your made history but not your food log. Edit the recipe to add nutrition first.
+                </Text>
+              )}
 
               <TouchableOpacity style={styles.logBtn} onPress={handleConfirmLog}>
                 <Text style={styles.logBtnText}>Log to Food Log</Text>

@@ -287,7 +287,7 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
     setLogging(true);
     try {
       const qty = Number(cookServings) || 1;
-      await recipesApi.log(recipe.id, { meal: cookMeal, servings: qty, logDate: cookDate });
+      const result = await recipesApi.log(recipe.id, { meal: cookMeal, servings: qty, logDate: cookDate });
       const [updated, logData] = await Promise.all([
         recipesApi.get(recipe.id),
         recipesApi.getLog(recipe.id),
@@ -296,6 +296,9 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
       setLog(logData.entries);
       setShowCookModal(false);
       onUpdated();
+      if (result.nutritionLogged === false) {
+        window.alert(`"${recipe.name}" was added to your made history, but it has no nutrition data so it wasn't added to your food log. Edit the recipe to add nutrition first.`);
+      }
     } finally {
       setLogging(false);
     }
@@ -753,9 +756,13 @@ export default function RecipeDetail({ recipeId, onClose, onEdit, onDeleted, onU
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-dram-accent"
               />
             </div>
-            {recipe?.calories != null && (
+            {recipe?.calories != null ? (
               <div className="bg-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-400">
                 ≈ {Math.round(recipe.calories * (Number(cookServings) || 1))} cal — will also log to nutrition
+              </div>
+            ) : (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-amber-300">
+                ⚠ This recipe has no nutrition data. It'll be added to your made history but not your food log. Edit the recipe to add nutrition first.
               </div>
             )}
             <div>

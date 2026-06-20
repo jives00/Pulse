@@ -117,8 +117,12 @@ export async function deleteRecipe(_token: string, id: number): Promise<{ succes
   return recipesApi.delete(id);
 }
 
-export async function logRecipe(_token: string, id: number): Promise<{ success: boolean }> {
-  return recipesApi.log(id);
+export async function logRecipe(
+  _token: string,
+  id: number,
+  payload?: { meal?: string; servings?: number; logDate?: string },
+): Promise<{ success: boolean; nutritionLogged?: boolean; nutritionSkipped?: 'no_nutrition' | null }> {
+  return recipesApi.log(id, payload);
 }
 
 export async function getPhotoUploadUrl(_token: string, id: number, contentType: string): Promise<{ uploadUrl: string; key: string }> {

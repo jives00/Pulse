@@ -51,7 +51,7 @@ export const recipesApi = {
     apiClient.delete<{ success: boolean }>(`/recipes/${id}/barcode`).then((r) => r.data),
 
   log: (id: number, payload?: { meal?: string; servings?: number; logDate?: string }) =>
-    apiClient.post<{ success: boolean }>(`/recipes/${id}/log`, payload ?? {}).then((r) => r.data),
+    apiClient.post<{ success: boolean; nutritionLogged?: boolean; nutritionSkipped?: 'no_nutrition' | null }>(`/recipes/${id}/log`, payload ?? {}).then((r) => r.data),
 
   getLog: (id: number) =>
     apiClient.get<{ count: number; entries: MakeLogEntry[] }>(`/recipes/${id}/log`).then((r) => r.data),

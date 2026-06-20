@@ -4,6 +4,17 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## June 20, 2026
+
+### Backend
+- **Surface recipes with no nutrition data on "I made this"** — `POST /api/recipes/:id/log` now returns `{ nutritionLogged, nutritionSkipped }`; when a recipe has `NULL` calories it still records made-history but reports that it was not added to the food log instead of silently committing `e90b93c`
+
+### Frontend – Web
+- **Warn when logging a recipe without nutrition** — Cook modal shows a proactive warning when the recipe has no nutrition data, and an alert after logging confirms it went to made-history but not the food log `e90b93c`
+
+### Frontend – Mobile
+- **Fix "Could not log recipe" + duplicate made-history** — "I made this" now uses the single `/recipes/:id/log` endpoint (was firing a second `/log/recipe` call that errored after inserting a duplicate `recipe_log` row); shows an accurate alert based on whether nutrition was logged, plus a proactive in-modal warning for recipes with no nutrition data `e90b93c`
+
 ## June 17, 2026
 
 ### Backend
