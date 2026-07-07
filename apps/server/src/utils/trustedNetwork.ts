@@ -65,6 +65,24 @@ export function isTrustedIp(rawIp: string | undefined | null, extraCidrs?: strin
   return parseTrustedCidrs(extraCidrs).some((cidr) => ipv4InCidr(ip, cidr));
 }
 
+// Allow a CORS Origin when it points at a trusted host: an explicitly allowlisted
+// origin, localhost, a `synology`/`*.local` LAN name, or a private/Tailscale IP literal.
+// Non-browser callers (no Origin) are allowed. Keeps the home LAN/Tailscale frictionless
+// without hardcoding a single origin (Pulse has no public exposure).
+export function isTrustedOrigin(origin: string | undefined | null, allowedOrigins: string[] = []): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  let host: string;
+  try {
+    host = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+  const lower = host.toLowerCase();
+  if (lower === 'localhost' || lower === 'synology' || lower.endsWith('.local')) return true;
+  return isTrustedIp(host);
+}
+
 // A request is trusted only when it carries no Cloudflare (public-tunnel) headers
 // AND its socket peer IP is within the trusted ranges. Pass the raw socket
 // remoteAddress (NOT req.ip) so a spoofed X-Forwarded-For header cannot grant trust.

@@ -2,6 +2,7 @@
 
 - **Auth middleware**: `requireAuth` in `apps/server/src/middleware/auth.ts` — adds `req.userId` to request.
 - **Trusted-network auth**: `isTrustedRequest` in the same file (logic in `apps/server/src/utils/trustedNetwork.ts`) — true when the request carries no Cloudflare headers and its socket peer IP is in a private/Tailscale range (`TRUSTED_CIDRS` extends the defaults). Powers `POST /api/auth/session` for passwordless login on the home LAN/Tailscale.
+- **CORS**: `index.ts` allows an Origin via `isTrustedOrigin` (same util) — explicit `CORS_ORIGIN` entries plus any host that is `localhost`, `synology`, `*.local`, or a private/Tailscale IP. Lets the app be reached by LAN IP or `synology.local` (Tailscale-down) without a 500.
 - **DB**: MySQL pool imported from `apps/server/api/config/database.ts` as `{ pool }`. Use `pool.execute()` for queries.
 - **Migrations**: SQL files in `apps/server/src/db/migrations/`, run in order by `migrate.ts`. Add new migrations as `00N_description.sql`.
 - **Route structure**: Each domain has its own route file. All protected routes use `requireAuth` middleware mounted in `index.ts`.

@@ -12,6 +12,9 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Frontend – Web
 - **Skip the login screen on trusted networks** — on load with no stored token the web app auto-logs-in via `/api/auth/session` (LAN/Tailscale), showing a brief splash; falls back to the password form when untrusted `bebcd62`
 
+### Backend
+- **Allow LAN/Tailscale origins in CORS** — the API no longer 500s when reached by LAN IP or `*.local` (e.g. Tailscale-down on the home network); `isTrustedOrigin` accepts `CORS_ORIGIN` entries plus `localhost`, `synology`, `*.local`, and private/Tailscale IP hosts `018b885`
+
 ## June 20, 2026
 
 ### Backend

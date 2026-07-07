@@ -6,6 +6,7 @@ import { env } from './config/env';
 import { pool } from './config/database';
 import { syncWeightGurus } from './services/weightGurusSync';
 import { requireAuth } from './middleware/auth';
+import { isTrustedOrigin } from './utils/trustedNetwork';
 
 import authRoutes      from './routes/auth';
 import appVersionRoutes from './routes/app-version';
@@ -43,7 +44,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    if (!origin || allowed.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin ?? '')) return cb(null, true);
+    if (isTrustedOrigin(origin, allowed)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
