@@ -29,7 +29,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/log/*             Nutrition log (meals, water)
                        GET  /api/log/history?limit=90     last N days of food log entries grouped by `date (per-day totals + per-meal entry list)
                        POST /api/log/recipe               log a recipe to nutrition (creates shadow food if needed)
-/api/goals/*           Nutrition + exercise goals, weekly summary
+/api/nutrition-targets/* Operational nutrition targets (drive food-log rings; stored in user_goals) — GET /, GET /history, POST /, PATCH /weekly, GET /summary, GET /tdee. Replaced /api/goals
 /api/water/*
 /api/history/*         Nutrition history charts
 /api/workouts/*        Workout sessions + exercises + sets (includes ?routineId filter on GET /)
@@ -46,8 +46,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/meal-schedules/*  Recurring meal schedule entries — full CRUD
 /api/nutrition-schedules/* Recurring nutrition targets — full CRUD
 /api/day-types/*       Day type presets — GET/POST/PUT/DELETE /presets; GET /overrides, PUT /overrides/:date (upsert), DELETE /overrides/:date
-/api/goal-checkpoints/* Goal checkpoints — GET /, POST /, PUT /:id, DELETE /:id
-/api/user-goals/*      Custom goals — GET /, POST /, PUT /:id, DELETE /:id
+/api/goals-v2/*        Unified goals (body/nutrition/exercise/activity) — GET /, GET /:id, POST /, PATCH /:id, DELETE /:id, POST /:id/close, GET /nudges; milestones: GET /milestones, GET|POST /:id/milestones, PATCH|DELETE /:id/milestones/:mid; progress: GET|POST /:id/progress, DELETE /:id/progress/:pid. Replaced /api/user-goals and /api/goal-checkpoints
 /api/recovery/*        Recovery score — GET / (returns HRV/sleep/fatigue summary)
 /api/ai/assistant/*    AI assistant — GET /insight (daily insight), POST / (chat message), POST /transcribe (audio → text)
 /api/scrape/*          Recipe scraper — POST / (scrape URL → recipe), POST /estimate-nutrition
