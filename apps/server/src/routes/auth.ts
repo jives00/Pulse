@@ -5,12 +5,36 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { pool } from '../config/database';
 import { env } from '../config/env';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, isTrustedRequest } from '../middleware/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();
 
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
+
+// POST /api/auth/session — passwordless auto-login for trusted networks (LAN / Tailscale).
+// Returns the same 7-day JWT as /login for the single admin (user id 1) when the request
+// originates from a trusted network; otherwise 401 so callers fall back to password login.
+router.post('/session', loginLimiter, async (req, res) => {
+  if (!isTrustedRequest(req)) {
+    res.status(401).json({ error: 'Untrusted network' });
+    return;
+  }
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT id, username FROM users WHERE id = 1');
+    const user = rows[0];
+    if (!user) {
+      res.status(401).json({ error: 'No admin user' });
+      return;
+    }
+    console.log(`[auth] network session issued: username=${user.username} ip=${req.socket.remoteAddress}`);
+    const token = jwt.sign({ sub: user.id, username: user.username }, env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token });
+  } catch (err) {
+    console.error('[auth] session error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // POST /api/auth/login
 router.post('/login', loginLimiter, async (req, res) => {

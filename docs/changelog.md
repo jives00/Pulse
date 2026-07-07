@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## July 7, 2026
+
+### Backend
+- **Passwordless network auto-login** — new `POST /api/auth/session` returns the login JWT for the admin (user id 1) when the request comes from a trusted network (no Cloudflare tunnel headers + private/Tailscale socket IP); untrusted requests get 401 and fall back to password login. Optional `TRUSTED_CIDRS` env extends the built-in private + Tailscale defaults `8dd2641`
+
 ## June 20, 2026
 
 ### Backend

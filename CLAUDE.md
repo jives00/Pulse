@@ -87,6 +87,7 @@ DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
 JWT_SECRET          (min 32 chars)
 PORT                (default 3000)
 CORS_ORIGIN         (comma-separated, e.g. http://localhost:5173)
+TRUSTED_CIDRS       (optional, comma-separated extra CIDRs for passwordless network auto-login; private + Tailscale ranges are trusted by default)
 AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET   (optional, for photo uploads)
 ANTHROPIC_API_KEY   (optional, for AI features — tried first)
 GEMINI_API_KEY      (optional, Gemini fallback when Anthropic fails/quota exhausted)

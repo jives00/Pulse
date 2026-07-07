@@ -1,6 +1,7 @@
 # Backend Conventions
 
 - **Auth middleware**: `requireAuth` in `apps/server/src/middleware/auth.ts` — adds `req.userId` to request.
+- **Trusted-network auth**: `isTrustedRequest` in the same file (logic in `apps/server/src/utils/trustedNetwork.ts`) — true when the request carries no Cloudflare headers and its socket peer IP is in a private/Tailscale range (`TRUSTED_CIDRS` extends the defaults). Powers `POST /api/auth/session` for passwordless login on the home LAN/Tailscale.
 - **DB**: MySQL pool imported from `apps/server/api/config/database.ts` as `{ pool }`. Use `pool.execute()` for queries.
 - **Migrations**: SQL files in `apps/server/src/db/migrations/`, run in order by `migrate.ts`. Add new migrations as `00N_description.sql`.
 - **Route structure**: Each domain has its own route file. All protected routes use `requireAuth` middleware mounted in `index.ts`.
@@ -10,6 +11,7 @@
 
 ```
 POST   /api/auth/login
+POST   /api/auth/session            passwordless auto-login for trusted networks (LAN/Tailscale); returns the login JWT for user id 1, else 401
 POST   /api/auth/register
 POST   /api/auth/invite
 PUT    /api/auth/username

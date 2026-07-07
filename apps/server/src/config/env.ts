@@ -27,6 +27,9 @@ const envSchema = z.object({
   // Server
   PORT:        z.coerce.number().default(3000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  // Optional extra trusted CIDRs (comma-separated) for passwordless network auto-login,
+  // added on top of the built-in private + Tailscale defaults. Leave unset for defaults.
+  TRUSTED_CIDRS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
