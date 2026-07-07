@@ -7,6 +7,12 @@ export const authApi = {
   login: (payload: LoginPayload) =>
     apiClient.post<AuthResponse>('/auth/login', payload).then((r) => r.data),
 
+  // Passwordless auto-login for trusted networks (LAN / Tailscale). Resolves with a
+  // token when the server trusts the request; rejects (401) otherwise so callers fall
+  // back to the password form.
+  session: () =>
+    apiClient.post<AuthResponse>('/auth/session').then((r) => r.data),
+
   verify: () =>
     apiClient.get<{ ok: true }>('/auth/verify').then((r) => r.data),
 

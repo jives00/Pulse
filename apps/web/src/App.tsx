@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { authApi } from '@pulse/api-client';
 import { useAuthStore } from './store/authStore';
 import { useSettingsStore } from './store/settings';
 import Layout from './components/Layout';
@@ -31,10 +32,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   const basename = import.meta.env.PROD ? '/pulse' : '/';
   const colorScheme = useSettingsStore((s) => s.colorScheme);
+  const setToken = useAuthStore((s) => s.setToken);
+
+  // Passwordless auto-login on trusted networks (LAN / Tailscale). Runs once per page
+  // load only when no token is stored, so an explicit logout still shows the login form.
+  const [bootstrapping, setBootstrapping] = useState(() => !useAuthStore.getState().token);
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorScheme;
   }, [colorScheme]);
+
+  useEffect(() => {
+    if (useAuthStore.getState().token) return;
+    let cancelled = false;
+    authApi.session()
+      .then(({ token }) => { if (!cancelled) setToken(token); })
+      .catch(() => { /* untrusted or offline — fall back to the login form */ })
+      .finally(() => { if (!cancelled) setBootstrapping(false); });
+    return () => { cancelled = true; };
+  }, [setToken]);
+
+  if (bootstrapping) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <p className="text-slate-400 text-sm">Signing you in…</p>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter basename={basename}>
