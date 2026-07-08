@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus, DeviceEventEmitter, Platform, View, Touc
 import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { configureClient, setApiBase } from '../../../packages/api-client/src/client';
+import { configureClient } from '../../../packages/api-client/src/client';
 import { API_BASE } from '../src/api/config';
 import { resolveApiBase, resetApiBase } from '../src/api/apiBase';
 import { useAuthStore } from '../src/store/auth';
@@ -77,17 +77,15 @@ export default function RootLayout() {
         logout();
         router.replace('/(auth)/login');
       },
-      // On a network error, re-probe the candidate bases and retry with a reachable one
-      // (Tailscale IP ↔ home-LAN IP), so the app survives a network/Tailscale change.
+      // Resolve the reachable base (Tailscale IP ↔ home-LAN IP) before each request,
+      // so requests never hang on a dead base and fail fast when off-network.
+      baseResolver: () => resolveApiBase(),
+      // On a network error (cached base went stale), re-probe and retry once.
       resolveBaseOnError: async () => {
         resetApiBase();
-        const base = await resolveApiBase();
-        if (base) setApiBase(base);
-        return base;
+        return resolveApiBase();
       },
     });
-    // Resolve the reachable base at launch (picks the LAN IP when Tailscale is down).
-    resolveApiBase().then((base) => { if (base) setApiBase(base); }).catch(() => {});
   }, [logout]);
 
   useEffect(() => {
