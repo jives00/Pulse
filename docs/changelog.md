@@ -18,6 +18,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ### Frontend – Mobile
 - **Passwordless auto-login + LAN base fallback** — on launch (no stored token) the app auto-logs-in via `/api/auth/session` on a trusted network; and resolves the API base by probing `/health` across the Tailscale IP and home-LAN IP, so it works on the LAN when Tailscale is down. Shared api-client gains `setApiBase` + a network-error re-resolve hook (web unchanged) `fe0739c`
 - **Fix minute-long hang off-network / with a stored token** — the base is now resolved inside the shared client's request interceptor (await the cached `/health` probe before each request) and fails fast when nothing is reachable, instead of hanging on the dead Tailscale base `213726c`
+- **Show login (not an empty dashboard) when off-network** — the launch gate validates the session via `/auth/verify` (or network auto-login) before showing the app; if the server is unreachable it shows the login screen like Quest/Trakt, without clearing the stored token so a reconnect goes straight back in `985b54b`
 
 ## June 20, 2026
 
