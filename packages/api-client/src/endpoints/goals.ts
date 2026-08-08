@@ -34,6 +34,9 @@ export interface TDEEBreakdown {
   stepsKcal: number;
   total: number;
   caloriesIn: number;
+  /** Which terms were included in `total`. When 'tef' is missing, label the figure
+   *  "Expenditure" rather than "TDEE". */
+  components: string[];
 }
 
 export interface TDEEUnavailable {

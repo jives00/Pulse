@@ -5,7 +5,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 ### Auth
 | Table | Key columns |
 |---|---|
-| `users` | `id`, `username`, `password_hash`, `email`, `height_cm` DECIMAL(5,1) NULL, `sex` ENUM('male','female') NULL, `dob` DATE NULL, `activity_level` ENUM('sedentary','lightly_active','moderately_active','very_active') DEFAULT 'sedentary', `created_at` |
+| `users` | `id`, `username`, `password_hash`, `email`, `height_cm` DECIMAL(5,1) NULL, `sex` ENUM('male','female') NULL, `dob` DATE NULL, `activity_level` ENUM('sedentary','lightly_active','moderately_active','very_active') DEFAULT 'sedentary', `enabled_features` JSON NULL, `dashboard_layout` JSON NULL, `created_at` — `enabled_features`/`dashboard_layout` are `NULL` for "all catalog defaults"; resolved on read by `resolveFeatures`/`resolveLayout` in `@pulse/api-client`, so a module added in a later release is automatically on |
 | `invite_tokens` | `id`, `token_hash`, `created_by`, `used_at`, `expires_at` |
 
 ### Recipes
@@ -71,7 +71,7 @@ Goals were overhauled in migrations 037–040: `custom_goals`, `goal_checkpoints
 
 | Table | Key columns |
 |---|---|
-| `goals` | `id`, `user_id`, `catalog_key`, `name`, `category` ENUM('body','nutrition','exercise','activity'), `card_type` ENUM('line_chart','progress_bar'), `source_type`, `source_id` INT NULL, `source_name`, `start_value`, `target_value`, `unit`, `started_at` DATE, `deadline` DATE NULL, `show_on_dashboard`, `sort_order`, `status` ENUM('active','achieved','missed','abandoned'), `closed_at`, `actual_value_at_close`, `notes` |
+| `goals` | `id`, `user_id`, `catalog_key`, `name`, `category` ENUM('body','nutrition','exercise','activity'), `card_type` ENUM('line_chart','progress_bar'), `source_type`, `source_id` INT NULL, `source_name`, `start_value`, `target_value`, `unit`, `started_at` DATE, `deadline` DATE NULL, `show_on_dashboard`, `sort_order`, `status` ENUM('active','achieved','missed','abandoned'), `closed_at`, `actual_value_at_close`, `notes`, `card_config` JSON NULL — `card_config` holds the dashboard card's presentation (span, variant, window, projection, direction, show/hide flags); `NULL` means defaults derived from `card_type`, resolved on read by `resolveGoalCard` |
 | `goal_milestones` | `id`, `goal_id` (FK → goals), `user_id`, `target_value`, `target_date` DATE, `label`, `status` ENUM('active','achieved','missed'), `closed_at`, `actual_value_at_close`, `notes` |
 | `goal_progress` | `id`, `goal_id` (FK → goals), `user_id`, `value`, `logged_at`, `source` ENUM('manual','auto'), `notes` |
 | `day_type_presets` | `id`, `user_id`, `name` VARCHAR(50) — named day types (e.g. "Rest Day", "Workout Day") with optional macro overrides: `calories`, `protein_g`, `carbs_g`, `fat_g`, `water_goal_oz` |

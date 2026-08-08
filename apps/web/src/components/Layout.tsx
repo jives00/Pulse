@@ -1,22 +1,28 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import type { FeatureKey } from '@pulse/api-client';
 import { useAuthStore } from '../store/authStore';
+import { useFeaturesStore } from '../store/featuresStore';
+import { useFeature, useFeatures } from './FeatureGate';
 import AIAssistant from './AIAssistant';
 
-const TOP_SECTIONS = [
+const TOP_SECTIONS: { prefix: string; label: string; icon: string; exact: boolean; requires?: FeatureKey }[] = [
   { prefix: '/dashboard',    label: 'Dashboard',    icon: '📊', exact: false },
-  { prefix: '/food',         label: 'Recipes',      icon: '🍴', exact: false },
-  { prefix: '/drinks',       label: 'Drinks',       icon: '🍸', exact: false },
-  { prefix: '/nutrition',    label: 'Food Log',     icon: '🥗', exact: false },
-  { prefix: '/workouts',     label: 'Workouts',     icon: '💪', exact: false },
-  { prefix: '/goals',        label: 'Goals & Planning', icon: '🎯', exact: false },
+  { prefix: '/food',         label: 'Recipes',      icon: '🍴', exact: false, requires: 'recipes' },
+  { prefix: '/drinks',       label: 'Drinks',       icon: '🍸', exact: false, requires: 'drinks' },
+  { prefix: '/nutrition',    label: 'Food Log',     icon: '🥗', exact: false, requires: 'nutrition' },
+  { prefix: '/workouts',     label: 'Workouts',     icon: '💪', exact: false, requires: 'exercise' },
+  { prefix: '/goals',        label: 'Goals & Planning', icon: '🎯', exact: false, requires: 'goals' },
   { prefix: '/history',      label: 'History',      icon: '📋', exact: false },
-  { prefix: '/links',        label: 'Links',        icon: '🔗', exact: false },
+  { prefix: '/links',        label: 'Links',        icon: '🔗', exact: false, requires: 'links' },
   { prefix: '/settings',     label: 'Settings',     icon: '⚙️', exact: false },
 ];
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const features = useFeatures();
+  const sections = TOP_SECTIONS.filter((s) => !s.requires || features[s.requires]);
 
   const linkCls = (active: boolean) =>
     `flex items-center px-3 py-2 rounded-lg text-base transition-colors ${
@@ -32,7 +38,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
-      {TOP_SECTIONS.map(({ prefix, label }) => {
+      {sections.map(({ prefix, label }) => {
         const isActive = location.pathname === prefix || location.pathname.startsWith(prefix + '/');
         return (
           <div key={prefix}>
@@ -51,8 +57,13 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function Layout() {
   const logout = useAuthStore((s) => s.logout);
+  const hydrate = useFeaturesStore((s) => s.hydrate);
+  const features = useFeatures();
+  const aiEnabled = useFeature('ai');
 
-  const mobileItems = TOP_SECTIONS;
+  useEffect(() => { hydrate(); }, [hydrate]);
+
+  const mobileItems = TOP_SECTIONS.filter((s) => !s.requires || features[s.requires]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-dram-bg">
@@ -99,7 +110,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <AIAssistant />
+      {aiEnabled && <AIAssistant />}
     </div>
   );
 }

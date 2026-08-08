@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { assistantApi, type ConversationMessage, type AssistantAction } from '@pulse/api-client';
 import { useAssistantStore } from '../store/assistantStore';
+import { useFeature } from './FeatureGate';
 
 function defaultMeal(): string {
   const h = new Date().getHours();
@@ -34,6 +35,7 @@ function MessageBubble({ bubble }: { bubble: Bubble }) {
 
 export default function AIAssistant() {
   const { screenContext } = useAssistantStore();
+  const nutritionEnabled = useFeature('nutrition');
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -65,6 +67,7 @@ export default function AIAssistant() {
     // Import inline to avoid circular deps
     const { logApi, nutritionTargetsApi } = await import('@pulse/api-client');
     if (action.type === 'log_food') {
+      if (!nutritionEnabled) return;
       const p = action.payload as { name: string; meal?: string; calories: number; proteinG: number; carbsG: number; fatG: number };
       await logApi.logInline({
         name: p.name,

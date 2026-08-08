@@ -37,6 +37,7 @@ import nutritionSchedulesRoutes     from './routes/nutrition-schedules';
 // user-goals.ts removed — custom goals migrated to goals-v2
 import goalsV2Routes               from './routes/goals-v2';
 import nutritionTargetsRoutes      from './routes/nutrition-targets';
+import preferencesRoutes           from './routes/preferences';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -97,6 +98,7 @@ app.use('/api/nutrition-schedules',    requireAuth, nutritionSchedulesRoutes);
 // /api/user-goals removed — use /api/goals-v2
 app.use('/api/goals-v2',               requireAuth, goalsV2Routes);
 app.use('/api/nutrition-targets',      requireAuth, nutritionTargetsRoutes);
+app.use('/api/preferences',            requireAuth, preferencesRoutes);
 
 // Global error handler — catches anything that bubbles up from routes
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

@@ -10,6 +10,7 @@ import {
   type RecurrenceType, type Food, type Recipe,
 } from '@pulse/api-client';
 import { todayStr } from '../store/logStore';
+import { useFeatures } from '../components/FeatureGate';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1344,6 +1345,7 @@ export default function PlanningCalendarCard({
   exercisesList: Exercise[];
 }) {
   const today = todayStr();
+  const features = useFeatures();
 
   // Calendar state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -1363,16 +1365,18 @@ export default function PlanningCalendarCard({
 
   const load = useCallback(async () => {
     try {
+      // Each feed belongs to a module — skip the request entirely when that module is off
+      // rather than fetching data the board won't show.
       const [sessions, wScheds, mEvts, mScheds, milestones, presets, nScheds, nSchedEvts, goals] = await Promise.all([
-        schedulesApi.getUpcoming(60).catch(() => []),
-        schedulesApi.getAll().catch(() => []),
-        mealSchedulesApi.getUpcoming(90).catch(() => []),
-        mealSchedulesApi.getAll().catch(() => []),
-        goalsV2Api.getAllMilestones().catch(() => []),
-        dayTypesApi.getPresets().catch(() => []),
-        nutritionSchedulesApi.getAll().catch(() => []),
-        nutritionSchedulesApi.getUpcoming(60).catch(() => []),
-        goalsV2Api.getAll('active').catch(() => []),
+        features.exercise ? schedulesApi.getUpcoming(60).catch(() => []) : Promise.resolve([]),
+        features.exercise ? schedulesApi.getAll().catch(() => []) : Promise.resolve([]),
+        features.mealPlanning ? mealSchedulesApi.getUpcoming(90).catch(() => []) : Promise.resolve([]),
+        features.mealPlanning ? mealSchedulesApi.getAll().catch(() => []) : Promise.resolve([]),
+        features.goals ? goalsV2Api.getAllMilestones().catch(() => []) : Promise.resolve([]),
+        features.nutrition ? dayTypesApi.getPresets().catch(() => []) : Promise.resolve([]),
+        features.nutrition ? nutritionSchedulesApi.getAll().catch(() => []) : Promise.resolve([]),
+        features.nutrition ? nutritionSchedulesApi.getUpcoming(60).catch(() => []) : Promise.resolve([]),
+        features.goals ? goalsV2Api.getAll('active').catch(() => []) : Promise.resolve([]),
       ]);
       setUpcomingSessions(sessions as UpcomingSession[]);
       setWorkoutSchedules(wScheds as WorkoutSchedule[]);
@@ -1385,12 +1389,16 @@ export default function PlanningCalendarCard({
       setNutritionScheduleEvents(nSchedEvts as NutritionScheduleEvent[]);
 
       // Load nutrition overrides
-      const from = addDays(today, -7);
-      const to   = addDays(today, 60);
-      const overrides = await dayTypesApi.getOverrides(from, to).catch(() => []);
-      setNutritionOverrides(overrides as DailyNutritionOverride[]);
+      if (features.nutrition) {
+        const from = addDays(today, -7);
+        const to   = addDays(today, 60);
+        const overrides = await dayTypesApi.getOverrides(from, to).catch(() => []);
+        setNutritionOverrides(overrides as DailyNutritionOverride[]);
+      } else {
+        setNutritionOverrides([]);
+      }
     } finally { setLoading(false); }
-  }, [today]);
+  }, [today, features.exercise, features.mealPlanning, features.goals, features.nutrition]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1405,11 +1413,11 @@ export default function PlanningCalendarCard({
 
   function getEventsForDate(date: string) {
     return {
-      workoutEvents:          upcomingSessions.filter((e) => e.date === date),
-      mealEvents:             mealEvents.filter((e) => e.date === date),
-      checkpoints:            checkpoints.filter((c) => c.targetDate === date),
-      nutritionOverride:      nutritionOverrides.find((o) => o.date === date) ?? null,
-      nutritionScheduleEvents: nutritionScheduleEvents.filter((e) => e.date === date),
+      workoutEvents:          features.exercise ? upcomingSessions.filter((e) => e.date === date) : [],
+      mealEvents:             features.mealPlanning ? mealEvents.filter((e) => e.date === date) : [],
+      checkpoints:            features.goals ? checkpoints.filter((c) => c.targetDate === date) : [],
+      nutritionOverride:      features.nutrition ? (nutritionOverrides.find((o) => o.date === date) ?? null) : null,
+      nutritionScheduleEvents: features.nutrition ? nutritionScheduleEvents.filter((e) => e.date === date) : [],
     };
   }
 

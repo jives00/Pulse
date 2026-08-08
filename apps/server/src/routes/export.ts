@@ -1,18 +1,19 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
+import { loadFeatures } from '../middleware/features';
 import { buildExport } from '../services/excelExport';
 
 const router = Router();
 router.use(requireAuth);
 
-router.get('/excel', async (req, res) => {
+router.get('/excel', loadFeatures, async (req, res) => {
   const { start, end } = req.query as { start: string; end: string };
   if (!start || !end) {
     res.status(400).json({ error: 'start and end query params required' });
     return;
   }
   try {
-    const buffer = await buildExport(req.userId!, start, end);
+    const buffer = await buildExport(req.userId!, start, end, req.features!);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="pulse-export-${start}-${end}.xlsx"`);
     res.send(buffer);

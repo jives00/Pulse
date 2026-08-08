@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { pool } from '../config/database';
 import type { RowDataPacket } from 'mysql2';
 import { calcTDEE, type ActivityLevel } from './tdee';
+import { DEFAULT_FEATURES, type EnabledFeatures } from '@pulse/api-client';
 
 const DEFAULTS: { calorieGoal: number; waterGoalOz: number; weightKg: number } = {
   calorieGoal: 2000,
@@ -9,12 +10,18 @@ const DEFAULTS: { calorieGoal: number; waterGoalOz: number; weightKg: number } =
   weightKg: 75,
 };
 
-export async function buildExport(userId: number, start: string, end: string): Promise<ExcelJS.Buffer> {
+export async function buildExport(
+  userId: number,
+  start: string,
+  end: string,
+  features: EnabledFeatures = DEFAULT_FEATURES,
+): Promise<ExcelJS.Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Pulse';
   workbook.created = new Date();
 
   // ── Sheet 1: Daily Diary ─────────────────────────────────────
+  if (features.nutrition) {
   const diary = workbook.addWorksheet('Daily Diary');
   diary.columns = [
     { header: 'Date',        key: 'date',      width: 12 },
@@ -263,8 +270,10 @@ export async function buildExport(userId: number, start: string, end: string): P
       cur.setDate(cur.getDate() + 1);
     }
   }
+  } // features.nutrition (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown)
 
   // ── Sheet 5: Workout Log ─────────────────────────────────────
+  if (features.exercise) {
   const workoutSheet = workbook.addWorksheet('Workout Log');
   workoutSheet.columns = [
     { header: 'Date',            key: 'date',      width: 12 },
@@ -322,8 +331,10 @@ export async function buildExport(userId: number, start: string, end: string): P
       notes:     r.exercise_notes ?? '',
     });
   });
+  } // features.exercise
 
   // ── Sheet 6: Body Measurements ───────────────────────────────
+  if (features.body) {
   const measSheet = workbook.addWorksheet('Body Measurements');
   measSheet.columns = [
     { header: 'Date',    key: 'date',   width: 12 },
@@ -351,8 +362,10 @@ export async function buildExport(userId: number, start: string, end: string): P
       notes:  r.notes ?? '',
     });
   });
+  } // features.body
 
   // ── Sheet 7: Water Log ───────────────────────────────────────
+  if (features.water) {
   const waterSheet = workbook.addWorksheet('Water Log');
   waterSheet.columns = [
     { header: 'Date',       key: 'date',  width: 12 },
@@ -381,8 +394,10 @@ export async function buildExport(userId: number, start: string, end: string): P
       goal: waterGoal,
     });
   });
+  } // features.water
 
   // ── Sheet 8: Steps Log ──────────────────────────────────────
+  if (features.activity) {
   const stepsSheet = workbook.addWorksheet('Steps Log');
   stepsSheet.columns = [
     { header: 'Date',   key: 'date',   width: 12 },
@@ -406,6 +421,7 @@ export async function buildExport(userId: number, start: string, end: string): P
       source: r.source ?? '',
     });
   });
+  } // features.activity
 
   return workbook.xlsx.writeBuffer();
 }

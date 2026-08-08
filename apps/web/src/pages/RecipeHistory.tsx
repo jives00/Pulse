@@ -9,8 +9,16 @@ import {
 } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 import { todayStr } from '../store/logStore';
+import { useFeatures } from '../components/FeatureGate';
 
 type Tab = 'workouts' | 'nutrition' | 'measurements';
+
+// Each history tab is gated behind the module it surfaces data for.
+const TAB_FEATURE: Record<Tab, 'exercise' | 'nutrition' | 'body'> = {
+  workouts: 'exercise',
+  nutrition: 'nutrition',
+  measurements: 'body',
+};
 
 const METRICS = [
   { key: 'weight', label: 'Weight', unit: 'lbs' },
@@ -159,7 +167,11 @@ function MeasurementModal({
 
 export default function History() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>('workouts');
+  const features = useFeatures();
+  const enabledTabs = (['workouts', 'nutrition', 'measurements'] as Tab[]).filter((t) => features[TAB_FEATURE[t]]);
+  const [activeTabState, setActiveTab] = useState<Tab>('workouts');
+  // If the active tab's module gets disabled out from under it, fall back to whatever's left.
+  const activeTab = enabledTabs.includes(activeTabState) ? activeTabState : (enabledTabs[0] ?? activeTabState);
 
   // Workout state
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -230,8 +242,9 @@ export default function History() {
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-0 border-b border-dram-border flex-shrink-0">
         <h1 className="text-xl font-semibold text-slate-200">History</h1>
+        {enabledTabs.length > 1 && (
         <div className="flex gap-1 mt-3">
-          {(['workouts', 'nutrition', 'measurements'] as Tab[]).map((tab) => (
+          {enabledTabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -245,6 +258,7 @@ export default function History() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Content */}

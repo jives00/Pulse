@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settings';
 import type { ColorScheme, SortOption, ExerciseSortOption } from '../store/settings';
+import { useFeaturesStore } from '../store/featuresStore';
+import { useFeatures } from '../components/FeatureGate';
 import {
   authApi, tagsApi, nutritionTargetsApi, profileApi,
   GLASS_OZ, apiClient,
+  TOP_LEVEL_FEATURES, subFeatures,
   type DeleteScope, type TagDefinitions,
   type UserProfile, type ActivityLevel,
+  type FeatureKey,
 } from '@pulse/api-client';
 
 // ─── Shared primitives ────────────────────────────────────────
@@ -28,17 +32,84 @@ function StatusMsg({ error, success }: { error?: string; success?: string }) {
   return null;
 }
 
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      className="w-4 h-4 flex-shrink-0 accent-dram-accent disabled:opacity-40"
+    />
+  );
+}
+
 // ─── Tab bar ──────────────────────────────────────────────────
 
-type Tab = 'options' | 'goals' | 'user' | 'delete' | 'export';
+type Tab = 'features' | 'options' | 'goals' | 'user' | 'delete' | 'export';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'features', label: 'Features' },
   { id: 'options',  label: 'Options' },
   { id: 'goals',    label: 'Targets' },
   { id: 'user',     label: 'User' },
   { id: 'delete',   label: 'Delete Data' },
   { id: 'export',   label: 'Export' },
 ];
+
+// ─── Features tab ─────────────────────────────────────────────
+
+function FeatureRow({ featureKey, label, description, indent, disabled }: {
+  featureKey: FeatureKey; label: string; description: string; indent?: boolean; disabled?: boolean;
+}) {
+  const features = useFeatures();
+  const setFeature = useFeaturesStore((s) => s.setFeature);
+  return (
+    <div className={`flex items-start justify-between gap-4 py-2.5 ${indent ? 'pl-6' : ''}`}>
+      <div className="min-w-0">
+        <p className="text-sm text-gray-300">{label}</p>
+        <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+      </div>
+      <div className="shrink-0 pt-0.5">
+        <Toggle
+          checked={features[featureKey]}
+          disabled={disabled}
+          onChange={() => setFeature(featureKey, !features[featureKey])}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeaturesTab() {
+  const features = useFeatures();
+  return (
+    <div className="space-y-4">
+      <Section title="Feature Modules">
+        <p className="text-sm text-gray-500">
+          Turning this off hides its pages and dashboard cards. Your data is kept and comes back if you turn it on again.
+        </p>
+        <div className="divide-y divide-dram-border">
+          {TOP_LEVEL_FEATURES.map((entry) => (
+            <div key={entry.key}>
+              <FeatureRow featureKey={entry.key} label={entry.label} description={entry.description} />
+              {subFeatures(entry.key).map((sub) => (
+                <FeatureRow
+                  key={sub.key}
+                  featureKey={sub.key}
+                  label={sub.label}
+                  description={sub.description}
+                  indent
+                  disabled={!features[entry.key]}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
+  );
+}
 
 // ─── Options tab ──────────────────────────────────────────────
 
@@ -645,12 +716,12 @@ function UserTab() {
 
 // ─── Delete Data tab ──────────────────────────────────────────
 
-const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string }[] = [
-  { scope: 'recipes',  label: 'Delete all recipes',  description: 'Removes all food and drink recipes, including their cook history.' },
-  { scope: 'history',  label: 'Delete all history',  description: 'Removes all food log entries, recipe cook log, and water log.' },
-  { scope: 'workouts', label: 'Delete all workouts', description: 'Removes all workout sessions and logged sets.' },
-  { scope: 'goals',    label: 'Delete all goals',    description: 'Removes all nutrition and exercise goals.' },
-  { scope: 'links',    label: 'Delete all links',    description: 'Removes all saved recipe links.' },
+const DELETE_OPTIONS: { scope: DeleteScope; label: string; description: string; requires: FeatureKey }[] = [
+  { scope: 'recipes',  label: 'Delete all recipes',  description: 'Removes all food and drink recipes, including their cook history.', requires: 'recipes' },
+  { scope: 'history',  label: 'Delete all history',  description: 'Removes all food log entries, recipe cook log, and water log.', requires: 'nutrition' },
+  { scope: 'workouts', label: 'Delete all workouts', description: 'Removes all workout sessions and logged sets.', requires: 'exercise' },
+  { scope: 'goals',    label: 'Delete all goals',    description: 'Removes all nutrition and exercise goals.', requires: 'goals' },
+  { scope: 'links',    label: 'Delete all links',    description: 'Removes all saved recipe links.', requires: 'links' },
 ];
 
 function DeleteRow({ scope, label, description }: { scope: DeleteScope; label: string; description: string }) {
@@ -713,9 +784,10 @@ function DeleteRow({ scope, label, description }: { scope: DeleteScope; label: s
 }
 
 function DeleteDataTab() {
+  const features = useFeatures();
   return (
     <Section title="Danger Zone">
-      {DELETE_OPTIONS.map((opt) => (
+      {DELETE_OPTIONS.filter((opt) => features[opt.requires]).map(({ requires, ...opt }) => (
         <DeleteRow key={opt.scope} {...opt} />
       ))}
     </Section>
@@ -728,7 +800,21 @@ function dateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const EXPORT_SHEETS: { requires: FeatureKey; label: string }[] = [
+  { requires: 'nutrition', label: 'food log' },
+  { requires: 'nutrition', label: 'TDEE breakdown' },
+  { requires: 'exercise',  label: 'workout log' },
+  { requires: 'body',      label: 'body measurements' },
+  { requires: 'nutrition', label: 'water log' },
+];
+
 function ExportTab() {
+  const features = useFeatures();
+  const sheets = EXPORT_SHEETS.filter((s) => features[s.requires]).map((s) => s.label);
+  const sheetList = sheets.length > 1
+    ? `${sheets.slice(0, -1).join(', ')}, and ${sheets[sheets.length - 1]}`
+    : sheets[0] ?? 'data';
+
   const defaultEnd = new Date();
   const defaultStart = new Date();
   defaultStart.setMonth(defaultStart.getMonth() - 3);
@@ -760,7 +846,7 @@ function ExportTab() {
   return (
     <Section title="Download All Data">
       <p className="text-sm text-dram-muted">
-        Exports your food log, TDEE breakdown, workout log, body measurements, and water log as a single Excel file with separate sheets.
+        Exports your {sheetList} as a single Excel file with separate sheets.
       </p>
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex flex-col gap-1">
@@ -797,6 +883,10 @@ function ExportTab() {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('options');
+  const features = useFeatures();
+  const tabs = TABS.filter((t) => t.id !== 'goals' || features.nutrition);
+  // Disabling a module while its tab is open would otherwise leave an empty pane.
+  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : 'options';
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -806,12 +896,12 @@ export default function SettingsPage() {
 
         {/* Tab bar */}
         <div className="flex gap-1 mt-3">
-          {TABS.map(({ id, label }) => (
+          {tabs.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
               className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
-                activeTab === id
+                currentTab === id
                   ? 'border-dram-accent text-dram-accent'
                   : 'border-transparent text-dram-muted hover:text-slate-200'
               }`}
@@ -823,11 +913,12 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 max-w-2xl">
-        {activeTab === 'options' && <OptionsTab />}
-        {activeTab === 'goals'   && <GoalsTab />}
-        {activeTab === 'user'    && <UserTab />}
-        {activeTab === 'delete'  && <DeleteDataTab />}
-        {activeTab === 'export'  && <ExportTab />}
+        {currentTab === 'features' && <FeaturesTab />}
+        {currentTab === 'options'  && <OptionsTab />}
+        {currentTab === 'goals'    && <GoalsTab />}
+        {currentTab === 'user'     && <UserTab />}
+        {currentTab === 'delete'   && <DeleteDataTab />}
+        {currentTab === 'export'   && <ExportTab />}
       </div>
     </div>
   );

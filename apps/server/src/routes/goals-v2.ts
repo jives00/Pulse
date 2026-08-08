@@ -1,10 +1,19 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { loadFeatures } from '../middleware/features';
+import { filterGoalsByFeatures } from '../utils/goalFeatureFilter';
 
 const router = Router();
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
+
+// mysql2 may return JSON columns already parsed as objects, or as strings, depending
+// on driver config — handle both defensively.
+function parseCardConfig(v: unknown): Record<string, unknown> | null {
+  if (v == null) return null;
+  return typeof v === 'string' ? JSON.parse(v) : (v as Record<string, unknown>);
+}
 
 function fmtGoal(r: RowDataPacket) {
   return {
@@ -27,6 +36,7 @@ function fmtGoal(r: RowDataPacket) {
     closedAt:           r.closed_at ?? null,
     actualValueAtClose: r.actual_value_at_close != null ? Number(r.actual_value_at_close) : null,
     notes:              r.notes ?? null,
+    cardConfig:         parseCardConfig(r.card_config),
   };
 }
 
@@ -86,7 +96,7 @@ const CURRENT_VALUE_SQL = `CASE g.catalog_key
 // Returns all goals with currentValue pulled from the authoritative source table per catalog_key.
 // Body goals → body_measurements; nutrition → food_log avg; steps → steps_log avg;
 // exercise → workout_logs; everything else → goal_progress (manual log).
-router.get('/', async (req, res) => {
+router.get('/', loadFeatures, async (req, res) => {
   const status = (req.query.status as string) || 'active';
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -96,17 +106,18 @@ router.get('/', async (req, res) => {
        ORDER BY g.category, g.sort_order, g.id`,
       [req.userId, status]
     );
-    res.json((rows as RowDataPacket[]).map(r => ({
+    const formatted = (rows as RowDataPacket[]).map(r => ({
       ...fmtGoal(r),
       currentValue: r.current_value != null ? Math.round(Number(r.current_value) * 10) / 10 : null,
-    })));
+    }));
+    res.json(filterGoalsByFeatures(formatted, req.features!));
   } catch (err) { console.error('[goals-v2] GET /', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // GET /api/goals-v2/nudges
 // Goals where deadline has passed OR show_on_dashboard=true (frontend handles target-crossed nudge)
 // Must be registered BEFORE /:id to avoid "nudges" being treated as an id
-router.get('/nudges', async (req, res) => {
+router.get('/nudges', loadFeatures, async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT * FROM goals
@@ -114,7 +125,8 @@ router.get('/nudges', async (req, res) => {
        ORDER BY deadline ASC`,
       [req.userId]
     );
-    res.json((rows as RowDataPacket[]).map(fmtGoal));
+    const formatted = (rows as RowDataPacket[]).map(fmtGoal);
+    res.json(filterGoalsByFeatures(formatted, req.features!));
   } catch (err) { console.error('[goals-v2] GET /nudges', err); res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -171,7 +183,11 @@ router.post('/', async (req, res) => {
 // PATCH /api/goals-v2/:id
 router.patch('/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { name, targetValue, unit, deadline, showOnDashboard, sortOrder, sourceName, notes } = req.body;
+  const { name, targetValue, unit, deadline, showOnDashboard, sortOrder, sourceName, notes, cardConfig } = req.body;
+
+  if (cardConfig !== undefined && cardConfig !== null && typeof cardConfig !== 'object') {
+    res.status(400).json({ error: 'cardConfig must be an object or null' }); return;
+  }
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -184,6 +200,9 @@ router.patch('/:id', async (req, res) => {
   if (sortOrder       !== undefined) { updates.push('sort_order=?');        values.push(sortOrder); }
   if (sourceName      !== undefined) { updates.push('source_name=?');       values.push(sourceName ?? null); }
   if (notes           !== undefined) { updates.push('notes=?');             values.push(notes ?? null); }
+  // Not validated deeply here — resolveGoalCard sanitizes on read. We only reject
+  // non-object payloads so a bad client can't wedge garbage into the JSON column.
+  if (cardConfig      !== undefined) { updates.push('card_config=?');       values.push(cardConfig === null ? null : JSON.stringify(cardConfig)); }
 
   if (!updates.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
 

@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { RowDataPacket } from 'mysql2/promise';
 import { pool } from '../config/database';
 import { env } from '../config/env';
+import { resolveFeatures } from '@pulse/api-client';
 
 const LOGIN_URL = 'https://api.weightgurus.com/v3/account/login';
 const OPS_URL   = 'https://api.weightgurus.com/v3/operation/';
@@ -41,6 +42,21 @@ async function wgFetch(token: string, daysBack: number): Promise<Record<string, 
 export async function syncWeightGurus(daysBack = 7): Promise<{ inserted: number }> {
   const { WG_EMAIL: email, WG_PASSWORD: password, WG_USER_ID: userId } = env;
   if (!email || !password) throw new Error('WG_EMAIL and WG_PASSWORD must be set in .env');
+
+  // This is the one place a toggle stops WRITING data, not just reading it — a user who
+  // turned off Body tracking or WeightGurus sync specifically should not have scale data
+  // silently imported behind their back.
+  const [userRows] = await pool.query<RowDataPacket[]>(
+    'SELECT enabled_features FROM users WHERE id = ?',
+    [userId],
+  );
+  const stored = userRows[0]?.enabled_features;
+  const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
+  const features = resolveFeatures(parsed);
+  if (!features.body || !features.weightGurusSync) {
+    console.log(`[weightgurus-sync] skipped — body=${features.body} weightGurusSync=${features.weightGurusSync} for user ${userId}`);
+    return { inserted: 0 };
+  }
 
   const token  = await wgLogin(email, password);
   const entries = await wgFetch(token, daysBack);

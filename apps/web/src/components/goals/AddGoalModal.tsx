@@ -8,6 +8,7 @@ import {
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { CATEGORY_COLORS, CATEGORY_LABELS } from './goalConstants';
 import { todayStr } from '../../store/logStore';
+import { useFeatures } from '../FeatureGate';
 
 interface Props {
   onClose: () => void;
@@ -18,8 +19,11 @@ type Step = 1 | 2 | 3;
 
 export default function AddGoalModal({ onClose, onCreated }: Props) {
   useEscapeKey(onClose);
+  const features = useFeatures();
+  // Goal category keys line up 1:1 with feature module keys (body/nutrition/exercise/activity).
+  const enabledCategories = (Object.keys(CATALOG_BY_CATEGORY) as GoalCategory[]).filter((cat) => features[cat]);
   const [step, setStep]           = useState<Step>(1);
-  const [activeCategory, setActiveCategory] = useState<GoalCategory>('body');
+  const [activeCategory, setActiveCategory] = useState<GoalCategory>(enabledCategories[0] ?? 'body');
   const [selected, setSelected]   = useState<GoalCatalogEntry | null>(null);
   const [sourceId, setSourceId]   = useState<number | ''>('');
   const [sourceName, setSourceName] = useState('');
@@ -135,7 +139,7 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
         {step === 1 && (
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="flex border-b border-dram-border shrink-0">
-              {(Object.keys(CATALOG_BY_CATEGORY) as GoalCategory[]).map(cat => (
+              {enabledCategories.map(cat => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}

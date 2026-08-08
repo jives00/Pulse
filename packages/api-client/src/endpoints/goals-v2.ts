@@ -1,5 +1,6 @@
 import { apiClient } from '../client';
 import type { GoalCatalogKey, GoalCategory, GoalCardType, GoalSourceType } from '../goalCatalog';
+import type { GoalCardConfig } from '../goalCardConfig';
 
 export type GoalStatus      = 'active' | 'achieved' | 'missed' | 'abandoned';
 export type MilestoneStatus = 'active' | 'achieved' | 'missed';
@@ -26,6 +27,8 @@ export interface Goal {
   actualValueAtClose: number | null;
   notes:              string | null;
   currentValue:       number | null;
+  /** Raw stored card presentation config, or null when unset. resolveGoalCard sanitizes it on read. */
+  cardConfig:         Partial<GoalCardConfig> | null;
 }
 
 export interface GoalDetail extends Goal {
@@ -80,7 +83,9 @@ export type CreateGoalPayload = {
 
 export type UpdateGoalPayload = Partial<Pick<Goal,
   'name' | 'targetValue' | 'unit' | 'deadline' | 'showOnDashboard' | 'sortOrder' | 'sourceName' | 'notes'
->>;
+>> & {
+  cardConfig?: Partial<GoalCardConfig> | null;
+};
 
 export type CloseGoalPayload = {
   status: 'achieved' | 'missed' | 'abandoned';

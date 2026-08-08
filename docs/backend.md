@@ -50,6 +50,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/nutrition-schedules/* Recurring nutrition targets — full CRUD
 /api/day-types/*       Day type presets — GET/POST/PUT/DELETE /presets; GET /overrides, PUT /overrides/:date (upsert), DELETE /overrides/:date
 /api/goals-v2/*        Unified goals (body/nutrition/exercise/activity) — GET /, GET /:id, POST /, PATCH /:id, DELETE /:id, POST /:id/close, GET /nudges; milestones: GET /milestones, GET|POST /:id/milestones, PATCH|DELETE /:id/milestones/:mid; progress: GET|POST /:id/progress, DELETE /:id/progress/:pid. Replaced /api/user-goals and /api/goal-checkpoints
+/api/preferences       Feature modules + dashboard layout — GET / (always resolved through the catalog defaults), PUT / (partial merge; dashboardLayout merges per platform so a web-only save never wipes mobile)
 /api/recovery/*        Recovery score — GET / (returns HRV/sleep/fatigue summary)
 /api/ai/assistant/*    AI assistant — GET /insight (daily insight), POST / (chat message), POST /transcribe (audio → text)
 /api/scrape/*          Recipe scraper — POST / (scrape URL → recipe), POST /estimate-nutrition
@@ -57,6 +58,17 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 ```
 
 ## Services
+
+### Feature modules — gate aggregates, never gate CRUD
+`packages/api-client/src/featureCatalog.ts` is the source of truth (7 modules, 13 sub-modules). `apps/server/src/middleware/features.ts` exports `loadFeatures`, which resolves `users.enabled_features` into `req.features` **per request with no cross-request cache**, so a toggle applies on the very next call. Mount it only on the routes that branch on it.
+
+A disabled module keeps its CRUD endpoints live and functional. This is deliberate: it makes re-enabling trivial, avoids breaking clients whose cached preference is stale, and means a toggle can never orphan data. What changes is what the cross-feature **aggregates** report:
+- `services/tdee.ts` — `calcTDEE` takes `include: { tef, exercise, steps }` (all default true); an excluded term contributes 0 and is omitted from the returned `components[]`, so clients can label the figure "Expenditure" rather than "TDEE" when TEF is missing.
+- `routes/goals-v2.ts` — list and `/nudges` filter goals whose `category` maps to a disabled module via `utils/goalFeatureFilter.ts`. Filters, never deletes; `GET /:id` always works.
+- `services/excelExport.ts` — builds its sheet list from the enabled modules.
+- `routes/ai-assistant.ts` — the insight prompt only queries data for tracked domains, states them in the system prompt, and includes a feature fingerprint in its 24h cache key.
+
+The one exception is `services/weightGurusSync.ts`, where a toggle stops data being *written*: it skips and logs when `body` or `weightGurusSync` is off. That is the intent — a user who stopped tracking body weight should not get scale data imported behind their back.
 
 ### AI Provider
 All AI calls go through `apps/server/src/services/aiProvider.ts` which exports `runText()` and `runWithTools()`. Both try Anthropic first; on any error, fall back to Gemini (if `GEMINI_API_KEY` is set). Gemini uses a structured JSON prompt as a tool-use equivalent. Model mapping: `haiku` $\rightarrow$ `claude-haiku-4-5-20251001` / `gemini-1.5-flash`; `sonnet` $\rightarrow$ `claude-sonnet-4-6` / `gemini-1.5-pro`. If neither key is configured, the call throws. Services using AI: `claude.ts` (tag suggestion), `macroEstimation.ts` (per-100g nutrition), `calorieEstimation.ts` (calories burned), `scrape.ts` (recipe extraction + nutrition estimation), `recipes.ts` (/suggest endpoint).

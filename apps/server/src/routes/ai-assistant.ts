@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
+import { loadFeatures } from '../middleware/features';
 import type { RowDataPacket } from 'mysql2/promise';
 import { runConversation, transcribeAudio } from '../services/aiProvider';
+import type { EnabledFeatures } from '@pulse/api-client';
 
 const router = Router();
 router.use(requireAuth);
@@ -135,8 +137,30 @@ function getInsightPeriod(hour: number): InsightPeriod {
   return 'evening';
 }
 
-router.get('/insight', async (req: Request, res: Response) => {
+// Short, order-independent fingerprint of enabled features — used in the insight cache
+// key so flipping a toggle in /api/preferences invalidates the cached 24h insight
+// immediately rather than serving stale text about a domain that's now off.
+function featuresFingerprint(features: EnabledFeatures): string {
+  return Object.keys(features).sort().map((k) => `${k}:${features[k as keyof EnabledFeatures] ? 1 : 0}`).join(',');
+}
+
+function trackedDomainsText(features: EnabledFeatures): string {
+  const domains: string[] = [];
+  if (features.nutrition) domains.push('nutrition/food logging');
+  if (features.exercise) domains.push('exercise/workouts');
+  if (features.body) domains.push('body weight & measurements');
+  if (features.activity) domains.push('steps/activity');
+  return domains.length
+    ? `The user tracks: ${domains.join(', ')}. Only reference these domains — never suggest logging something they don't track.`
+    : 'The user has not enabled any tracking modules.';
+}
+
+router.get('/insight', loadFeatures, async (req: Request, res: Response) => {
   try {
+    const features = req.features!;
+    const hasNutrition = features.nutrition;
+    const hasExercise = features.exercise;
+
     const clientHour = parseInt(req.query.hour as string, 10);
     const hour = Number.isFinite(clientHour) ? clientHour : new Date().getHours();
     const period = getInsightPeriod(hour);
@@ -149,94 +173,72 @@ router.get('/insight', async (req: Request, res: Response) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    const cacheKey = `${req.userId}:${todayStr}:${period}`;
+    const cacheKey = `${req.userId}:${todayStr}:${period}:${featuresFingerprint(features)}`;
 
     const cached = insightCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return res.json({ text: cached.insight, period });
     }
 
-    // Fetch goals (used by all periods)
-    const [goalRows] = await pool.query<RowDataPacket[]>(
-      `SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
-      [req.userId, todayStr]
-    );
-    const goals = goalRows[0] ?? { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 65 };
+    // Nutrition targets (user_goals) — only meaningful while nutrition tracking is on.
+    let goals: RowDataPacket | { calories: number; protein_g: number; carbs_g: number; fat_g: number } =
+      { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 65 };
+    if (hasNutrition) {
+      const [goalRows] = await pool.query<RowDataPacket[]>(
+        `SELECT * FROM user_goals WHERE user_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
+        [req.userId, todayStr]
+      );
+      goals = goalRows[0] ?? goals;
+    }
 
     let prompt: string;
 
     if (period === 'morning') {
       // Yesterday recap
-      const [foodRows] = await pool.query<RowDataPacket[]>(
-        `SELECT
-          COALESCE(SUM(f.calories_per100 * ss.grams * fl.quantity / 100), 0) as cal,
-          COALESCE(SUM(f.protein_per100 * ss.grams * fl.quantity / 100), 0) as prot,
-          COALESCE(SUM(f.carbs_per100 * ss.grams * fl.quantity / 100), 0) as carbs,
-          COALESCE(SUM(f.fat_per100 * ss.grams * fl.quantity / 100), 0) as fat
-         FROM food_log fl
-         JOIN foods f ON f.id = fl.food_id
-         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
-         WHERE fl.user_id = ? AND fl.log_date = ?`,
-        [req.userId, yesterdayStr]
-      );
-      const [workoutRows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as workout_count, COALESCE(SUM(duration_minutes), 0) as total_minutes
-         FROM workout_logs WHERE user_id = ? AND DATE(workout_date) = ?`,
-        [req.userId, yesterdayStr]
-      );
-      const n = foodRows[0] ?? { cal: 0, prot: 0, carbs: 0, fat: 0 };
-      const w = workoutRows[0] ?? { workout_count: 0, total_minutes: 0 };
+      const n = hasNutrition ? await fetchFoodTotals(req.userId, yesterdayStr) : { cal: 0, prot: 0, carbs: 0, fat: 0 };
+      const w = hasExercise ? await fetchWorkoutTotals(req.userId, yesterdayStr) : { workout_count: 0, total_minutes: 0 };
+
+      const nutritionLine = hasNutrition
+        ? `Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein\nNutrition actual: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein (${Math.round(n.cal - goals.calories > 0 ? n.cal - goals.calories : goals.calories - n.cal)} kcal ${n.cal > goals.calories ? 'over' : 'under'})`
+        : '';
+      const workoutLine = hasExercise ? `Workouts: ${w.workout_count} session(s), ${w.total_minutes} min total` : '';
 
       prompt = `Write ONE encouraging sentence recapping yesterday's health. Start with "Yesterday".
 
-Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
-Nutrition actual: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein (${Math.round(n.cal - goals.calories > 0 ? n.cal - goals.calories : goals.calories - n.cal)} kcal ${n.cal > goals.calories ? 'over' : 'under'})
-Workouts: ${w.workout_count} session(s), ${w.total_minutes} min total
+${[nutritionLine, workoutLine].filter(Boolean).join('\n')}
 
 Rules: ONE sentence, under 18 words, mention "yesterday", positive tone, highlight biggest win or gap. No numbers unless key.
 Respond with ONLY the sentence.`;
 
     } else {
       // Today's progress (afternoon or evening)
-      const [foodRows] = await pool.query<RowDataPacket[]>(
-        `SELECT
-          COALESCE(SUM(f.calories_per100 * ss.grams * fl.quantity / 100), 0) as cal,
-          COALESCE(SUM(f.protein_per100 * ss.grams * fl.quantity / 100), 0) as prot,
-          COALESCE(SUM(f.carbs_per100 * ss.grams * fl.quantity / 100), 0) as carbs,
-          COALESCE(SUM(f.fat_per100 * ss.grams * fl.quantity / 100), 0) as fat
-         FROM food_log fl
-         JOIN foods f ON f.id = fl.food_id
-         JOIN serving_sizes ss ON ss.id = fl.serving_size_id
-         WHERE fl.user_id = ? AND fl.log_date = ?`,
-        [req.userId, todayStr]
-      );
-      const [workoutRows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as workout_count, COALESCE(SUM(duration_minutes), 0) as total_minutes
-         FROM workout_logs WHERE user_id = ? AND DATE(workout_date) = ?`,
-        [req.userId, todayStr]
-      );
-      const n = foodRows[0] ?? { cal: 0, prot: 0, carbs: 0, fat: 0 };
-      const w = workoutRows[0] ?? { workout_count: 0, total_minutes: 0 };
+      const n = hasNutrition ? await fetchFoodTotals(req.userId, todayStr) : { cal: 0, prot: 0, carbs: 0, fat: 0 };
+      const w = hasExercise ? await fetchWorkoutTotals(req.userId, todayStr) : { workout_count: 0, total_minutes: 0 };
 
       const calRemaining = Math.round(goals.calories - n.cal);
       const protRemaining = Math.round(goals.protein_g - n.prot);
 
       if (period === 'afternoon') {
+        const nutritionLine = hasNutrition
+          ? `Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein\nLogged so far today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein\nRemaining: ${calRemaining > 0 ? calRemaining + ' kcal' : 'calorie goal hit'}, ${protRemaining > 0 ? protRemaining + 'g protein' : 'protein goal hit'}`
+          : '';
+        const workoutLine = hasExercise ? `Workout today: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none yet'}` : '';
+
         prompt = `Write ONE motivating sentence about today's progress so far. Start with "Today".
 
-Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
-Logged so far today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein
-Remaining: ${calRemaining > 0 ? calRemaining + ' kcal' : 'calorie goal hit'}, ${protRemaining > 0 ? protRemaining + 'g protein' : 'protein goal hit'}
-Workout today: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none yet'}
+${[nutritionLine, workoutLine].filter(Boolean).join('\n')}
 
 Rules: ONE sentence, under 18 words, mention "today", focus on what's still achievable, actionable and positive. No numbers unless key.
 Respond with ONLY the sentence.`;
       } else {
+        const nutritionLine = hasNutrition
+          ? `Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein\nActual today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein`
+          : '';
+        const workoutLine = hasExercise ? `Workouts: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none'}` : '';
+
         prompt = `Write ONE sentence summarizing today and looking ahead to tomorrow. Start with "Today".
 
-Nutrition goal: ${Math.round(goals.calories)} kcal, ${Math.round(goals.protein_g)}g protein
-Actual today: ${Math.round(n.cal)} kcal, ${Math.round(n.prot)}g protein
-Workouts: ${w.workout_count > 0 ? `${w.workout_count} session(s), ${w.total_minutes} min` : 'none'}
+${[nutritionLine, workoutLine].filter(Boolean).join('\n')}
 
 Rules: ONE sentence, under 18 words, mention "today", wrap up the day positively and set up tomorrow. No numbers unless key.
 Respond with ONLY the sentence.`;
@@ -245,7 +247,7 @@ Respond with ONLY the sentence.`;
 
     const insight = await runConversation({
       model: 'haiku',
-      systemPrompt: 'You are a health coach providing brief, time-aware daily insights. Be concise and motivating.',
+      systemPrompt: `You are a health coach providing brief, time-aware daily insights. Be concise and motivating. ${trackedDomainsText(features)}`,
       history: [],
       userMessage: prompt,
       maxTokens: 128,
@@ -260,6 +262,31 @@ Respond with ONLY the sentence.`;
     return res.status(500).json({ error: 'Could not generate insight' });
   }
 });
+
+async function fetchFoodTotals(userId: number, date: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+      COALESCE(SUM(f.calories_per100 * ss.grams * fl.quantity / 100), 0) as cal,
+      COALESCE(SUM(f.protein_per100 * ss.grams * fl.quantity / 100), 0) as prot,
+      COALESCE(SUM(f.carbs_per100 * ss.grams * fl.quantity / 100), 0) as carbs,
+      COALESCE(SUM(f.fat_per100 * ss.grams * fl.quantity / 100), 0) as fat
+     FROM food_log fl
+     JOIN foods f ON f.id = fl.food_id
+     JOIN serving_sizes ss ON ss.id = fl.serving_size_id
+     WHERE fl.user_id = ? AND fl.log_date = ?`,
+    [userId, date]
+  );
+  return rows[0] ?? { cal: 0, prot: 0, carbs: 0, fat: 0 };
+}
+
+async function fetchWorkoutTotals(userId: number, date: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) as workout_count, COALESCE(SUM(duration_minutes), 0) as total_minutes
+     FROM workout_logs WHERE user_id = ? AND DATE(workout_date) = ?`,
+    [userId, date]
+  );
+  return rows[0] ?? { workout_count: 0, total_minutes: 0 };
+}
 
 // ── POST / ────────────────────────────────────────────────────────────────────
 

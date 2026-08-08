@@ -4,6 +4,7 @@ import { authApi } from '@pulse/api-client';
 import { useAuthStore } from './store/authStore';
 import { useSettingsStore } from './store/settings';
 import Layout from './components/Layout';
+import { FeatureRoute } from './components/FeatureGate';
 import Login from './pages/Login';
 import Library from './pages/Library';
 import RecipeHistory from './pages/RecipeHistory';
@@ -78,14 +79,14 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
 
           {/* Food */}
-          <Route path="food" element={<Library />} />
+          <Route path="food" element={<FeatureRoute feature="recipes"><Library /></FeatureRoute>} />
 
           {/* Drinks */}
-          <Route path="drinks" element={<Library />} />
+          <Route path="drinks" element={<FeatureRoute feature="drinks"><Library /></FeatureRoute>} />
 
           {/* History & Links — top-level */}
           <Route path="history" element={<RecipeHistory />} />
-          <Route path="links" element={<Links />} />
+          <Route path="links" element={<FeatureRoute feature="links"><Links /></FeatureRoute>} />
 
           {/* Legacy redirects */}
           <Route path="recipes" element={<Navigate to="/food" replace />} />
@@ -97,23 +98,23 @@ export default function App() {
           <Route path="drinks/links" element={<Navigate to="/links" replace />} />
 
           {/* Nutrition */}
-          <Route path="nutrition" element={<Navigate to="/nutrition/today" replace />} />
-          <Route path="nutrition/today" element={<TodayPage />} />
-          <Route path="nutrition/history" element={<NutritionHistoryPage />} />
-          <Route path="nutrition/foods" element={<FoodsPage />} />
+          <Route path="nutrition" element={<FeatureRoute feature="nutrition"><Navigate to="/nutrition/today" replace /></FeatureRoute>} />
+          <Route path="nutrition/today" element={<FeatureRoute feature="nutrition"><TodayPage /></FeatureRoute>} />
+          <Route path="nutrition/history" element={<FeatureRoute feature="nutrition"><NutritionHistoryPage /></FeatureRoute>} />
+          <Route path="nutrition/foods" element={<FeatureRoute feature="nutrition"><FoodsPage /></FeatureRoute>} />
 
           {/* Workouts */}
-          <Route path="workouts" element={<WorkoutsPage />} />
-          <Route path="workouts/exercises" element={<ExercisesPage />} />
-          <Route path="workouts/exercises/:id" element={<ExerciseDetailPage />} />
-          <Route path="workouts/routines" element={<RoutinesPage />} />
-          <Route path="workouts/routines/:id" element={<RoutineDetailPage />} />
-          <Route path="workouts/:id" element={<WorkoutDetailPage />} />
+          <Route path="workouts" element={<FeatureRoute feature="exercise"><WorkoutsPage /></FeatureRoute>} />
+          <Route path="workouts/exercises" element={<FeatureRoute feature="exercise"><ExercisesPage /></FeatureRoute>} />
+          <Route path="workouts/exercises/:id" element={<FeatureRoute feature="exercise"><ExerciseDetailPage /></FeatureRoute>} />
+          <Route path="workouts/routines" element={<FeatureRoute feature="exercise"><RoutinesPage /></FeatureRoute>} />
+          <Route path="workouts/routines/:id" element={<FeatureRoute feature="exercise"><RoutineDetailPage /></FeatureRoute>} />
+          <Route path="workouts/:id" element={<FeatureRoute feature="exercise"><WorkoutDetailPage /></FeatureRoute>} />
 
           {/* Goals & Planning */}
-          <Route path="goals" element={<GoalsPage />} />
-          <Route path="goals/planning" element={<PlanningPage />} />
-          <Route path="goals/:id/progress" element={<GoalProgressPage />} />
+          <Route path="goals" element={<FeatureRoute feature="goals"><GoalsPage /></FeatureRoute>} />
+          <Route path="goals/planning" element={<FeatureRoute feature="goals"><PlanningPage /></FeatureRoute>} />
+          <Route path="goals/:id/progress" element={<FeatureRoute feature="goals"><GoalProgressPage /></FeatureRoute>} />
 
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />

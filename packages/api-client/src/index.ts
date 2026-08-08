@@ -65,6 +65,26 @@ export type { Goal, GoalDetail, GoalMilestone, GoalMilestoneWithGoal, GoalProgre
               CreateMilestonePayload, UpdateMilestonePayload, CreateProgressPayload } from './endpoints/goals-v2';
 export { GOAL_CATALOG, CATALOG_BY_KEY, CATALOG_BY_CATEGORY } from './goalCatalog';
 export type { GoalCatalogKey, GoalCategory, GoalCardType, GoalSourceType, GoalCatalogEntry } from './goalCatalog';
+
+// Feature modules
+export { FEATURE_CATALOG, FEATURE_BY_KEY, FEATURE_KEYS, TOP_LEVEL_FEATURES, DEFAULT_FEATURES,
+         subFeatures, resolveFeatures, featuresSatisfied } from './featureCatalog';
+export type { FeatureKey, FeatureCatalogEntry, EnabledFeatures } from './featureCatalog';
+
+// Dashboard layout
+export { DASHBOARD_CATALOG, WIDGET_BY_KEY, SPAN_OPTIONS, defaultLayout, resolveLayout, groupLayout } from './dashboardCatalog';
+export type { DashboardWidgetKey, DashboardWidget, WidgetPlatform, WidgetGroup, FeatureRequirement,
+              LayoutEntry, DashboardLayout, StoredDashboardLayout, LayoutPlatform, SpanOption } from './dashboardCatalog';
+
+// Per-goal card presentation
+export { GOAL_CARD_WINDOW_DAYS, TDEE_PROJECTION_KEYS, defaultVariantFor, allowedVariantsFor,
+         defaultGoalCardConfig, resolveGoalCard, editableOptionsFor } from './goalCardConfig';
+export type { GoalCardConfig, GoalCardVariant, GoalCardWindow, GoalCardProjection,
+              GoalCardDirection, GoalCardMetricLine } from './goalCardConfig';
+
+// User preferences (features + dashboard layout)
+export { preferencesApi } from './endpoints/preferences';
+export type { UserPreferences } from './endpoints/preferences';
 export type { GoalCheckpoint, DayTypePreset, DailyNutritionOverride, MealSchedule, MealScheduleEvent, MealSlotType, MealRecurrenceType, NutritionSchedule, NutritionScheduleEvent } from './endpoints/calendar';
 
 // Shared utilities

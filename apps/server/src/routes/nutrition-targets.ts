@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import type { RowDataPacket } from 'mysql2';
 import { calcTDEE, type ActivityLevel } from '../services/tdee';
 import { getNutritionOverrideForDate } from '../services/nutritionScheduleForDate';
+import { loadFeatures } from '../middleware/features';
 
 const router = Router();
 router.use(requireAuth);
@@ -175,7 +176,7 @@ router.get('/summary', async (req, res) => {
 });
 
 // GET /api/nutrition-targets/tdee?date=YYYY-MM-DD
-router.get('/tdee', async (req, res) => {
+router.get('/tdee', loadFeatures, async (req, res) => {
   const date = (req.query.date as string) || localDateStr();
   try {
     const [userRows] = await pool.query<RowDataPacket[]>(
@@ -218,6 +219,7 @@ router.get('/tdee', async (req, res) => {
     );
     const stepsKcal = stepsRows[0]?.steps ? Math.round(Number(stepsRows[0].steps) * 0.05) : 0;
 
+    const features = req.features!;
     const breakdown = calcTDEE({
       weightKg,
       heightCm: Number(u.height_cm),
@@ -227,6 +229,11 @@ router.get('/tdee', async (req, res) => {
       caloriesIn,
       exerciseKcal,
       stepsKcal,
+      include: {
+        tef:      features.nutrition,
+        exercise: features.exercise,
+        steps:    features.activity,
+      },
     });
 
     res.json({ available: true, ...breakdown, caloriesIn });
