@@ -11,6 +11,10 @@ RUN pnpm install --frozen-lockfile
 # Copy source and build
 COPY packages/api-client/ ./packages/api-client/
 COPY apps/server/ ./apps/server/
+# api-client must be compiled first: the server has runtime (value) imports from it,
+# and its package main points at dist/. Without this the container starts and then
+# dies trying to require raw TypeScript.
+RUN pnpm --filter @pulse/api-client build
 RUN pnpm --filter @pulse/server build
 
 # Produce a standalone deploy bundle — resolves workspace symlinks into real node_modules
