@@ -147,9 +147,12 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
     <Tabs
-      sceneContainerStyle={{ backgroundColor: c.bg }}
       screenOptions={{
         headerShown: false,
+        // `sceneContainerStyle` was renamed to the `sceneStyle` screen option in
+        // react-navigation 7 — as a stray top-level prop it was silently ignored,
+        // so the scene background was never actually applied.
+        sceneStyle: { backgroundColor: c.bg },
         tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border, paddingHorizontal: 4, height: 72, paddingBottom: 10 },
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.muted,

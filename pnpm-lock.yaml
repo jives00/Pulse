@@ -30,6 +30,9 @@ importers:
       '@react-native-community/datetimepicker':
         specifier: 8.6.0
         version: 8.6.0(expo@55.0.26)(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)
+      '@react-navigation/native':
+        specifier: ^7.1.33
+        version: 7.2.5(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)
       axios:
         specifier: ^1.7.0
         version: 1.16.1

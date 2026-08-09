@@ -190,7 +190,9 @@ async function scheduleRestEndNotification(secondsFromNow: number, workoutId: nu
       sticky: true,
       autoDismiss: false,
       categoryIdentifier: 'workout-running',
-      android: { channelId: 'rest-complete', priority: 'max' } as any,
+      // `android` is a valid runtime field but absent from NotificationContentInput,
+      // so the cast has to sit on the whole object rather than on the value.
+      ...({ android: { channelId: 'rest-complete', priority: 'max' } } as object),
     },
     trigger: { type: 'timeInterval', seconds: secondsFromNow, repeats: false } as any,
   });

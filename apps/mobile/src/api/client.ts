@@ -505,18 +505,26 @@ export async function deleteRoutineTemplateSet(_token: string, routineId: number
 }
 
 
-export async function setRoutineGoal(_token: string, routineId: number, targetPerWeek: number): Promise<void> {
-  await routinesApi.setGoal(routineId, targetPerWeek);
-}
-
-export async function deleteRoutineGoal(_token: string, routineId: number): Promise<void> {
-  await routinesApi.deleteGoal(routineId);
-}
-
 // ─── Workout Schedules ────────────────────────────────────────────────────────
+
+export async function saveNutritionGoals(_token: string, data: NutritionGoals): Promise<void> {
+  await nutritionTargetsApi.save(data);
+}
 
 export async function getSchedules(_token: string) {
   return schedulesApi.getAll();
+}
+
+export async function createSchedule(_token: string, data: Parameters<typeof schedulesApi.create>[0]) {
+  return schedulesApi.create(data);
+}
+
+export async function updateSchedule(_token: string, id: number, data: Parameters<typeof schedulesApi.update>[1]) {
+  return schedulesApi.update(id, data);
+}
+
+export async function deleteSchedule(_token: string, id: number): Promise<void> {
+  await schedulesApi.delete(id);
 }
 
 export async function getUpcomingSchedule(_token: string, days = 14) {
@@ -577,14 +585,6 @@ export async function deleteMeasurement(_token: string, id: number): Promise<voi
   await measurementsApi.delete(id);
 }
 
-
-export async function setMeasurementGoal(_token: string, metric: string, data: { targetValue: number; unit: string; targetDate: string | null }): Promise<void> {
-  await measurementsApi.setGoal(metric, data);
-}
-
-export async function deleteMeasurementGoal(_token: string, metric: string): Promise<void> {
-  await measurementsApi.deleteGoal(metric);
-}
 
 // ─── History ──────────────────────────────────────────────────────────────────
 
