@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,10 +14,18 @@ import {
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { useSettingsStore, type SortOption, type ExerciseSortOption } from '../../../src/store/settings';
+import { useFeaturesStore } from '../../../src/store/features';
+import {
+  TOP_LEVEL_FEATURES, subFeatures, resolveLayout,
+  type FeatureKey, type StoredDashboardLayout, type LayoutEntry, type DashboardWidgetKey,
+} from '../../../../../packages/api-client/src/index';
 import { fontSize, type Colors, type ColorScheme, PALETTES } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { useUpdateStore, BUILD_TAG } from '../../../src/store/update';
+import { DashboardLayoutEditor } from '../../../src/components/dashboard/DashboardLayoutEditor';
+import { moveWidgetInTab, setWidgetVisible, setWidgetTab, resetLayoutWidgets } from '../../../src/components/dashboard/mobileLayoutReducer';
+import type { Tab as DashboardTabId } from '../../../src/components/dashboard/dashboardTabs';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +53,144 @@ function SaveBtn({ onPress, saving, label = 'Save' }: { onPress: () => void; sav
     <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={onPress} disabled={saving}>
       <Text style={s.saveBtnText}>{saving ? 'Saving…' : label}</Text>
     </TouchableOpacity>
+  );
+}
+
+// ── Features tab ──────────────────────────────────────────────────────────────
+
+function FeatureRow({ featureKey, label, description, indent, disabled }: {
+  featureKey: FeatureKey; label: string; description: string; indent?: boolean; disabled?: boolean;
+}) {
+  const c = useColors();
+  const s = makeStyles(c);
+  const enabled = useFeaturesStore((st) => st.features[featureKey]);
+  const setFeature = useFeaturesStore((st) => st.setFeature);
+  return (
+    <View style={[s.featureRow, indent && s.featureRowIndent]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[s.fieldLabel, { color: c.text, fontSize: fontSize.base }]}>{label}</Text>
+        <Text style={s.featureDesc}>{description}</Text>
+      </View>
+      <Switch
+        value={enabled}
+        onValueChange={(v) => setFeature(featureKey, v)}
+        disabled={disabled}
+        trackColor={{ false: c.border, true: c.accent }}
+        thumbColor={c.card}
+      />
+    </View>
+  );
+}
+
+function FeaturesTab() {
+  const c = useColors();
+  const s = makeStyles(c);
+  const features = useFeaturesStore((st) => st.features);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
+      <SectionHeader title="Feature Modules" />
+      <Text style={[s.fieldLabel, { marginBottom: 4 }]}>
+        Turning this off hides its pages and dashboard cards. Your data is kept and comes back if you turn it on again.
+      </Text>
+      <View style={s.card}>
+        {TOP_LEVEL_FEATURES.map((entry, i) => (
+          <View key={entry.key}>
+            {i > 0 && <View style={s.divider} />}
+            <FeatureRow featureKey={entry.key} label={entry.label} description={entry.description} />
+            {subFeatures(entry.key).map((sub) => (
+              <FeatureRow
+                key={sub.key}
+                featureKey={sub.key}
+                label={sub.label}
+                description={sub.description}
+                indent
+                disabled={!features[entry.key]}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Dashboard tab ─────────────────────────────────────────────────────────────
+// Reorder/hide/retab dashboard widgets. Editing happens here, not in place on the
+// dashboard — see DashboardLayoutEditor for why. Every edit updates the store
+// instantly (the dashboard IS the preview, one tab over) but the network PUT is
+// debounced ~600ms so a rapid burst of edits (several taps of ↑/↓) coalesces into a
+// single request; leaving this tab or unmounting flushes whatever is still pending.
+function DashboardTab() {
+  const features        = useFeaturesStore((st) => st.features);
+  const dashboardLayout = useFeaturesStore((st) => st.dashboardLayout);
+  const persistLayout   = useFeaturesStore((st) => st.setLayout);
+  const [refreshing, setRefreshing] = useState(false);
+  const c = useColors();
+  const s = makeStyles(c);
+
+  const pendingSaveRef = useRef<StoredDashboardLayout | null>(null);
+  const saveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingSave = useCallback(() => {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    if (pendingSaveRef.current) {
+      const payload = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      persistLayout(payload);
+    }
+  }, [persistLayout]);
+
+  // Flush on unmount (also covers "leaves the Dashboard tab": the parent screen
+  // conditionally renders this component per-tab, so switching tabs unmounts it).
+  useEffect(() => () => flushPendingSave(), [flushPendingSave]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
+
+  function applyLayoutChange(nextWidgets: LayoutEntry[]) {
+    const nextStored: StoredDashboardLayout = { ...dashboardLayout, mobile: { v: 1, widgets: nextWidgets } };
+    useFeaturesStore.setState({ dashboardLayout: nextStored }); // instant optimistic UI
+    pendingSaveRef.current = nextStored;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushPendingSave, 600);
+  }
+
+  // Full merged widget list (every catalog key, including feature-disabled ones —
+  // their stored position/tab is preserved even while hidden from this editor).
+  const fullLayout = resolveLayout(dashboardLayout, 'mobile').widgets;
+
+  function moveUp(key: DashboardWidgetKey)   { applyLayoutChange(moveWidgetInTab(fullLayout, key, 'up', features)); }
+  function moveDown(key: DashboardWidgetKey) { applyLayoutChange(moveWidgetInTab(fullLayout, key, 'down', features)); }
+  function toggleVisible(key: DashboardWidgetKey, visible: boolean) { applyLayoutChange(setWidgetVisible(fullLayout, key, visible)); }
+  function setTab(key: DashboardWidgetKey, tab: DashboardTabId) { applyLayoutChange(setWidgetTab(fullLayout, key, tab)); }
+  function reset() { applyLayoutChange(resetLayoutWidgets()); }
+
+  return (
+    <ScrollView contentContainerStyle={s.tabScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
+      <SectionHeader title="Dashboard Layout" />
+      <Text style={[s.fieldLabel, { marginBottom: 4 }]}>
+        Reorder widgets within a tab, hide ones you don't want, or move one to a different tab.
+      </Text>
+      <DashboardLayoutEditor
+        layout={fullLayout}
+        features={features}
+        onMoveUp={moveUp}
+        onMoveDown={moveDown}
+        onToggleVisible={toggleVisible}
+        onSetTab={setTab}
+        onReset={reset}
+      />
+    </ScrollView>
   );
 }
 
@@ -564,8 +710,8 @@ function AboutTab() {
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
-type Tab = 'options' | 'tags' | 'user' | 'delete' | 'about';
-const SETTINGS_TABS_ORDER = ['options', 'tags', 'user', 'delete', 'about'] as const;
+type Tab = 'features' | 'dashboard' | 'options' | 'tags' | 'user' | 'delete' | 'about';
+const SETTINGS_TABS_ORDER = ['features', 'dashboard', 'options', 'tags', 'user', 'delete', 'about'] as const;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -573,7 +719,7 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('options');
-  const swipe = useSwipeNav(7, SETTINGS_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav('settings', SETTINGS_TABS_ORDER, tab, setTab);
 
   return (
     <SafeAreaView style={s.container} {...swipe.panHandlers}>
@@ -586,11 +732,13 @@ export default function SettingsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
         {([
-          { id: 'options', label: 'Options' },
-          { id: 'tags',    label: 'Tags'    },
-          { id: 'user',    label: 'User'    },
-          { id: 'delete',  label: 'Delete'  },
-          { id: 'about',   label: 'About'   },
+          { id: 'features',  label: 'Features'  },
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'options',   label: 'Options'   },
+          { id: 'tags',      label: 'Tags'      },
+          { id: 'user',      label: 'User'      },
+          { id: 'delete',    label: 'Delete'    },
+          { id: 'about',     label: 'About'     },
         ] as { id: Tab; label: string }[]).map(({ id, label }) => (
           <TouchableOpacity key={id} style={[s.tabBtn, tab === id && s.tabBtnActive]} onPress={() => setTab(id)}>
             <Text style={[s.tabLabel, tab === id && s.tabLabelActive]}>{label}</Text>
@@ -598,11 +746,13 @@ export default function SettingsScreen() {
         ))}
       </ScrollView>
 
-      {tab === 'options' && <OptionsTab />}
-      {tab === 'tags'    && <TagsTab />}
-      {tab === 'user'    && <UserTab />}
-      {tab === 'delete'  && <DeleteTab />}
-      {tab === 'about'   && <AboutTab />}
+      {tab === 'features'  && <FeaturesTab />}
+      {tab === 'dashboard' && <DashboardTab />}
+      {tab === 'options'   && <OptionsTab />}
+      {tab === 'tags'      && <TagsTab />}
+      {tab === 'user'      && <UserTab />}
+      {tab === 'delete'    && <DeleteTab />}
+      {tab === 'about'     && <AboutTab />}
     </SafeAreaView>
   );
 }
@@ -649,6 +799,9 @@ function makeStyles(c: Colors) {
   schemeOption: { alignItems: 'center', gap: 6, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 10 },
   schemeSwatch: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: c.border },
   schemeLabel: { fontSize: fontSize.sm, color: c.muted },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  featureRowIndent: { paddingLeft: 20 },
+  featureDesc: { fontSize: fontSize.sm, color: c.muted, marginTop: 2 },
   });
 }
 

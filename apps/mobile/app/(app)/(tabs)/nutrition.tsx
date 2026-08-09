@@ -20,6 +20,7 @@ import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { localDateStr } from '../../../../../packages/api-client/src/index';
 import { writeNutritionRecord, deleteNutritionRecord, writeHydrationRecord, deleteHydrationRecord } from '../../../src/services/healthConnectWriter';
+import { useFeaturesStore } from '../../../src/store/features';
 
 // TextInput that always shows the start of its value when unfocused (not scrolled to the end)
 function StartAlignedInput({ style, value, onChangeText, placeholder, placeholderTextColor }: {
@@ -77,6 +78,9 @@ function formatDate(dateStr: string) {
 export default function NutritionScreen() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
+  const waterEnabled = useFeaturesStore((s) => s.features.water);
+  const recipesEnabled = useFeaturesStore((s) => s.features.recipes);
+  const healthConnectEnabled = useFeaturesStore((s) => s.features.activity && s.features.healthConnect);
   const [date, setDate] = useState(localDateStr(new Date()));
   const [log, setLog] = useState<DailyLog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +157,7 @@ export default function NutritionScreen() {
   const [barcodeQueue, setBarcodeQueue] = useState<BarcodeQueueItem[]>([]);
   const [scanningActive, setScanningActive] = useState(false);
   const [barcodeScanning, setBarcodeScanning] = useState(false); // lookup in-flight
-  const swipe = useSwipeNav(1);
+  const swipe = useSwipeNav('nutrition');
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -193,7 +197,7 @@ export default function NutritionScreen() {
       try {
         const [foods, recipes] = await Promise.all([
           searchFoods(token, text.trim()).catch(() => [] as Food[]),
-          searchRecipes(token, text.trim()).catch(() => [] as RecipeSearchResult[]),
+          recipesEnabled ? searchRecipes(token, text.trim()).catch(() => [] as RecipeSearchResult[]) : Promise.resolve([] as RecipeSearchResult[]),
         ]);
         setFoodResults(foods);
         setRecipeResults(recipes);
@@ -369,7 +373,7 @@ export default function NutritionScreen() {
         quantity: 1,
       });
       setAddMeal(null);
-      await writeNutritionRecord(entry, String(entry.id));
+      if (healthConnectEnabled) await writeNutritionRecord(entry, String(entry.id));
       setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
@@ -389,7 +393,7 @@ export default function NutritionScreen() {
         quantity: qty,
       });
       setAddMeal(null);
-      await writeNutritionRecord(entry, String(entry.id));
+      if (healthConnectEnabled) await writeNutritionRecord(entry, String(entry.id));
       setTimeout(() => load(true), 500);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not add food.');
@@ -533,7 +537,7 @@ export default function NutritionScreen() {
             servingSizeId: item.serving.id,
             quantity: qty,
           });
-          await writeNutritionRecord(entry, String(entry.id));
+          if (healthConnectEnabled) await writeNutritionRecord(entry, String(entry.id));
         }
         return Promise.resolve();
       }));
@@ -620,7 +624,7 @@ export default function NutritionScreen() {
     setSavingEdit(true);
     try {
       const updated = await editNutritionLogEntry(token, editEntry.id, { servingSizeId: editServing.id, quantity: qty });
-      await writeNutritionRecord(updated, String(updated.id));
+      if (healthConnectEnabled) await writeNutritionRecord(updated, String(updated.id));
       // Clear all edit state at once to prevent re-render duplication
       setEditEntry(null);
       setEditQuantity('1');
@@ -657,7 +661,7 @@ export default function NutritionScreen() {
     const savedY = scrollYRef.current;
     try {
       const entry = await addWater(token, date, oz);
-      await writeHydrationRecord(entry, String(entry.id));
+      if (healthConnectEnabled) await writeHydrationRecord(entry, String(entry.id));
       await load(true);
       scrollRef.current?.scrollTo({ y: savedY, animated: false });
     }
@@ -751,23 +755,25 @@ export default function NutritionScreen() {
           </View>
 
           {/* Water */}
-          <View style={s.waterSection}>
-            <View style={s.waterHeader}>
-              <Text style={s.mealLabel}>Water</Text>
-              <Text style={s.mealCals}>{waterGlasses} / {waterGoalGlasses} glasses</Text>
+          {waterEnabled && (
+            <View style={s.waterSection}>
+              <View style={s.waterHeader}>
+                <Text style={s.mealLabel}>Water</Text>
+                <Text style={s.mealCals}>{waterGlasses} / {waterGoalGlasses} glasses</Text>
+              </View>
+              <View style={s.progressBg}>
+                <View style={[s.progressFill, { width: `${waterPct * 100}%` as any, backgroundColor: '#60a5fa' }]} />
+              </View>
+              <View style={s.waterBtns}>
+                <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(8)}>
+                  <Text style={s.waterBtnText}>+ glass (8oz)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(20)}>
+                  <Text style={s.waterBtnText}>+ bottle (20oz)</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={s.progressBg}>
-              <View style={[s.progressFill, { width: `${waterPct * 100}%` as any, backgroundColor: '#60a5fa' }]} />
-            </View>
-            <View style={s.waterBtns}>
-              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(8)}>
-                <Text style={s.waterBtnText}>+ glass (8oz)</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.waterBtn} onPress={() => handleAddWater(20)}>
-                <Text style={s.waterBtnText}>+ bottle (20oz)</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          )}
 
           {/* Meal sections */}
           {MEALS.map(({ slot, label }) => {
@@ -1636,21 +1642,23 @@ export default function NutritionScreen() {
                   keyboardShouldPersistTaps="handled"
                 />
               )}
-              <TouchableOpacity
-                style={s.modifyFooterBtn}
-                onPress={() => {
-                  setModifyRecipe(null);
-                  setModifyPrompt('');
-                  setModifyResult(null);
-                  setModifyError(null);
-                  setQuery('');
-                  setRecipeResults([]);
-                  setFoodResults([]);
-                  setModalView('modify-pick');
-                }}
-              >
-                <Text style={s.modifyFooterText}>✦ Log modified recipe</Text>
-              </TouchableOpacity>
+              {recipesEnabled && (
+                <TouchableOpacity
+                  style={s.modifyFooterBtn}
+                  onPress={() => {
+                    setModifyRecipe(null);
+                    setModifyPrompt('');
+                    setModifyResult(null);
+                    setModifyError(null);
+                    setQuery('');
+                    setRecipeResults([]);
+                    setFoodResults([]);
+                    setModalView('modify-pick');
+                  }}
+                >
+                  <Text style={s.modifyFooterText}>✦ Log modified recipe</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[s.modifyFooterBtn, { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }]}
                 onPress={() => {

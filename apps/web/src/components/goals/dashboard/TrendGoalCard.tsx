@@ -11,7 +11,7 @@ import {
 } from '@pulse/api-client';
 import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TREND_COLOR, TDEE_COLOR, CHART_W, CHART_H, fmt1 } from './goalCardTheme';
 import { GoalCardShell, type GoalCardStat } from './GoalCardShell';
-import { emptyMessageFor, fmtETA, fmtGoalValue, goalDirection, goalStatusFor, resolveUnit } from './goalCardHelpers';
+import { emptyMessageFor, fmtETA, fmtGoalValue, goalDirection, goalStatusFor, linregSlope, resolveUnit } from './goalCardHelpers';
 
 // Body-measurement catalog keys map onto the BodyMeasurement.metric column; weight
 // gets its own branch below because it also converts kg entries and can plot a
@@ -29,16 +29,6 @@ const BODY_METRIC_FOR: Record<string, string> = {
 // Fix #6/#7: one projection horizon for every trend card (matches weight's existing 28d).
 const PROJECTION_DAYS = 28;
 
-function linregSlope(points: { date: string; val: number }[], t0Ms: number): number {
-  if (points.length < 2) return 0;
-  const xs = points.map(p => (new Date(p.date + 'T12:00:00').getTime() - t0Ms) / 86400000);
-  const ys = points.map(p => p.val);
-  const n  = xs.length;
-  const xM = xs.reduce((a, b) => a + b, 0) / n;
-  const yM = ys.reduce((a, b) => a + b, 0) / n;
-  const den = xs.reduce((s, x) => s + (x - xM) ** 2, 0);
-  return den > 0 ? xs.reduce((s, x, i) => s + (x - xM) * (ys[i] - yM), 0) / den : 0;
-}
 
 export function TrendGoalCard({ goal, cfg, measurements, foodLogHistory, tdee, isLoading }: {
   goal: Goal;

@@ -717,7 +717,7 @@ type GoalsNavTab = typeof GOALS_NAV_TABS[number];
 export default function GoalsScreen() {
   const c = useColors();
   const [navTab, setNavTab] = useState<GoalsNavTab>('goals');
-  const swipe = useSwipeNav(3, GOALS_NAV_TABS, navTab, setNavTab);
+  const swipe = useSwipeNav('goals', GOALS_NAV_TABS, navTab, setNavTab);
   const [goals, setGoals]             = useState<Goal[]>([]);
   const [historyGoals, setHistoryGoals] = useState<Goal[]>([]);
   const [loading, setLoading]         = useState(true);

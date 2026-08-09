@@ -22,6 +22,7 @@ import { useAuthStore } from '../../../../src/store/auth';
 import { fontSize, type Colors } from '../../../../src/theme';
 import { useColors } from '../../../../src/hooks/useColors';
 import { getNotifications } from '../../../../src/notifications';
+import { useFeaturesStore } from '../../../../src/store/features';
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -227,6 +228,7 @@ export default function WorkoutDetailScreen() {
   const router = useRouter();
   const c = useColors();
   const s = makeStyles(c);
+  const healthConnectEnabled = useFeaturesStore((st) => st.features.activity && st.features.healthConnect);
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [lastSetsByExercise, setLastSetsByExercise] = useState<Record<number, Array<{ setNumber: number; reps: number | null; weightKg: number | null; durationSeconds: number | null; steps: number | null }>>>({});
@@ -477,7 +479,7 @@ export default function WorkoutDetailScreen() {
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
       const updated = await updateWorkout(token, workoutId, { durationMinutes, completed: true });
-      await writeExerciseRecord(updated, String(updated.id));
+      if (healthConnectEnabled) await writeExerciseRecord(updated, String(updated.id));
       // Non-blocking: estimate calories burned in the background (mirrors web behavior)
       estimateWorkoutCalories(token, workoutId).catch(() => { /* non-fatal */ });
       router.back();

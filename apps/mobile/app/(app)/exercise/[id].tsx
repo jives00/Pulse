@@ -604,7 +604,7 @@ export default function ExerciseDetailScreen() {
   const [recentSessions, setRecentSessions] = useState<ExerciseHistoryEntry[]>([]);
   const [tab, setTab] = useState<TabKey>('howto');
   const [metric, setMetric] = useState<MetricKey>('heaviest_weight');
-  const swipe = useSwipeNav(3, EXERCISE_TAB_ORDER, tab, setTab);
+  const swipe = useSwipeNav('workouts', EXERCISE_TAB_ORDER, tab, setTab);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
 

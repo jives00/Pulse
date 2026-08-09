@@ -25,6 +25,7 @@ import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { useHealthSteps } from '../../../src/hooks/useHealthSteps';
+import { useFeaturesStore } from '../../../src/store/features';
 import FilterChip from '../../../src/components/FilterChip';
 import QuickLogModal from '../../../src/components/QuickLogModal';
 const EXERCISE_TYPES = ['weight', 'bodyweight', 'cardio', 'duration'] as const;
@@ -45,6 +46,7 @@ function LogTab() {
   const c = useColors();
   const s = makeSStyles(c);
   const grid = makeGridStyles(c);
+  const activityEnabled = useFeaturesStore((st) => st.features.activity);
   const { permissionGranted, requestPermission } = useHealthSteps();
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
@@ -144,46 +146,48 @@ function LogTab() {
               <Text style={s.resumeArrow}>›</Text>
             </TouchableOpacity>
           )}
-          <View style={s.stepsCard}>
-            <Text style={s.stepsLabel}>Today's Steps</Text>
-            <View style={s.stepsRow}>
-              <TextInput
-                style={s.stepsInput}
-                value={stepsInput}
-                onChangeText={setStepsInput}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={c.muted}
-                returnKeyType="done"
-                onSubmitEditing={handleSaveSteps}
-              />
-              <TouchableOpacity
-                style={[s.stepsSaveBtn, savingSteps && { opacity: 0.5 }]}
-                onPress={handleSaveSteps}
-                disabled={savingSteps}
-              >
-                <Text style={s.stepsSaveBtnText}>{savingSteps ? '…' : 'Save'}</Text>
-              </TouchableOpacity>
-            </View>
-            {steps?.steps != null && (
-              <View>
-                <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
-                {steps.source && (
-                  <Text style={s.stepsSource}>
-                    {steps.source === 'health_connect' ? 'Synced from Health Connect' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
-                  </Text>
-                )}
+          {activityEnabled && (
+            <View style={s.stepsCard}>
+              <Text style={s.stepsLabel}>Today's Steps</Text>
+              <View style={s.stepsRow}>
+                <TextInput
+                  style={s.stepsInput}
+                  value={stepsInput}
+                  onChangeText={setStepsInput}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.muted}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveSteps}
+                />
+                <TouchableOpacity
+                  style={[s.stepsSaveBtn, savingSteps && { opacity: 0.5 }]}
+                  onPress={handleSaveSteps}
+                  disabled={savingSteps}
+                >
+                  <Text style={s.stepsSaveBtnText}>{savingSteps ? '…' : 'Save'}</Text>
+                </TouchableOpacity>
               </View>
-            )}
-            {!permissionGranted && (
-              <TouchableOpacity
-                style={s.connectHCBtn}
-                onPress={() => { requestPermission(); }}
-              >
-                <Text style={s.connectHCText}>Connect Health Connect to auto-sync steps</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              {steps?.steps != null && (
+                <View>
+                  <Text style={s.stepsSaved}>Logged: {steps.steps.toLocaleString()} steps</Text>
+                  {steps.source && (
+                    <Text style={s.stepsSource}>
+                      {steps.source === 'health_connect' ? 'Synced from Health Connect' : steps.source === 'manual' ? 'Manually entered' : `From ${steps.source}`}
+                    </Text>
+                  )}
+                </View>
+              )}
+              {!permissionGranted && (
+                <TouchableOpacity
+                  style={s.connectHCBtn}
+                  onPress={() => { requestPermission(); }}
+                >
+                  <Text style={s.connectHCText}>Connect Health Connect to auto-sync steps</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </>
       }
       renderItem={({ item }) => (
@@ -908,6 +912,7 @@ function ProgressTab() {
   const token = useAuthStore((s) => s.token)!;
   const c = useColors();
   const p = makePStyles(c);
+  const bodyEnabled = useFeaturesStore((st) => st.features.body);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
@@ -996,6 +1001,7 @@ function ProgressTab() {
       </View>
 
       {/* ── Body Measurements ── */}
+      {bodyEnabled && (
       <View style={p.card}>
         <Text style={p.cardTitle}>Body Measurements</Text>
         {Object.entries(METRIC_CONFIG).map(([key, cfg]) => {
@@ -1053,6 +1059,7 @@ function ProgressTab() {
           );
         })}
       </View>
+      )}
 
       {/* ── Personal Bests ── */}
       <View style={p.card}>
@@ -1138,7 +1145,7 @@ export default function WorkoutsScreen() {
   const seg = makeSegStyles(c);
   const rp = makeRpStyles(c);
   const [tab, setTab] = useState<Tab>('routines');
-  const swipe = useSwipeNav(2, WORKOUT_TABS_ORDER, tab, setTab);
+  const swipe = useSwipeNav('workouts', WORKOUT_TABS_ORDER, tab, setTab);
   const [starting, setStarting] = useState(false);
   const [exCreateVisible, setExCreateVisible] = useState(false);
   const [routinesCreateVisible, setRoutinesCreateVisible] = useState(false);

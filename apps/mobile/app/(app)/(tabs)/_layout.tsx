@@ -12,12 +12,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../../src/hooks/useColors';
+import { useFeaturesStore } from '../../../src/store/features';
 import AIAssistant from '../../../src/components/AIAssistant';
 
 const MENU_WIDTH = 150;
 const MENU_MARGIN = 8;
 
-function MoreButton({ color, style }: { color: string; style?: any }) {
+type MorePath = '/(app)/(tabs)/links' | '/(app)/(tabs)/history' | '/(app)/(tabs)/settings';
+
+const MORE_ITEMS: { path: MorePath; label: string; icon: keyof typeof Ionicons.glyphMap; requires?: 'links' }[] = [
+  { path: '/(app)/(tabs)/links',    label: 'Links',    icon: 'link-outline',     requires: 'links' },
+  { path: '/(app)/(tabs)/history',  label: 'History',  icon: 'time-outline' },
+  { path: '/(app)/(tabs)/settings', label: 'Settings', icon: 'settings-outline' },
+];
+
+function MoreButton({ color, style, items }: { color: string; style?: any; items: typeof MORE_ITEMS }) {
   const c = useColors();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
@@ -32,13 +41,15 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
     });
   }
 
-  function go(path: '/(app)/(tabs)/links' | '/(app)/(tabs)/history' | '/(app)/(tabs)/settings') {
+  function go(path: MorePath) {
     setVisible(false);
     router.push(path);
   }
 
   // Compute horizontal position: right-align the menu to the button's right edge,
-  // then clamp so it never goes off the right of the screen.
+  // then clamp so it never goes off the right of the screen. Independent of how many
+  // sibling tabs are visible — the button's own measured window position already
+  // reflects the current flex layout.
   function menuLeft(): number {
     if (!anchor) return MENU_MARGIN;
     const btnRight = anchor.x + anchor.width;
@@ -78,20 +89,15 @@ function MoreButton({ color, style }: { color: string; style?: any }) {
               },
             ]}
           >
-            <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/links')}>
-              <Ionicons name="link-outline" size={20} color={c.muted} />
-              <Text style={[styles.menuLabel, { color: c.text }]}>Links</Text>
-            </TouchableOpacity>
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/history')}>
-              <Ionicons name="time-outline" size={20} color={c.muted} />
-              <Text style={[styles.menuLabel, { color: c.text }]}>History</Text>
-            </TouchableOpacity>
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <TouchableOpacity style={styles.menuItem} onPress={() => go('/(app)/(tabs)/settings')}>
-              <Ionicons name="settings-outline" size={20} color={c.muted} />
-              <Text style={[styles.menuLabel, { color: c.text }]}>Settings</Text>
-            </TouchableOpacity>
+            {items.map(({ path, label, icon }, i) => (
+              <View key={path}>
+                {i > 0 && <View style={[styles.divider, { backgroundColor: c.border }]} />}
+                <TouchableOpacity style={styles.menuItem} onPress={() => go(path)}>
+                  <Ionicons name={icon} size={20} color={c.muted} />
+                  <Text style={[styles.menuLabel, { color: c.text }]}>{label}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
           </View>
         )}
       </Modal>
@@ -135,6 +141,9 @@ const styles = StyleSheet.create({
 
 export default function TabsLayout() {
   const c = useColors();
+  const features = useFeaturesStore((s) => s.features);
+  const moreItems = MORE_ITEMS.filter((item) => !item.requires || features[item.requires]);
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
     <Tabs
@@ -155,20 +164,36 @@ export default function TabsLayout() {
       <Tabs.Screen name="planning" options={{ href: null }} />
       <Tabs.Screen
         name="nutrition"
-        options={{ title: 'Log', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={22} color={color} /> }}
+        options={{
+          title: 'Log',
+          href: features.nutrition ? undefined : null,
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={22} color={color} />,
+        }}
       />
       <Tabs.Screen
         name="workouts"
-        options={{ title: 'Train', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={22} color={color} /> }}
+        options={{
+          title: 'Train',
+          href: features.exercise ? undefined : null,
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={22} color={color} />,
+        }}
       />
       <Tabs.Screen
         name="goals"
-        options={{ title: 'Goals', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={22} color={color} /> }}
+        options={{
+          title: 'Goals',
+          href: features.goals ? undefined : null,
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={22} color={color} />,
+        }}
       />
       <Tabs.Screen name="progress" options={{ href: null }} />
       <Tabs.Screen
         name="index"
-        options={{ title: 'Recipes', tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'book' : 'book-outline'} size={22} color={color} /> }}
+        options={{
+          title: 'Recipes',
+          href: features.recipes ? undefined : null,
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'book' : 'book-outline'} size={22} color={color} />,
+        }}
       />
       <Tabs.Screen
         name="more"
@@ -178,6 +203,7 @@ export default function TabsLayout() {
             <MoreButton
               color={props.accessibilityState?.selected ? c.accent : c.muted}
               style={props.style}
+              items={moreItems}
             />
           ),
         }}
@@ -187,7 +213,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen name="workout/[id]" options={{ href: null }} />
     </Tabs>
-    <AIAssistant />
+    {features.ai && <AIAssistant />}
     </View>
   );
 }

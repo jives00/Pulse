@@ -82,6 +82,12 @@ export { GOAL_CARD_WINDOW_DAYS, TDEE_PROJECTION_KEYS, defaultVariantFor, allowed
 export type { GoalCardConfig, GoalCardVariant, GoalCardWindow, GoalCardProjection,
               GoalCardDirection, GoalCardMetricLine } from './goalCardConfig';
 
+// Goal card logic shared by web + mobile (pure — no colors, no React)
+export { fmt1, titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fmtETA, daysUntil,
+         goalDirection, isGoalAchieved, goalStatusFor, goalStatusForStreak, goalStatusForProgress,
+         emptyMessageFor, linregSlope, etaDaysFor, tdeeSlopePerDay, supportsTdeeProjection } from './goalCardLogic';
+export type { GoalCardStatus, GoalCardSubject, DatedValue, TDEEProjectionInput } from './goalCardLogic';
+
 // User preferences (features + dashboard layout)
 export { preferencesApi } from './endpoints/preferences';
 export type { UserPreferences } from './endpoints/preferences';

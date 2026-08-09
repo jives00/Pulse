@@ -17,6 +17,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+import { useFeaturesStore } from '../../../src/store/features';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getWorkouts, deleteWorkout, getFoodLogHistory, getMeasurements, addMeasurement, updateMeasurement, deleteMeasurement,
@@ -31,6 +32,13 @@ type Tab = 'workouts' | 'nutrition' | 'measurements';
 type RangeKey = '30d' | '90d' | '1y' | 'all';
 
 const HIST_TABS = ['workouts', 'nutrition', 'measurements'] as const;
+
+// Module each history tab belongs to — filtered out when its module is off.
+const HIST_TAB_REQUIRES: Record<Tab, 'exercise' | 'nutrition' | 'body'> = {
+  workouts: 'exercise',
+  nutrition: 'nutrition',
+  measurements: 'body',
+};
 
 const RANGES: { key: RangeKey; label: string; days: number | null }[] = [
   { key: '30d', label: '30d', days: 30 },
@@ -124,6 +132,12 @@ export default function HistoryScreen() {
   const router = useRouter();
   const c = useColors();
   const [activeTab, setActiveTab] = useState<Tab>('workouts');
+  const features = useFeaturesStore((s) => s.features);
+  const visibleTabs = HIST_TABS.filter((t) => features[HIST_TAB_REQUIRES[t]]);
+  // Disabling a module while its tab is open would otherwise leave an empty pane.
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab) && visibleTabs.length > 0) setActiveTab(visibleTabs[0]);
+  }, [visibleTabs.join(','), activeTab]);
   const [range, setRange] = useState<RangeKey>('30d');
   const dateParams = useMemo(() => rangeDates(RANGES.find((r) => r.key === range)?.days ?? null), [range]);
 
@@ -235,7 +249,7 @@ export default function HistoryScreen() {
     ]);
   }
 
-  const swipe = useSwipeNav(5, HIST_TABS, activeTab, setActiveTab);
+  const swipe = useSwipeNav('history', visibleTabs, activeTab, setActiveTab);
 
   const styles = makeStyles(c);
   const workoutGroups = groupWorkoutsByDate(workouts);
@@ -266,8 +280,9 @@ export default function HistoryScreen() {
             ))}
           </View>
         </View>
+        {visibleTabs.length > 1 && (
         <View style={styles.tabRow}>
-          {HIST_TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
               <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
                 {tab === 'measurements' ? 'Measurements' : tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -276,6 +291,7 @@ export default function HistoryScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        )}
       </View>
 
       {/* Swipe wrapper — panHandlers live here so swipe works regardless of which tab is active */}

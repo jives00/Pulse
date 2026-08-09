@@ -14,20 +14,31 @@ import { useUpdateStore } from '../src/store/update';
 import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
 import { useStepsStore } from '../src/store/steps';
 import { useColors } from '../src/hooks/useColors';
+import { useFeaturesStore } from '../src/store/features';
 
 export default function RootLayout() {
   const logout = useAuthStore((s) => s.logout);
   const token = useAuthStore((s) => s.token);
+  const authHydrated = useAuthStore((s) => s.hydrated);
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { updateAvailable, downloading, progress, dismissed, checkForUpdate, startUpdate, dismiss } = useUpdateStore();
   const { readTodaySteps } = useHealthSteps();
   const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
   const appState = useRef(AppState.currentState);
+  const featuresHydrate = useFeaturesStore((s) => s.hydrate);
+  const activityEnabled = useFeaturesStore((s) => s.features.activity);
+  const healthConnectEnabled = useFeaturesStore((s) => s.features.healthConnect);
+
+  // Feature preferences hydrate after auth so the request carries a valid token.
+  useEffect(() => {
+    if (authHydrated) featuresHydrate();
+  }, [authHydrated, featuresHydrate]);
 
   useEffect(() => {
+    if (!activityEnabled || !healthConnectEnabled) return;
     initializeHealthConnect().then(() => syncGrantedPermissions()).catch(() => {});
-  }, []);
+  }, [activityEnabled, healthConnectEnabled]);
 
   // Check for updates on launch and whenever app comes to foreground
   useEffect(() => {
@@ -41,7 +52,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !activityEnabled || !healthConnectEnabled) return;
     const syncSteps = async () => {
       try {
         const hcSteps = await readTodaySteps();
@@ -67,7 +78,7 @@ export default function RootLayout() {
     });
 
     return () => sub.remove();
-  }, [token]);
+  }, [token, activityEnabled, healthConnectEnabled]);
 
   useEffect(() => {
     configureClient({

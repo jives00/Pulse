@@ -102,7 +102,7 @@ function GoalProgressRow({ goal, onPress, c }: { goal: Goal; onPress: () => void
 export default function ProgressScreen() {
   const c = useColors();
   const router = useRouter();
-  const swipe = useSwipeNav(4);
+  const swipe = useSwipeNav('goals');
   const [goals, setGoals]       = useState<Goal[]>([]);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);

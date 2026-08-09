@@ -1,18 +1,54 @@
 import { useRef, useEffect } from 'react';
 import { PanResponder } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFeaturesStore } from '../store/features';
+import type { EnabledFeatures, FeatureKey } from '../../../../packages/api-client/src/index';
 
-// Ordered list of all swipeable screens — includes links + settings even though they're under the More menu
-const BOTTOM_TABS = [
-  '/(app)/(tabs)/dashboard',    // 0
-  '/(app)/(tabs)/nutrition',    // 1
-  '/(app)/(tabs)/workouts',     // 2
-  '/(app)/(tabs)/goals',        // 3
-  '/(app)/(tabs)/',             // 4 (Recipes)
-  '/(app)/(tabs)/links',        // 5
-  '/(app)/(tabs)/history',      // 6
-  '/(app)/(tabs)/settings',     // 7
-] as const;
+// Every swipeable top-level screen, keyed by a stable route id (not an index — indices
+// drift as modules are hidden). Includes links + settings even though they're under the
+// More menu.
+export type TabRouteKey =
+  | 'dashboard'
+  | 'nutrition'
+  | 'workouts'
+  | 'goals'
+  | 'recipes'
+  | 'links'
+  | 'history'
+  | 'settings';
+
+const ROUTE_ORDER: TabRouteKey[] = [
+  'dashboard', 'nutrition', 'workouts', 'goals', 'recipes', 'links', 'history', 'settings',
+];
+
+export const ROUTE_PATHS: Record<TabRouteKey, string> = {
+  dashboard: '/(app)/(tabs)/dashboard',
+  nutrition: '/(app)/(tabs)/nutrition',
+  workouts:  '/(app)/(tabs)/workouts',
+  goals:     '/(app)/(tabs)/goals',
+  recipes:   '/(app)/(tabs)/',
+  links:     '/(app)/(tabs)/links',
+  history:   '/(app)/(tabs)/history',
+  settings:  '/(app)/(tabs)/settings',
+};
+
+// Feature module gating each route — routes with no entry here (dashboard, history,
+// settings) are always available, matching the web sidebar.
+const ROUTE_REQUIRES: Partial<Record<TabRouteKey, FeatureKey>> = {
+  nutrition: 'nutrition',
+  workouts:  'exercise',
+  goals:     'goals',
+  recipes:   'recipes',
+  links:     'links',
+};
+
+/** Ordered list of currently-enabled routes, resolved at swipe time so toggles apply live. */
+export function enabledTabRoutes(features: EnabledFeatures): TabRouteKey[] {
+  return ROUTE_ORDER.filter((r) => {
+    const req = ROUTE_REQUIRES[r];
+    return !req || features[req];
+  });
+}
 
 const SWIPE_THRESHOLD = 50; // min horizontal distance to register swipe
 const SWIPE_RATIO = 2.5;    // horizontal must be this many times larger than vertical
@@ -20,13 +56,15 @@ const SWIPE_RATIO = 2.5;    // horizontal must be this many times larger than ve
 /**
  * Returns a PanResponder for swipe-left/right navigation.
  *
- * @param currentTabIndex  Index into BOTTOM_TABS for the current screen (0–5)
+ * @param currentRoute     The current screen's route key. The ordered route list is
+ *                          resolved from the features store at swipe time, so a swipe
+ *                          never lands on a disabled tab.
  * @param internalTabs     Ordered list of internal tab keys (if the page has its own tabs)
  * @param currentInternalTab  The currently active internal tab key
  * @param setInternalTab   Setter to change the internal tab
  */
 export function useSwipeNav<T extends string>(
-  currentTabIndex: number,
+  currentRoute: TabRouteKey,
   internalTabs?: readonly T[],
   currentInternalTab?: T,
   setInternalTab?: (tab: T) => void,
@@ -34,10 +72,12 @@ export function useSwipeNav<T extends string>(
   const router = useRouter();
 
   // Keep refs so the PanResponder closure always sees current values
+  const currentRouteRef = useRef(currentRoute);
   const internalTabsRef = useRef<readonly T[] | undefined>(internalTabs);
   const currentInternalTabRef = useRef(currentInternalTab);
   const setInternalTabRef = useRef(setInternalTab);
 
+  useEffect(() => { currentRouteRef.current = currentRoute; }, [currentRoute]);
   useEffect(() => { internalTabsRef.current = internalTabs; }, [internalTabs]);
   useEffect(() => { currentInternalTabRef.current = currentInternalTab; }, [currentInternalTab]);
   useEffect(() => { setInternalTabRef.current = setInternalTab; }, [setInternalTab]);
@@ -76,10 +116,16 @@ export function useSwipeNav<T extends string>(
           // Fall through to bottom tab navigation at the edges
         }
 
-        if (swipedLeft && currentTabIndex < BOTTOM_TABS.length - 1) {
-          router.push(BOTTOM_TABS[currentTabIndex + 1] as string);
-        } else if (swipedRight && currentTabIndex > 0) {
-          router.push(BOTTOM_TABS[currentTabIndex - 1] as string);
+        // Resolve the enabled-route list fresh at swipe time so a live toggle takes
+        // effect immediately, without needing a subscription/re-render.
+        const routes = enabledTabRoutes(useFeaturesStore.getState().features);
+        const routeIdx = routes.indexOf(currentRouteRef.current);
+        if (routeIdx === -1) return; // current route isn't in the enabled set — nothing to swipe to
+
+        if (swipedLeft && routeIdx < routes.length - 1) {
+          router.push(ROUTE_PATHS[routes[routeIdx + 1]] as string);
+        } else if (swipedRight && routeIdx > 0) {
+          router.push(ROUTE_PATHS[routes[routeIdx - 1]] as string);
         }
       },
     })

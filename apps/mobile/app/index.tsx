@@ -6,6 +6,8 @@ import { setApiBase } from '../../../packages/api-client/src/client';
 import { useAuthStore } from '../src/store/auth';
 import { resolveApiBase } from '../src/api/apiBase';
 import { useColors } from '../src/hooks/useColors';
+import { useFeaturesStore } from '../src/store/features';
+import { enabledTabRoutes, ROUTE_PATHS } from '../src/hooks/useSwipeNav';
 
 export default function Index() {
   const hydrated = useAuthStore((s) => s.hydrated);
@@ -54,5 +56,8 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={outcome === 'app' ? '/(app)/(tabs)/dashboard' : '/(auth)/login'} />;
+  const firstEnabledRoute = enabledTabRoutes(useFeaturesStore.getState().features)[0] ?? 'dashboard';
+  const appHref = ROUTE_PATHS[firstEnabledRoute];
+
+  return <Redirect href={outcome === 'app' ? (appHref as any) : '/(auth)/login'} />;
 }

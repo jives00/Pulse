@@ -21,6 +21,7 @@ import {
 import { localDateStr } from '../../../../packages/api-client/src/index';
 import type { GoalMilestoneWithGoal, Goal } from '../../../../packages/api-client/src/index';
 import { useAuthStore } from '../store/auth';
+import { useFeaturesStore } from '../store/features';
 import { fontSize, type Colors } from '../theme';
 import { useColors } from '../hooks/useColors';
 
@@ -1368,6 +1369,7 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
   c: Colors; s: ReturnType<typeof makeStyles>;
   onClose: () => void; onSaved: () => void;
 }) {
+  const features = useFeaturesStore(st => st.features);
   const [tab, setTab] = useState<DayModalTab>('workout');
   const [activeDate, setActiveDate] = useState(date);
   const modalToday = localDateStr();
@@ -1386,12 +1388,18 @@ function DayModal({ date, showDatePicker = false, token, routinesList, exercises
   const dayNutEvts  = nutritionScheduleEvents.filter(e => e.date === activeDate);
   const nutCount    = (nutOverride ? 1 : 0) + dayNutEvts.length;
 
-  const tabs: { key: DayModalTab; label: string; count?: number }[] = [
-    { key: 'workout',    label: 'Workout',   count: daySessions.length || undefined },
-    { key: 'meal',       label: 'Meals',     count: dayMeals.length || undefined },
-    { key: 'checkpoint', label: 'Goals',     count: dayCps.length || undefined },
-    { key: 'nutrition',  label: 'Nutrition', count: nutCount || undefined },
+  const allTabs: { key: DayModalTab; label: string; count?: number; requires?: 'exercise' | 'mealPlanning' | 'goals' | 'nutrition' }[] = [
+    { key: 'workout',    label: 'Workout',   count: daySessions.length || undefined, requires: 'exercise' },
+    { key: 'meal',       label: 'Meals',     count: dayMeals.length || undefined,    requires: 'mealPlanning' },
+    { key: 'checkpoint', label: 'Goals',     count: dayCps.length || undefined,      requires: 'goals' },
+    { key: 'nutrition',  label: 'Nutrition', count: nutCount || undefined,           requires: 'nutrition' },
   ];
+  const tabs = allTabs.filter(t => !t.requires || features[t.requires]);
+
+  // Land on a visible tab if the module backing the current one got disabled.
+  useEffect(() => {
+    if (!tabs.some(t => t.key === tab) && tabs.length > 0) setTab(tabs[0].key);
+  }, [tabs.map(t => t.key).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
@@ -1590,6 +1598,7 @@ function AgendaView({ today, workoutSessions, mealEvents, checkpoints, nutrition
 export default function SettingsPlanningTab() {
   const c = useColors();
   const s = makeStyles(c);
+  const features = useFeaturesStore(st => st.features);
   const token = useAuthStore(st => st.token)!;
   const today = localDateStr();
 
@@ -1650,6 +1659,13 @@ export default function SettingsPlanningTab() {
 
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
+  // Filtered feeds — a disabled module's items never surface in the agenda or day modal.
+  const workoutFeed = features.exercise ? workoutSessions : [];
+  const mealFeed = features.mealPlanning ? mealEvents : [];
+  const checkpointFeed = features.goals ? checkpoints : [];
+  const nutritionOverrideFeed = features.nutrition ? nutritionOverrides : [];
+  const nutritionScheduleFeed = features.nutrition ? nutritionScheduleEvents : [];
+
   return (
     <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COL_GOLD} />}>
 
@@ -1657,9 +1673,9 @@ export default function SettingsPlanningTab() {
       <View style={[s.card, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[s.sectionTitle, { color: c.text }]}>Planning</Text>
         <AgendaView
-          today={today} workoutSessions={workoutSessions} mealEvents={mealEvents}
-          checkpoints={checkpoints} nutritionOverrides={nutritionOverrides}
-          nutritionScheduleEvents={nutritionScheduleEvents}
+          today={today} workoutSessions={workoutFeed} mealEvents={mealFeed}
+          checkpoints={checkpointFeed} nutritionOverrides={nutritionOverrideFeed}
+          nutritionScheduleEvents={nutritionScheduleFeed}
           onSelectDate={setSelectedDate} c={c}
         />
         <TouchableOpacity onPress={() => setAddModalOpen(true)} style={[s.addBtn, { borderColor: c.accent, marginTop: 10 }]}>
@@ -1672,10 +1688,10 @@ export default function SettingsPlanningTab() {
       {selectedDate && (
         <DayModal
           date={selectedDate} token={token} routinesList={routinesList} exercisesList={exercisesList}
-          workoutSchedules={workoutSchedules} workoutSessions={workoutSessions}
-          mealSchedules={mealSchedules} mealEvents={mealEvents}
-          checkpoints={checkpoints} activeGoals={activeGoals} nutritionOverrides={nutritionOverrides}
-          nutritionScheduleEvents={nutritionScheduleEvents} nutritionSchedules={nutritionSchedules}
+          workoutSchedules={workoutSchedules} workoutSessions={workoutFeed}
+          mealSchedules={mealSchedules} mealEvents={mealFeed}
+          checkpoints={checkpointFeed} activeGoals={activeGoals} nutritionOverrides={nutritionOverrideFeed}
+          nutritionScheduleEvents={nutritionScheduleFeed} nutritionSchedules={nutritionSchedules}
           c={c} s={s}
           onClose={() => setSelectedDate(null)}
           onSaved={() => { load(); }}
@@ -1685,10 +1701,10 @@ export default function SettingsPlanningTab() {
       {addModalOpen && (
         <DayModal
           date={today} showDatePicker token={token} routinesList={routinesList} exercisesList={exercisesList}
-          workoutSchedules={workoutSchedules} workoutSessions={workoutSessions}
-          mealSchedules={mealSchedules} mealEvents={mealEvents}
-          checkpoints={checkpoints} activeGoals={activeGoals} nutritionOverrides={nutritionOverrides}
-          nutritionScheduleEvents={nutritionScheduleEvents} nutritionSchedules={nutritionSchedules}
+          workoutSchedules={workoutSchedules} workoutSessions={workoutFeed}
+          mealSchedules={mealSchedules} mealEvents={mealFeed}
+          checkpoints={checkpointFeed} activeGoals={activeGoals} nutritionOverrides={nutritionOverrideFeed}
+          nutritionScheduleEvents={nutritionScheduleFeed} nutritionSchedules={nutritionSchedules}
           c={c} s={s}
           onClose={() => setAddModalOpen(false)}
           onSaved={() => { load(); }}

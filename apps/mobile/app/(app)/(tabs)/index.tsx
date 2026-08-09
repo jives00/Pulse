@@ -49,7 +49,7 @@ export default function LibraryScreen() {
   const [sort, setSort] = useState(defaultSort);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [dropdown, setDropdown] = useState<DropdownConfig | null>(null);
-  const swipe = useSwipeNav(4);
+  const swipe = useSwipeNav('recipes');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchRecipes = useCallback(async (searchVal: string, offset = 0, append = false) => {
