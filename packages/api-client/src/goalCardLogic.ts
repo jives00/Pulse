@@ -67,20 +67,25 @@ export function daysUntil(deadline: string | null): number | null {
 /**
  * Direction is never assumed downward — an upward goal (muscle mass, bicep) must be
  * able to reach "achieved". The user's explicit override wins, then we infer from
- * where the goal started relative to its target, then from where it stands now.
+ * where the goal started relative to its target, then from what the metric itself
+ * means.
+ *
+ * The metric default matters because the earlier steps go quiet exactly when a goal
+ * has no startValue, or a startValue equal to the target. Inferring from currentValue
+ * instead — the old last step — reads "below target" as "climbing toward it", which is
+ * only true until you get there: an already-met waist goal (29.8 against 30.5) inferred
+ * 'up' and could never report achieved. The catalog knows a waist goal is downward
+ * regardless of where you stand today.
  */
 export function goalDirection(
-  goal: Pick<GoalCardSubject, 'startValue' | 'currentValue' | 'targetValue'>,
+  goal: Pick<GoalCardSubject, 'catalogKey' | 'startValue' | 'targetValue'>,
   cfg: Pick<GoalCardConfig, 'direction'>,
 ): 'up' | 'down' {
   if (cfg.direction === 'up' || cfg.direction === 'down') return cfg.direction;
   if (goal.startValue != null && goal.startValue !== goal.targetValue) {
     return goal.startValue < goal.targetValue ? 'up' : 'down';
   }
-  if (goal.currentValue != null && goal.currentValue !== goal.targetValue) {
-    return goal.currentValue < goal.targetValue ? 'up' : 'down';
-  }
-  return 'down';
+  return CATALOG_BY_KEY[goal.catalogKey]?.defaultDirection ?? 'down';
 }
 
 export function isGoalAchieved(current: number | null, target: number, dir: 'up' | 'down'): boolean {

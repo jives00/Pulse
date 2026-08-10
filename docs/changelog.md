@@ -6,6 +6,9 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ## August 10, 2026
 
+### Backend
+- **Goal direction comes from the metric, not the current value** — `goalDirection` fell back to comparing `currentValue` against `targetValue` when a goal had no usable `startValue`, which reads "below target" as "climbing toward it" — true only until you arrive. The inference inverted precisely for goals that were already met, so they could never report achieved. Two of four pinned goals hit it: Waist (`start_value` 30.5 equal to target, so that step was skipped; current 29.8 inferred `up`) and Chest (`start_value` NULL; current 34.8 above target 34 inferred `down`). `GoalCatalogEntry` gains `defaultDirection` on all 19 entries, and the chain is now `cardConfig.direction` → `startValue` vs target → catalog default → `down`. An explicit `startValue` still wins, so ambiguous metrics like weight and calories keep deferring to actual intent. Shared logic, so mobile gets it too `3bc4a0a`
+
 ### Frontend – Web
 - **Blurb cards square off** — the two blurb cards are the only dashboard cards that don't go through `Panel`; they render their own container and hardcoded `borderRadius: 10` while `Panel` uses `0`, leaving them the only rounded cards on the page. Weekly changed alongside Today's since it shares the style `de2e11a`
 - **Dashboard panels fill their grid cell** — each widget sits in a grid item the grid already stretches to the tallest item in the row, but `Panel` sized itself to its own content and sat at the top of that cell, so Fuel Today and Exercise Today rarely matched. `height: 100%` fills the cell; the content area already had `flex: 1`, so the extra space goes to the body, not the header. Applies to every panelled widget, so the Trends row equalizes too. Customize mode is unchanged — the editor-bar wrapper has auto height, so the percentage resolves to auto `2cf449f`
