@@ -1590,15 +1590,15 @@ export default function DashboardPage() {
     const measurementsP = features.body ? measurementsApi.getAll({ start: oneYearAgo }).catch(() => [] as BodyMeasurement[]) : Promise.resolve([] as BodyMeasurement[]);
     const pbP           = features.exercise ? workoutsApi.getPersonalBests().catch(() => null) : Promise.resolve(null);
     const foodHistP     = features.nutrition ? logApi.getHistory({ limit: 60 }).catch(() => [] as FoodLogHistoryDay[]) : Promise.resolve([] as FoodLogHistoryDay[]);
-    const routinesP     = features.exercise ? routinesApi.getAll().catch(() => [] as RoutineSummary[]) : Promise.resolve([] as RoutineSummary[]);
+    const routinesP     = features.exercise && features.routines ? routinesApi.getAll().catch(() => [] as RoutineSummary[]) : Promise.resolve([] as RoutineSummary[]);
     const tdeeP         = features.nutrition ? nutritionTargetsApi.getTDEE().catch(() => null) : Promise.resolve(null);
-    const upcomingP     = features.exercise ? schedulesApi.getUpcoming(7).catch(() => [] as UpcomingSession[]) : Promise.resolve([] as UpcomingSession[]);
-    const recoveryP     = features.exercise ? recoveryApi.get().catch(() => null) : Promise.resolve(null);
-    const waterP        = features.nutrition ? waterApi.getDay(today).catch(() => null) : Promise.resolve(null);
+    const upcomingP     = features.exercise && features.workoutSchedules ? schedulesApi.getUpcoming(7).catch(() => [] as UpcomingSession[]) : Promise.resolve([] as UpcomingSession[]);
+    const recoveryP     = features.exercise && features.recovery ? recoveryApi.get().catch(() => null) : Promise.resolve(null);
+    const waterP        = features.nutrition && features.water ? waterApi.getDay(today).catch(() => null) : Promise.resolve(null);
     const stepsTodayP   = features.activity ? stepsApi.getDay(today).catch(() => null) : Promise.resolve(null);
     const stepsHistP       = features.activity ? stepsApi.getHistory(60).catch(() => [] as StepsDay[]) : Promise.resolve([] as StepsDay[]);
     const thisWeekStart    = getWeekStart(today);
-    const waterWeekHistP   = features.nutrition ? waterApi.getHistory(thisWeekStart, today).catch(() => ({ goalOz: 0, days: [] as WaterHistoryDay[] })) : Promise.resolve({ goalOz: 0, days: [] as WaterHistoryDay[] });
+    const waterWeekHistP   = features.nutrition && features.water ? waterApi.getHistory(thisWeekStart, today).catch(() => ({ goalOz: 0, days: [] as WaterHistoryDay[] })) : Promise.resolve({ goalOz: 0, days: [] as WaterHistoryDay[] });
     const goalsP        = features.goals ? goalsV2Api.getAll('active').catch(() => [] as Goal[]) : Promise.resolve([] as Goal[]);
 
     // Unblock the page as soon as essential above-the-fold data arrives
@@ -1621,7 +1621,7 @@ export default function DashboardPage() {
     foodHistP.then(fl => setFoodLogHistory(fl.sort((a, b) => a.date.localeCompare(b.date))));
     routinesP.then(rl => setRoutines(rl));
     upcomingP.then(upc => setUpcoming(upc));
-    recoveryP.then(rec => { if (rec) setRecovery(rec as RecoveryData); });
+    recoveryP.then(rec => setRecovery((rec as RecoveryData | null) ?? null));
     stepsHistP.then(sh => setStepsHistory(sh));
     waterWeekHistP.then(wh => setWaterWeekHistory(wh.days));
 

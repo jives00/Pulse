@@ -7,9 +7,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## August 10, 2026
 
 ### Frontend – Web
+- **Dashboard sub-feature toggles are actually honored** — both dashboards gated their fetches on the parent module only, so unchecking Recovery, Routines, Workout schedules, or Water left `exercise`/`nutrition` on, the request still fired, and the section kept rendering; `features.recovery` was never read anywhere in either app. Each fetch now gates on `parent && child`, matching the existing `activity && healthConnect` pattern, and the disabled branch resolves to the same empty value the error path used so every consumer already handles it. Web's recovery setter no longer skips `null`, so a disabled feature clears a previously loaded value instead of leaving it stale `896bcfa`
 - **Dashboard blurb copy buttons work on the NAS** — `navigator.clipboard` only exists in a secure context (https or localhost), and Pulse is served at `http://synology:3004/pulse/`, so the property was undefined and the click handler threw with nothing catching it — the button looked dead. Local dev never hit it because localhost counts as secure. New `utils/clipboard.ts` tries the async Clipboard API then falls back to a hidden textarea + `document.execCommand('copy')`, and `useCopy` now tracks a failed state so the button reports the outcome `e7ee518`
 
 ### Frontend – Mobile
+- **Same sub-feature gating on the mobile dashboard** — Recovery, Routines, Workout schedules, and Water now gate on `parent && child` like web. One behavior note: the routines list was also what resolved a workout's display name, so with Routines off a routine-derived workout falls back to its own name `896bcfa`
 - **Food log no longer jumps down after logging water** — `handleAddWater` saved the scroll offset and restored it after the reload, but the offset lived in a ref nothing ever reset. Changing the date flips `loading` true, which unmounts the ScrollView; the remounted one starts at y=0 while the ref still held the previous day's offset, so the next water tap "restored" to a stale, larger y. The reload is silent and never unmounts the ScrollView, so the offset was already preserved — the save/restore and its now-unused `scrollRef`/`scrollYRef`/`onScroll` are gone `b4714e7`
 
 ## August 8, 2026
