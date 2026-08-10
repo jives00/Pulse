@@ -86,8 +86,6 @@ export default function NutritionScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<Record<MealSlot, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollYRef = useRef(0);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -658,12 +656,11 @@ export default function NutritionScreen() {
   }
 
   async function handleAddWater(oz: number) {
-    const savedY = scrollYRef.current;
     try {
       const entry = await addWater(token, date, oz);
       if (healthConnectEnabled) await writeHydrationRecord(entry, String(entry.id));
+      // load(true) is silent, so the ScrollView stays mounted and keeps its offset.
       await load(true);
-      scrollRef.current?.scrollTo({ y: savedY, animated: false });
     }
     catch { Alert.alert('Error', 'Could not log water.'); }
   }
@@ -705,11 +702,8 @@ export default function NutritionScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />
       ) : (
         <ScrollView
-          ref={scrollRef}
           style={s.scroll}
           contentContainerStyle={s.scrollContent}
-          onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-          scrollEventThrottle={16}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
         >
           {/* Summary card */}
