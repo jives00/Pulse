@@ -7,7 +7,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## August 10, 2026
 
 ### Frontend – Mobile
-- **Food log no longer jumps down after logging water** — `handleAddWater` saved the scroll offset and restored it after the reload, but the offset lived in a ref nothing ever reset. Changing the date flips `loading` true, which unmounts the ScrollView; the remounted one starts at y=0 while the ref still held the previous day's offset, so the next water tap "restored" to a stale, larger y. The reload is silent and never unmounts the ScrollView, so the offset was already preserved — the save/restore and its now-unused `scrollRef`/`scrollYRef`/`onScroll` are gone `d92546e`
+- **Food log no longer jumps down after logging water** — `handleAddWater` saved the scroll offset and restored it after the reload, but the offset lived in a ref nothing ever reset. Changing the date flips `loading` true, which unmounts the ScrollView; the remounted one starts at y=0 while the ref still held the previous day's offset, so the next water tap "restored" to a stale, larger y. The reload is silent and never unmounts the ScrollView, so the offset was already preserved — the save/restore and its now-unused `scrollRef`/`scrollYRef`/`onScroll` are gone `b4714e7`
 
 ## August 8, 2026
 
