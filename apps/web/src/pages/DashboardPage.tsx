@@ -78,9 +78,13 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
   span?: number; padded?: boolean; action?: React.ReactNode;
 }) {
   return (
+    // height:100% lets the panel fill its grid cell, which the grid already
+    // stretches to the tallest item in the row — so side-by-side panels (Fuel
+    // Today / Exercise Today) match instead of each sizing to its own content.
     <div style={{
       gridColumn: `span ${span}`, background: CARD, border: `1px solid ${LINE}`,
       borderRadius: 0, padding: padded ? '18px 20px' : 0, display: 'flex', flexDirection: 'column',
+      height: '100%',
     }}>
       {(title || action) && (
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
