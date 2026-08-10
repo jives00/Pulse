@@ -126,7 +126,7 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
   const text = lines.join('\n');
 
   return (
-    <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
+    <div style={{ position: 'relative', background: CARD, borderRadius: 0, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
       <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : failed ? 'failed' : 'copy'}
@@ -219,7 +219,7 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
   const text = lines.join('\n');
 
   return (
-    <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
+    <div style={{ position: 'relative', background: CARD, borderRadius: 0, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
       <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : failed ? 'failed' : 'copy'}
