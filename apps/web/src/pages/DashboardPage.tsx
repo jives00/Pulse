@@ -13,6 +13,7 @@ import {
   resolveGoalCard, type GoalCardConfig,
   type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout,
 } from '@pulse/api-client';
+import { copyText } from '../utils/clipboard';
 import { DashboardGoalCard } from '../components/goals/dashboard/DashboardGoalCard';
 import { useFeaturesStore } from '../store/featuresStore';
 import { WidgetEditorBar } from '../components/dashboard/WidgetEditorBar';
@@ -45,10 +46,13 @@ const fmt   = (n: number) => Math.round(n).toLocaleString();
 // ─── Shared copy-to-clipboard hook ───────────────────────────────────────────
 
 function useCopy() {
-  const [copied, setCopied] = useState(false);
-  const copy = (text: string) =>
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); });
-  return { copied, copy };
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = async (text: string) => {
+    const ok = await copyText(text);
+    setState(ok ? 'copied' : 'failed');
+    setTimeout(() => setState('idle'), 1800);
+  };
+  return { copied: state === 'copied', failed: state === 'failed', copy };
 }
 
 // ─── Band section header ──────────────────────────────────────────────────────
@@ -100,7 +104,7 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
   water: WaterDay | null;
   steps: StepsDay | null;
 }) {
-  const { copied, copy } = useCopy();
+  const { copied, failed, copy } = useCopy();
 
   const glasses      = water ? Math.round(water.totalOz / 8) : 0;
   const hasNutrition = (nutrition?.calories ?? 0) > 0;
@@ -120,8 +124,8 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
-        {copied ? 'copied' : 'copy'}
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+        {copied ? 'copied' : failed ? 'failed' : 'copy'}
       </button>
     </div>
   );
@@ -138,7 +142,7 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
   waterWeekHistory: WaterHistoryDay[];
   measurements: BodyMeasurement[];
 }) {
-  const { copied, copy } = useCopy();
+  const { copied, failed, copy } = useCopy();
 
   const weekEndDate = new Date(weekStart + 'T12:00:00');
   weekEndDate.setDate(weekEndDate.getDate() + 6);
@@ -213,8 +217,8 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 10, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
       <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
-        {copied ? 'copied' : 'copy'}
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+        {copied ? 'copied' : failed ? 'failed' : 'copy'}
       </button>
     </div>
   );
