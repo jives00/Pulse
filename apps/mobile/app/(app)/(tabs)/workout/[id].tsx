@@ -182,37 +182,52 @@ async function dismissWorkoutNotification() {
   } catch { /* notification may not exist */ }
 }
 
-async function scheduleRestEndNotification(secondsFromNow: number, workoutId: number, workoutTitle: string) {
-  const Notifications = await getNotifications();
-  if (!Notifications) return;
-  // Clears the previous set's alarm, pending or already delivered, before arming this one.
-  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-  await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
-  if (secondsFromNow <= 0) return;
-  await Notifications.scheduleNotificationAsync({
-    identifier: REST_NOTIF_ID,
-    content: {
-      title: workoutTitle,
-      body: 'Ready for your next set!',
-      data: { url: `/(app)/(tabs)/workout/${workoutId}` },
-      // Unlike the ongoing workout notification this is a one-shot alert, so it stays
-      // swipeable and clears when tapped. It also drops the 'workout-running' category:
-      // that category carries a Pause button, which made sense on the persistent
-      // notification but would be a confusing thing to offer on "rest is over".
-      sticky: false,
-      autoDismiss: true,
-    },
-    // channelId belongs on the trigger, not on content. BaseNotificationBuilder resolves
-    // the channel via trigger.getNotificationChannel() and falls back to expo's own
-    // channel when that is absent — so the previous content.android.channelId was never
-    // read, and this would have posted to the fallback channel instead of 'rest-complete'
-    // (losing the alarm vibration pattern, the ALARM audio usage, and the DND bypass).
-    trigger: {
-      type: 'timeInterval',
-      seconds: secondsFromNow,
-      repeats: false,
-      channelId: 'rest-complete',
-    } as any,
+// Every arm/cancel of the rest alarm runs through this queue. Callers fire these off
+// without awaiting (a set completing, a workout finishing), and each one is several
+// awaits long, so unserialized they can interleave: finishing a workout could run its
+// cancel to completion while a set's schedule was still mid-flight, and the schedule
+// would then arm an alarm nothing was left to cancel. FIFO ordering means the last call
+// wins, which is the intent every caller has.
+let restNotifQueue: Promise<unknown> = Promise.resolve();
+function queueRestNotifOp<T>(op: () => Promise<T>): Promise<T> {
+  const next = restNotifQueue.then(op, op);
+  restNotifQueue = next.catch(() => {});
+  return next;
+}
+
+function scheduleRestEndNotification(secondsFromNow: number, workoutId: number, workoutTitle: string) {
+  return queueRestNotifOp(async () => {
+    const Notifications = await getNotifications();
+    if (!Notifications) return;
+    // Clears the previous set's alarm, pending or already delivered, before arming this one.
+    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    if (secondsFromNow <= 0) return;
+    await Notifications.scheduleNotificationAsync({
+      identifier: REST_NOTIF_ID,
+      content: {
+        title: workoutTitle,
+        body: 'Ready for your next set!',
+        data: { url: `/(app)/(tabs)/workout/${workoutId}` },
+        // Unlike the ongoing workout notification this is a one-shot alert, so it stays
+        // swipeable and clears when tapped. It also drops the 'workout-running' category:
+        // that category carries a Pause button, which made sense on the persistent
+        // notification but would be a confusing thing to offer on "rest is over".
+        sticky: false,
+        autoDismiss: true,
+      },
+      // channelId belongs on the trigger, not on content. BaseNotificationBuilder resolves
+      // the channel via trigger.getNotificationChannel() and falls back to expo's own
+      // channel when that is absent — so the previous content.android.channelId was never
+      // read, and this would have posted to the fallback channel instead of 'rest-complete'
+      // (losing the alarm vibration pattern, the ALARM audio usage, and the DND bypass).
+      trigger: {
+        type: 'timeInterval',
+        seconds: secondsFromNow,
+        repeats: false,
+        channelId: 'rest-complete',
+      } as any,
+    });
   });
 }
 
@@ -220,11 +235,13 @@ async function scheduleRestEndNotification(secondsFromNow: number, workoutId: nu
 // the alarm actually fires: cancelScheduledNotificationAsync only drops it while it is
 // still pending, so without the dismiss a rest notification that already fired would sit
 // in the tray next to the ongoing workout one.
-async function cancelRestEndNotification() {
-  const Notifications = await getNotifications();
-  if (!Notifications) return;
-  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-  await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
+function cancelRestEndNotification() {
+  return queueRestNotifOp(async () => {
+    const Notifications = await getNotifications();
+    if (!Notifications) return;
+    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  });
 }
 
 async function playRestDing() {
@@ -467,8 +484,12 @@ export default function WorkoutDetailScreen() {
           try {
             await deleteWorkout(token, workoutId);
             await deleteExerciseRecord(String(workoutId));
+            // Same as finishing: the rest period dies with the session, countdown included.
+            setRestStartedAt(null);
+            setRestSeconds(0);
+            restSecondsRef.current = 0;
             dismissWorkoutNotification();
-            cancelRestEndNotification().catch(() => {});
+            await cancelRestEndNotification().catch(() => {});
             router.back();
           } catch {
             Alert.alert('Error', 'Could not cancel workout.');
@@ -515,8 +536,15 @@ export default function WorkoutDetailScreen() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    // Ending the workout ends the rest period with it. Clearing restStartedAt tears down
+    // the countdown effect, so no surviving tick can fire haptics on the way out, and the
+    // awaited cancel (queued behind any in-flight arm) guarantees the alarm is gone before
+    // we navigate away — otherwise it would still go off later, with no workout to return to.
+    setRestStartedAt(null);
+    setRestSeconds(0);
+    restSecondsRef.current = 0;
     dismissWorkoutNotification();
-    cancelRestEndNotification().catch(() => {});
+    await cancelRestEndNotification().catch(() => {});
     try {
       const durationMinutes = Math.ceil(elapsed / 60) || 1;
       const updated = await updateWorkout(token, workoutId, { durationMinutes, completed: true });
