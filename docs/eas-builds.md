@@ -117,7 +117,12 @@ If a package was added since the last APK build, verify:
 
 **Voice packages:** `expo-speech` (TTS) and `@react-native-voice/voice` (STT) auto-link without a plugin. The `RECORD_AUDIO` permission is declared in `app.json` under `android.permissions`. STT is wired via the custom `./plugins/withSpeechRecognizer` plugin (already in `app.json`).
 
-**Notifications:** `expo-notifications` is declared as a plugin in `app.json` with the app icon and `#1a3a4a` color. No extra config needed — it is already wired.
+**Notifications:** `expo-notifications` is declared as a plugin in `app.json` with the app icon and `#1a3a4a` color. Two things beyond the plugin matter, both easy to get wrong because they fail silently rather than at build time:
+
+- **Exact alarms.** `USE_EXACT_ALARM` and `SCHEDULE_EXACT_ALARM` are declared in `app.json` under `android.permissions` and must stay there. Without them, `canScheduleExactAlarms()` is false on Android 12+ and `ExpoSchedulingDelegate` silently downgrades scheduled notifications to `setAndAllowWhileIdle` — an inexact alarm that Doze rate-limits to roughly one per 9–15 minutes. The rest timer depends on these.
+- **The Android channel goes on the `trigger`, not the content.** `BaseNotificationBuilder` reads `trigger.getNotificationChannel()`; a `channelId` set under `content.android` is ignored and the notification quietly lands on expo's fallback channel, losing whatever importance, vibration pattern, and audio attributes the intended channel declared.
+
+Note also that Android ignores importance and vibration changes to a channel that already exists on the device — reinstalling the app or toggling the channel in system settings is the only way to pick up an edited channel definition.
 
 ---
 
