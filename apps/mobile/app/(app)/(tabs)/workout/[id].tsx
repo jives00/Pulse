@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, DeviceEventEmitter, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, AppState, DeviceEventEmitter, FlatList, KeyboardAvoidingView, Modal,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
@@ -53,6 +53,12 @@ function mmssToSeconds(val: string): number | null {
 }
 
 const WORKOUT_NOTIF_ID = 'active-workout';
+// The rest alarm needs its own identifier. Scheduling reuses an identifier by replacing
+// whatever is already under it, and the ongoing workout notification re-posts every
+// second — so while both shared 'active-workout', the next clock tick overwrote the
+// rest-end alarm within a second of it being scheduled, leaving in-app haptics as the
+// only thing that could fire.
+const REST_NOTIF_ID = 'rest-end';
 const SUCCESS = '#34d399';
 const PAUSED = '#f59e0b';
 const REST_SECONDS = 90;
@@ -179,28 +185,46 @@ async function dismissWorkoutNotification() {
 async function scheduleRestEndNotification(secondsFromNow: number, workoutId: number, workoutTitle: string) {
   const Notifications = await getNotifications();
   if (!Notifications) return;
-  await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+  // Clears the previous set's alarm, pending or already delivered, before arming this one.
+  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
   if (secondsFromNow <= 0) return;
   await Notifications.scheduleNotificationAsync({
-    identifier: WORKOUT_NOTIF_ID,
+    identifier: REST_NOTIF_ID,
     content: {
       title: workoutTitle,
       body: 'Ready for your next set!',
       data: { url: `/(app)/(tabs)/workout/${workoutId}` },
-      sticky: true,
-      autoDismiss: false,
-      categoryIdentifier: 'workout-running',
-      // `android` is a valid runtime field but absent from NotificationContentInput,
-      // so the cast has to sit on the whole object rather than on the value.
-      ...({ android: { channelId: 'rest-complete', priority: 'max' } } as object),
+      // Unlike the ongoing workout notification this is a one-shot alert, so it stays
+      // swipeable and clears when tapped. It also drops the 'workout-running' category:
+      // that category carries a Pause button, which made sense on the persistent
+      // notification but would be a confusing thing to offer on "rest is over".
+      sticky: false,
+      autoDismiss: true,
     },
-    trigger: { type: 'timeInterval', seconds: secondsFromNow, repeats: false } as any,
+    // channelId belongs on the trigger, not on content. BaseNotificationBuilder resolves
+    // the channel via trigger.getNotificationChannel() and falls back to expo's own
+    // channel when that is absent — so the previous content.android.channelId was never
+    // read, and this would have posted to the fallback channel instead of 'rest-complete'
+    // (losing the alarm vibration pattern, the ALARM audio usage, and the DND bypass).
+    trigger: {
+      type: 'timeInterval',
+      seconds: secondsFromNow,
+      repeats: false,
+      channelId: 'rest-complete',
+    } as any,
   });
 }
 
+// Cancels a pending alarm and clears an already-delivered one. Both are needed now that
+// the alarm actually fires: cancelScheduledNotificationAsync only drops it while it is
+// still pending, so without the dismiss a rest notification that already fired would sit
+// in the tray next to the ongoing workout one.
 async function cancelRestEndNotification() {
   const Notifications = await getNotifications();
-  await Notifications?.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+  if (!Notifications) return;
+  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  await Notifications.dismissNotificationAsync(REST_NOTIF_ID).catch(() => {});
 }
 
 async function playRestDing() {
@@ -383,8 +407,23 @@ export default function WorkoutDetailScreen() {
       if (remaining === 0) {
         restSecondsRef.current = 0;
         setRestStartedAt(null);
-        cancelRestEndNotification().catch(() => {}); // in-app: cancel scheduled, use haptics
-        playRestDing();
+        // Who announces the end of rest depends on where we are when the clock runs out.
+        // Android often keeps this interval running after the app is backgrounded, and
+        // the old code unconditionally cancelled the scheduled notification and buzzed
+        // via expo-haptics — which the user never feels from the background. So whether
+        // the JS thread happened to survive decided whether rest vibrated at all.
+        const endedMsAgo = Date.now() - (restStartedAt + restDurationRef.current * 1000);
+        if (endedMsAgo >= 2000) {
+          // A late catch-up tick: we were frozen and the notification has already fired.
+          // Clear it from the tray, but don't buzz again for a rest that already ended.
+          cancelRestEndNotification().catch(() => {});
+        } else if (AppState.currentState === 'active') {
+          // Live, and the user is looking at the app — haptics land, so drop the alarm.
+          cancelRestEndNotification().catch(() => {});
+          playRestDing();
+        }
+        // Live but backgrounded: leave the alarm alone. It is about to fire, and it is
+        // the only thing that can actually reach the user.
       }
     };
     tick();
