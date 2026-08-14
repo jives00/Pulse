@@ -7,7 +7,7 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## August 14, 2026
 
 ### Frontend – Mobile
-- **Select-on-focus stops eating the first character you type** — Android re-applies `selectTextOnFocus` every time a controlled `value` changes, so the first character typed stayed highlighted and the next one replaced it: editing a logged food entry and typing `.5` over a serving of `1` landed as `5`. New `SelectAllInput` drives `selection` itself — selecting all on focus, releasing on the first edit — and replaces the prop at all 14 call sites: the nutrition edit-quantity and review-queue servings/macro fields, recipe servings, food quantity, workout set weight/reps, and the links rename dialog `2620005`
+- **Select-on-focus stops eating the first character you type** — Android re-applies `selectTextOnFocus` every time a controlled `value` changes, so the first character typed stayed highlighted and the next one replaced it: editing a logged food entry and typing `.5` over a serving of `1` landed as `5`. New `SelectAllInput` drives `selection` itself — selecting all on focus, releasing on the first edit — and replaces the prop at all 14 call sites: the nutrition edit-quantity and review-queue servings/macro fields, recipe servings, food quantity, workout set weight/reps, and the links rename dialog `b9c0cb3`
 
 ## August 10, 2026
 
