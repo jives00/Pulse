@@ -23,6 +23,7 @@ import { fontSize, type Colors } from '../../../../src/theme';
 import { useColors } from '../../../../src/hooks/useColors';
 import { getNotifications } from '../../../../src/notifications';
 import { useFeaturesStore } from '../../../../src/store/features';
+import SelectAllInput from '../../../../src/components/SelectAllInput';
 
 function lbsToKg(lbs: number) { return lbs / KG_TO_LBS; }
 function kgToLbs(kg: number) { return kg * KG_TO_LBS; }
@@ -1069,7 +1070,7 @@ export default function WorkoutDetailScreen() {
                   <Text style={[s.setCol, s.setColNum, { color: c.muted }]}>{set.setNumber}</Text>
                   {trackWeight && (
                     editing ? (
-                      <TextInput
+                      <SelectAllInput
                         style={[s.setInlineInput, s.setColData]}
                         value={edit.weight}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], weight: v } }))}
@@ -1077,7 +1078,6 @@ export default function WorkoutDetailScreen() {
                         onEndEditing={(e) => handleSaveSetEdit(we, set, 'weight', e.nativeEvent.text)}
                         keyboardType="decimal-pad"
                         autoFocus={focusField === 'weight'}
-                        selectTextOnFocus
                       />
                     ) : (
                       <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'weight')}>
@@ -1089,7 +1089,7 @@ export default function WorkoutDetailScreen() {
                   )}
                   {trackReps && (
                     editing ? (
-                      <TextInput
+                      <SelectAllInput
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.reps ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], reps: v } }))}
@@ -1097,7 +1097,6 @@ export default function WorkoutDetailScreen() {
                         onEndEditing={(e) => handleSaveSetEdit(we, set, 'reps', e.nativeEvent.text)}
                         keyboardType="number-pad"
                         autoFocus={focusField === 'reps'}
-                        selectTextOnFocus
                       />
                     ) : (
                       <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'reps')}>
@@ -1107,7 +1106,7 @@ export default function WorkoutDetailScreen() {
                   )}
                   {trackDuration && (
                     editing ? (
-                      <TextInput
+                      <SelectAllInput
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.duration ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], duration: v } }))}
@@ -1115,7 +1114,6 @@ export default function WorkoutDetailScreen() {
                         onEndEditing={(e) => handleSaveSetEdit(we, set, 'duration', e.nativeEvent.text)}
                         keyboardType="numbers-and-punctuation"
                         autoFocus={focusField === 'duration'}
-                        selectTextOnFocus
                       />
                     ) : (
                       <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'duration')}>
@@ -1127,7 +1125,7 @@ export default function WorkoutDetailScreen() {
                   )}
                   {trackDistance && (
                     editing ? (
-                      <TextInput
+                      <SelectAllInput
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.distance ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], distance: v } }))}
@@ -1135,7 +1133,6 @@ export default function WorkoutDetailScreen() {
                         onEndEditing={(e) => handleSaveSetEdit(we, set, 'distance', e.nativeEvent.text)}
                         keyboardType="decimal-pad"
                         autoFocus={focusField === 'distance'}
-                        selectTextOnFocus
                       />
                     ) : (
                       <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'distance')}>
@@ -1147,7 +1144,7 @@ export default function WorkoutDetailScreen() {
                   )}
                   {trackSteps && (
                     editing ? (
-                      <TextInput
+                      <SelectAllInput
                         style={[s.setInlineInput, s.setColData]}
                         value={edit?.steps ?? ''}
                         onChangeText={(v) => setSetEdits((prev) => ({ ...prev, [set.id]: { ...prev[set.id], steps: v } }))}
@@ -1155,7 +1152,6 @@ export default function WorkoutDetailScreen() {
                         onEndEditing={(e) => handleSaveSetEdit(we, set, 'steps', e.nativeEvent.text)}
                         keyboardType="number-pad"
                         autoFocus={focusField === 'steps'}
-                        selectTextOnFocus
                       />
                     ) : (
                       <TouchableOpacity style={[s.setColData, s.setColDataTouch]} onPress={() => initSetEdit(set, 'steps')}>

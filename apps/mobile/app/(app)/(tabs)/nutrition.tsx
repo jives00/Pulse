@@ -21,6 +21,7 @@ import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import { localDateStr } from '../../../../../packages/api-client/src/index';
 import { writeNutritionRecord, deleteNutritionRecord, writeHydrationRecord, deleteHydrationRecord } from '../../../src/services/healthConnectWriter';
 import { useFeaturesStore } from '../../../src/store/features';
+import SelectAllInput from '../../../src/components/SelectAllInput';
 
 // TextInput that always shows the start of its value when unfocused (not scrolled to the end)
 function StartAlignedInput({ style, value, onChangeText, placeholder, placeholderTextColor }: {
@@ -1008,12 +1009,11 @@ export default function NutritionScreen() {
                     </TouchableOpacity>
                   ))}
                   <Text style={[s.moveCopySection, { marginTop: 16 }]}>Quantity</Text>
-                  <TextInput
+                  <SelectAllInput
                     style={s.quantityInput}
                     value={editQuantity}
                     onChangeText={setEditQuantity}
                     keyboardType="decimal-pad"
-                    selectTextOnFocus
                   />
                   {editServing && editEntry && (
                     <Text style={s.nutritionPreview}>
@@ -1164,12 +1164,11 @@ export default function NutritionScreen() {
                       )}
                       <View style={s.reviewRow}>
                         <Text style={s.reviewFieldLabel}>Servings</Text>
-                        <TextInput
+                        <SelectAllInput
                           style={[s.reviewFieldInput, { flex: 0, width: 72 }]}
                           value={item.quantity}
                           onChangeText={(v) => updateQueueItem(item.key, { quantity: v })}
                           keyboardType="decimal-pad"
-                          selectTextOnFocus
                         />
                         {item.serving && (
                           <Text style={[s.reviewFieldLabel, { flex: 1 }]}>× {item.serving.label}</Text>
@@ -1181,42 +1180,38 @@ export default function NutritionScreen() {
                       <View style={s.reviewMacroRow}>
                         <View style={s.reviewMacroField}>
                           <Text style={s.reviewFieldLabel}>Cal</Text>
-                          <TextInput
+                          <SelectAllInput
                             style={s.reviewFieldInput}
                             value={item.editCalories}
                             onChangeText={(v) => updateQueueItem(item.key, { editCalories: v })}
                             keyboardType="number-pad"
-                            selectTextOnFocus
                           />
                         </View>
                         <View style={s.reviewMacroField}>
                           <Text style={s.reviewFieldLabel}>P (g)</Text>
-                          <TextInput
+                          <SelectAllInput
                             style={s.reviewFieldInput}
                             value={item.editProtein}
                             onChangeText={(v) => updateQueueItem(item.key, { editProtein: v })}
                             keyboardType="number-pad"
-                            selectTextOnFocus
                           />
                         </View>
                         <View style={s.reviewMacroField}>
                           <Text style={s.reviewFieldLabel}>C (g)</Text>
-                          <TextInput
+                          <SelectAllInput
                             style={s.reviewFieldInput}
                             value={item.editCarbs}
                             onChangeText={(v) => updateQueueItem(item.key, { editCarbs: v })}
                             keyboardType="number-pad"
-                            selectTextOnFocus
                           />
                         </View>
                         <View style={s.reviewMacroField}>
                           <Text style={s.reviewFieldLabel}>F (g)</Text>
-                          <TextInput
+                          <SelectAllInput
                             style={s.reviewFieldInput}
                             value={item.editFat}
                             onChangeText={(v) => updateQueueItem(item.key, { editFat: v })}
                             keyboardType="number-pad"
-                            selectTextOnFocus
                           />
                         </View>
                       </View>
@@ -1255,12 +1250,11 @@ export default function NutritionScreen() {
                   <Text style={s.backBtnText}>← {selectedRecipe.name}</Text>
                 </TouchableOpacity>
                 <Text style={s.servingTitle}>Servings</Text>
-                <TextInput
+                <SelectAllInput
                   style={s.quantityInput}
                   value={recipeServings}
                   onChangeText={setRecipeServings}
                   keyboardType="decimal-pad"
-                  selectTextOnFocus
                 />
                 {selectedRecipe.calories != null && (
                   <Text style={s.nutritionPreview}>
@@ -1506,12 +1500,11 @@ export default function NutritionScreen() {
                   </TouchableOpacity>
                 ))}
                 <Text style={s.servingTitle}>Quantity</Text>
-                <TextInput
+                <SelectAllInput
                   style={s.quantityInput}
                   value={quantity}
                   onChangeText={setQuantity}
                   keyboardType="decimal-pad"
-                  selectTextOnFocus
                 />
                 {selectedServing && (
                   <Text style={s.nutritionPreview}>

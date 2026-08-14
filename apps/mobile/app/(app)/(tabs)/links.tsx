@@ -21,6 +21,7 @@ import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import FilterChip from '../../../src/components/FilterChip';
+import SelectAllInput from '../../../src/components/SelectAllInput';
 
 export default function LinksScreen() {
   const token = useAuthStore((s) => s.token)!;
@@ -195,12 +196,11 @@ export default function LinksScreen() {
         <View style={styles.overlay}>
           <View style={styles.editModal}>
             <Text style={styles.editModalTitle}>Rename</Text>
-            <TextInput
+            <SelectAllInput
               style={styles.editInput}
               value={editValue}
               onChangeText={setEditValue}
               autoFocus
-              selectTextOnFocus
               returnKeyType="done"
               onSubmitEditing={commitEdit}
             />
