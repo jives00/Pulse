@@ -100,3 +100,5 @@ export { secondsToMMSS, mmssToSeconds, formatElapsed } from './utils/time';
 export { SATURATION_DAYS, buildWeeklyData, computeGoalPace, computeCreatineSaturation, defaultTrackedFields, defaultTrackedFieldsForRoutineType, computeWeekDelta, computeWeekStreak, computePlateau, computeHighlights, WEEK_STREAK_MILESTONES } from './utils/calculations';
 export type { WeekBucket, PaceStatus, RoutineType } from './utils/calculations';
 export { buildWorkoutLine, formatDuration } from './utils/workoutLine';
+export { buildStepsStats, STEPS_KCAL_PER_STEP } from './utils/steps';
+export type { StepsStats, StepsWindowDay, StepsDayPoint, BuildStepsStatsOptions } from './utils/steps';

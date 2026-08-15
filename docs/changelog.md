@@ -4,6 +4,19 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## August 15, 2026
+
+### Backend
+- **Steps history returned unusable dates** — `GET /api/steps/history` serialized `log_date` with `String(r.date).slice(0, 10)`, but `log_date` is a DATE column so mysql2 hands back a `Date`: that produced `"Thu Aug 13"` and was off by a day. No client could match it against a `YYYY-MM-DD` key, which silently broke the step-kcal line in Calories consumed-vs-burned and the step total in the weekly blurb on both platforms. Now uses the same `instanceof Date` guard as the water and history routes `e32cd70`
+- **New widgets land where they belong instead of at the bottom** — `resolveLayout` appended any widget a stored layout had never seen, so a new Trends card landed below the blurbs and `groupLayout` — which only merges *consecutive* same-group widgets — opened a second "Trends" section header for anyone with a saved layout. A newcomer now splices in after its nearest present catalog predecessor, so it follows the widget it ships behind even in a reordered layout, and several adjacent new widgets chain correctly `e32cd70`
+- **Shared steps aggregation** — new `buildStepsStats` in `packages/api-client/src/utils/steps.ts` backs both step cards so they can't drift on what "7-day average" means. Unlogged days come back `null` rather than `0`, and averages run over logged days only — otherwise a week with two missing syncs reads as a bad week instead of an incomplete one. Totals still span the whole window, and a 0-step row counts as unlogged `e32cd70`
+
+### Frontend – Web
+- **Steps · by day dashboard card** — 30-day bar chart with a hover tooltip (steps, estimated kcal, ± vs goal), a dashed goal line and a dashed 30-day-average line, goal-hitting bars in green and today at full opacity. Stat row covers today vs goal, 7-day average with a delta against the prior 7 days, 30-day average, best day, this week's total, and goal-hit days with the current streak. The target comes from an `activity_steps_daily_avg` goal; every goal-derived stat hides when there isn't one `e32cd70`
+
+### Frontend – Mobile
+- **Steps · by day dashboard card** — the same stats and the same `buildStepsStats` aggregation, drawn with the View-based bar technique the volume card uses plus an absolute-positioned goal line. `liveSteps` from Health Connect overrides today's stored row so the card isn't an hour stale, and the history fetch went from 14 to 30 days to fill the window `e32cd70`
+
 ## August 14, 2026
 
 ### Frontend – Mobile

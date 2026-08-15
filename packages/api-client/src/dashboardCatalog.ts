@@ -12,6 +12,7 @@ export type DashboardWidgetKey =
   | 'exerciseToday'
   | 'weeklyProgress'
   | 'calVsBurned'
+  | 'stepsByDay'
   | 'volumeByWeek'
   | 'heatmap'
   | 'weeklyAverages'
@@ -67,6 +68,11 @@ export const DASHBOARD_CATALOG: DashboardWidget[] = [
     description: 'Daily intake against total expenditure.',
     requires: { any: ['nutrition', 'exercise'] }, platform: 'both',
     defaultSpan: 6, minSpan: 6, defaultOrder: 40, defaultVisible: true },
+
+  { key: 'stepsByDay', label: 'Steps · by day', group: 'Trends', mobileTab: 'trends',
+    description: 'Daily step count with averages, best day, and streak against your step goal.',
+    requires: { all: ['activity'] }, platform: 'both',
+    defaultSpan: 12, minSpan: 6, defaultOrder: 45, defaultVisible: true },
 
   { key: 'volumeByWeek', label: 'Exercise volume · week over week', group: 'Trends', mobileTab: 'trends',
     description: 'Training volume trend by week.',
@@ -157,8 +163,11 @@ function clampSpan(span: unknown, w: DashboardWidget): number {
 
 /**
  * Merge a stored layout over catalog defaults for one platform.
- * - Widgets the stored layout has never seen are APPENDED in catalog order, so a
- *   widget added in a later release shows up rather than silently going missing.
+ * - Widgets the stored layout has never seen are INSERTED next to their catalog
+ *   neighbour, so a widget added in a later release shows up where it was designed
+ *   to live rather than being orphaned at the bottom of the dashboard. Appending
+ *   was the old behaviour and it stranded, say, a new Trends card below the blurbs,
+ *   opening a second "Trends" section header instead of joining the existing one.
  * - Keys no longer in the catalog are dropped.
  * - Spans are clamped to [minSpan, 12].
  * - Feature filtering happens LAST, so a disabled module always wins over a
@@ -193,15 +202,35 @@ export function resolveLayout(
     });
   }
 
-  // Append anything the stored layout has never seen.
+  // Splice in anything the stored layout has never seen, next to its nearest present
+  // catalog PREDECESSOR — the widget it ships directly after. Walking the catalog in
+  // ascending order means a release that adds several adjacent widgets chains them
+  // correctly, since each one can anchor on the one inserted just before it.
   for (const w of catalog) {
     if (seen.has(w.key)) continue;
-    merged.push({
+    const entry: LayoutEntry = {
       key:     w.key,
       span:    w.defaultSpan,
       visible: w.defaultVisible,
       ...(platform === 'mobile' ? { tab: w.mobileTab } : {}),
-    });
+    };
+
+    let anchorIdx = -1;
+    let anchorOrder = -Infinity;
+    for (let i = 0; i < merged.length; i++) {
+      const order = WIDGET_BY_KEY[merged[i].key].defaultOrder;
+      // >= keeps the LAST of any tie, so the newcomer lands after every widget it
+      // shares a default position with rather than in the middle of them.
+      if (order < w.defaultOrder && order >= anchorOrder) {
+        anchorOrder = order;
+        anchorIdx = i;
+      }
+    }
+
+    // No predecessor present means this widget sorts first in the catalog, so it
+    // belongs at the top; anything else goes immediately after its anchor.
+    merged.splice(anchorIdx + 1, 0, entry);
+    seen.add(w.key);
   }
 
   const filtered = features

@@ -37,7 +37,14 @@ router.get('/history', async (req, res) => {
        ORDER BY log_date ASC`,
       [req.userId, days]
     );
-    res.json(rows.map((r) => ({ date: String(r.date).slice(0, 10), steps: r.steps, source: r.source })));
+    // log_date is a DATE column, so mysql2 hands back a Date object — String()ing it
+    // yields "Fri Aug 14 2026 …" and slice(0,10) then produced "Fri Aug 14", which no
+    // client could match against a YYYY-MM-DD key. Same guard the water/history routes use.
+    res.json(rows.map((r) => ({
+      date:   r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+      steps:  r.steps,
+      source: r.source,
+    })));
   } catch (err) {
     console.error('[steps] error:', err);
     res.status(500).json({ error: 'Failed to fetch steps history' });

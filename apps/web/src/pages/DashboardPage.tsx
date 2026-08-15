@@ -4,6 +4,7 @@ import {
   workoutsApi, nutritionTargetsApi, measurementsApi, routinesApi, logApi, schedulesApi, recoveryApi, waterApi, stepsApi,
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, buildWorkoutLine,
   KG_TO_LBS,
+  buildStepsStats, STEPS_KCAL_PER_STEP,
   WIDGET_BY_KEY, resolveLayout, groupLayout,
   type WorkoutSummary, type NutritionSummary,
   type BodyMeasurement, type PersonalBests,
@@ -723,6 +724,181 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
   );
 }
 
+// ─── Steps by day ─────────────────────────────────────────────────────────────
+// All aggregation lives in buildStepsStats (packages/api-client/src/utils/steps.ts)
+// so this and the mobile card can't drift on what "7-day average" means. Unlogged
+// days come back as null and render as a gap, not a zero-height bar.
+
+function StepsByDay({ stepsHistory, todaySteps, newGoals, today }: {
+  stepsHistory: StepsDay[]; todaySteps: StepsDay | null; newGoals: Goal[]; today: string;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const goal = newGoals.find(g => g.catalogKey === 'activity_steps_daily_avg')?.targetValue ?? null;
+  // todaySteps comes from a separate, fresher endpoint than the history sweep, so
+  // fold it in rather than waiting for the next history refresh to show today.
+  const history = todaySteps?.steps != null
+    ? [...stepsHistory.filter(d => d.date !== todaySteps.date), todaySteps]
+    : stepsHistory;
+  const stats = buildStepsStats(history, { today, days: 30, goal });
+
+  if (!stats.loggedDays) {
+    return <div style={{ fontSize: 13, color: MUTED2 }}>No steps logged in the last 30 days.</div>;
+  }
+
+  const w = 760, h = 170;
+  const n = stats.days.length;
+  const slot = w / n;
+  const barW = Math.max(3, slot * 0.62);
+  // Headroom above the tallest bar (or above the goal line, when the goal is out of
+  // reach of anything walked so far) so neither ever touches the top edge.
+  const max = Math.max(stats.best?.steps ?? 0, goal ?? 0) * 1.08 || 1;
+  const yOf = (v: number) => h - (v / max) * h;
+  const xOf = (i: number) => i * slot + (slot - barW) / 2;
+
+  const hovered = hoverIdx !== null ? stats.days[hoverIdx] : null;
+  const hoverXPct = hoverIdx !== null ? ((hoverIdx + 0.5) / n) * 100 : 0;
+  const tooltipLeft = `clamp(0px, calc(${hoverXPct.toFixed(1)}% - 80px), calc(100% - 160px))`;
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    setHoverIdx(Math.max(0, Math.min(n - 1, Math.floor(xRatio * n))));
+  }
+
+  const delta = stats.delta7;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 32, marginBottom: 14, flexWrap: 'wrap' as const }}>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Today</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: stats.today == null ? MUTED2 : goal && stats.today >= goal ? COL_GOOD : 'white' }}>
+            {stats.today == null ? '—' : fmt(stats.today)}
+            {goal ? <span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>/ {fmt(goal)}</span> : null}
+          </div>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>7-day avg</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            {stats.avg7 == null ? '—' : fmt(stats.avg7)}
+            {delta != null && delta !== 0 && (
+              <span className="font-mono" style={{ fontSize: 11, fontWeight: 400, color: delta > 0 ? COL_GOOD : COL_WARN }}>
+                {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))}
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>30-day avg</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
+            {stats.avgWindow == null ? '—' : fmt(stats.avgWindow)}
+          </div>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Best day</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>
+            {stats.best ? fmt(stats.best.steps) : '—'}
+            {stats.best && <span className="font-mono" style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 5 }}>{stats.best.date.slice(5)}</span>}
+          </div>
+        </div>
+        <div>
+          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>This week</div>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>{fmt(stats.weekTotal)}</div>
+        </div>
+        {goal != null && (
+          <div>
+            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Goal hit</div>
+            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: (stats.goalHitDays ?? 0) > 0 ? COL_GOOD : MUTED }}>
+              {stats.goalHitDays}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400 }}> / {stats.loggedDays} d</span>
+              {(stats.goalStreak ?? 0) > 1 && (
+                <span className="font-mono" style={{ fontSize: 11, color: COL_GOOD, fontWeight: 400, marginLeft: 6 }}>{stats.goalStreak}d streak</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <svg ref={svgRef} viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: h, display: 'block', cursor: 'crosshair' }}
+          preserveAspectRatio="none"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" x2={w} y1={h * g} y2={h * g} stroke={LINE_SOFT} strokeWidth="1" />)}
+          {stats.days.map((d, i) => {
+            if (d.steps == null) return null;
+            const y = yOf(d.steps);
+            const hit = goal != null && d.steps >= goal;
+            return (
+              <rect
+                key={d.date}
+                x={xOf(i)} y={y} width={barW} height={Math.max(1, h - y)}
+                fill={hit ? COL_GOOD : ACCENT}
+                opacity={hoverIdx === null || hoverIdx === i ? (d.isToday ? 1 : 0.72) : 0.35}
+              />
+            );
+          })}
+          {goal != null && goal < max && (
+            <line x1="0" x2={w} y1={yOf(goal)} y2={yOf(goal)} stroke={COL_GOOD} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.8" />
+          )}
+          {stats.avgWindow != null && (
+            <line x1="0" x2={w} y1={yOf(stats.avgWindow)} y2={yOf(stats.avgWindow)} stroke={MUTED} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
+          )}
+        </svg>
+        {hovered && (
+          <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 160, zIndex: 10 }}>
+            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+              {new Date(hovered.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+            {hovered.steps == null ? (
+              <div style={{ fontSize: 13, color: MUTED }}>Not logged</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                  <span style={{ fontSize: 13, color: MUTED }}>Steps</span>
+                  <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(hovered.steps)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                  <span style={{ fontSize: 13, color: MUTED }}>Est. burned</span>
+                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{fmt(hovered.steps * STEPS_KCAL_PER_STEP)} kcal</span>
+                </div>
+                {goal != null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                    <span style={{ fontSize: 13, color: MUTED }}>vs goal</span>
+                    <span className="font-mono" style={{ fontSize: 13, color: hovered.steps >= goal ? COL_GOOD : COL_WARN }}>
+                      {hovered.steps >= goal ? '+' : ''}{fmt(hovered.steps - goal)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' as const }}>
+        {goal != null && (
+          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: MUTED2 }}>
+            <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={COL_GOOD} strokeWidth="1.5" strokeDasharray="4 3" /></svg>Goal {fmt(goal)}
+          </div>
+        )}
+        <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: MUTED2 }}>
+          <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={MUTED} strokeWidth="1.5" strokeDasharray="2 3" /></svg>30-day avg
+        </div>
+        <div className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>
+          {fmt(stats.windowTotal)} steps · est. {fmt(stats.windowKcal)} kcal · {stats.loggedDays} of 30 days logged
+        </div>
+      </div>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
+        <span>30 days ago</span><span>today</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Exercise volume week-over-week bar chart ─────────────────────────────────
 
 function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
@@ -1241,6 +1417,14 @@ const WIDGET_RENDERERS: Record<DashboardWidgetKey, WidgetRenderDef> = {
       if (!ctx.phase2Ready && ctx.foodLogHistory.length === 0) return LOADING;
       return <CalVsBurned foodLogHistory={ctx.foodLogHistory} workouts={ctx.workouts} todayTDEE={ctx.todayTDEE} stepsHistory={ctx.stepsHistory} />;
     },
+  },
+
+  stepsByDay: {
+    panelled: true,
+    meta: () => '30 days',
+    render: (ctx) => (
+      <StepsByDay stepsHistory={ctx.stepsHistory} todaySteps={ctx.todaySteps} newGoals={ctx.newGoals} today={ctx.today} />
+    ),
   },
 
   volumeByWeek: {

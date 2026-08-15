@@ -20,7 +20,7 @@ import { Share } from 'react-native';
 import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData, buildWorkoutLine,
-  goalsV2Api, resolveLayout,
+  goalsV2Api, resolveLayout, buildStepsStats,
   type WeekBucket, type Goal, type NutritionSummary, type DashboardWidgetKey,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
@@ -430,7 +430,7 @@ export default function DashboardV4Screen() {
     const waterP        = features.nutrition && features.water ? getWaterDay(token, localDateStr()).catch(() => null) : Promise.resolve(null);
     const stepsP        = features.activity  ? getSteps(token).catch(() => null) : Promise.resolve(null);
     const thisWeekStart = getWeekStart(localDateStr());
-    const stepsHistP    = features.activity  ? getStepsHistory(token, 14).catch(() => [] as StepsEntry[]) : Promise.resolve([] as StepsEntry[]);
+    const stepsHistP    = features.activity  ? getStepsHistory(token, 30).catch(() => [] as StepsEntry[]) : Promise.resolve([] as StepsEntry[]);
     const waterHistP    = features.nutrition && features.water ? getWaterHistory(token, thisWeekStart, localDateStr()).catch(() => ({ goalOz: 0, days: [] as WaterHistoryDay[] })) : Promise.resolve({ goalOz: 0, days: [] as WaterHistoryDay[] });
     const goalsP        = features.goals     ? goalsV2Api.getAll('active').catch(() => [] as Goal[]) : Promise.resolve([] as Goal[]);
 
@@ -816,6 +816,110 @@ export default function DashboardV4Screen() {
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text style={{ fontSize: 11, color: c.muted }}>14 days ago</Text>
+            <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
+          </View>
+        </View>
+      );
+    },
+
+    // Steps by day — same buildStepsStats aggregation the web card uses, so the
+    // averages/streak the two platforms report can't drift. liveSteps (Health Connect,
+    // read on app open) overrides today's stored row, which may be an hour stale.
+    stepsByDay: () => {
+      const stepsGoal = activeGoals.find((g) => g.catalogKey === 'activity_steps_daily_avg')?.targetValue ?? null;
+      const todayRow = liveSteps != null ? { date: todayStr, steps: liveSteps } : todaySteps;
+      const history = todayRow?.steps != null
+        ? [...stepsWeekHistory.filter((d) => d.date !== todayRow.date), todayRow]
+        : stepsWeekHistory;
+      const stats = buildStepsStats(history, { today: todayStr, days: 30, goal: stepsGoal });
+
+      if (!stats.loggedDays) return (
+        <View style={s.card}>
+          <CardHeader title="Steps · by day" meta="30 days" c={c} />
+          <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No steps logged in the last 30 days.</Text>
+        </View>
+      );
+
+      const BAR_H = 84;
+      const chartMax = Math.max(stats.best?.steps ?? 0, stepsGoal ?? 0) * 1.08 || 1;
+      const goalTop = stepsGoal != null && stepsGoal < chartMax ? BAR_H - (stepsGoal / chartMax) * BAR_H : null;
+      const delta = stats.delta7;
+
+      return (
+        <View style={s.card}>
+          <CardHeader title="Steps · by day" meta="30 days" c={c} />
+          <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>
+            <View>
+              <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Today</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'], color: stats.today == null ? c.muted : stepsGoal && stats.today >= stepsGoal ? COL_GOOD : c.text }}>
+                {stats.today == null ? '—' : stats.today.toLocaleString()}
+                {stepsGoal ? <Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> / {stepsGoal.toLocaleString()}</Text> : null}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>7-day avg</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
+                {stats.avg7 == null ? '—' : stats.avg7.toLocaleString()}
+                {delta != null && delta !== 0 && (
+                  <Text style={{ fontSize: 11, fontWeight: '400', color: delta > 0 ? COL_GOOD : COL_WARN }}>
+                    {delta > 0 ? ' ▲' : ' ▼'}{Math.abs(delta).toLocaleString()}
+                  </Text>
+                )}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>30-day avg</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: c.muted, fontVariant: ['tabular-nums'] }}>
+                {stats.avgWindow == null ? '—' : stats.avgWindow.toLocaleString()}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Best day</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>
+                {stats.best ? stats.best.steps.toLocaleString() : '—'}
+                {stats.best ? <Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> {stats.best.date.slice(5)}</Text> : null}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>This week</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] }}>{stats.weekTotal.toLocaleString()}</Text>
+            </View>
+            {stepsGoal != null && (
+              <View>
+                <Text style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Goal hit</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'], color: (stats.goalHitDays ?? 0) > 0 ? COL_GOOD : c.muted }}>
+                  {stats.goalHitDays}<Text style={{ fontSize: 11, color: c.muted, fontWeight: '400' }}> / {stats.loggedDays} d</Text>
+                  {(stats.goalStreak ?? 0) > 1 ? <Text style={{ fontSize: 11, color: COL_GOOD, fontWeight: '400' }}>  {stats.goalStreak}d streak</Text> : null}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ height: BAR_H + 4, position: 'relative' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 1, height: BAR_H }}>
+              {stats.days.map((d) => {
+                // A null day keeps its column (so the axis stays 30 days wide) but
+                // draws nothing — a gap, not a zero.
+                const barH = d.steps != null ? Math.max(2, (d.steps / chartMax) * BAR_H) : 0;
+                const hit = stepsGoal != null && d.steps != null && d.steps >= stepsGoal;
+                const bg = d.isToday ? COL_GOLD : hit ? `${COL_GOOD}B3` : `${COL_GOLD}59`;
+                return (
+                  <View key={d.date} style={{ flex: 1, height: BAR_H, justifyContent: 'flex-end' }}>
+                    {barH > 0 && <View style={{ height: barH, backgroundColor: bg, borderRadius: 1 }} />}
+                  </View>
+                );
+              })}
+            </View>
+            {goalTop != null && (
+              <View style={{ position: 'absolute', left: 0, right: 0, top: goalTop, height: 1, backgroundColor: COL_GOOD, opacity: 0.75 }} />
+            )}
+          </View>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 11, color: c.muted }}>30 days ago</Text>
+            <Text style={{ fontSize: 11, color: c.muted }}>
+              {stats.windowTotal.toLocaleString()} steps · est. {stats.windowKcal.toLocaleString()} kcal
+            </Text>
             <Text style={{ fontSize: 11, color: c.muted }}>today</Text>
           </View>
         </View>
