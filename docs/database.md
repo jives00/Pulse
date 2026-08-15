@@ -5,7 +5,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 ### Auth
 | Table | Key columns |
 |---|---|
-| `users` | `id`, `username`, `password_hash`, `email`, `height_cm` DECIMAL(5,1) NULL, `sex` ENUM('male','female') NULL, `dob` DATE NULL, `activity_level` ENUM('sedentary','lightly_active','moderately_active','very_active') DEFAULT 'sedentary', `enabled_features` JSON NULL, `dashboard_layout` JSON NULL, `created_at` — `enabled_features`/`dashboard_layout` are `NULL` for "all catalog defaults"; resolved on read by `resolveFeatures`/`resolveLayout` in `@pulse/api-client`, so a module added in a later release is automatically on |
+| `users` | `id`, `username`, `password_hash`, `email`, `height_cm` DECIMAL(5,1) NULL, `sex` ENUM('male','female') NULL, `dob` DATE NULL, `activity_level` ENUM('sedentary','lightly_active','moderately_active','very_active') DEFAULT 'sedentary', `enabled_features` JSON NULL, `dashboard_layout` JSON NULL, `created_at` — `enabled_features`/`dashboard_layout` are `NULL` for "all catalog defaults"; resolved on read by `resolveFeatures`/`resolveLayout` in `@pulse/api-client`, so a module added in a later release is automatically on. `dashboard_layout` holds `{ web, mobile, widgetSettings }` — the first two are per-platform widget order/width/visibility, `widgetSettings` is cross-platform per-widget config (currently the goalSince baseline date and goal selection) and merges independently of them |
 | `invite_tokens` | `id`, `token_hash`, `created_by`, `used_at`, `expires_at` |
 
 ### Recipes
@@ -76,6 +76,8 @@ Goals were overhauled in migrations 037–040: `custom_goals`, `goal_checkpoints
 | `goal_progress` | `id`, `goal_id` (FK → goals), `user_id`, `value`, `logged_at`, `source` ENUM('manual','auto'), `notes` |
 | `day_type_presets` | `id`, `user_id`, `name` VARCHAR(50) — named day types (e.g. "Rest Day", "Workout Day") with optional macro overrides: `calories`, `protein_g`, `carbs_g`, `fat_g`, `water_goal_oz` |
 | `daily_nutrition_overrides` | `id`, `user_id`, `date` DATE, `day_type_id` INT NULL (FK → day_type_presets), macro columns — UNIQUE on `(user_id, date)` |
+
+Migration 043 is data-only: it strips a trailing " Goal" from `goals.name`, left over from both add-goal forms defaulting the name to `catalogLabel + ' Goal'`. `name` may be blank — `titleFor` falls back to the catalog label on read.
 
 ### Links
 | Table | Key columns |

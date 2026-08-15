@@ -3,6 +3,7 @@ import {
   ActivityIndicator, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, RefreshControl,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
@@ -21,7 +22,10 @@ import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData, buildWorkoutLine,
   goalsV2Api, resolveLayout, buildStepsStats,
+  buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
+  resolveSinceGoalIds, withSinceGoalIds, titleFor,
   type WeekBucket, type Goal, type NutritionSummary, type DashboardWidgetKey,
+  type GoalSincePoint,
 } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { useStepsStore } from '../../../src/store/steps';
@@ -394,6 +398,13 @@ export default function DashboardV4Screen() {
   const [stepsWeekHistory,   setStepsWeekHistory]   = useState<StepsEntry[]>([]);
   const [waterWeekHistory,   setWaterWeekHistory]   = useState<WaterHistoryDay[]>([]);
   const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]); // derived from activeGoals
+  const [sincePoints, setSincePoints] = useState<GoalSincePoint[]>([]);
+  const [sinceLoading, setSinceLoading] = useState(true);
+  const [showSincePicker, setShowSincePicker] = useState(false);
+  const [pickingSinceGoals, setPickingSinceGoals] = useState(false);
+  // Bumped by pull-to-refresh so the since readings reload with everything else —
+  // they're fetched off sinceDate rather than inside loadData.
+  const [sinceRefreshKey, setSinceRefreshKey] = useState(0);
   const [phase2Ready, setPhase2Ready] = useState(false);
   const [mountedTabs, setMountedTabs] = useState(new Set<Tab>(['today']));
   const scrollRef = useRef<ScrollView>(null);
@@ -468,6 +479,7 @@ export default function DashboardV4Screen() {
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setSinceRefreshKey((n) => n + 1);
     await loadData(true).finally(() => setRefreshing(false));
   }, [loadData]);
 
@@ -483,6 +495,34 @@ export default function DashboardV4Screen() {
       setRoutineDetail(null);
     }
   }, [_todayWorkoutId, _todayScheduledRoutineId, token]);
+
+  // ── Goal progress since a date ────────────────────────────────────────────
+  // The baseline is a preference, not local state, and deliberately not per-platform:
+  // "since Jan 1" has to mean the same thing here as it does on the web dashboard.
+  const sinceDate    = resolveSinceDate(dashboardLayout);
+  const sinceGoalIds = resolveSinceGoalIds(dashboardLayout);
+  const setLayout    = useFeaturesStore((st) => st.setLayout);
+
+  // Read the layout off the store at call time rather than closing over it, so two
+  // quick edits (date then selection) can't have the second overwrite the first.
+  const changeSinceDate = useCallback((date: string) => {
+    setLayout(withSinceDate(useFeaturesStore.getState().dashboardLayout, date));
+  }, [setLayout]);
+
+  const changeSinceGoalIds = useCallback((ids: number[] | null) => {
+    setLayout(withSinceGoalIds(useFeaturesStore.getState().dashboardLayout, ids));
+  }, [setLayout]);
+
+  useEffect(() => {
+    if (!features.goals) { setSincePoints([]); setSinceLoading(false); return; }
+    let cancelled = false;
+    setSinceLoading(true);
+    goalsV2Api.getSince(sinceDate)
+      .then((pts) => { if (!cancelled) setSincePoints(pts); })
+      .catch(() => { if (!cancelled) setSincePoints([]); })
+      .finally(() => { if (!cancelled) setSinceLoading(false); });
+    return () => { cancelled = true; };
+  }, [sinceDate, features.goals, sinceRefreshKey]);
 
   // ── Derived: today ────────────────────────────────────────────────────────
   const todayStr = localDateStr();
@@ -825,6 +865,127 @@ export default function DashboardV4Screen() {
     // Steps by day — same buildStepsStats aggregation the web card uses, so the
     // averages/streak the two platforms report can't drift. liveSteps (Health Connect,
     // read on app open) overrides today's stored row, which may be an hour stale.
+    // Two readings per goal — where it stood on the picked date, where it stands
+    // today — and the change between. buildGoalSinceRows does the join and the
+    // wording so this and the web card can't disagree about what counts as progress.
+    goalSince: () => {
+      const rows = buildGoalSinceRows(activeGoals, sincePoints, sinceGoalIds);
+      const shown = sinceGoalIds ? activeGoals.filter((g) => sinceGoalIds.includes(g.id)).length : activeGoals.length;
+
+      // Toggling off the last goal would leave a card only the picker can fix, so an
+      // empty selection reverts to following every goal.
+      const toggleGoal = (id: number) => {
+        const current = sinceGoalIds ?? activeGoals.map((g) => g.id);
+        const next = current.includes(id) ? current.filter((i) => i !== id) : [...current, id];
+        changeSinceGoalIds(next.length ? next : null);
+      };
+
+      return (
+        <View style={s.card}>
+          <CardHeader title="Progress since" c={c} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setShowSincePicker(true)}
+              style={{ borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+            >
+              <Text style={{ fontSize: fontSize.sm, color: c.text, fontVariant: ['tabular-nums'] }}>
+                {fmtSinceDate(sinceDate)}
+              </Text>
+            </TouchableOpacity>
+            {activeGoals.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setPickingSinceGoals((v) => !v)}
+                style={{ marginLeft: 'auto', borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+              >
+                <Text style={{ fontSize: 11, color: pickingSinceGoals ? c.text : c.muted }}>
+                  Goals {shown} / {activeGoals.length} {pickingSinceGoals ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {showSincePicker && (
+            <DateTimePicker
+              value={new Date(sinceDate + 'T12:00:00')}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={(event, selected) => {
+                setShowSincePicker(false);
+                if (selected && event.type !== 'dismissed') changeSinceDate(localDateStr(selected));
+              }}
+            />
+          )}
+
+          {pickingSinceGoals && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8, borderWidth: 1, borderColor: c.border, borderRadius: 10 }}>
+              {activeGoals.map((g) => {
+                const on = !sinceGoalIds || sinceGoalIds.includes(g.id);
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    onPress={() => toggleGoal(g.id)}
+                    style={{
+                      borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+                      borderColor: on ? COL_GOOD : c.border,
+                      backgroundColor: on ? 'rgba(123,179,137,0.14)' : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: on ? c.text : c.muted }}>{titleFor(g)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {sinceGoalIds && (
+                <TouchableOpacity onPress={() => changeSinceGoalIds(null)} style={{ paddingHorizontal: 6, paddingVertical: 5 }}>
+                  <Text style={{ fontSize: 11, color: c.muted }}>Show all</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {sinceLoading && !rows.length ? (
+            <ActivityIndicator color={COL_GOLD} style={{ alignSelf: 'flex-start' }} />
+          ) : !activeGoals.length ? (
+            <Text style={{ fontSize: fontSize.sm, color: c.muted }}>No active goals yet.</Text>
+          ) : !rows.length ? (
+            <Text style={{ fontSize: fontSize.sm, color: c.muted }}>
+              Nothing logged on either side of {fmtSinceDate(sinceDate)} yet.
+            </Text>
+          ) : (
+            <View>
+              {/* The dates label the columns once instead of repeating on every row. */}
+              <View style={{ flexDirection: 'row', paddingBottom: 6 }}>
+                <Text style={{ flex: 1.6, fontSize: 10, color: c.muted }}>Goal</Text>
+                <Text style={{ flex: 1, fontSize: 10, color: c.muted, textAlign: 'right' }}>{fmtSinceDate(sinceDate)}</Text>
+                <Text style={{ flex: 1, fontSize: 10, color: c.muted, textAlign: 'right' }}>Today</Text>
+              </View>
+              {rows.map((r) => (
+                <View
+                  key={r.goalId}
+                  style={{ paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text numberOfLines={1} style={{ flex: 1.6, fontSize: fontSize.sm, color: c.text }}>{r.title}</Text>
+                    <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.muted, textAlign: 'right', fontVariant: ['tabular-nums'] }}>
+                      {r.sinceLabel}
+                    </Text>
+                    <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.text, textAlign: 'right', fontVariant: ['tabular-nums'] }}>
+                      {r.currentLabel}
+                    </Text>
+                  </View>
+                  <Text style={{
+                    marginTop: 2, fontSize: 12, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'],
+                    color: r.improved == null ? c.muted : r.improved ? COL_GOOD : COL_WARN,
+                  }}>
+                    {r.delta != null && r.delta !== 0 ? (r.delta > 0 ? '▲ ' : '▼ ') : ''}{r.changeLabel}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      );
+    },
+
     stepsByDay: () => {
       const stepsGoal = activeGoals.find((g) => g.catalogKey === 'activity_steps_daily_avg')?.targetValue ?? null;
       const todayRow = liveSteps != null ? { date: todayStr, steps: liveSteps } : todaySteps;

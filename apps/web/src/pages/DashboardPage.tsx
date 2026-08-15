@@ -10,7 +10,9 @@ import {
   type BodyMeasurement, type PersonalBests,
   type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay, type WaterHistoryDay,
-  goalsV2Api, type Goal, type UpdateGoalPayload,
+  goalsV2Api, type Goal, type UpdateGoalPayload, type GoalSincePoint,
+  buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
+  resolveSinceGoalIds, withSinceGoalIds, titleFor,
   resolveGoalCard, type GoalCardConfig,
   type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout,
 } from '@pulse/api-client';
@@ -1331,6 +1333,144 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
 // variant renderers + DashboardGoalCard dispatcher). See that folder for the shared
 // goalDirection/goalStatusFor/fmtGoalValue/fmtDeadline/emptyMessageFor helpers.
 
+// ─── Goal progress since a date ───────────────────────────────────────────────
+// Two readings per goal — where it stood on a date you pick, where it stands today —
+// and the change between them. The join and the wording live in buildGoalSinceRows
+// (packages/api-client/src/goalSince.ts) so this and the mobile card can't disagree
+// about whether a change counts as progress.
+
+/** Header and body rows share one column template so the values line up. */
+const SINCE_ROW: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(120px, 1.6fr) minmax(90px, 1fr) minmax(90px, 1fr) minmax(110px, 1fr)',
+  alignItems: 'baseline',
+  gap: 12,
+};
+
+function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onChangeGoalIds }: {
+  goals: Goal[]; points: GoalSincePoint[]; since: string; goalIds: number[] | null; loading: boolean;
+  onChangeSince: (date: string) => void;
+  onChangeGoalIds: (ids: number[] | null) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const rows = buildGoalSinceRows(goals, points, goalIds);
+  const shown = goalIds ? goals.filter(g => goalIds.includes(g.id)).length : goals.length;
+
+  // Toggling off the last remaining goal would leave a card that can only be fixed by
+  // reopening the picker, so an empty selection reverts to following every goal.
+  function toggleGoal(id: number) {
+    const current = goalIds ?? goals.map(g => g.id);
+    const next = current.includes(id) ? current.filter(i => i !== id) : [...current, id];
+    onChangeGoalIds(next.length ? next : null);
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' as const }}>
+        <span className="micro" style={{ fontSize: 9, color: MUTED }}>Since</span>
+        <input
+          type="date"
+          value={since}
+          max={localDateStr()}
+          onChange={(e) => { if (e.target.value) onChangeSince(e.target.value); }}
+          className="font-mono"
+          style={{
+            background: BG, border: `1px solid ${LINE}`, color: 'white',
+            fontSize: 12, padding: '4px 8px', borderRadius: 0, colorScheme: 'dark',
+          }}
+        />
+        {goals.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPicking(p => !p)}
+            className="micro"
+            style={{
+              background: 'transparent', border: `1px solid ${LINE}`, color: picking ? 'white' : MUTED,
+              fontSize: 9, padding: '5px 9px', cursor: 'pointer', marginLeft: 'auto',
+            }}
+          >
+            Goals {shown} / {goals.length} {picking ? '▲' : '▼'}
+          </button>
+        )}
+      </div>
+
+      {picking && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap' as const, gap: 6,
+          padding: '10px 12px', marginBottom: 14, background: BG, border: `1px solid ${LINE}`,
+        }}>
+          {goals.map((g) => {
+            const on = !goalIds || goalIds.includes(g.id);
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => toggleGoal(g.id)}
+                style={{
+                  background: on ? 'rgba(123,179,137,0.14)' : 'transparent',
+                  border: `1px solid ${on ? COL_GOOD : LINE}`,
+                  color: on ? 'white' : MUTED,
+                  fontSize: 12, padding: '4px 10px', cursor: 'pointer',
+                }}
+              >
+                {titleFor(g)}
+              </button>
+            );
+          })}
+          {goalIds && (
+            <button
+              type="button"
+              onClick={() => onChangeGoalIds(null)}
+              className="micro"
+              style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: 9, cursor: 'pointer', marginLeft: 'auto' }}
+            >
+              Show all
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading && !rows.length ? (
+        <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+      ) : !goals.length ? (
+        <div style={{ fontSize: 13, color: MUTED2 }}>No active goals yet.</div>
+      ) : !rows.length ? (
+        <div style={{ fontSize: 13, color: MUTED2 }}>
+          Nothing logged on either side of {fmtSinceDate(since)} yet.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* The dates label the columns once instead of repeating on every row. */}
+          <div style={{ ...SINCE_ROW, paddingBottom: 6 }} className="micro">
+            <span style={{ fontSize: 9, color: MUTED }}>Goal</span>
+            <span style={{ fontSize: 9, color: MUTED }}>{fmtSinceDate(since)}</span>
+            <span style={{ fontSize: 9, color: MUTED }}>Today</span>
+            <span style={{ fontSize: 9, color: MUTED, textAlign: 'right' as const }}>Change</span>
+          </div>
+          {rows.map((r) => (
+            <div key={r.goalId} style={{ ...SINCE_ROW, padding: '10px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
+              <div style={{ fontSize: 13, color: 'white', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                {r.title}
+              </div>
+              <div className="font-mono" style={{ fontSize: 14, color: MUTED }}>{r.sinceLabel}</div>
+              <div className="font-mono" style={{ fontSize: 14, color: 'white' }}>{r.currentLabel}</div>
+              <div
+                className="font-mono"
+                style={{
+                  fontSize: 14, fontWeight: 600, textAlign: 'right' as const,
+                  color: r.improved == null ? MUTED2 : r.improved ? COL_GOOD : COL_WARN,
+                }}
+              >
+                {r.delta != null && r.delta !== 0 && (r.delta > 0 ? '▲ ' : '▼ ')}{r.changeLabel}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Widget registry ───────────────────────────────────────────────────────────
 // Maps each DASHBOARD_CATALOG key to the (unchanged) widget component above. This is
 // what makes the layout data-driven: DashboardPage resolves a stored layout to an
@@ -1346,6 +1486,12 @@ interface DashboardContext {
   measurements: BodyMeasurement[];
   routines: RoutineSummary[];
   newGoals: Goal[];
+  sincePoints: GoalSincePoint[];
+  sinceDate: string;
+  sinceGoalIds: number[] | null;
+  sinceLoading: boolean;
+  onChangeSinceDate: (date: string) => void;
+  onChangeSinceGoalIds: (ids: number[] | null) => void;
   upcoming: UpcomingSession[];
   recovery: RecoveryData | null;
   todayWater: WaterDay | null;
@@ -1472,6 +1618,17 @@ const WIDGET_RENDERERS: Record<DashboardWidgetKey, WidgetRenderDef> = {
         </div>
       );
     },
+  },
+
+  goalSince: {
+    panelled: true,
+    render: (ctx) => (
+      <GoalSince
+        goals={ctx.newGoals} points={ctx.sincePoints} since={ctx.sinceDate}
+        goalIds={ctx.sinceGoalIds} loading={ctx.sinceLoading}
+        onChangeSince={ctx.onChangeSinceDate} onChangeGoalIds={ctx.onChangeSinceGoalIds}
+      />
+    ),
   },
 
   recentSessions: {
@@ -1641,6 +1798,8 @@ export default function DashboardPage() {
   const [stepsHistory,      setStepsHistory]      = useState<StepsDay[]>([]);
   const [waterWeekHistory,  setWaterWeekHistory]  = useState<WaterHistoryDay[]>([]);
   const [newGoals,          setNewGoals]          = useState<Goal[]>([]);
+  const [sincePoints,       setSincePoints]       = useState<GoalSincePoint[]>([]);
+  const [sinceLoading,      setSinceLoading]      = useState(true);
   const [loading,            setLoading]            = useState(true);
   const [phase2Ready,        setPhase2Ready]        = useState(false);
   const [measurementsReady,  setMeasurementsReady]  = useState(false);
@@ -1767,6 +1926,40 @@ export default function DashboardPage() {
     setDragGoalId(null);
   }
 
+  // ── Goal progress since a date ────────────────────────────────────────────
+  // The baseline lives in preferences alongside the layout (and NOT per-platform —
+  // "since Jan 1" has to mean the same thing on the phone), so changing it here is a
+  // preference write, not local state. Saved immediately rather than debounced: it's
+  // one deliberate pick, not a burst of drag edits.
+  const sinceDate    = resolveSinceDate(dashboardLayout);
+  const sinceGoalIds = resolveSinceGoalIds(dashboardLayout);
+
+  function saveLayout(next: StoredDashboardLayout) {
+    useFeaturesStore.setState({ dashboardLayout: next }); // instant optimistic UI
+    persistLayout(next);
+  }
+
+  // Both read the layout off the store at call time rather than the render closure,
+  // so picking a date and then a goal in quick succession can't clobber the first edit.
+  function changeSinceDate(date: string) {
+    saveLayout(withSinceDate(useFeaturesStore.getState().dashboardLayout, date));
+  }
+
+  function changeSinceGoalIds(ids: number[] | null) {
+    saveLayout(withSinceGoalIds(useFeaturesStore.getState().dashboardLayout, ids));
+  }
+
+  useEffect(() => {
+    if (!features.goals) { setSincePoints([]); setSinceLoading(false); return; }
+    let cancelled = false;
+    setSinceLoading(true);
+    goalsV2Api.getSince(sinceDate)
+      .then((pts) => { if (!cancelled) setSincePoints(pts); })
+      .catch(() => { if (!cancelled) setSincePoints([]); })
+      .finally(() => { if (!cancelled) setSinceLoading(false); });
+    return () => { cancelled = true; };
+  }, [sinceDate, features.goals]);
+
   useEffect(() => {
     // Fire all requests simultaneously — but only for modules that are enabled.
     // Fetches are gated on FEATURES, not on dashboard layout: a widget merely hidden
@@ -1831,6 +2024,8 @@ export default function DashboardPage() {
 
   const ctx: DashboardContext = {
     workouts, summary, foodLogHistory, todayTDEE, stepsHistory, measurements, routines, newGoals,
+    sincePoints, sinceDate, sinceGoalIds, sinceLoading,
+    onChangeSinceDate: changeSinceDate, onChangeSinceGoalIds: changeSinceGoalIds,
     upcoming, recovery, todayWater, todaySteps, waterWeekHistory, weeklyData, thisWeekBucket,
     weekStart, today, navigate, phase2Ready, measurementsReady,
     editing, optionsGoalId, dragGoalId,
@@ -1855,12 +2050,13 @@ export default function DashboardPage() {
 
   // groupLayout already drops invisible entries, so `editable` (visible + hidden) can
   // be passed straight through — the bands below only ever see what should render.
-  // Goal progress renders nothing when there are no dashboard-pinned goals (same as
-  // before customization existed) — drop it, and any band left with no widgets, so an
-  // empty section header never appears.
+  // The goalProgress card renders nothing when no goals are pinned (same as before
+  // customization existed), so drop that entry — and any band left with no widgets —
+  // rather than the whole Goal progress band, which goalSince also lives in and which
+  // has plenty to show for an unpinned goal.
   const dashboardGoalCount = newGoals.filter(g => g.showOnDashboard).length;
   const groups = groupLayout({ v: 1, widgets: editable })
-    .map(g => (g.group === 'Goal progress' && dashboardGoalCount === 0) ? { ...g, widgets: [] } : g)
+    .map(g => (dashboardGoalCount === 0 ? { ...g, widgets: g.widgets.filter(w => w.key !== 'goalProgress') } : g))
     .filter(g => g.widgets.length > 0);
 
   function moveKey(key: DashboardWidgetKey, direction: 'up' | 'down') {

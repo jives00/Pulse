@@ -52,7 +52,7 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
 
   function pickCatalogEntry(entry: GoalCatalogEntry) {
     setSelected(entry);
-    setName(entry.label + ' Goal');
+    setName(entry.label);
     if (entry.needsSource) {
       setStep(2);
     } else {
@@ -78,7 +78,7 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
 
     const payload: CreateGoalPayload = {
       catalogKey:   selected.key,
-      name:         name || selected.label + ' Goal',
+      name:         name || selected.label,
       category:     selected.category,
       cardType:     selected.cardType,
       targetValue:  Number(targetValue),

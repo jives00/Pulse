@@ -461,7 +461,7 @@ function AddGoalModal({ onClose, onCreated, c }: {
 
   function pickCatalogEntry(entry: GoalCatalogEntry) {
     setSelected(entry);
-    setName(entry.label + ' Goal');
+    setName(entry.label);
     setStep(entry.needsSource ? 2 : 3);
   }
 
@@ -486,7 +486,7 @@ function AddGoalModal({ onClose, onCreated, c }: {
     try {
       const payload: CreateGoalPayload = {
         catalogKey:      selected.key,
-        name:            name || (selected.label + ' Goal'),
+        name:            name || selected.label,
         category:        selected.category,
         cardType:        selected.cardType,
         targetValue:     Number(targetValue),

@@ -27,9 +27,18 @@ const layoutHalfSchema = z.object({
   v:       z.number().optional(),
   widgets: z.array(layoutWidgetSchema).optional(),
 }).partial();
+// Per-widget config that isn't position/visibility. Cross-platform by design, so it
+// merges on its own rather than riding along in the web/mobile halves.
+const widgetSettingsSchema = z.object({
+  goalSince: z.object({
+    since:   z.string().nullable().optional(),
+    goalIds: z.array(z.number()).nullable().optional(),
+  }).optional(),
+}).partial();
 const dashboardLayoutSchema = z.object({
-  web:    layoutHalfSchema.optional(),
-  mobile: layoutHalfSchema.optional(),
+  web:            layoutHalfSchema.optional(),
+  mobile:         layoutHalfSchema.optional(),
+  widgetSettings: widgetSettingsSchema.optional(),
 }).partial();
 
 const updateSchema = z.object({
@@ -92,6 +101,9 @@ router.put('/', async (req, res) => {
           ...storedLayout,
           ...(layoutPatch.web    !== undefined ? { web:    layoutPatch.web }    : {}),
           ...(layoutPatch.mobile !== undefined ? { mobile: layoutPatch.mobile } : {}),
+          ...(layoutPatch.widgetSettings !== undefined
+            ? { widgetSettings: { ...(storedLayout.widgetSettings ?? {}), ...layoutPatch.widgetSettings } }
+            : {}),
         }
       : storedLayout;
 

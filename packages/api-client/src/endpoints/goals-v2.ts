@@ -63,6 +63,17 @@ export interface GoalProgressEntry {
   notes:    string | null;
 }
 
+export interface GoalSincePoint {
+  goalId:       number;
+  /** Date of the reading used as the baseline, or null when the goal has no history. */
+  sinceDate:    string | null;
+  sinceValue:   number | null;
+  currentDate:  string | null;
+  currentValue: number | null;
+  /** currentValue - sinceValue, or null when either end is missing. */
+  delta:        number | null;
+}
+
 export type CreateGoalPayload = {
   catalogKey:      GoalCatalogKey;
   name:            string;
@@ -121,6 +132,10 @@ export const goalsV2Api = {
 
   getNudges: () =>
     apiClient.get<Goal[]>('/goals-v2/nudges').then(r => r.data),
+
+  /** Baseline-vs-today readings for every active goal, measured from `date`. */
+  getSince: (date: string) =>
+    apiClient.get<GoalSincePoint[]>('/goals-v2/since', { params: { date } }).then(r => r.data),
 
   create: (data: CreateGoalPayload) =>
     apiClient.post<Goal>('/goals-v2', data).then(r => r.data),

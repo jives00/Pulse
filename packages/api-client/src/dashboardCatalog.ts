@@ -17,6 +17,7 @@ export type DashboardWidgetKey =
   | 'heatmap'
   | 'weeklyAverages'
   | 'goalProgress'
+  | 'goalSince'
   | 'recentSessions'
   | 'todayBlurb'
   | 'weeklyBlurb';
@@ -94,6 +95,11 @@ export const DASHBOARD_CATALOG: DashboardWidget[] = [
     requires: { all: ['goals'] }, platform: 'both',
     defaultSpan: 12, minSpan: 6, defaultOrder: 80, defaultVisible: true },
 
+  { key: 'goalSince', label: 'Goal progress since a date', group: 'Goal progress', mobileTab: 'goals',
+    description: 'Where each goal stood on a date you pick, where it stands today, and the change between.',
+    requires: { all: ['goals'] }, platform: 'both',
+    defaultSpan: 12, minSpan: 6, defaultOrder: 85, defaultVisible: true },
+
   { key: 'recentSessions', label: 'Recent sessions', group: 'Sessions', mobileTab: 'sessions',
     description: 'Your most recent workouts.',
     requires: { all: ['exercise'] }, platform: 'both',
@@ -131,9 +137,77 @@ export interface DashboardLayout {
   widgets: LayoutEntry[];
 }
 
+/**
+ * Per-widget user config that isn't position or visibility. Deliberately NOT stored
+ * per-platform: a "progress since Jan 1" comparison means the same thing on the phone
+ * as on the laptop, and having to set the date twice would be a bug, not a feature.
+ */
+export interface DashboardWidgetSettings {
+  goalSince?: {
+    since?: string | null;
+    /** Goal ids to show. Absent/null means every active goal — see resolveSinceGoalIds. */
+    goalIds?: number[] | null;
+  };
+}
+
 export interface StoredDashboardLayout {
-  web?:    Partial<DashboardLayout>;
-  mobile?: Partial<DashboardLayout>;
+  web?:            Partial<DashboardLayout>;
+  mobile?:         Partial<DashboardLayout>;
+  widgetSettings?: DashboardWidgetSettings;
+}
+
+/** Default baseline for the goalSince widget: Jan 1 of the current year. */
+export function defaultSinceDate(today = new Date()): string {
+  return `${today.getFullYear()}-01-01`;
+}
+
+/** The stored goalSince baseline, falling back to Jan 1 of the current year. */
+export function resolveSinceDate(stored: StoredDashboardLayout | null | undefined): string {
+  const v = stored?.widgetSettings?.goalSince?.since;
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : defaultSinceDate();
+}
+
+/**
+ * Which goals the card shows, or null for "all of them".
+ *
+ * Null and "every id" are deliberately different states: null follows the goal list,
+ * so a goal added next month appears on its own, while an explicit list stays exactly
+ * as picked. Storing all ids the moment the user opens the picker would silently
+ * convert one into the other.
+ */
+export function resolveSinceGoalIds(stored: StoredDashboardLayout | null | undefined): number[] | null {
+  const v = stored?.widgetSettings?.goalSince?.goalIds;
+  if (!Array.isArray(v)) return null;
+  return v.filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+}
+
+function patchGoalSince(
+  stored: StoredDashboardLayout | null | undefined,
+  patch: NonNullable<DashboardWidgetSettings['goalSince']>,
+): StoredDashboardLayout {
+  const settings = stored?.widgetSettings ?? {};
+  return {
+    ...(stored ?? {}),
+    // Merge rather than replace: the date and the goal selection are independent
+    // settings that happen to share a key, and each writer must not clobber the other.
+    widgetSettings: { ...settings, goalSince: { ...(settings.goalSince ?? {}), ...patch } },
+  };
+}
+
+/** Layout with the goalSince baseline replaced — callers persist the result as-is. */
+export function withSinceDate(
+  stored: StoredDashboardLayout | null | undefined,
+  since: string,
+): StoredDashboardLayout {
+  return patchGoalSince(stored, { since });
+}
+
+/** Layout with the goalSince selection replaced. Pass null to follow every active goal. */
+export function withSinceGoalIds(
+  stored: StoredDashboardLayout | null | undefined,
+  goalIds: number[] | null,
+): StoredDashboardLayout {
+  return patchGoalSince(stored, { goalIds });
 }
 
 export type LayoutPlatform = 'web' | 'mobile';

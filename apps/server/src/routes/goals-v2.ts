@@ -3,6 +3,10 @@ import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { loadFeatures } from '../middleware/features';
 import { filterGoalsByFeatures } from '../utils/goalFeatureFilter';
+import {
+  readingAt, shiftDate, localDateStr,
+  SINCE_LOOKBACK_DAYS, SINCE_AVERAGE_WINDOW_DAYS,
+} from '@pulse/api-client';
 
 const router = Router();
 
@@ -129,6 +133,57 @@ router.get('/nudges', loadFeatures, async (req, res) => {
     res.json(filterGoalsByFeatures(formatted, req.features!));
   } catch (err) { console.error('[goals-v2] GET /nudges', err); res.status(500).json({ error: 'Server error' }); }
 });
+
+// GET /api/goals-v2/since?date=YYYY-MM-DD
+// Two numbers per active goal: where it stood on the given date and where it stands
+// now. Registered ahead of /:id — Express matches in declaration order, so a later
+// registration would be swallowed by the id param.
+//
+// The reading for a date is NOT simply "the row logged that day": most days have no
+// weigh-in, and the daily-average metrics are averages by definition. Point metrics
+// take the nearest reading on or before the date (falling back to the first one
+// after, so a goal started mid-window still reports something); averaged metrics
+// take the same trailing 30-day mean the goal card uses for its current value, so
+// the two ends of the comparison are measured the same way.
+router.get('/since', async (req, res) => {
+  const date = String(req.query.date ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { res.status(400).json({ error: 'date=YYYY-MM-DD required' }); return; }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, catalog_key, source_id FROM goals
+       WHERE user_id = ? AND status = 'active'`,
+      [req.userId]
+    );
+    const goals = rows as RowDataPacket[];
+
+    // Look back past the anchor so a point metric can find the last reading BEFORE
+    // it, and an averaged metric has its full trailing window available.
+    const from = shiftDate(date, -(SINCE_LOOKBACK_DAYS + SINCE_AVERAGE_WINDOW_DAYS));
+
+    const out = await Promise.all(goals.map(async (g) => {
+      const series = await loadGoalSeries({
+        userId: req.userId!, goalId: g.id, catalogKey: g.catalog_key,
+        sourceId: g.source_id ?? null, limit: 1000, from,
+      });
+      // loadGoalSeries returns newest-first; oldest-first reads better here.
+      const points = [...series].reverse();
+      const start = readingAt(points, date, g.catalog_key);
+      const now   = readingAt(points, localDateStr(), g.catalog_key);
+      return {
+        goalId:       g.id,
+        sinceDate:    start?.date  ?? null,
+        sinceValue:   start?.value ?? null,
+        currentDate:  now?.date    ?? null,
+        currentValue: now?.value   ?? null,
+        delta: start && now ? Math.round((now.value - start.value) * 10) / 10 : null,
+      };
+    }));
+
+    res.json(out);
+  } catch (err) { console.error('[goals-v2] GET /since', err); res.status(500).json({ error: 'Server error' }); }
+});
+
 
 // GET /api/goals-v2/:id — single goal with milestones and recent progress
 router.get('/:id', async (req, res) => {
@@ -357,10 +412,192 @@ router.delete('/:id/milestones/:mid', async (req, res) => {
   } catch (err) { console.error('[goals-v2] DELETE /:id/milestones/:mid', err); res.status(500).json({ error: 'Server error' }); }
 });
 
-// ─── Progress ─────────────────────────────────────────────────────────────────
+// ─── Progress series ──────────────────────────────────────────────────────────
+// One place that knows where each goal's numbers actually live. GET /:id/progress
+// and GET /since both read through it, so the chart on a goal card and the
+// since-date widget can't end up disagreeing about a goal's own history.
+//
+// Every query selects `value` + `logged_at` newest-first and carries a {{DATE}}
+// placeholder in its WHERE clause where an optional lower bound is spliced in. The
+// placeholder always sits after the query's other bound params and before LIMIT, so
+// appending the date param keeps the positional ordering correct.
+
+const BODY_GOAL_METRIC: Record<string, string> = {
+  body_weight:      'weight',
+  body_waist:       'waist',
+  body_bicep:       'bicep',
+  body_chest:       'chest',
+  body_hips:        'hips',
+  body_fat_pct:     'body_fat',
+  body_muscle_mass: 'muscle_mass',
+  body_water_pct:   'water_pct',
+};
+
+const NUTRITION_COLS: Record<string, string> = {
+  nutrition_calories_daily_avg: 'calories',
+  nutrition_protein_daily_avg:  'protein_g',
+  nutrition_carbs_daily_avg:    'carbs_g',
+  nutrition_fat_daily_avg:      'fat_g',
+};
+
+/** Catalog keys whose series is derived from workout tables rather than goal_progress. */
+const AUTO_WORKOUT_KEYS = new Set([
+  'activity_steps_daily_avg',
+  'exercise_max_weight',
+  'exercise_workouts_per_week',
+  'exercise_minutes_per_week',
+  'exercise_volume_per_week',
+  'exercise_weekly_volume_lift',
+  'exercise_routine_sessions',
+]);
+
+/** True when a goal's history comes from a source table instead of manual log rows. */
+function isAutoTracked(catalogKey: string): boolean {
+  return Boolean(BODY_GOAL_METRIC[catalogKey]) || Boolean(NUTRITION_COLS[catalogKey]) || AUTO_WORKOUT_KEYS.has(catalogKey);
+}
+
+interface SeriesQuery {
+  sql:     string;
+  params:  unknown[];
+  /** Column the {{DATE}} lower bound compares against. */
+  dateCol: string;
+}
+
+interface SeriesPoint { value: number; loggedAt: string }
+
+function seriesQueryFor(
+  userId: number, goalId: number, catalogKey: string, sourceId: number | null,
+): SeriesQuery {
+  if (BODY_GOAL_METRIC[catalogKey]) {
+    return {
+      sql: `SELECT value, measured_at AS logged_at FROM body_measurements
+            WHERE user_id = ? AND metric = ? {{DATE}}
+            ORDER BY measured_at DESC`,
+      params: [userId, BODY_GOAL_METRIC[catalogKey]],
+      dateCol: 'measured_at',
+    };
+  }
+
+  if (NUTRITION_COLS[catalogKey]) {
+    const col = NUTRITION_COLS[catalogKey];
+    return {
+      sql: `SELECT ROUND(SUM(\`${col}\`), 1) AS value, log_date AS logged_at
+            FROM food_log WHERE user_id = ? {{DATE}}
+            GROUP BY log_date ORDER BY log_date DESC`,
+      params: [userId],
+      dateCol: 'log_date',
+    };
+  }
+
+  switch (catalogKey) {
+    case 'activity_steps_daily_avg':
+      return {
+        sql: `SELECT steps AS value, log_date AS logged_at
+              FROM steps_log WHERE user_id = ? {{DATE}}
+              ORDER BY log_date DESC`,
+        params: [userId],
+        dateCol: 'log_date',
+      };
+
+    case 'exercise_max_weight':
+      return {
+        sql: `SELECT ROUND(MAX(es.weight_kg * 2.20462), 1) AS value, wl.workout_date AS logged_at
+              FROM exercise_sets es
+              JOIN workout_exercises we ON we.id = es.workout_exercise_id
+              JOIN workout_logs wl ON wl.id = we.workout_log_id
+              WHERE wl.user_id = ? AND we.exercise_id = ? AND wl.completed = 1 {{DATE}}
+              GROUP BY wl.id, wl.workout_date ORDER BY wl.workout_date DESC`,
+        params: [userId, sourceId],
+        dateCol: 'wl.workout_date',
+      };
+
+    case 'exercise_workouts_per_week':
+      return {
+        sql: `SELECT COUNT(*) AS value, MAX(workout_date) AS logged_at
+              FROM workout_logs WHERE user_id = ? AND completed = 1 {{DATE}}
+              GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC`,
+        params: [userId],
+        dateCol: 'workout_date',
+      };
+
+    case 'exercise_minutes_per_week':
+      return {
+        sql: `SELECT ROUND(SUM(duration_minutes)) AS value, MAX(workout_date) AS logged_at
+              FROM workout_logs WHERE user_id = ? AND completed = 1 {{DATE}}
+              GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC`,
+        params: [userId],
+        dateCol: 'workout_date',
+      };
+
+    case 'exercise_volume_per_week':
+      return {
+        sql: `SELECT ROUND(SUM(es.reps * es.weight_kg * 2.20462)) AS value, MAX(wl.workout_date) AS logged_at
+              FROM exercise_sets es
+              JOIN workout_exercises we ON we.id = es.workout_exercise_id
+              JOIN workout_logs wl ON wl.id = we.workout_log_id
+              WHERE wl.user_id = ? AND wl.completed = 1 {{DATE}}
+              GROUP BY YEARWEEK(wl.workout_date, 1) ORDER BY YEARWEEK(wl.workout_date, 1) DESC`,
+        params: [userId],
+        dateCol: 'wl.workout_date',
+      };
+
+    case 'exercise_weekly_volume_lift':
+      return {
+        sql: `SELECT ROUND(SUM(es.reps * es.weight_kg * 2.20462)) AS value, MAX(wl.workout_date) AS logged_at
+              FROM exercise_sets es
+              JOIN workout_exercises we ON we.id = es.workout_exercise_id
+              JOIN workout_logs wl ON wl.id = we.workout_log_id
+              WHERE wl.user_id = ? AND we.exercise_id = ? {{DATE}}
+              GROUP BY YEARWEEK(wl.workout_date, 1) ORDER BY YEARWEEK(wl.workout_date, 1) DESC`,
+        params: [userId, sourceId],
+        dateCol: 'wl.workout_date',
+      };
+
+    case 'exercise_routine_sessions':
+      return {
+        sql: `SELECT COUNT(*) AS value, MAX(workout_date) AS logged_at
+              FROM workout_logs WHERE user_id = ? AND routine_id = ? AND completed = 1 {{DATE}}
+              GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC`,
+        params: [userId, sourceId],
+        dateCol: 'workout_date',
+      };
+
+    // Manual goals keep their history in goal_progress.
+    default:
+      return {
+        sql: `SELECT p.value, p.logged_at FROM goal_progress p
+              INNER JOIN goals g ON g.id = p.goal_id
+              WHERE p.goal_id = ? AND g.user_id = ? {{DATE}}
+              ORDER BY p.logged_at DESC`,
+        params: [goalId, userId],
+        dateCol: 'p.logged_at',
+      };
+  }
+}
+
+function toIso(d: unknown): string {
+  if (d instanceof Date) return d.toISOString();
+  const s = String(d);
+  return s.length === 10 ? s + 'T12:00:00.000Z' : s;
+}
+
+/** Newest-first series for one goal, optionally bounded below by `from` (YYYY-MM-DD). */
+async function loadGoalSeries(
+  opts: { userId: number; goalId: number; catalogKey: string; sourceId: number | null; limit: number; from?: string | null },
+): Promise<SeriesPoint[]> {
+  const q = seriesQueryFor(opts.userId, opts.goalId, opts.catalogKey, opts.sourceId);
+  const sql = q.sql.replace('{{DATE}}', opts.from ? `AND ${q.dateCol} >= ?` : '') + ' LIMIT ?';
+  const params = [...q.params, ...(opts.from ? [opts.from] : []), opts.limit];
+  const [rows] = await pool.query<RowDataPacket[]>(sql, params);
+  return (rows as RowDataPacket[])
+    .filter(r => r.value != null)
+    .map(r => ({ value: Math.round(Number(r.value) * 10) / 10, loggedAt: toIso(r.logged_at) }));
+}
 
 // GET /api/goals-v2/:id/progress
-// For auto-tracked goals returns data from source tables; falls back to goal_progress for manual goals.
+// Auto-tracked goals return derived points with synthetic negative ids (there is no
+// row to delete); manual goals return their real goal_progress rows so the UI can
+// still delete and annotate them.
 router.get('/:id/progress', async (req, res) => {
   const goalId = Number(req.params.id);
   const limit = Math.min(Number(req.query.limit) || 100, 500);
@@ -373,161 +610,29 @@ router.get('/:id/progress', async (req, res) => {
 
     const { catalog_key, source_id } = (goalRows as RowDataPacket[])[0];
 
-    function toIso(d: unknown): string {
-      if (d instanceof Date) return d.toISOString();
-      const s = String(d);
-      return s.length === 10 ? s + 'T12:00:00.000Z' : s;
-    }
-
-    function autoEntries(rows: RowDataPacket[]) {
-      return rows.map((r, i) => ({
-        id: -(i + 1),
-        goalId,
-        value: Math.round(Number(r.value) * 10) / 10,
-        loggedAt: toIso(r.logged_at),
-        source: 'auto' as const,
-        notes: null,
-      }));
-    }
-
-    const BODY_METRICS: Record<string, string> = {
-      body_weight: 'weight', body_waist: 'waist', body_bicep: 'bicep',
-      body_chest: 'chest', body_hips: 'hips', body_fat_pct: 'body_fat',
-      body_muscle_mass: 'muscle_mass', body_water_pct: 'water_pct',
-    };
-
-    if (BODY_METRICS[catalog_key]) {
+    if (!isAutoTracked(catalog_key)) {
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT id, value, measured_at AS logged_at FROM body_measurements
-         WHERE user_id = ? AND metric = ? ORDER BY measured_at DESC LIMIT ?`,
-        [req.userId, BODY_METRICS[catalog_key], limit]
+        `SELECT p.* FROM goal_progress p
+         INNER JOIN goals g ON g.id = p.goal_id
+         WHERE p.goal_id = ? AND g.user_id = ?
+         ORDER BY p.logged_at DESC LIMIT ?`,
+        [goalId, req.userId, limit]
       );
-      return res.json(autoEntries(rows as RowDataPacket[]));
+      res.json((rows as RowDataPacket[]).map(fmtProgress));
+      return;
     }
 
-    if (catalog_key === 'exercise_max_weight') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT wl.id, ROUND(MAX(es.weight_kg * 2.20462), 1) AS value, wl.workout_date AS logged_at
-         FROM exercise_sets es
-         JOIN workout_exercises we ON we.id = es.workout_exercise_id
-         JOIN workout_logs wl ON wl.id = we.workout_log_id
-         WHERE wl.user_id = ? AND we.exercise_id = ? AND wl.completed = 1
-         GROUP BY wl.id, wl.workout_date ORDER BY wl.workout_date DESC LIMIT ?`,
-        [req.userId, source_id, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'exercise_workouts_per_week') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT YEARWEEK(workout_date, 1) AS id, COUNT(*) AS value, MAX(workout_date) AS logged_at
-         FROM workout_logs WHERE user_id = ? AND completed = 1
-         GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC LIMIT ?`,
-        [req.userId, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'exercise_minutes_per_week') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT YEARWEEK(workout_date, 1) AS id, ROUND(SUM(duration_minutes)) AS value, MAX(workout_date) AS logged_at
-         FROM workout_logs WHERE user_id = ? AND completed = 1
-         GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC LIMIT ?`,
-        [req.userId, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'exercise_volume_per_week') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT YEARWEEK(wl.workout_date, 1) AS id,
-                ROUND(SUM(es.reps * es.weight_kg * 2.20462)) AS value,
-                MAX(wl.workout_date) AS logged_at
-         FROM exercise_sets es
-         JOIN workout_exercises we ON we.id = es.workout_exercise_id
-         JOIN workout_logs wl ON wl.id = we.workout_log_id
-         WHERE wl.user_id = ? AND wl.completed = 1
-         GROUP BY YEARWEEK(wl.workout_date, 1) ORDER BY YEARWEEK(wl.workout_date, 1) DESC LIMIT ?`,
-        [req.userId, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'exercise_weekly_volume_lift') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT YEARWEEK(wl.workout_date, 1) AS id,
-                ROUND(SUM(es.reps * es.weight_kg * 2.20462)) AS value,
-                MAX(wl.workout_date) AS logged_at
-         FROM exercise_sets es
-         JOIN workout_exercises we ON we.id = es.workout_exercise_id
-         JOIN workout_logs wl ON wl.id = we.workout_log_id
-         WHERE wl.user_id = ? AND we.exercise_id = ?
-         GROUP BY YEARWEEK(wl.workout_date, 1) ORDER BY YEARWEEK(wl.workout_date, 1) DESC LIMIT ?`,
-        [req.userId, source_id, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'exercise_routine_sessions') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT YEARWEEK(workout_date, 1) AS id, COUNT(*) AS value, MAX(workout_date) AS logged_at
-         FROM workout_logs WHERE user_id = ? AND routine_id = ? AND completed = 1
-         GROUP BY YEARWEEK(workout_date, 1) ORDER BY YEARWEEK(workout_date, 1) DESC LIMIT ?`,
-        [req.userId, source_id, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    const NUTRITION_COLS: Record<string, string> = {
-      nutrition_calories_daily_avg: 'calories',
-      nutrition_protein_daily_avg: 'protein_g',
-      nutrition_carbs_daily_avg: 'carbs_g',
-      nutrition_fat_daily_avg: 'fat_g',
-    };
-    if (NUTRITION_COLS[catalog_key]) {
-      const col = NUTRITION_COLS[catalog_key];
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT log_date AS id, ROUND(SUM(\`${col}\`), 1) AS value, log_date AS logged_at
-         FROM food_log WHERE user_id = ?
-         GROUP BY log_date ORDER BY log_date DESC LIMIT ?`,
-        [req.userId, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    if (catalog_key === 'activity_steps_daily_avg') {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT id, steps AS value, log_date AS logged_at
-         FROM steps_log WHERE user_id = ? ORDER BY log_date DESC LIMIT ?`,
-        [req.userId, limit]
-      );
-      return res.json(autoEntries(rows as RowDataPacket[]));
-    }
-
-    // Manual progress goals — fall through to goal_progress table
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT p.* FROM goal_progress p
-       INNER JOIN goals g ON g.id = p.goal_id
-       WHERE p.goal_id = ? AND g.user_id = ?
-       ORDER BY p.logged_at DESC LIMIT ?`,
-      [goalId, req.userId, limit]
-    );
-    res.json((rows as RowDataPacket[]).map(fmtProgress));
+    const series = await loadGoalSeries({
+      userId: req.userId!, goalId, catalogKey: catalog_key, sourceId: source_id, limit,
+    });
+    res.json(series.map((p, i) => ({
+      id: -(i + 1), goalId, value: p.value, loggedAt: p.loggedAt, source: 'auto' as const, notes: null,
+    })));
   } catch (err) { console.error('[goals-v2] GET /:id/progress', err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // POST /api/goals-v2/:id/progress
 // For body goals, also writes to body_measurements so currentValue updates immediately.
-const BODY_GOAL_METRIC: Record<string, string> = {
-  body_weight:      'weight',
-  body_waist:       'waist',
-  body_bicep:       'bicep',
-  body_chest:       'chest',
-  body_hips:        'hips',
-  body_fat_pct:     'body_fat',
-  body_muscle_mass: 'muscle_mass',
-  body_water_pct:   'water_pct',
-};
 
 router.post('/:id/progress', async (req, res) => {
   const goalId = Number(req.params.id);

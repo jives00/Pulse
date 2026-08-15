@@ -49,7 +49,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/meal-schedules/*  Recurring meal schedule entries — full CRUD
 /api/nutrition-schedules/* Recurring nutrition targets — full CRUD
 /api/day-types/*       Day type presets — GET/POST/PUT/DELETE /presets; GET /overrides, PUT /overrides/:date (upsert), DELETE /overrides/:date
-/api/goals-v2/*        Unified goals (body/nutrition/exercise/activity) — GET /, GET /:id, POST /, PATCH /:id, DELETE /:id, POST /:id/close, GET /nudges; milestones: GET /milestones, GET|POST /:id/milestones, PATCH|DELETE /:id/milestones/:mid; progress: GET|POST /:id/progress, DELETE /:id/progress/:pid. Replaced /api/user-goals and /api/goal-checkpoints
+/api/goals-v2/*        Unified goals (body/nutrition/exercise/activity) — GET /, GET /:id, POST /, PATCH /:id, DELETE /:id, POST /:id/close, GET /nudges, GET /since?date=YYYY-MM-DD; milestones: GET /milestones, GET|POST /:id/milestones, PATCH|DELETE /:id/milestones/:mid; progress: GET|POST /:id/progress, DELETE /:id/progress/:pid. Replaced /api/user-goals and /api/goal-checkpoints
 /api/preferences       Feature modules + dashboard layout — GET / (always resolved through the catalog defaults), PUT / (partial merge; dashboardLayout merges per platform so a web-only save never wipes mobile)
 /api/recovery/*        Recovery score — GET / (returns HRV/sleep/fatigue summary)
 /api/ai/assistant/*    AI assistant — GET /insight (daily insight), POST / (chat message), POST /transcribe (audio → text)

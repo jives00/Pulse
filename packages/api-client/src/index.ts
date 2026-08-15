@@ -60,7 +60,7 @@ export type { NutritionSummary } from './endpoints/nutrition-targets';
 
 // New unified goals system
 export { goalsV2Api, goalsByCategory } from './endpoints/goals-v2';
-export type { Goal, GoalDetail, GoalMilestone, GoalMilestoneWithGoal, GoalProgressEntry, GoalStatus, MilestoneStatus, ProgressSource,
+export type { Goal, GoalDetail, GoalMilestone, GoalMilestoneWithGoal, GoalProgressEntry, GoalSincePoint, GoalStatus, MilestoneStatus, ProgressSource,
               CreateGoalPayload, UpdateGoalPayload, CloseGoalPayload,
               CreateMilestonePayload, UpdateMilestonePayload, CreateProgressPayload } from './endpoints/goals-v2';
 export { GOAL_CATALOG, CATALOG_BY_KEY, CATALOG_BY_CATEGORY } from './goalCatalog';
@@ -72,9 +72,12 @@ export { FEATURE_CATALOG, FEATURE_BY_KEY, FEATURE_KEYS, TOP_LEVEL_FEATURES, DEFA
 export type { FeatureKey, FeatureCatalogEntry, EnabledFeatures } from './featureCatalog';
 
 // Dashboard layout
-export { DASHBOARD_CATALOG, WIDGET_BY_KEY, SPAN_OPTIONS, defaultLayout, resolveLayout, groupLayout } from './dashboardCatalog';
+export { DASHBOARD_CATALOG, WIDGET_BY_KEY, SPAN_OPTIONS, defaultLayout, resolveLayout, groupLayout,
+         resolveSinceGoalIds, withSinceGoalIds,
+         defaultSinceDate, resolveSinceDate, withSinceDate } from './dashboardCatalog';
 export type { DashboardWidgetKey, DashboardWidget, WidgetPlatform, WidgetGroup, FeatureRequirement,
-              LayoutEntry, DashboardLayout, StoredDashboardLayout, LayoutPlatform, SpanOption } from './dashboardCatalog';
+              LayoutEntry, DashboardLayout, StoredDashboardLayout, DashboardWidgetSettings,
+              LayoutPlatform, SpanOption } from './dashboardCatalog';
 
 // Per-goal card presentation
 export { GOAL_CARD_WINDOW_DAYS, TDEE_PROJECTION_KEYS, defaultVariantFor, allowedVariantsFor,
@@ -87,6 +90,12 @@ export { fmt1, titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fm
          goalDirection, isGoalAchieved, goalStatusFor, goalStatusForStreak, goalStatusForProgress,
          emptyMessageFor, linregSlope, etaDaysFor, tdeeSlopePerDay, supportsTdeeProjection } from './goalCardLogic';
 export type { GoalCardStatus, GoalCardSubject, DatedValue, TDEEProjectionInput } from './goalCardLogic';
+
+// "Progress since a date" widget logic shared by web + mobile
+export { buildGoalSinceRows, changeLabelFor, fmtSinceDate,
+         shiftDate, pointAt, averageAt, readingAt,
+         SINCE_LOOKBACK_DAYS, SINCE_AVERAGE_WINDOW_DAYS, SINCE_AVERAGED_KEYS } from './goalSince';
+export type { GoalSinceRow, DatedReading } from './goalSince';
 
 // User preferences (features + dashboard layout)
 export { preferencesApi } from './endpoints/preferences';
