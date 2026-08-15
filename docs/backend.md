@@ -43,7 +43,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
                        POST /api/measurements/sync  trigger WeightGurus → DB sync (last 7 days)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
-/api/steps/*           Steps CRUD — GET / (today), GET /history?start=&end=, POST / (upsert day)
+/api/steps/*           Steps CRUD — GET /?date= (defaults today), GET /history?days= (default 30, max 365; dates are YYYY-MM-DD), POST / (upsert day)
 /api/schedules/*       Workout schedules — GET / (active), GET /upcoming, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
 /api/meal-plan/*       Meal plan entries — GET / (date range), POST /entries, DELETE /entries/:id; GET /templates, POST /templates, POST /templates/:id/apply, DELETE /templates/:id
 /api/meal-schedules/*  Recurring meal schedule entries — full CRUD
