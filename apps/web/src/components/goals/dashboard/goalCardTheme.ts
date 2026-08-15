@@ -1,17 +1,11 @@
 // Shared visual constants for the dashboard goal cards.
-//
-// Mirrors the palette DashboardPage.tsx defines for its other widgets — kept as a
-// separate copy here (rather than imported) so this folder has no dependency on the
-// page module, only the reverse.
 
-export const ACCENT    = 'rgb(var(--color-accent))';
-export const MUTED     = 'rgb(var(--color-muted))';
-export const MUTED2    = 'rgba(var(--color-muted) / 0.55)';
-export const CARD      = 'rgb(var(--color-card))';
-export const LINE      = 'rgb(var(--color-border))';
-export const LINE_SOFT = 'rgba(255,255,255,0.06)';
-export const COL_GOOD  = '#7BB389';
-export const COL_WARN  = '#C9714F';
+// Re-exported from the shared dashboard palette so this folder keeps its own import
+// surface (no dependency on the page module) without holding a second copy of the
+// values that can drift out of sync.
+export {
+  ACCENT, TEXT, MUTED, MUTED2, CARD, LINE, LINE_SOFT, COL_GOOD, COL_WARN,
+} from '../../../utils/dashboardTheme';
 
 // Fix #8: one pair of colors for the two projection concepts, shared by the status
 // row (ETA labels) and the chart lines/legend — no more four colors for two ideas.

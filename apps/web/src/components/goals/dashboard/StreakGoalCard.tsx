@@ -8,6 +8,7 @@
 
 import { getWeekStart, localDateStr, type Goal, type GoalCardConfig, type RoutineSummary, type WorkoutSummary } from '@pulse/api-client';
 import { ACCENT, COL_GOOD, LINE_SOFT, MUTED2 } from './goalCardTheme';
+import { T } from '../../../utils/typeScale';
 import { GoalCardShell } from './GoalCardShell';
 import { emptyMessageFor, goalStatusForStreak } from './goalCardHelpers';
 
@@ -63,7 +64,7 @@ export function StreakGoalCard({ goal, cfg, routines, workouts, isLoading }: {
       stats={[{ label: 'This week', value: `${thisCount}/${target}` }]}
       showLegend={false}
     >
-      <div style={{ fontSize: 12, color: MUTED2, marginBottom: 8 }}>{routineName}</div>
+      <div style={{ fontSize: T.body, color: MUTED2, marginBottom: 8 }}>{routineName}</div>
       <div style={{ display: 'flex', gap: 4 }}>
         {weeks.map((ws, i) => {
           const isHit  = hits[i];
@@ -79,12 +80,12 @@ export function StreakGoalCard({ goal, cfg, routines, workouts, isLoading }: {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              {isHit && <span style={{ fontSize: 8, color: isThis ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)' }}>✓</span>}
+              {isHit && <span style={{ fontSize: T.label, color: isThis ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)' }}>✓</span>}
             </div>
           );
         })}
       </div>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 9, color: MUTED2 }}>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: T.small, color: MUTED2 }}>
         <span>8 weeks ago</span>
         <span>this week</span>
       </div>

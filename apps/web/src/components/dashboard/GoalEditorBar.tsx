@@ -5,11 +5,9 @@
 // which go through the pure helpers in goalOrderReducer.ts.
 
 import { SPAN_OPTIONS, type SpanOption } from '@pulse/api-client';
+import { ACCENT, LINE, MUTED, MUTED2, TEXT } from '../../utils/dashboardTheme';
+import { T } from '../../utils/typeScale';
 
-const ACCENT = 'rgb(var(--color-accent))';
-const MUTED  = 'rgb(var(--color-muted))';
-const MUTED2 = 'rgba(var(--color-muted) / 0.55)';
-const LINE   = 'rgb(var(--color-border))';
 
 const SPAN_LABEL: Record<SpanOption, string> = { 4: '⅓', 6: '½', 8: '⅔', 12: 'Full' };
 
@@ -29,7 +27,7 @@ export function GoalEditorBar({
 }) {
   const btnStyle: React.CSSProperties = {
     background: 'none', border: `1px solid ${LINE}`, borderRadius: 4, color: MUTED,
-    fontSize: 11, lineHeight: 1, padding: '4px 7px', cursor: 'pointer',
+    fontSize: T.label, lineHeight: 1, padding: '4px 7px', cursor: 'pointer',
   };
   return (
     <div
@@ -39,8 +37,8 @@ export function GoalEditorBar({
         fontFamily: 'var(--font-mono)', cursor: 'default', userSelect: 'none' as const,
       }}
     >
-      <span title="Drag to reorder" style={{ cursor: 'grab', color: MUTED2, fontSize: 13, paddingRight: 2 }}>⠿</span>
-      <span style={{ fontSize: 11, color: 'white', marginRight: 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span title="Drag to reorder" style={{ cursor: 'grab', color: MUTED2, fontSize: T.body, paddingRight: 2 }}>⠿</span>
+      <span style={{ fontSize: T.small, color: TEXT, marginRight: 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
 
       <button type="button" disabled={!canMoveUp} onClick={onMoveUp} style={{ ...btnStyle, opacity: canMoveUp ? 1 : 0.35 }} title="Move up">↑</button>
       <button type="button" disabled={!canMoveDown} onClick={onMoveDown} style={{ ...btnStyle, opacity: canMoveDown ? 1 : 0.35 }} title="Move down">↓</button>

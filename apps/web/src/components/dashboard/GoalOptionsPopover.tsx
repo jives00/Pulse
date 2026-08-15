@@ -11,12 +11,9 @@ import {
   type GoalCardDirection, type GoalCardMetricLine,
 } from '@pulse/api-client';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { ACCENT, CARD, LINE, MUTED, MUTED2 } from '../../utils/dashboardTheme';
+import { T } from '../../utils/typeScale';
 
-const ACCENT = 'rgb(var(--color-accent))';
-const MUTED  = 'rgb(var(--color-muted))';
-const MUTED2 = 'rgba(var(--color-muted) / 0.55)';
-const LINE   = 'rgb(var(--color-border))';
-const CARD   = 'rgb(var(--color-card))';
 
 const VARIANT_LABEL:    Record<GoalCardVariant, string>    = { trend: 'Trend', daily: 'Daily', streak: 'Streak', progress: 'Progress' };
 const WINDOW_LABEL:     Record<GoalCardWindow, string>     = { '30d': '30d', '90d': '90d', '180d': '180d', '1y': '1y', all: 'All' };
@@ -31,7 +28,7 @@ const METRICS:    GoalCardMetricLine[] = ['value', 'avg', 'both'];
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '5px 0' }}>
-      <span className="micro" style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>{label}</span>
+      <span className="micro" style={{ fontSize: T.label, color: MUTED, flexShrink: 0 }}>{label}</span>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const, justifyContent: 'flex-end' }}>{children}</div>
     </div>
   );
@@ -45,7 +42,7 @@ function Chip({ active, onClick, children, title }: { active: boolean; onClick: 
       title={title}
       style={{
         background: 'none', border: `1px solid ${active ? ACCENT : LINE}`, borderRadius: 4,
-        color: active ? ACCENT : MUTED, fontSize: 11, lineHeight: 1, padding: '4px 8px', cursor: 'pointer',
+        color: active ? ACCENT : MUTED, fontSize: T.label, lineHeight: 1, padding: '4px 8px', cursor: 'pointer',
         fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' as const,
       }}
     >{children}</button>
@@ -147,7 +144,7 @@ export function GoalOptionsPopover({ goal, cfg, onChange, onClose }: {
       <button
         type="button"
         onClick={() => onChange(defaultGoalCardConfig(goal.catalogKey))}
-        style={{ background: 'none', border: 'none', color: MUTED2, fontSize: 11, cursor: 'pointer', padding: '4px 0', fontFamily: 'var(--font-mono)' }}
+        style={{ background: 'none', border: 'none', color: MUTED2, fontSize: T.small, cursor: 'pointer', padding: '4px 0', fontFamily: 'var(--font-mono)' }}
       >
         Reset card
       </button>

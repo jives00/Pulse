@@ -25,6 +25,7 @@ function buildThemeBlock(name: PaletteName, selector: string): string {
     `  --color-accent: ${hexToRgbChannels(p.accent)};`,
     `  --color-border: ${hexToRgbChannels(p.border)};`,
     `  --color-muted:  ${hexToRgbChannels(p.muted)};`,
+    `  --color-text:   ${hexToRgbChannels(p.text)};`,
     `}`,
   ];
   return lines.join('\n');

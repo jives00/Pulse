@@ -46,6 +46,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 30 74 110;
   --color-muted:  111 167 197;
+  --color-text:   255 255 255;
 }
 
 [data-theme="slate"] {
@@ -54,6 +55,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 51 65 85;
   --color-muted:  148 163 184;
+  --color-text:   255 255 255;
 }
 
 [data-theme="sand"] {
@@ -62,6 +64,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 150 115 80;
   --color-muted:  230 210 185;
+  --color-text:   255 255 255;
 }
 
 [data-theme="midnight"] {
@@ -70,6 +73,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 46 58 88;
   --color-muted:  171 182 205;
+  --color-text:   238 242 250;
 }
 
 [data-theme="tide"] {
@@ -78,6 +82,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 45 60 84;
   --color-muted:  166 187 208;
+  --color-text:   238 244 250;
 }
 
 [data-theme="graphite"] {
@@ -86,14 +91,16 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   --color-accent: 212 168 67;
   --color-border: 55 57 65;
   --color-muted:  174 174 182;
+  --color-text:   239 239 233;
 }
 
 [data-theme="trakt"] {
   --color-bg:     36 38 46;
   --color-card:   50 52 64;
   --color-accent: 212 168 67;
-  --color-border: 64 67 82;
-  --color-muted:  136 144 168;
+  --color-border: 77 81 101;
+  --color-muted:  162 170 194;
+  --color-text:   240 240 246;
 }
 
 @layer base {

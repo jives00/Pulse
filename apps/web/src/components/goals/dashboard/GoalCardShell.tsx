@@ -4,14 +4,15 @@
 // list in DashboardPage.tsx's goal progress section for what this replaces.
 
 import type { Goal } from '@pulse/api-client';
-import { CARD, LINE, MUTED, MUTED2 } from './goalCardTheme';
+import { CARD, LINE, MUTED, MUTED2, TEXT } from './goalCardTheme';
+import { T } from '../../../utils/typeScale';
 import { STATUS_CFG, daysUntil, fmtDeadline, fmtGoalValue, OVERDUE_COLOR, titleFor } from './goalCardHelpers';
 import type { GoalStatus } from './goalCardHelpers';
 
 export function StatusChip({ status }: { status: GoalStatus }) {
   const { color, label } = STATUS_CFG[status];
   return (
-    <span style={{ padding: '2px 9px', borderRadius: 99, background: color + '28', color, fontSize: 11, fontWeight: 600, letterSpacing: '.02em' }}>
+    <span style={{ padding: '2px 9px', borderRadius: 99, background: color + '28', color, fontSize: T.label, fontWeight: 600, letterSpacing: '.02em' }}>
       {label}
     </span>
   );
@@ -65,9 +66,9 @@ export function GoalCardShell({
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' as const }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' as const }}>
-          <span className="micro" style={{ color: MUTED, fontSize: 12 }}>{titleFor(goal)}</span>
+          <span className="micro" style={{ color: MUTED, fontSize: T.cardTitle }}>{titleFor(goal)}</span>
           {metaParts.length > 0 && (
-            <span className="font-mono" style={{ fontSize: 10, color: overdue ? OVERDUE_COLOR : MUTED2 }}>
+            <span className="font-mono" style={{ fontSize: T.small, color: overdue ? OVERDUE_COLOR : MUTED2 }}>
               {metaParts.join(' · ')}
             </span>
           )}
@@ -76,18 +77,18 @@ export function GoalCardShell({
       </div>
 
       {empty ? (
-        <div style={{ fontSize: 13, color: MUTED2 }}>{isLoading ? 'Loading…' : empty}</div>
+        <div style={{ fontSize: T.body, color: MUTED2 }}>{isLoading ? 'Loading…' : empty}</div>
       ) : (
         <>
           {stats.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 12, flexWrap: 'wrap' as const }}>
               {stats.map((s, i) => (
                 <div key={i} style={s.pushRight ? { marginLeft: 'auto' } : undefined}>
-                  <div className="micro" style={{ fontSize: 9, color: s.labelColor ?? MUTED, marginBottom: 3 }}>{s.label}</div>
+                  <div className="micro" style={{ fontSize: T.label, color: s.labelColor ?? MUTED, marginBottom: 3 }}>{s.label}</div>
                   {s.kind === 'date' ? (
-                    <span className="font-mono" style={{ fontSize: 12, color: s.color ?? MUTED }}>{s.value}</span>
+                    <span className="font-mono" style={{ fontSize: T.small, color: s.color ?? MUTED }}>{s.value}</span>
                   ) : (
-                    <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: s.color ?? 'white' }}>
+                    <span className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: s.color ?? TEXT }}>
                       {s.value}
                     </span>
                   )}
@@ -97,7 +98,7 @@ export function GoalCardShell({
           )}
           {children}
           {showLegend && legend && (
-            <div className="font-mono" style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11, color: MUTED2, flexWrap: 'wrap' as const }}>
+            <div className="font-mono" style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: T.small, color: MUTED2, flexWrap: 'wrap' as const }}>
               {legend}
             </div>
           )}

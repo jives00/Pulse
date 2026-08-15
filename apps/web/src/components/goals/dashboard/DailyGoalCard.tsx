@@ -12,7 +12,8 @@ import {
   type Goal, type GoalCardConfig, type FoodLogHistoryDay, type FoodLogHistoryEntry, type StepsDay,
   type WeekBucket,
 } from '@pulse/api-client';
-import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, CHART_W, CHART_H } from './goalCardTheme';
+import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TEXT, CHART_W, CHART_H } from './goalCardTheme';
+import { T } from '../../../utils/typeScale';
 import { GoalCardShell, type GoalCardStat } from './GoalCardShell';
 import { emptyMessageFor, fmtGoalValue, goalDirection, goalStatusFor, resolveUnit } from './goalCardHelpers';
 
@@ -164,8 +165,8 @@ export function DailyGoalCard({ goal, cfg, foodLogHistory, stepsHistory, weeklyD
               padding: '5px 10px', borderRadius: 4,
               pointerEvents: 'none', zIndex: 10, minWidth: 104,
             }}>
-              <div className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{v.date}</div>
-              <div className="font-display" style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+              <div className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{v.date}</div>
+              <div className="font-display" style={{ fontSize: T.body, fontWeight: 600, color: TEXT }}>
                 {fmtGoalValue(v.val, unit)}
               </div>
             </div>

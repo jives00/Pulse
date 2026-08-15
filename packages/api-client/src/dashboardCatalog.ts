@@ -27,6 +27,13 @@ export type WidgetPlatform = 'web' | 'mobile' | 'both';
 /** Section header a widget sits under. Consecutive widgets sharing a group render one kicker. */
 export type WidgetGroup = 'Today' | 'Trends' | 'Goal progress' | 'Sessions' | "Today's Blurb" | 'Weekly Blurb';
 
+/** Every section a widget can be moved into, in the order they render by default. */
+export const WIDGET_GROUPS: WidgetGroup[] = [
+  'Today', 'Trends', 'Goal progress', 'Sessions', "Today's Blurb", 'Weekly Blurb',
+];
+
+const GROUP_SET = new Set<string>(WIDGET_GROUPS);
+
 export interface FeatureRequirement {
   all?: FeatureKey[];
   any?: FeatureKey[];
@@ -130,6 +137,17 @@ export interface LayoutEntry {
   visible: boolean;
   /** Mobile only. */
   tab?:    'today' | 'goals' | 'trends' | 'sessions';
+  /**
+   * Web only. Section the user moved this widget into, overriding the catalog group.
+   * Absent means "wherever the catalog put it", so a widget that has never been moved
+   * follows any future change to its default section instead of being frozen in place.
+   */
+  section?: WidgetGroup;
+}
+
+/** The section a widget renders under: the user's override, else its catalog group. */
+export function sectionFor(entry: LayoutEntry): WidgetGroup {
+  return entry.section ?? WIDGET_BY_KEY[entry.key].group;
 }
 
 export interface DashboardLayout {
@@ -273,6 +291,12 @@ export function resolveLayout(
       span:    clampSpan(e.span, w),
       visible: typeof e.visible === 'boolean' ? e.visible : w.defaultVisible,
       ...(platform === 'mobile' ? { tab: e.tab ?? w.mobileTab } : {}),
+      // Only carry an override that still names a real section — a section renamed or
+      // dropped in a later release falls back to the catalog group rather than
+      // rendering a band header that no longer exists.
+      ...(platform === 'web' && typeof e.section === 'string' && GROUP_SET.has(e.section)
+        ? { section: e.section }
+        : {}),
     });
   }
 
@@ -322,7 +346,7 @@ export function groupLayout(layout: DashboardLayout): { group: WidgetGroup; widg
   const out: { group: WidgetGroup; widgets: LayoutEntry[] }[] = [];
   for (const entry of layout.widgets) {
     if (!entry.visible) continue;
-    const group = WIDGET_BY_KEY[entry.key].group;
+    const group = sectionFor(entry);
     const last  = out[out.length - 1];
     if (last && last.group === group) last.widgets.push(entry);
     else out.push({ group, widgets: [entry] });

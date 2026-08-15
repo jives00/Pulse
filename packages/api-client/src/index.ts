@@ -72,7 +72,8 @@ export { FEATURE_CATALOG, FEATURE_BY_KEY, FEATURE_KEYS, TOP_LEVEL_FEATURES, DEFA
 export type { FeatureKey, FeatureCatalogEntry, EnabledFeatures } from './featureCatalog';
 
 // Dashboard layout
-export { DASHBOARD_CATALOG, WIDGET_BY_KEY, SPAN_OPTIONS, defaultLayout, resolveLayout, groupLayout,
+export { DASHBOARD_CATALOG, WIDGET_BY_KEY, WIDGET_GROUPS, SPAN_OPTIONS, defaultLayout, resolveLayout,
+         groupLayout, sectionFor,
          resolveSinceGoalIds, withSinceGoalIds,
          defaultSinceDate, resolveSinceDate, withSinceDate } from './dashboardCatalog';
 export type { DashboardWidgetKey, DashboardWidget, WidgetPlatform, WidgetGroup, FeatureRequirement,

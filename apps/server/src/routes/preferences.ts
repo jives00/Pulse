@@ -22,6 +22,7 @@ const layoutWidgetSchema = z.object({
   span:    z.number().optional(),
   visible: z.boolean().optional(),
   tab:     z.string().optional(),
+  section: z.string().optional(),
 });
 const layoutHalfSchema = z.object({
   v:       z.number().optional(),

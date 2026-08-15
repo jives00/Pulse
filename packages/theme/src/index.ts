@@ -59,9 +59,12 @@ export const PALETTES = {
     bg:     '#24262e',
     card:   '#323440',
     accent: '#D4A843',
-    border: '#404352',
+    // muted was #8890a8 (3.9:1 on card) and border #404352 (1.3:1) — both under the
+    // WCAG floor for body text / UI edges. Lightened so muted body copy clears AA and
+    // panel borders are actually visible against the card fill.
+    border: '#4D5165',
     text:   '#f0f0f6',
-    muted:  '#8890a8',
+    muted:  '#A2AAC2',
     error:  '#F87171',
   },
 } as const;

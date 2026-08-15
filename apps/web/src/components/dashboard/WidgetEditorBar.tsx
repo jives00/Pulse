@@ -2,31 +2,31 @@
 // Purely presentational — DashboardPage supplies the handlers, which go through the
 // pure helpers in layoutReducer.ts.
 
-import { SPAN_OPTIONS, type SpanOption } from '@pulse/api-client';
+import { SPAN_OPTIONS, WIDGET_GROUPS, type SpanOption, type WidgetGroup } from '@pulse/api-client';
+import { ACCENT, LINE, MUTED, MUTED2, TEXT } from '../../utils/dashboardTheme';
+import { T } from '../../utils/typeScale';
 
-const ACCENT = 'rgb(var(--color-accent))';
-const MUTED  = 'rgb(var(--color-muted))';
-const MUTED2 = 'rgba(var(--color-muted) / 0.55)';
-const LINE   = 'rgb(var(--color-border))';
 
 const SPAN_LABEL: Record<SpanOption, string> = { 4: '⅓', 6: '½', 8: '⅔', 12: 'Full' };
 
 export function WidgetEditorBar({
-  label, span, minSpan, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onSetSpan, onHide,
+  label, span, minSpan, section, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onSetSpan, onSetSection, onHide,
 }: {
   label: string;
   span: number;
   minSpan: number;
+  section: WidgetGroup;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onSetSpan: (span: number) => void;
+  onSetSection: (section: WidgetGroup) => void;
   onHide: () => void;
 }) {
   const btnStyle: React.CSSProperties = {
     background: 'none', border: `1px solid ${LINE}`, borderRadius: 4, color: MUTED,
-    fontSize: 11, lineHeight: 1, padding: '4px 7px', cursor: 'pointer',
+    fontSize: T.label, lineHeight: 1, padding: '4px 7px', cursor: 'pointer',
   };
   return (
     <div
@@ -36,8 +36,24 @@ export function WidgetEditorBar({
         fontFamily: 'var(--font-mono)', cursor: 'default', userSelect: 'none' as const,
       }}
     >
-      <span title="Drag to reorder" style={{ cursor: 'grab', color: MUTED2, fontSize: 13, paddingRight: 2 }}>⠿</span>
-      <span style={{ fontSize: 11, color: 'white', marginRight: 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span title="Drag to reorder" style={{ cursor: 'grab', color: MUTED2, fontSize: T.body, paddingRight: 2 }}>⠿</span>
+      <span style={{ fontSize: T.small, color: TEXT, marginRight: 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+
+      {/* A select rather than chips: six sections is more than the bar has room for,
+          and unlike the ↑/↓ buttons this is a jump, not a nudge. */}
+      <select
+        value={section}
+        onChange={(e) => onSetSection(e.target.value as WidgetGroup)}
+        title="Move to section"
+        style={{
+          ...btnStyle, cursor: 'pointer', maxWidth: 132, marginRight: 2,
+          appearance: 'auto' as const, fontFamily: 'inherit',
+        }}
+      >
+        {WIDGET_GROUPS.map((g) => (
+          <option key={g} value={g}>{g}</option>
+        ))}
+      </select>
 
       <button type="button" disabled={!canMoveUp} onClick={onMoveUp} style={{ ...btnStyle, opacity: canMoveUp ? 1 : 0.35 }} title="Move up">↑</button>
       <button type="button" disabled={!canMoveDown} onClick={onMoveDown} style={{ ...btnStyle, opacity: canMoveDown ? 1 : 0.35 }} title="Move down">↓</button>

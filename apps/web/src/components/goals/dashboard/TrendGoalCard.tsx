@@ -9,7 +9,8 @@ import {
   KG_TO_LBS, GOAL_CARD_WINDOW_DAYS, TDEE_PROJECTION_KEYS, localDateStr,
   type Goal, type GoalCardConfig, type BodyMeasurement, type FoodLogHistoryDay, type TDEEBreakdown,
 } from '@pulse/api-client';
-import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TREND_COLOR, TDEE_COLOR, CHART_W, CHART_H, fmt1 } from './goalCardTheme';
+import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TEXT, TREND_COLOR, TDEE_COLOR, CHART_W, CHART_H, fmt1 } from './goalCardTheme';
+import { T } from '../../../utils/typeScale';
 import { GoalCardShell, type GoalCardStat } from './GoalCardShell';
 import { emptyMessageFor, fmtETA, fmtGoalValue, goalDirection, goalStatusFor, linregSlope, resolveUnit } from './goalCardHelpers';
 
@@ -224,9 +225,9 @@ export function TrendGoalCard({ goal, cfg, measurements, foodLogHistory, tdee, i
               padding: '5px 10px', borderRadius: 4,
               pointerEvents: 'none', zIndex: 10, minWidth: 104,
             }}>
-              <div className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{m.date}</div>
-              <div className="font-display" style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
-                {fmt1(m.val)}<span style={{ fontSize: 11, color: MUTED, marginLeft: 3 }}>{unit}</span>
+              <div className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{m.date}</div>
+              <div className="font-display" style={{ fontSize: T.body, fontWeight: 600, color: TEXT }}>
+                {fmt1(m.val)}<span style={{ fontSize: T.label, color: MUTED, marginLeft: 3 }}>{unit}</span>
               </div>
             </div>
           );

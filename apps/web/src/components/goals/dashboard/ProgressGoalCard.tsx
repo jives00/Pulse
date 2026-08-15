@@ -5,6 +5,7 @@
 // a real card here instead of nothing.
 
 import { ACCENT, LINE_SOFT, MUTED, MUTED2 } from './goalCardTheme';
+import { T } from '../../../utils/typeScale';
 import { GoalCardShell, type GoalCardStat } from './GoalCardShell';
 import { goalDirection, goalStatusForProgress, fmtGoalValue, resolveUnit } from './goalCardHelpers';
 import type { Goal, GoalCardConfig } from '@pulse/api-client';
@@ -41,11 +42,11 @@ export function ProgressGoalCard({ goal, cfg, isLoading }: {
           <div style={{ height: 4, background: LINE_SOFT, borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${clampedPct}%`, background: ACCENT, borderRadius: 2, transition: 'width 0.3s' }} />
           </div>
-          <div className="font-mono" style={{ fontSize: 9, color: MUTED2, marginTop: 3 }}>{Math.round(clampedPct)}% to goal</div>
+          <div className="font-mono" style={{ fontSize: T.label, color: MUTED2, marginTop: 3 }}>{Math.round(clampedPct)}% to goal</div>
         </div>
       )}
       {goal.sourceName && (
-        <div className="font-mono" style={{ fontSize: 11, color: MUTED2, marginTop: clampedPct != null ? 6 : 0 }}>{goal.sourceName}</div>
+        <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginTop: clampedPct != null ? 6 : 0 }}>{goal.sourceName}</div>
       )}
     </GoalCardShell>
   );

@@ -5,7 +5,7 @@ import {
   localDateStr, getWeekStart, buildWeeklyData, computeHighlights, buildWorkoutLine,
   KG_TO_LBS,
   buildStepsStats, STEPS_KCAL_PER_STEP,
-  WIDGET_BY_KEY, resolveLayout, groupLayout,
+  WIDGET_BY_KEY, resolveLayout, groupLayout, sectionFor,
   type WorkoutSummary, type NutritionSummary,
   type BodyMeasurement, type PersonalBests,
   type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
@@ -14,9 +14,13 @@ import {
   buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
   resolveSinceGoalIds, withSinceGoalIds, titleFor,
   resolveGoalCard, type GoalCardConfig,
-  type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout,
+  type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout, type WidgetGroup,
 } from '@pulse/api-client';
 import { copyText } from '../utils/clipboard';
+import { T } from '../utils/typeScale';
+import {
+  ACCENT, TEXT, MUTED, MUTED2, BG, CARD, LINE, LINE_SOFT, COL_GOOD, COL_WARN,
+} from '../utils/dashboardTheme';
 import { DashboardGoalCard } from '../components/goals/dashboard/DashboardGoalCard';
 import { useFeaturesStore } from '../store/featuresStore';
 import { WidgetEditorBar } from '../components/dashboard/WidgetEditorBar';
@@ -25,7 +29,8 @@ import { GoalEditorBar } from '../components/dashboard/GoalEditorBar';
 import { GoalOptionsPopover } from '../components/dashboard/GoalOptionsPopover';
 import { UnpinnedGoalsTray } from '../components/dashboard/UnpinnedGoalsTray';
 import {
-  moveWidget, setWidgetSpan, setWidgetVisible, resetLayoutWidgets, isWidgetEditable, reorderEditableWidgets,
+  moveWidget, setWidgetSpan, setWidgetVisible, setWidgetSection, resetLayoutWidgets, isWidgetEditable,
+  reorderEditableWidgets,
 } from '../components/dashboard/layoutReducer';
 import {
   moveGoal, setGoalSpan, setGoalCardConfig, setGoalPinned, reorderPinnedGoals, pinnedGoalsSorted,
@@ -33,16 +38,8 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COL_GOOD = '#7BB389';
-const COL_WARN = '#C9714F';
-const ACCENT = 'rgb(var(--color-accent))';
-const MUTED   = 'rgb(var(--color-muted))';
-const MUTED2  = 'rgba(var(--color-muted) / 0.55)';
-const BG      = 'rgb(var(--color-bg))';
-const CARD    = 'rgb(var(--color-card))';
-const LINE    = 'rgb(var(--color-border))';
-const LINE_SOFT = 'rgba(255,255,255,0.06)';
-
+// Palette + type scale live in utils/ so the page, the goal cards, and the editor
+// chrome can't drift apart.
 const clamp = (n: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const fmt   = (n: number) => Math.round(n).toLocaleString();
 
@@ -65,9 +62,9 @@ function Band({ kicker, title, meta, children }: { kicker: string; title?: strin
     <section style={{ padding: '28px 36px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
         <div style={{ width: 18, height: 1, background: ACCENT, flexShrink: 0, alignSelf: 'center' }} />
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">{kicker}</h2>
-        {title && <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: 'white' }}>{title}</span>}
-        {meta && <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>{meta}</span>}
+        <h2 className="text-base font-semibold uppercase tracking-wider" style={{ color: MUTED }}>{kicker}</h2>
+        {title && <span className="font-display" style={{ fontSize: T.title, fontWeight: 600, color: TEXT }}>{title}</span>}
+        {meta && <span className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginLeft: 'auto' }}>{meta}</span>}
       </div>
       {children}
     </section>
@@ -92,8 +89,8 @@ function Panel({ title, meta, children, span = 1, padded = true, action }: {
       {(title || action) && (
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="micro" style={{ color: MUTED, fontSize: 12 }}>{title}</span>
-            {meta && <span className="font-mono" style={{ fontSize: 10, color: MUTED2 }}>{meta}</span>}
+            <span className="micro" style={{ color: MUTED, fontSize: T.cardTitle }}>{title}</span>
+            {meta && <span className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{meta}</span>}
           </div>
           {action}
         </div>
@@ -130,8 +127,8 @@ function TodaySnapshot({ workouts, nutrition, water, steps }: {
 
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 0, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
-      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: T.body, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: T.small, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : failed ? 'failed' : 'copy'}
       </button>
     </div>
@@ -223,8 +220,8 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
 
   return (
     <div style={{ position: 'relative', background: CARD, borderRadius: 0, border: `1px solid ${LINE_SOFT}`, padding: '14px 18px' }}>
-      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
-      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: 11, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: T.body, color: MUTED, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</pre>
+      <button onClick={() => copy(text)} style={{ position: 'absolute', top: 10, right: 12, fontSize: T.small, color: copied ? COL_GOOD : failed ? COL_WARN : MUTED2, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
         {copied ? 'copied' : failed ? 'failed' : 'copy'}
       </button>
     </div>
@@ -242,18 +239,18 @@ function MacroBlock({ label, val, goal }: { label: string; val: number; goal: nu
   return (
     <div style={{ flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span className="micro" style={{ fontSize: 11, color: MUTED }}>{label}</span>
-        <span className="font-mono" style={{ fontSize: 11, color: over ? COL_WARN : MUTED2 }}>{Math.round(pctRaw * 100)}%</span>
+        <span className="micro" style={{ fontSize: T.small, color: MUTED }}>{label}</span>
+        <span className="font-mono" style={{ fontSize: T.small, color: over ? COL_WARN : MUTED2 }}>{Math.round(pctRaw * 100)}%</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-        <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: over ? COL_WARN : 'white' }}>{val}</span>
-        <span style={{ fontSize: 12, color: MUTED }}>g</span>
-        <span className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>/ {goal}</span>
+        <span className="font-display" style={{ fontSize: T.sub, fontWeight: 600, color: over ? COL_WARN : TEXT }}>{val}</span>
+        <span style={{ fontSize: T.small, color: MUTED }}>g</span>
+        <span className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginLeft: 'auto' }}>/ {goal}</span>
       </div>
       <div style={{ height: 5, background: LINE_SOFT, borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pctClamped * 100}%`, background: barColor }} />
       </div>
-      <div className="font-mono" style={{ fontSize: 11, color: over ? COL_WARN : MUTED2, marginTop: 6 }}>
+      <div className="font-mono" style={{ fontSize: T.small, color: over ? COL_WARN : MUTED2, marginTop: 6 }}>
         {over ? `+${val - goal}g over` : `${Math.max(0, goal - val)}g left`}
       </div>
     </div>
@@ -291,9 +288,9 @@ function FuelToday({ actual, goals, tdee }: {
             style={{ transition: 'stroke-dasharray .5s ease' }} />
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-          <span className="micro" style={{ fontSize: 10, color: MUTED }}>Eaten</span>
-          <span className="font-display t-display" style={{ color: 'white' }}>{fmt(cal)}</span>
-          <span className="font-mono" style={{ fontSize: 11, color: MUTED }}>of {fmt(calG)} kcal</span>
+          <span className="micro" style={{ fontSize: T.small, color: MUTED }}>Eaten</span>
+          <span className="font-display t-display" style={{ color: TEXT }}>{fmt(cal)}</span>
+          <span className="font-mono" style={{ fontSize: T.small, color: MUTED }}>of {fmt(calG)} kcal</span>
         </div>
       </div>
 
@@ -302,26 +299,26 @@ function FuelToday({ actual, goals, tdee }: {
         <div style={{ display: 'flex', gap: 36, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {tdeeVal > 0 && (
             <div>
-              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>Net vs TDEE</div>
-              <div className="font-display" style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: net < 0 ? COL_GOOD : COL_WARN }}>
+              <div className="micro" style={{ fontSize: T.small, marginBottom: 6, color: MUTED }}>Net vs TDEE</div>
+              <div className="font-display" style={{ fontSize: T.hero, fontWeight: 700, lineHeight: 1, color: net < 0 ? COL_GOOD : COL_WARN }}>
                 {net > 0 ? '+' : ''}{fmt(net)}
-                <span style={{ fontSize: 13, color: MUTED, marginLeft: 7, fontWeight: 400 }}>{net < 0 ? 'deficit' : 'surplus'}</span>
+                <span style={{ fontSize: T.body, color: MUTED, marginLeft: 7, fontWeight: 400 }}>{net < 0 ? 'deficit' : 'surplus'}</span>
               </div>
             </div>
           )}
           {tdeeVal > 0 && (
             <div>
-              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>TDEE</div>
-              <div className="font-display" style={{ fontSize: 20, fontWeight: 500, color: MUTED }}>
-                {fmt(tdeeVal)}<span style={{ fontSize: 12, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
+              <div className="micro" style={{ fontSize: T.small, marginBottom: 6, color: MUTED }}>TDEE</div>
+              <div className="font-display" style={{ fontSize: T.sub, fontWeight: 500, color: MUTED }}>
+                {fmt(tdeeVal)}<span style={{ fontSize: T.small, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
               </div>
             </div>
           )}
           {cal > 0 && (
             <div>
-              <div className="micro" style={{ fontSize: 11, marginBottom: 6, color: MUTED }}>Calories in</div>
-              <div className="font-display" style={{ fontSize: 20, fontWeight: 500, color: MUTED }}>
-                {fmt(cal)}<span style={{ fontSize: 12, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
+              <div className="micro" style={{ fontSize: T.small, marginBottom: 6, color: MUTED }}>Calories in</div>
+              <div className="font-display" style={{ fontSize: T.sub, fontWeight: 500, color: MUTED }}>
+                {fmt(cal)}<span style={{ fontSize: T.small, color: MUTED2, marginLeft: 5, fontWeight: 400 }}>kcal</span>
               </div>
             </div>
           )}
@@ -342,14 +339,14 @@ function FuelToday({ actual, goals, tdee }: {
 // ─── Exercise Today ───────────────────────────────────────────────────────────
 
 function StatsRow({ stats, muted }: { stats: [string, string, string][]; muted?: boolean }) {
-  const col = muted ? MUTED : 'white';
+  const col = muted ? MUTED : TEXT;
   return (
     <div style={{ display: 'flex', marginBottom: 16 }}>
       {stats.map(([l, v, u], i) => (
         <div key={i} style={{ flex: 1, paddingLeft: i ? 16 : 0, borderLeft: i ? `1px solid ${LINE_SOFT}` : 'none' }}>
-          <div className="micro" style={{ fontSize: 11, marginBottom: 4, color: MUTED }}>{l}</div>
-          <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: col }}>
-            {v}{u && <span style={{ fontSize: 12, color: MUTED, marginLeft: 3, fontWeight: 400 }}>{u}</span>}
+          <div className="micro" style={{ fontSize: T.small, marginBottom: 4, color: MUTED }}>{l}</div>
+          <div className="font-display" style={{ fontSize: T.title, fontWeight: 600, color: col }}>
+            {v}{u && <span style={{ fontSize: T.small, color: MUTED, marginLeft: 3, fontWeight: 400 }}>{u}</span>}
           </div>
         </div>
       ))}
@@ -361,16 +358,16 @@ function LiftList({ exercises, muted }: {
   exercises: { name: string; setCount: number; maxWeightKg: number | null; avgReps: number | null }[];
   muted?: boolean;
 }) {
-  const col = muted ? MUTED : 'white';
+  const col = muted ? MUTED : TEXT;
   return (
     <div>
       {exercises.slice(0, 5).map((e, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-          <span style={{ fontSize: 13, color: col }}>{e.name}</span>
+          <span style={{ fontSize: T.body, color: col }}>{e.name}</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-            <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>{e.setCount} sets</span>
+            <span className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{e.setCount} sets</span>
             {e.maxWeightKg != null && (
-              <span className="font-display" style={{ fontSize: 13, fontWeight: 600, color: col, minWidth: 70, textAlign: 'right' }}>
+              <span className="font-display" style={{ fontSize: T.body, fontWeight: 600, color: col, minWidth: 70, textAlign: 'right' }}>
                 {Math.round(e.maxWeightKg * KG_TO_LBS)} lb{e.avgReps ? ` × ${Math.round(e.avgReps)}` : ''}
               </span>
             )}
@@ -402,10 +399,10 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
 
   const recoveryStrip = recovery ? (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 12, marginBottom: 14, borderBottom: `1px solid ${LINE_SOFT}` }}>
-      <span className="micro" style={{ fontSize: 11, color: MUTED }}>Recovery</span>
-      <span className="font-display" style={{ fontSize: 18, fontWeight: 600, color: RECOVERY_COLOR[recovery.level] }}>{recovery.score}</span>
-      <span style={{ padding: '2px 8px', borderRadius: 99, background: RECOVERY_COLOR[recovery.level] + '22', color: RECOVERY_COLOR[recovery.level], fontSize: 11, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{recovery.level}</span>
-      <span style={{ fontSize: 13, color: MUTED2, marginLeft: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{recovery.hint}</span>
+      <span className="micro" style={{ fontSize: T.small, color: MUTED }}>Recovery</span>
+      <span className="font-display" style={{ fontSize: T.title, fontWeight: 600, color: RECOVERY_COLOR[recovery.level] }}>{recovery.score}</span>
+      <span style={{ padding: '2px 8px', borderRadius: 99, background: RECOVERY_COLOR[recovery.level] + '22', color: RECOVERY_COLOR[recovery.level], fontSize: T.small, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' as const }}>{recovery.level}</span>
+      <span style={{ fontSize: T.body, color: MUTED2, marginLeft: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{recovery.hint}</span>
     </div>
   ) : null;
 
@@ -418,10 +415,10 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
             <span
               className="font-display"
-              style={{ fontSize: 26, fontWeight: 600, color: 'white', cursor: 'pointer', textDecoration: 'none' }}
+              style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT, cursor: 'pointer', textDecoration: 'none' }}
               onClick={() => navigate(`/workouts/${workout.id}`)}
             >{workout.routineName ?? workout.name ?? 'Workout'}</span>
-            {highlights[0] && <span className="font-mono" style={{ fontSize: 11, color: ACCENT }}>★ {highlights[0]}</span>}
+            {highlights[0] && <span className="font-mono" style={{ fontSize: T.small, color: ACCENT }}>★ {highlights[0]}</span>}
           </div>
         </div>
         <StatsRow stats={[
@@ -438,7 +435,7 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
     return (
       <div>
         {recoveryStrip}
-        <div style={{ fontSize: 18, fontWeight: 500, color: MUTED }}>Rest day — take it easy.</div>
+        <div style={{ fontSize: T.title, fontWeight: 500, color: MUTED }}>Rest day — take it easy.</div>
       </div>
     );
   }
@@ -447,10 +444,10 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
     return (
       <div>
         {recoveryStrip}
-        <div style={{ fontSize: 13, color: MUTED2, marginBottom: 14 }}>No workout scheduled today.</div>
+        <div style={{ fontSize: T.body, color: MUTED2, marginBottom: 14 }}>No workout scheduled today.</div>
         <button
           onClick={() => navigate('/workouts')}
-          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: T.small, fontWeight: 600, cursor: 'pointer' }}
         >Start workout</button>
       </div>
     );
@@ -461,12 +458,12 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
       {recoveryStrip}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
-          <div className="micro" style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Scheduled today</div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: 'white' }}>{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</div>
+          <div className="micro" style={{ fontSize: T.small, color: MUTED, marginBottom: 4 }}>Scheduled today</div>
+          <div style={{ fontSize: T.sub, fontWeight: 600, color: TEXT }}>{todaySession.routineName ?? todaySession.exerciseName ?? 'Workout'}</div>
         </div>
         <button
           onClick={() => navigate('/workouts')}
-          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: ACCENT, color: '#1a1206', fontSize: T.small, fontWeight: 600, cursor: 'pointer' }}
         >Start</button>
       </div>
       {routineDetail ? (
@@ -478,11 +475,11 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
             const topReps = last?.find(s => s.weightKg === maxWeightKg)?.reps ?? null;
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-                <span style={{ fontSize: 13, color: 'white' }}>{re.exercise.name}</span>
+                <span style={{ fontSize: T.body, color: TEXT }}>{re.exercise.name}</span>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-                  <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>{setCount} sets</span>
+                  <span className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{setCount} sets</span>
                   {maxWeightKg > 0 && (
-                    <span className="font-display" style={{ fontSize: 13, fontWeight: 600, color: MUTED, minWidth: 70, textAlign: 'right' }}>
+                    <span className="font-display" style={{ fontSize: T.body, fontWeight: 600, color: MUTED, minWidth: 70, textAlign: 'right' }}>
                       {Math.round(maxWeightKg * KG_TO_LBS)} lb{topReps ? ` × ${topReps}` : ''}
                     </span>
                   )}
@@ -491,13 +488,13 @@ function ExerciseToday({ workout, allWorkouts, upcoming, recovery, navigate }: {
             );
           })}
           {routineDetail.exercises.length > 5 && (
-            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, paddingTop: 8 }}>
+            <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, paddingTop: 8 }}>
               +{routineDetail.exercises.length - 5} more
             </div>
           )}
         </div>
       ) : (
-        <div style={{ fontSize: 11, color: MUTED2 }}>Loading exercises…</div>
+        <div style={{ fontSize: T.small, color: MUTED2 }}>Loading exercises…</div>
       )}
     </div>
   );
@@ -524,14 +521,14 @@ function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysIn }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span className="micro" style={{ fontSize: 11, color: MUTED }}>{label}</span>
-        <span style={{ padding: '2px 8px', borderRadius: 99, background: paceColor + '28', color: paceColor, fontSize: 11, fontWeight: 600, letterSpacing: '.02em' }}>{paceLabel}</span>
+        <span className="micro" style={{ fontSize: T.small, color: MUTED }}>{label}</span>
+        <span style={{ padding: '2px 8px', borderRadius: 99, background: paceColor + '28', color: paceColor, fontSize: T.small, fontWeight: 600, letterSpacing: '.02em' }}>{paceLabel}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span className="font-display" style={{ fontSize: 22, fontWeight: 600, color: 'white' }}>{fmtv}</span>
-        <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>/ {fmtg}</span>
+        <span className="font-display" style={{ fontSize: T.sub, fontWeight: 600, color: TEXT }}>{fmtv}</span>
+        <span className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>/ {fmtg}</span>
       </div>
-      <div style={{ position: 'relative', height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'visible' }}>
+      <div style={{ position: 'relative', height: 5, background: LINE_SOFT, borderRadius: 2, overflow: 'visible' }}>
         <div style={{ height: '100%', width: `${pct * 100}%`, background: ACCENT, opacity: 0.85, borderRadius: 2 }} />
         <div style={{ position: 'absolute', top: -6, bottom: -6, left: `calc(${(daysIn / 7) * 100}% - 1.5px)`, width: 3, background: 'rgba(255,255,255,0.75)', borderRadius: 1 }} />
       </div>
@@ -561,7 +558,7 @@ function ThisWeek({ summary, newGoals, workouts, thisWeekBucket, foodLogHistory,
     volGoal   > 0 && { label: 'Volume',   val: thisWeekBucket.volumeLbs,  goal: volGoal,        fmtv: fmt(thisWeekBucket.volumeLbs), fmtg: `${fmt(volGoal)} lb` },
   ].filter(Boolean) as { label: string; val: number; goal: number; fmtv: string; fmtg: string }[];
 
-  if (!items.length) return <div style={{ fontSize: 13, color: MUTED2 }}>Set goals to track weekly progress.</div>;
+  if (!items.length) return <div style={{ fontSize: T.body, color: MUTED2 }}>Set goals to track weekly progress.</div>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px 0' }}>
       {items.map((m, i) => (
@@ -601,7 +598,7 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
     })
     .filter(d => d.cal > 0 || d.tdee > 0);
 
-  if (!series.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No nutrition data in the last 30 days.</div>;
+  if (!series.length) return <div style={{ fontSize: T.body, color: MUTED2 }}>No nutrition data in the last 30 days.</div>;
 
   const cals  = series.map(d => d.cal);
   const tdees = series.map(d => d.tdee);
@@ -641,27 +638,27 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
     <div>
       <div style={{ display: 'flex', gap: 32, marginBottom: 14, flexWrap: 'wrap' as const }}>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Consumed avg</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>{fmt(consumedAvg)}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>kcal</span></div>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Consumed avg</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT }}>{fmt(consumedAvg)}<span style={{ fontSize: T.small, color: MUTED, fontWeight: 400, marginLeft: 4 }}>kcal</span></div>
         </div>
         {burnedAvg > 0 && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Burned avg (TDEE)</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>{fmt(burnedAvg)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>kcal</span></div>
+            <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Burned avg (TDEE)</div>
+            <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: MUTED }}>{fmt(burnedAvg)}<span style={{ fontSize: T.small, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>kcal</span></div>
           </div>
         )}
         {burnedAvg > 0 && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Avg daily net</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: deficit < 0 ? COL_GOOD : COL_WARN }}>{deficit > 0 ? '+' : ''}{fmt(deficit)}</div>
+            <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Avg daily net</div>
+            <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: deficit < 0 ? COL_GOOD : COL_WARN }}>{deficit > 0 ? '+' : ''}{fmt(deficit)}</div>
           </div>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, alignSelf: 'flex-end' }}>
-          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: MUTED2 }}>
+          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: T.small, color: MUTED2 }}>
             <div style={{ width: 14, height: 2, background: ACCENT }} />Consumed
           </div>
           {burnedAvg > 0 && (
-            <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: MUTED2 }}>
+            <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: T.small, color: MUTED2 }}>
               <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={MUTED} strokeWidth="1.5" strokeDasharray="2 2" /></svg>Burned
             </div>
           )}
@@ -693,24 +690,24 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
         </svg>
         {hovered && (
           <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 140, zIndex: 10 }}>
-            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+            <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginBottom: 6 }}>
               {new Date(hovered.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                <span style={{ fontSize: 13, color: MUTED }}>Consumed</span>
-                <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(hovered.cal)}</span>
+                <span style={{ fontSize: T.body, color: MUTED }}>Consumed</span>
+                <span className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{fmt(hovered.cal)}</span>
               </div>
               {hovered.tdee > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                  <span style={{ fontSize: 13, color: MUTED }}>TDEE</span>
-                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{fmt(hovered.tdee)}</span>
+                  <span style={{ fontSize: T.body, color: MUTED }}>TDEE</span>
+                  <span className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{fmt(hovered.tdee)}</span>
                 </div>
               )}
               {hovered.tdee > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${LINE_SOFT}`, paddingTop: 4, marginTop: 2 }}>
-                  <span style={{ fontSize: 13, color: MUTED }}>Net</span>
-                  <span className="font-mono" style={{ fontSize: 13, fontWeight: 600, color: hovered.cal - hovered.tdee < 0 ? COL_GOOD : COL_WARN }}>
+                  <span style={{ fontSize: T.body, color: MUTED }}>Net</span>
+                  <span className="font-mono" style={{ fontSize: T.body, fontWeight: 600, color: hovered.cal - hovered.tdee < 0 ? COL_GOOD : COL_WARN }}>
                     {hovered.cal - hovered.tdee > 0 ? '+' : ''}{fmt(hovered.cal - hovered.tdee)}
                   </span>
                 </div>
@@ -719,7 +716,7 @@ function CalVsBurned({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
           </div>
         )}
       </div>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: T.small, color: MUTED2 }}>
         <span>30 days ago</span><span>today</span>
       </div>
     </div>
@@ -746,7 +743,7 @@ function StepsByDay({ stepsHistory, todaySteps, newGoals, today }: {
   const stats = buildStepsStats(history, { today, days: 30, goal });
 
   if (!stats.loggedDays) {
-    return <div style={{ fontSize: 13, color: MUTED2 }}>No steps logged in the last 30 days.</div>;
+    return <div style={{ fontSize: T.body, color: MUTED2 }}>No steps logged in the last 30 days.</div>;
   }
 
   const w = 760, h = 170;
@@ -776,47 +773,47 @@ function StepsByDay({ stepsHistory, todaySteps, newGoals, today }: {
     <div>
       <div style={{ display: 'flex', gap: 32, marginBottom: 14, flexWrap: 'wrap' as const }}>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Today</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: stats.today == null ? MUTED2 : goal && stats.today >= goal ? COL_GOOD : 'white' }}>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Today</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: stats.today == null ? MUTED2 : goal && stats.today >= goal ? COL_GOOD : TEXT }}>
             {stats.today == null ? '—' : fmt(stats.today)}
-            {goal ? <span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>/ {fmt(goal)}</span> : null}
+            {goal ? <span style={{ fontSize: T.small, color: MUTED, fontWeight: 400, marginLeft: 4 }}>/ {fmt(goal)}</span> : null}
           </div>
         </div>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>7-day avg</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>7-day avg</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT, display: 'flex', alignItems: 'baseline', gap: 6 }}>
             {stats.avg7 == null ? '—' : fmt(stats.avg7)}
             {delta != null && delta !== 0 && (
-              <span className="font-mono" style={{ fontSize: 11, fontWeight: 400, color: delta > 0 ? COL_GOOD : COL_WARN }}>
+              <span className="font-mono" style={{ fontSize: T.small, fontWeight: 400, color: delta > 0 ? COL_GOOD : COL_WARN }}>
                 {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))}
               </span>
             )}
           </div>
         </div>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>30-day avg</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>30-day avg</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: MUTED }}>
             {stats.avgWindow == null ? '—' : fmt(stats.avgWindow)}
           </div>
         </div>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Best day</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Best day</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT }}>
             {stats.best ? fmt(stats.best.steps) : '—'}
-            {stats.best && <span className="font-mono" style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 5 }}>{stats.best.date.slice(5)}</span>}
+            {stats.best && <span className="font-mono" style={{ fontSize: T.small, color: MUTED2, fontWeight: 400, marginLeft: 5 }}>{stats.best.date.slice(5)}</span>}
           </div>
         </div>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>This week</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>{fmt(stats.weekTotal)}</div>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>This week</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT }}>{fmt(stats.weekTotal)}</div>
         </div>
         {goal != null && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Goal hit</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: (stats.goalHitDays ?? 0) > 0 ? COL_GOOD : MUTED }}>
-              {stats.goalHitDays}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400 }}> / {stats.loggedDays} d</span>
+            <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Goal hit</div>
+            <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: (stats.goalHitDays ?? 0) > 0 ? COL_GOOD : MUTED }}>
+              {stats.goalHitDays}<span style={{ fontSize: T.small, color: MUTED, fontWeight: 400 }}> / {stats.loggedDays} d</span>
               {(stats.goalStreak ?? 0) > 1 && (
-                <span className="font-mono" style={{ fontSize: 11, color: COL_GOOD, fontWeight: 400, marginLeft: 6 }}>{stats.goalStreak}d streak</span>
+                <span className="font-mono" style={{ fontSize: T.small, color: COL_GOOD, fontWeight: 400, marginLeft: 6 }}>{stats.goalStreak}d streak</span>
               )}
             </div>
           </div>
@@ -852,25 +849,25 @@ function StepsByDay({ stepsHistory, todaySteps, newGoals, today }: {
         </svg>
         {hovered && (
           <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 160, zIndex: 10 }}>
-            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+            <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginBottom: 6 }}>
               {new Date(hovered.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </div>
             {hovered.steps == null ? (
-              <div style={{ fontSize: 13, color: MUTED }}>Not logged</div>
+              <div style={{ fontSize: T.body, color: MUTED }}>Not logged</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                  <span style={{ fontSize: 13, color: MUTED }}>Steps</span>
-                  <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(hovered.steps)}</span>
+                  <span style={{ fontSize: T.body, color: MUTED }}>Steps</span>
+                  <span className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{fmt(hovered.steps)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                  <span style={{ fontSize: 13, color: MUTED }}>Est. burned</span>
-                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{fmt(hovered.steps * STEPS_KCAL_PER_STEP)} kcal</span>
+                  <span style={{ fontSize: T.body, color: MUTED }}>Est. burned</span>
+                  <span className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{fmt(hovered.steps * STEPS_KCAL_PER_STEP)} kcal</span>
                 </div>
                 {goal != null && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                    <span style={{ fontSize: 13, color: MUTED }}>vs goal</span>
-                    <span className="font-mono" style={{ fontSize: 13, color: hovered.steps >= goal ? COL_GOOD : COL_WARN }}>
+                    <span style={{ fontSize: T.body, color: MUTED }}>vs goal</span>
+                    <span className="font-mono" style={{ fontSize: T.body, color: hovered.steps >= goal ? COL_GOOD : COL_WARN }}>
                       {hovered.steps >= goal ? '+' : ''}{fmt(hovered.steps - goal)}
                     </span>
                   </div>
@@ -883,18 +880,18 @@ function StepsByDay({ stepsHistory, todaySteps, newGoals, today }: {
 
       <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' as const }}>
         {goal != null && (
-          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: MUTED2 }}>
+          <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: T.small, color: MUTED2 }}>
             <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={COL_GOOD} strokeWidth="1.5" strokeDasharray="4 3" /></svg>Goal {fmt(goal)}
           </div>
         )}
-        <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: MUTED2 }}>
+        <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: T.small, color: MUTED2 }}>
           <svg width="14" height="2"><line x1="0" x2="14" y1="1" y2="1" stroke={MUTED} strokeWidth="1.5" strokeDasharray="2 3" /></svg>30-day avg
         </div>
-        <div className="font-mono" style={{ fontSize: 11, color: MUTED2, marginLeft: 'auto' }}>
+        <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginLeft: 'auto' }}>
           {fmt(stats.windowTotal)} steps · est. {fmt(stats.windowKcal)} kcal · {stats.loggedDays} of 30 days logged
         </div>
       </div>
-      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
+      <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: T.small, color: MUTED2 }}>
         <span>30 days ago</span><span>today</span>
       </div>
     </div>
@@ -909,7 +906,7 @@ function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
 
   const weeks = weeklyData.slice(-12);
   const hasData = weeks.some(w => w.volumeLbs > 0);
-  if (!hasData) return <div style={{ fontSize: 13, color: MUTED2 }}>No workout volume data yet.</div>;
+  if (!hasData) return <div style={{ fontSize: T.body, color: MUTED2 }}>No workout volume data yet.</div>;
 
   const maxVol = Math.max(...weeks.map(w => w.volumeLbs), 1);
   const currentWeek = weeks[weeks.length - 1];
@@ -936,31 +933,31 @@ function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' as const }}>
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>This week</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: 'white' }}>
-            {fmt(Math.round(currentWeek.volumeLbs))}<span style={{ fontSize: 11, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>This week</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: TEXT }}>
+            {fmt(Math.round(currentWeek.volumeLbs))}<span style={{ fontSize: T.small, color: MUTED, fontWeight: 400, marginLeft: 4 }}>lb</span>
           </div>
         </div>
         {avgVol > 0 && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Avg / week</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
-              {fmt(avgVol)}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
+            <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Avg / week</div>
+            <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: MUTED }}>
+              {fmt(avgVol)}<span style={{ fontSize: T.small, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
             </div>
           </div>
         )}
         {delta !== null && (
           <div>
-            <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>vs avg</div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: delta >= 0 ? COL_GOOD : COL_WARN }}>
+            <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>vs avg</div>
+            <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: delta >= 0 ? COL_GOOD : COL_WARN }}>
               {delta > 0 ? '+' : ''}{fmt(delta)}
             </div>
           </div>
         )}
         <div>
-          <div className="micro" style={{ fontSize: 9, marginBottom: 4, color: MUTED }}>Best week</div>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: MUTED }}>
-            {fmt(Math.round(bestVol))}<span style={{ fontSize: 11, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
+          <div className="micro" style={{ fontSize: T.label, marginBottom: 4, color: MUTED }}>Best week</div>
+          <div className="font-display" style={{ fontSize: T.kpi, fontWeight: 600, color: MUTED }}>
+            {fmt(Math.round(bestVol))}<span style={{ fontSize: T.small, color: MUTED2, fontWeight: 400, marginLeft: 4 }}>lb</span>
           </div>
         </div>
       </div>
@@ -987,28 +984,28 @@ function VolumeByWeek({ weeklyData }: { weeklyData: WeekBucket[] }) {
         </svg>
         {hovered && (
           <div style={{ position: 'absolute', top: 8, left: tooltipLeft, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', minWidth: 140, zIndex: 10 }}>
-            <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+            <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginBottom: 6 }}>
               Week of {hovered.label}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                <span style={{ fontSize: 13, color: MUTED }}>Volume</span>
-                <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(Math.round(hovered.volumeLbs))} lb</span>
+                <span style={{ fontSize: T.body, color: MUTED }}>Volume</span>
+                <span className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{fmt(Math.round(hovered.volumeLbs))} lb</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                <span style={{ fontSize: 13, color: MUTED }}>Workouts</span>
-                <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{hovered.workouts}</span>
+                <span style={{ fontSize: T.body, color: MUTED }}>Workouts</span>
+                <span className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{hovered.workouts}</span>
               </div>
               {hovered.minutes > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                  <span style={{ fontSize: 13, color: MUTED }}>Time</span>
-                  <span className="font-mono" style={{ fontSize: 13, color: MUTED }}>{hovered.minutes} min</span>
+                  <span style={{ fontSize: T.body, color: MUTED }}>Time</span>
+                  <span className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{hovered.minutes} min</span>
                 </div>
               )}
             </div>
           </div>
         )}
-        <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: MUTED2 }}>
+        <div className="font-mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: T.small, color: MUTED2 }}>
           <span>12 weeks ago</span><span>this week</span>
         </div>
       </div>
@@ -1062,7 +1059,7 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
       <div style={{ position: 'relative', display: 'flex', gap: 5 }} onMouseLeave={() => setHoveredCell(null)}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginRight: 6 }}>
           {days.map((d, i) => (
-            <div key={i} className="font-mono" style={{ fontSize: 11, color: MUTED2, height: 18, lineHeight: '18px' }}>{d}</div>
+            <div key={i} className="font-mono" style={{ fontSize: T.small, color: MUTED2, height: 18, lineHeight: '18px' }}>{d}</div>
           ))}
         </div>
         <div style={{ flex: 1, display: 'flex', gap: 5 }}>
@@ -1081,19 +1078,19 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
           const dayWorkouts = workouts.filter(w => w.workoutDate === hoveredCell.date);
           return (
             <div style={{ position: 'absolute', left: tooltipLeft, top: tooltipTop, background: CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: '8px 12px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 10 }}>
-              <div className="font-mono" style={{ fontSize: 12, color: MUTED2, marginBottom: 6 }}>
+              <div className="font-mono" style={{ fontSize: T.small, color: MUTED2, marginBottom: 6 }}>
                 {new Date(hoveredCell.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </div>
               {hoveredCell.vol > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                    <span style={{ fontSize: 13, color: MUTED }}>Volume</span>
-                    <span className="font-mono" style={{ fontSize: 13, color: 'white' }}>{fmt(Math.round(hoveredCell.vol))} lb</span>
+                    <span style={{ fontSize: T.body, color: MUTED }}>Volume</span>
+                    <span className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{fmt(Math.round(hoveredCell.vol))} lb</span>
                   </div>
                   {dayWorkouts.length > 0 && (
                     <div style={{ borderTop: `1px solid ${LINE_SOFT}`, paddingTop: 4, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
                       {dayWorkouts.map(w => (
-                        <div key={w.id} style={{ fontSize: 13, color: MUTED }}>
+                        <div key={w.id} style={{ fontSize: T.body, color: MUTED }}>
                           {w.routineName ?? w.exercises.map(e => e.name).join(', ') ?? 'Workout'}
                         </div>
                       ))}
@@ -1101,13 +1098,13 @@ function Heatmap({ workouts }: { workouts: WorkoutSummary[] }) {
                   )}
                 </div>
               ) : (
-                <div style={{ fontSize: 13, color: MUTED2 }}>Rest day</div>
+                <div style={{ fontSize: T.body, color: MUTED2 }}>Rest day</div>
               )}
             </div>
           );
         })()}
       </div>
-      <div className="font-mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: MUTED2 }}>
+      <div className="font-mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: T.small, color: MUTED2 }}>
         <span>12 weeks ago</span>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span>less</span>
@@ -1188,7 +1185,7 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
   }
 
   const displayWeeks = [...weeks].reverse().filter(w => w.days > 0 || w.isCurrentWeek).slice(0, 5);
-  const hdStyle: React.CSSProperties = { fontSize: 11, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right' as const, paddingBottom: 6, paddingLeft: 12 };
+  const hdStyle: React.CSSProperties = { fontSize: T.small, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right' as const, paddingBottom: 6, paddingLeft: 12 };
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1206,16 +1203,16 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
       <tbody>
         {displayWeeks.map(week => (
           <tr key={week.weekStart} style={{ borderBottom: `1px solid ${LINE_SOFT}`, background: week.isCurrentWeek ? 'rgba(212,168,67,0.04)' : undefined }}>
-            <td style={{ padding: '10px 0', fontSize: 13, color: week.isCurrentWeek ? 'white' : MUTED, fontFamily: 'var(--font-ui)', whiteSpace: 'nowrap' }}>
+            <td style={{ padding: '10px 0', fontSize: T.body, color: week.isCurrentWeek ? TEXT : MUTED, fontFamily: 'var(--font-ui)', whiteSpace: 'nowrap' }}>
               {week.label}{week.isCurrentWeek && <span style={{ marginLeft: 8, color: ACCENT, fontWeight: 600 }}>current</span>}
             </td>
-            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: week.isCurrentWeek ? 'white' : MUTED }}>{week.days > 0 ? fmt(week.calories) : <span style={{ color: MUTED2 }}>—</span>}</td>
-            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#D4A843' }}>{week.days > 0 ? week.protein : <span style={{ color: MUTED2 }}>—</span>}</td>
-            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#7C9ECB' }}>{week.days > 0 ? week.carbs : <span style={{ color: MUTED2 }}>—</span>}</td>
-            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: '#C5896E' }}>{week.days > 0 ? week.fat : <span style={{ color: MUTED2 }}>—</span>}</td>
-            {todayTDEE && <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: MUTED2 }}>{week.tdee != null && week.days > 0 ? fmt(week.tdee) : '—'}</td>}
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', color: week.isCurrentWeek ? TEXT : MUTED }}>{week.days > 0 ? fmt(week.calories) : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', color: ACCENT }}>{week.days > 0 ? week.protein : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', color: '#7C9ECB' }}>{week.days > 0 ? week.carbs : <span style={{ color: MUTED2 }}>—</span>}</td>
+            <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', color: '#C5896E' }}>{week.days > 0 ? week.fat : <span style={{ color: MUTED2 }}>—</span>}</td>
+            {todayTDEE && <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', color: MUTED2 }}>{week.tdee != null && week.days > 0 ? fmt(week.tdee) : '—'}</td>}
             {todayTDEE && (
-              <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+              <td style={{ padding: '10px 0 10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: T.body, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                 {week.net != null && week.days > 0 ? (
                   <span style={{ color: week.net < 0 ? '#86AA80' : week.net > 300 ? '#C5896E' : MUTED }}>
                     {week.net > 0 ? '+' : ''}{fmt(week.net)}
@@ -1235,9 +1232,9 @@ function WeeklyAvgTable({ foodLogHistory, workouts, todayTDEE, stepsHistory }: {
 function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; navigate: (p: string) => void }) {
   const completed = [...workouts].sort((a, b) => b.workoutDate.localeCompare(a.workoutDate));
   const rows = completed.slice(0, 10);
-  if (!rows.length) return <div style={{ fontSize: 13, color: MUTED2 }}>No sessions yet.</div>;
+  if (!rows.length) return <div style={{ fontSize: T.body, color: MUTED2 }}>No sessions yet.</div>;
   const cols = '60px 1fr 140px 120px 1fr 70px';
-  const hdStyle = { fontSize: 12, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase' as const };
+  const hdStyle = { fontSize: T.small, color: MUTED2, fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase' as const };
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '6px 0 8px', borderBottom: `1px solid ${LINE_SOFT}` }}>
@@ -1295,22 +1292,22 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
-            <span className="font-mono" style={{ fontSize: 12, color: MUTED2 }}>
+            <span className="font-mono" style={{ fontSize: T.body, color: MUTED2 }}>
               {new Date(s.workoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
-            <span style={{ fontSize: 14, color: 'white' }}>
+            <span style={{ fontSize: T.body, color: TEXT }}>
               {s.routineName ?? s.name ?? (s.exercises.length > 0 ? s.exercises.map(e => e.name).join(', ') : 'Workout')}
             </span>
-            <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'white', whiteSpace: 'nowrap', textAlign: 'right', paddingRight: 20 }}>
+            <div style={{ fontSize: T.body, fontFamily: 'var(--font-mono)', color: TEXT, whiteSpace: 'nowrap', textAlign: 'right', paddingRight: 20 }}>
               {primaryVal != null ? <>{primaryUnit === 'lbs' ? fmt(primaryVal) : primaryVal}<span style={{ color: MUTED2 }}> {primaryUnit}</span></> : <span style={{ color: MUTED2 }}>—</span>}
             </div>
-            <span className="font-mono" style={{ fontSize: 13, color: MUTED, paddingLeft: 20, whiteSpace: 'nowrap' }}>
+            <span className="font-mono" style={{ fontSize: T.body, color: MUTED, paddingLeft: 20, whiteSpace: 'nowrap' }}>
               {s.caloriesBurned ? <>{fmt(s.caloriesBurned)}<span style={{ color: MUTED2 }}> kcal</span></> : <span style={{ color: MUTED2 }}>—</span>}
             </span>
-            <span style={{ fontSize: 13, color: highlights.length ? ACCENT : MUTED2, paddingLeft: 20 }}>
+            <span style={{ fontSize: T.body, color: highlights.length ? ACCENT : MUTED2, paddingLeft: 20 }}>
               {highlights.length ? highlights.map((h, i) => <span key={i} style={{ display: 'block' }}>★ {h}</span>) : '—'}
             </span>
-            <span className="font-mono" style={{ fontSize: 13, fontWeight: 600 }}>
+            <span className="font-mono" style={{ fontSize: T.body, fontWeight: 600 }}>
               {deltaPct != null ? (
                 <span style={{ color: delta! >= 0 ? '#86AA80' : '#C5896E' }}>
                   {delta! >= 0 ? '▲' : '▼'}{Math.abs(Math.round(deltaPct))}%
@@ -1367,7 +1364,7 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' as const }}>
-        <span className="micro" style={{ fontSize: 9, color: MUTED }}>Since</span>
+        <span className="micro" style={{ fontSize: T.label, color: MUTED }}>Since</span>
         <input
           type="date"
           value={since}
@@ -1375,8 +1372,8 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
           onChange={(e) => { if (e.target.value) onChangeSince(e.target.value); }}
           className="font-mono"
           style={{
-            background: BG, border: `1px solid ${LINE}`, color: 'white',
-            fontSize: 12, padding: '4px 8px', borderRadius: 0, colorScheme: 'dark',
+            background: BG, border: `1px solid ${LINE}`, color: TEXT,
+            fontSize: T.small, padding: '4px 8px', borderRadius: 0, colorScheme: 'dark',
           }}
         />
         {goals.length > 0 && (
@@ -1385,8 +1382,8 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
             onClick={() => setPicking(p => !p)}
             className="micro"
             style={{
-              background: 'transparent', border: `1px solid ${LINE}`, color: picking ? 'white' : MUTED,
-              fontSize: 9, padding: '5px 9px', cursor: 'pointer', marginLeft: 'auto',
+              background: 'transparent', border: `1px solid ${LINE}`, color: picking ? TEXT : MUTED,
+              fontSize: T.label, padding: '5px 9px', cursor: 'pointer', marginLeft: 'auto',
             }}
           >
             Goals {shown} / {goals.length} {picking ? '▲' : '▼'}
@@ -1409,8 +1406,8 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
                 style={{
                   background: on ? 'rgba(123,179,137,0.14)' : 'transparent',
                   border: `1px solid ${on ? COL_GOOD : LINE}`,
-                  color: on ? 'white' : MUTED,
-                  fontSize: 12, padding: '4px 10px', cursor: 'pointer',
+                  color: on ? TEXT : MUTED,
+                  fontSize: T.small, padding: '4px 10px', cursor: 'pointer',
                 }}
               >
                 {titleFor(g)}
@@ -1422,7 +1419,7 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
               type="button"
               onClick={() => onChangeGoalIds(null)}
               className="micro"
-              style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: 9, cursor: 'pointer', marginLeft: 'auto' }}
+              style={{ background: 'transparent', border: 'none', color: MUTED, fontSize: T.label, cursor: 'pointer', marginLeft: 'auto' }}
             >
               Show all
             </button>
@@ -1431,33 +1428,33 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
       )}
 
       {loading && !rows.length ? (
-        <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>
+        <div style={{ fontSize: T.body, color: MUTED2 }}>Loading…</div>
       ) : !goals.length ? (
-        <div style={{ fontSize: 13, color: MUTED2 }}>No active goals yet.</div>
+        <div style={{ fontSize: T.body, color: MUTED2 }}>No active goals yet.</div>
       ) : !rows.length ? (
-        <div style={{ fontSize: 13, color: MUTED2 }}>
+        <div style={{ fontSize: T.body, color: MUTED2 }}>
           Nothing logged on either side of {fmtSinceDate(since)} yet.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {/* The dates label the columns once instead of repeating on every row. */}
           <div style={{ ...SINCE_ROW, paddingBottom: 6 }} className="micro">
-            <span style={{ fontSize: 9, color: MUTED }}>Goal</span>
-            <span style={{ fontSize: 9, color: MUTED }}>{fmtSinceDate(since)}</span>
-            <span style={{ fontSize: 9, color: MUTED }}>Today</span>
-            <span style={{ fontSize: 9, color: MUTED, textAlign: 'right' as const }}>Change</span>
+            <span style={{ fontSize: T.label, color: MUTED }}>Goal</span>
+            <span style={{ fontSize: T.label, color: MUTED }}>{fmtSinceDate(since)}</span>
+            <span style={{ fontSize: T.label, color: MUTED }}>Today</span>
+            <span style={{ fontSize: T.label, color: MUTED, textAlign: 'right' as const }}>Change</span>
           </div>
           {rows.map((r) => (
             <div key={r.goalId} style={{ ...SINCE_ROW, padding: '10px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-              <div style={{ fontSize: 13, color: 'white', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+              <div style={{ fontSize: T.body, color: TEXT, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                 {r.title}
               </div>
-              <div className="font-mono" style={{ fontSize: 14, color: MUTED }}>{r.sinceLabel}</div>
-              <div className="font-mono" style={{ fontSize: 14, color: 'white' }}>{r.currentLabel}</div>
+              <div className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{r.sinceLabel}</div>
+              <div className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{r.currentLabel}</div>
               <div
                 className="font-mono"
                 style={{
-                  fontSize: 14, fontWeight: 600, textAlign: 'right' as const,
+                  fontSize: T.body, fontWeight: 600, textAlign: 'right' as const,
                   color: r.improved == null ? MUTED2 : r.improved ? COL_GOOD : COL_WARN,
                 }}
               >
@@ -1530,7 +1527,7 @@ interface WidgetRenderDef {
   render: (ctx: DashboardContext) => React.ReactNode;
 }
 
-const LOADING = <div style={{ fontSize: 13, color: MUTED2 }}>Loading…</div>;
+const LOADING = <div style={{ fontSize: T.body, color: MUTED2 }}>Loading…</div>;
 
 const WIDGET_RENDERERS: Record<DashboardWidgetKey, WidgetRenderDef> = {
   fuelToday: {
@@ -1660,10 +1657,60 @@ const WIDGET_RENDERERS: Record<DashboardWidgetKey, WidgetRenderDef> = {
   },
 };
 
+// ─── Drag-and-drop affordances ────────────────────────────────────────────────
+
+export type DropSide = 'before' | 'after';
+
+/** Accent bar drawn in the grid gutter on the edge the dragged card will land against. */
+function DropIndicator({ axis, side }: { axis: 'x' | 'y'; side: DropSide }) {
+  // -8px sits the bar in the middle of the 14px grid gap, so it reads as a gap between
+  // two cards rather than a border belonging to either one.
+  const base: React.CSSProperties = {
+    position: 'absolute', background: ACCENT, borderRadius: 2,
+    boxShadow: `0 0 6px ${ACCENT}`, pointerEvents: 'none', zIndex: 2,
+  };
+  const style: React.CSSProperties = axis === 'y'
+    ? { ...base, left: 0, right: 0, height: 3, ...(side === 'before' ? { top: -8 } : { bottom: -8 }) }
+    : { ...base, top: 0, bottom: 0, width: 3, ...(side === 'before' ? { left: -8 } : { right: -8 }) };
+  return <div style={style} />;
+}
+
+/**
+ * Trailing drop target in each band, shown only while a card is in flight. Without it a
+ * section can only be entered by hitting one of its cards precisely — this gives every
+ * band, including the one you are dragging out of, a large unambiguous "put it here".
+ */
+function BandDropZone({ section, active, onDragOver, onDragLeave, onDrop }: {
+  section: WidgetGroup;
+  active: boolean;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+}) {
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => { e.preventDefault(); onDrop(); }}
+      style={{
+        gridColumn: 'span 12', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: `1px dashed ${active ? ACCENT : 'rgba(var(--color-muted) / 0.35)'}`,
+        background: active ? 'rgba(var(--color-accent) / 0.08)' : 'transparent',
+        borderRadius: 4, transition: 'background 120ms, border-color 120ms',
+      }}
+    >
+      <span className="font-mono" style={{ fontSize: T.small, color: active ? ACCENT : MUTED2, pointerEvents: 'none' }}>
+        Drop at end of {section}
+      </span>
+    </div>
+  );
+}
+
 // ─── Widget cell (grid item; adds the customize-mode overlay when editing) ─────
 
 function WidgetCell({
-  entry, ctx, editing, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onSetSpan, onHide, onDragStart, onDragOver, onDrop,
+  entry, ctx, editing, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onSetSpan, onSetSection, onHide,
+  isDragging, dropSide, onDragStart, onDragOver, onDragEnd, onDrop,
 }: {
   entry: LayoutEntry;
   ctx: DashboardContext;
@@ -1673,10 +1720,16 @@ function WidgetCell({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onSetSpan: (span: number) => void;
+  onSetSection: (section: WidgetGroup) => void;
   onHide: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
+  /** This cell is the card currently being dragged. */
+  isDragging: boolean;
+  /** Which edge to draw the insertion bar on, or null when this isn't the drop target. */
+  dropSide: DropSide | null;
+  onDragStart: () => void;
+  onDragOver: (side: DropSide) => void;
+  onDragEnd: () => void;
+  onDrop: () => void;
 }) {
   const widget  = WIDGET_BY_KEY[entry.key];
   const def     = WIDGET_RENDERERS[entry.key];
@@ -1689,23 +1742,56 @@ function WidgetCell({
     return <div style={{ gridColumn: `span ${entry.span}` }}>{body}</div>;
   }
 
+  // A full-width card can only be inserted above or below it; a narrower one shares its
+  // row, so the meaningful insertion point is to its left or right. Deriving this from
+  // the span rather than measuring neighbours keeps the indicator stable while the
+  // pointer moves around inside the card.
+  const axis: 'x' | 'y' = entry.span >= 12 ? 'y' : 'x';
+
+  function handleDragStart(e: React.DragEvent) {
+    // Firefox refuses to start a drag unless dataTransfer carries something.
+    e.dataTransfer.setData('text/plain', entry.key);
+    e.dataTransfer.effectAllowed = 'move';
+    onDragStart();
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = e.currentTarget.getBoundingClientRect();
+    const before = axis === 'y'
+      ? e.clientY < r.top + r.height / 2
+      : e.clientX < r.left + r.width / 2;
+    onDragOver(before ? 'before' : 'after');
+  }
+
   return (
     <div
       draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      style={{ gridColumn: `span ${entry.span}`, outline: `1px dashed rgba(var(--color-accent) / 0.4)`, outlineOffset: 2, borderRadius: 4 }}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={onDragEnd}
+      onDrop={(e) => { e.preventDefault(); onDrop(); }}
+      style={{
+        gridColumn: `span ${entry.span}`, outline: `1px dashed rgba(var(--color-accent) / 0.4)`,
+        outlineOffset: 2, borderRadius: 4, position: 'relative',
+        // The card being dragged fades out so the indicator against the cards it passes
+        // over reads as "this is where it lands", not "these two are both selected".
+        opacity: isDragging ? 0.35 : 1,
+      }}
     >
+      {dropSide && <DropIndicator axis={axis} side={dropSide} />}
       <WidgetEditorBar
         label={widget.label}
         span={entry.span}
         minSpan={widget.minSpan}
+        section={sectionFor(entry)}
         canMoveUp={canMoveUp}
         canMoveDown={canMoveDown}
         onMoveUp={onMoveUp}
         onMoveDown={onMoveDown}
         onSetSpan={onSetSpan}
+        onSetSection={onSetSection}
         onHide={onHide}
       />
       <div style={{ padding: 4 }}>{body}</div>
@@ -1805,6 +1891,11 @@ export default function DashboardPage() {
   const [measurementsReady,  setMeasurementsReady]  = useState(false);
   const [editing,            setEditing]            = useState(false);
   const [dragKey,            setDragKey]            = useState<DashboardWidgetKey | null>(null);
+  // Where the in-flight card would land: against one edge of a specific card, or at the
+  // end of a band. Null whenever nothing is being dragged over a valid target.
+  const [dropSpot,           setDropSpot]           = useState<
+    { kind: 'widget'; key: DashboardWidgetKey; side: DropSide } | { kind: 'band'; section: WidgetGroup } | null
+  >(null);
   const [dragGoalId,         setDragGoalId]         = useState<number | null>(null);
   const [optionsGoalId,      setOptionsGoalId]      = useState<number | null>(null);
 
@@ -2068,18 +2159,57 @@ export default function DashboardPage() {
   function setVisibleKey(key: DashboardWidgetKey, visible: boolean) {
     applyLayoutChange(setWidgetVisible(fullLayout.widgets, key, visible));
   }
+  function setSectionKey(key: DashboardWidgetKey, section: WidgetGroup) {
+    applyLayoutChange(setWidgetSection(fullLayout.widgets, key, section));
+  }
   function resetToDefault() {
     applyLayoutChange(resetLayoutWidgets('web'));
   }
-  function handleDrop(targetKey: DashboardWidgetKey) {
-    if (!dragKey || dragKey === targetKey) { setDragKey(null); return; }
+  function endDrag() {
+    setDragKey(null);
+    setDropSpot(null);
+  }
+
+  function handleDrop() {
+    if (!dragKey || !dropSpot) { endDrag(); return; }
+
+    if (dropSpot.kind === 'band') {
+      const dragged = editable.find(e => e.key === dragKey);
+      if (dragged && sectionFor(dragged) === dropSpot.section) {
+        // Already in this band, so setWidgetSection would no-op — but the zone promised
+        // "drop at end", so reorder it behind that band's last card instead.
+        const lastInBand = [...editable].reverse()
+          .find(e => e.key !== dragKey && sectionFor(e) === dropSpot.section);
+        if (lastInBand) {
+          const order = editableKeys.filter(k => k !== dragKey);
+          order.splice(order.indexOf(lastInBand.key) + 1, 0, dragKey);
+          applyLayoutChange(reorderEditableWidgets(fullLayout.widgets, features, order));
+        }
+      } else {
+        // setWidgetSection appends to the end of that band, which is what the zone promises.
+        applyLayoutChange(setWidgetSection(fullLayout.widgets, dragKey, dropSpot.section));
+      }
+      endDrag();
+      return;
+    }
+
+    const targetKey = dropSpot.key;
+    if (dragKey === targetKey) { endDrag(); return; }
+    const target = editable.find(e => e.key === targetKey);
+    if (!target) { endDrag(); return; }
+
     const withoutDrag = editableKeys.filter(k => k !== dragKey);
     const targetIdx = withoutDrag.indexOf(targetKey);
-    withoutDrag.splice(targetIdx, 0, dragKey);
-    applyLayoutChange(reorderEditableWidgets(fullLayout.widgets, features, withoutDrag));
-    setDragKey(null);
+    withoutDrag.splice(dropSpot.side === 'before' ? targetIdx : targetIdx + 1, 0, dragKey);
+    // The card adopts the band of whichever card the indicator was drawn against, so a
+    // drop lands in the section the user was actually pointing at.
+    applyLayoutChange(reorderEditableWidgets(
+      fullLayout.widgets, features, withoutDrag, { key: dragKey, section: sectionFor(target) },
+    ));
+    endDrag();
   }
   function handleDone() {
+    endDrag();
     flushPendingSave();
     flushPendingGoalSaves();
     setEditing(false);
@@ -2094,12 +2224,12 @@ export default function DashboardPage() {
 
       {/* Topbar */}
       <div className="flex-shrink-0 px-6 pt-5 pb-3 border-b border-dram-border flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-200">Dashboard</h1>
+        <h1 className="text-xl font-semibold" style={{ color: TEXT }}>Dashboard</h1>
         <div className="flex items-center gap-2">
           {editing ? (
             <>
               <button onClick={resetToDefault}
-                className="border border-dram-border text-slate-300 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-white/5 transition">
+                className="border border-dram-border font-semibold px-4 py-2 rounded-lg text-sm hover:bg-white/5 transition" style={{ color: TEXT }}>
                 Reset to default
               </button>
               <button onClick={handleDone}
@@ -2118,7 +2248,7 @@ export default function DashboardPage() {
                 + Train
               </button>
               <button onClick={() => setEditing(true)}
-                className="border border-dram-border text-slate-300 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-white/5 transition">
+                className="border border-dram-border font-semibold px-4 py-2 rounded-lg text-sm hover:bg-white/5 transition" style={{ color: TEXT }}>
                 Customize
               </button>
             </>
@@ -2126,8 +2256,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {groups.map(({ group, widgets }) => (
-        <Band key={group} kicker={group}>
+      {groups.map(({ group, widgets }, bandIdx) => (
+        <Band key={`${group}-${bandIdx}`} kicker={group}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 14 }}>
             {widgets.map((entry) => {
               const pos = editableKeys.indexOf(entry.key);
@@ -2142,13 +2272,31 @@ export default function DashboardPage() {
                   onMoveUp={() => moveKey(entry.key, 'up')}
                   onMoveDown={() => moveKey(entry.key, 'down')}
                   onSetSpan={(span) => setSpanKey(entry.key, span)}
+                  onSetSection={(sec) => setSectionKey(entry.key, sec)}
                   onHide={() => setVisibleKey(entry.key, false)}
-                  onDragStart={() => setDragKey(entry.key)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop(entry.key)}
+                  isDragging={dragKey === entry.key}
+                  dropSide={
+                    dropSpot?.kind === 'widget' && dropSpot.key === entry.key && dragKey !== entry.key
+                      ? dropSpot.side
+                      : null
+                  }
+                  onDragStart={() => { setDragKey(entry.key); setDropSpot(null); }}
+                  onDragOver={(side) => setDropSpot({ kind: 'widget', key: entry.key, side })}
+                  onDragEnd={endDrag}
+                  onDrop={handleDrop}
                 />
               );
             })}
+            {dragKey && (
+              <BandDropZone
+                section={group}
+                active={dropSpot?.kind === 'band' && dropSpot.section === group}
+                onDragOver={() => setDropSpot({ kind: 'band', section: group })}
+                onDragLeave={() => setDropSpot((cur) =>
+                  cur?.kind === 'band' && cur.section === group ? null : cur)}
+                onDrop={handleDrop}
+              />
+            )}
           </div>
         </Band>
       ))}
@@ -2158,7 +2306,7 @@ export default function DashboardPage() {
 
       <div style={{ padding: '24px 36px 60px' }} className="font-mono">
         <div style={{ height: 1, background: LINE_SOFT, marginBottom: 14 }} />
-        <span style={{ fontSize: 10, color: MUTED2 }}>Pulse · Dashboard</span>
+        <span style={{ fontSize: T.small, color: MUTED2 }}>Pulse · Dashboard</span>
       </div>
     </div>
   );
