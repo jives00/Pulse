@@ -33,3 +33,13 @@ export interface MacroEstimateResult {
   nutrition: NutritionPer100g;
   confidence: MacroEstimateConfidence;
 }
+
+export interface MealEstimatePayload {
+  description: string;
+}
+
+// Totals for the whole described portion, not per 100g.
+export interface MealEstimateResult {
+  nutrition: NutritionSnapshot;
+  confidence: MacroEstimateConfidence;
+}

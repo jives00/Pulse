@@ -9,7 +9,7 @@ import {
   getDailyLog, addLogEntry, deleteNutritionLogEntry, moveLogEntry, copyLogEntry,
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
-  aiModifyRecipe, logModifiedRecipe, logInline, estimateMacros, getFrequentFoods,
+  aiModifyRecipe, logModifiedRecipe, logInline, estimateMeal, getFrequentFoods,
   scrapeRecipe,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult, type FrequentFood,
@@ -466,7 +466,7 @@ export default function NutritionScreen() {
     if (!desc) return;
     setCustomEstimating(true);
     try {
-      const macros = await estimateMacros(token, { name: desc });
+      const macros = await estimateMeal(token, desc);
       setCustomCalories(String(Math.round(macros.calories)));
       setCustomProtein(String(Math.round(macros.protein * 10) / 10));
       setCustomCarbs(String(Math.round(macros.carbs * 10) / 10));

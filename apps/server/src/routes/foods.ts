@@ -2,7 +2,7 @@
 import { pool } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import { searchFoods, lookupBarcode } from '../services/foodSearch';
-import { estimateMacros } from '../services/macroEstimation';
+import { estimateMacros, estimateMeal } from '../services/macroEstimation';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const router = Router();
@@ -74,6 +74,18 @@ router.get('/barcode/:barcode', async (req, res) => {
 router.post('/estimate-macros', async (req, res) => {
   try {
     const result = await estimateMacros(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('[foods] error:', err);
+    res.status(500).json({ error: 'Estimation failed' });
+  }
+});
+
+router.post('/estimate-meal', async (req, res) => {
+  try {
+    const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+    if (!description) { res.status(400).json({ error: 'description is required' }); return; }
+    const result = await estimateMeal({ description });
     res.json(result);
   } catch (err) {
     console.error('[foods] error:', err);

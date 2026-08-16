@@ -254,7 +254,7 @@ export default function FoodSearchModal({ meal: mealProp, mode, onClose }: Props
     if (!ciDescription.trim()) return;
     setCiEstimating(true);
     try {
-      const result = await foodsApi.estimateMacros({ name: ciDescription.trim() });
+      const result = await foodsApi.estimateMeal({ description: ciDescription.trim() });
       const n = result.nutrition;
       setCiCalories(String(Math.round(n.calories)));
       setCiProtein(String(Math.round(n.protein * 10) / 10));

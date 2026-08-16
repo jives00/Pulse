@@ -4,6 +4,8 @@ import type {
   CreateFoodPayload,
   MacroEstimatePayload,
   MacroEstimateResult,
+  MealEstimatePayload,
+  MealEstimateResult,
 } from '../nutrition';
 
 export const foodsApi = {
@@ -30,4 +32,8 @@ export const foodsApi = {
 
   estimateMacros: (payload: MacroEstimatePayload) =>
     apiClient.post<MacroEstimateResult>('/foods/estimate-macros', payload).then((r) => r.data),
+
+  // Totals for a described meal, not per-100g values.
+  estimateMeal: (payload: MealEstimatePayload) =>
+    apiClient.post<MealEstimateResult>('/foods/estimate-meal', payload).then((r) => r.data),
 };

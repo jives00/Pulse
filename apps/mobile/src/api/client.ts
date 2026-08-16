@@ -545,11 +545,12 @@ export async function getFoodByBarcode(_token: string, barcode: string): Promise
   }
 }
 
-export async function estimateMacros(
+// Totals for a described meal ("a burrito bowl with chicken"), not per-100g values.
+export async function estimateMeal(
   _token: string,
-  payload: { name: string; brand?: string; description?: string }
+  description: string
 ): Promise<{ calories: number; carbs: number; protein: number; fat: number; fiber?: number | null; sodium?: number | null }> {
-  const result = await foodsApi.estimateMacros(payload);
+  const result = await foodsApi.estimateMeal({ description });
   return result.nutrition;
 }
 
