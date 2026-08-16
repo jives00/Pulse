@@ -21,7 +21,6 @@ export const OVERDUE_COLOR = '#f87171';
 // One projection horizon for every trend card (matches the weight card's prior 28d).
 export const PROJECTION_DAYS = 28;
 
-export const fmt1 = (n: number) => n.toFixed(1);
 
 export const STATUS_CFG: Record<GoalCardStatus, { color: string; label: string }> = {
   achieved: { color: COL_GOOD,  label: 'Achieved' },

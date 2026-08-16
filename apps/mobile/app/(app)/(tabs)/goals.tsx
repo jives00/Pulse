@@ -106,10 +106,10 @@ function GoalCard({ goal, onLog, onClose, onDelete, onToggleDashboard, onSyncSca
             </View>
             <Text style={{ color: c.muted, fontSize: fontSize.xs, marginLeft: 8, flexShrink: 0 }}>
               {goal.currentValue != null
-                ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })
                 : '—'
               }
-              {' / '}{goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 1 })} {goal.unit}
+              {' / '}{goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {goal.unit}
             </Text>
           </View>
 

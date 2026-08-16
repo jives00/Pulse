@@ -112,7 +112,7 @@ router.get('/', loadFeatures, async (req, res) => {
     );
     const formatted = (rows as RowDataPacket[]).map(r => ({
       ...fmtGoal(r),
-      currentValue: r.current_value != null ? Math.round(Number(r.current_value) * 10) / 10 : null,
+      currentValue: r.current_value != null ? Math.round(Number(r.current_value) * 100) / 100 : null,
     }));
     res.json(filterGoalsByFeatures(formatted, req.features!));
   } catch (err) { console.error('[goals-v2] GET /', err); res.status(500).json({ error: 'Server error' }); }
@@ -176,7 +176,7 @@ router.get('/since', async (req, res) => {
         sinceValue:   start?.value ?? null,
         currentDate:  now?.date    ?? null,
         currentValue: now?.value   ?? null,
-        delta: start && now ? Math.round((now.value - start.value) * 10) / 10 : null,
+        delta: start && now ? Math.round((now.value - start.value) * 100) / 100 : null,
       };
     }));
 
@@ -270,7 +270,7 @@ router.patch('/:id', async (req, res) => {
     );
     if (!(rows as RowDataPacket[]).length) { res.status(404).json({ error: 'Not found' }); return; }
     const r = (rows as RowDataPacket[])[0];
-    res.json({ ...fmtGoal(r), currentValue: r.current_value != null ? Math.round(Number(r.current_value) * 10) / 10 : null });
+    res.json({ ...fmtGoal(r), currentValue: r.current_value != null ? Math.round(Number(r.current_value) * 100) / 100 : null });
   } catch (err) { console.error('[goals-v2] PATCH /:id', err); res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -591,7 +591,7 @@ async function loadGoalSeries(
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   return (rows as RowDataPacket[])
     .filter(r => r.value != null)
-    .map(r => ({ value: Math.round(Number(r.value) * 10) / 10, loggedAt: toIso(r.logged_at) }));
+    .map(r => ({ value: Math.round(Number(r.value) * 100) / 100, loggedAt: toIso(r.logged_at) }));
 }
 
 // GET /api/goals-v2/:id/progress

@@ -23,7 +23,7 @@ import {
   computeHighlights, buildWeeklyData, buildWorkoutLine,
   goalsV2Api, resolveLayout, buildStepsStats,
   buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
-  resolveSinceGoalIds, withSinceGoalIds, titleFor,
+  resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
   type WeekBucket, type Goal, type NutritionSummary, type DashboardWidgetKey,
   type GoalSincePoint,
 } from '../../../../../packages/api-client/src/index';
@@ -287,7 +287,7 @@ function WeeklySnapshot({ weekStart, today, workouts, foodLogHistory, stepsWeekH
   }
   function fmtM(m: BodyMeasurement) {
     const val = m.metric === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-    return `${val.toFixed(1)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
+    return `${fmt2(val)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
   }
 
   const lines: string[] = [header];

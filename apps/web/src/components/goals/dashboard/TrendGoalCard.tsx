@@ -9,10 +9,10 @@ import {
   KG_TO_LBS, GOAL_CARD_WINDOW_DAYS, TDEE_PROJECTION_KEYS, localDateStr,
   type Goal, type GoalCardConfig, type BodyMeasurement, type FoodLogHistoryDay, type TDEEBreakdown,
 } from '@pulse/api-client';
-import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TEXT, TREND_COLOR, TDEE_COLOR, CHART_W, CHART_H, fmt1 } from './goalCardTheme';
+import { ACCENT, CARD, LINE, LINE_SOFT, MUTED, MUTED2, TEXT, TREND_COLOR, TDEE_COLOR, CHART_W, CHART_H } from './goalCardTheme';
 import { T } from '../../../utils/typeScale';
 import { GoalCardShell, type GoalCardStat } from './GoalCardShell';
-import { emptyMessageFor, fmtETA, fmtGoalValue, goalDirection, goalStatusFor, linregSlope, resolveUnit } from './goalCardHelpers';
+import { emptyMessageFor, fmtETA, fmt2, fmtGoalValue, goalDirection, goalStatusFor, linregSlope, resolveUnit } from './goalCardHelpers';
 
 // Body-measurement catalog keys map onto the BodyMeasurement.metric column; weight
 // gets its own branch below because it also converts kg entries and can plot a
@@ -227,7 +227,7 @@ export function TrendGoalCard({ goal, cfg, measurements, foodLogHistory, tdee, i
             }}>
               <div className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>{m.date}</div>
               <div className="font-display" style={{ fontSize: T.body, fontWeight: 600, color: TEXT }}>
-                {fmt1(m.val)}<span style={{ fontSize: T.label, color: MUTED, marginLeft: 3 }}>{unit}</span>
+                {fmt2(m.val)}<span style={{ fontSize: T.label, color: MUTED, marginLeft: 3 }}>{unit}</span>
               </div>
             </div>
           );

@@ -64,10 +64,10 @@ function GoalProgressRow({ goal, onPress, c }: { goal: Goal; onPress: () => void
           <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
             <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
               {goal.currentValue != null
-                ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                ? goal.currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })
                 : '—'
               }
-              <Text style={{ color: c.muted, fontWeight: '400' }}> / {goal.targetValue.toLocaleString()} {goal.unit}</Text>
+              <Text style={{ color: c.muted, fontWeight: '400' }}> / {goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {goal.unit}</Text>
             </Text>
             {pct != null && (
               <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{Math.round(pct * 100)}%</Text>

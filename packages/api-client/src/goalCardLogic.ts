@@ -23,10 +23,14 @@ export interface GoalCardSubject {
   deadline:     string | null;
 }
 
-/** Units that read as whole numbers on the dashboard; everything else gets 1 decimal. */
+/** Units that read as whole numbers on the dashboard; everything else gets 2 decimals. */
 const INTEGER_UNITS = new Set(['kcal', 'g', 'steps', 'workouts', 'min', 'sessions']);
 
-export const fmt1 = (n: number) => n.toFixed(1);
+/**
+ * Measurement precision: up to 2 decimals, with trailing zeros dropped so a scale
+ * reading of 2.5 stays "2.5" rather than becoming "2.50".
+ */
+export const fmt2 = (n: number) => String(Number(n.toFixed(2)));
 
 /** Title always comes from the goal's own name, falling back to the catalog label. */
 export function titleFor(goal: Pick<GoalCardSubject, 'name' | 'catalogKey'>): string {
@@ -39,7 +43,7 @@ export function resolveUnit(goal: Pick<GoalCardSubject, 'unit' | 'catalogKey'>):
 }
 
 export function fmtGoalValue(value: number, unit: string): string {
-  const n = INTEGER_UNITS.has(unit) ? Math.round(value).toLocaleString() : fmt1(value);
+  const n = INTEGER_UNITS.has(unit) ? Math.round(value).toLocaleString() : fmt2(value);
   return unit ? `${n} ${unit}` : n;
 }
 

@@ -85,7 +85,7 @@ export async function syncWeightGurus(daysBack = 7): Promise<{ inserted: number 
       const raw = entry[field] as number | null | undefined;
       if (raw == null || raw === 0) continue;
       if (existing.has(`${metric}|${measuredAt}`)) continue;
-      rows.push([userId, metric, Math.round((raw / SCALE) * 10) / 10, unit, measuredAt]);
+      rows.push([userId, metric, Math.round((raw / SCALE) * 100) / 100, unit, measuredAt]);
     }
   }
 

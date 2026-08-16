@@ -12,7 +12,7 @@ import {
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay, type WaterHistoryDay,
   goalsV2Api, type Goal, type UpdateGoalPayload, type GoalSincePoint,
   buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
-  resolveSinceGoalIds, withSinceGoalIds, titleFor,
+  resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
   resolveGoalCard, type GoalCardConfig,
   type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout, type WidgetGroup,
 } from '@pulse/api-client';
@@ -183,7 +183,7 @@ function WeeklyBlurb({ weekStart, today, workouts, foodLogHistory, stepsHistory,
   }
   function fmtM(m: BodyMeasurement) {
     const val = m.metric === 'weight' && m.unit === 'kg' ? m.value * KG_TO_LBS : m.value;
-    return `${val.toFixed(1)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
+    return `${fmt2(val)} ${m.metric === 'weight' ? 'lb' : 'in'}`;
   }
 
   const lines: string[] = [header];

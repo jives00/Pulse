@@ -12,7 +12,7 @@ export type { GoalCardStatus };
 export type GoalStatus = GoalCardStatus;
 
 export {
-  titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fmtETA, daysUntil,
+  titleFor, resolveUnit, fmtGoalValue, fmt2, normDateStr, fmtDeadline, fmtETA, daysUntil,
   goalDirection, isGoalAchieved, goalStatusFor, goalStatusForStreak, goalStatusForProgress,
   emptyMessageFor, linregSlope, etaDaysFor, tdeeSlopePerDay, supportsTdeeProjection,
 } from '@pulse/api-client';

@@ -43,7 +43,7 @@ function ValueCell({ value, unit, muted }: { value: number | null; unit: string;
   if (value == null) return <span className="text-slate-600 text-xs font-mono">—</span>;
   return (
     <span className={`text-sm font-mono ${muted ? 'text-slate-400' : 'text-white'}`}>
-      {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+      {value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
       <span className="text-slate-600 text-xs ml-1">{unit}</span>
     </span>
   );

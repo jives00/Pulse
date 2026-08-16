@@ -87,7 +87,7 @@ export type { GoalCardConfig, GoalCardVariant, GoalCardWindow, GoalCardProjectio
               GoalCardDirection, GoalCardMetricLine } from './goalCardConfig';
 
 // Goal card logic shared by web + mobile (pure — no colors, no React)
-export { fmt1, titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fmtETA, daysUntil,
+export { fmt2, titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fmtETA, daysUntil,
          goalDirection, isGoalAchieved, goalStatusFor, goalStatusForStreak, goalStatusForProgress,
          emptyMessageFor, linregSlope, etaDaysFor, tdeeSlopePerDay, supportsTdeeProjection } from './goalCardLogic';
 export type { GoalCardStatus, GoalCardSubject, DatedValue, TDEEProjectionInput } from './goalCardLogic';

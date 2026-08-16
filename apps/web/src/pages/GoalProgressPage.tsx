@@ -71,7 +71,7 @@ export default function GoalProgressPage() {
         <h1 className="text-xl font-semibold text-white">{goal?.name ?? 'Goal'}</h1>
         {goal && (
           <p className="text-sm text-slate-400 mt-1">
-            Target: <span className="text-white">{goal.targetValue.toLocaleString()} {goal.unit}</span>
+            Target: <span className="text-white">{goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {goal.unit}</span>
             {goal.deadline && <> · Deadline: <span className="text-white">{fmtDate(goal.deadline)}</span></>}
           </p>
         )}
@@ -131,7 +131,7 @@ export default function GoalProgressPage() {
                       <>
                         <td className="px-4 py-3 text-slate-400 text-sm font-mono">{entry.source === 'auto' ? fmtDate(entry.loggedAt) : fmtDateTime(entry.loggedAt)}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-white font-mono">{entry.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                          <span className="text-white font-mono">{entry.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                           {goal && <span className="text-slate-600 text-xs ml-1">{goal.unit}</span>}
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm hidden sm:table-cell">{entry.notes ?? '—'}</td>

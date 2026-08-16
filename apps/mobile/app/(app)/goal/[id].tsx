@@ -162,7 +162,7 @@ function ProgressRow({ entry, unit, onEdit, onDelete, c }: {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Text style={{ color: c.text, fontSize: fontSize.sm, fontWeight: '600' }}>
-          {entry.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+          {entry.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           <Text style={{ color: c.muted, fontWeight: '400' }}> {unit}</Text>
         </Text>
         {entry.source === 'manual' && (

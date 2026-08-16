@@ -145,7 +145,7 @@ export function averageAt(points: DatedReading[], date: string): { date: string;
   });
   if (!win.length) return null;
   const mean = win.reduce((s, p) => s + p.value, 0) / win.length;
-  return { date, value: Math.round(mean * 10) / 10 };
+  return { date, value: Math.round(mean * 100) / 100 };
 }
 
 /** The reading a goal should report for `date`, measured the way that goal is defined. */

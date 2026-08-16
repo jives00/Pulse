@@ -19,4 +19,3 @@ export const OVERDUE_COLOR = '#f87171';
 export const CHART_W = 760;
 export const CHART_H = 170;
 
-export const fmt1 = (n: number) => n.toFixed(1);

@@ -120,7 +120,7 @@ function MeasurementModal({
             <label className="text-sm text-gray-400">Value ({metaUnit})</label>
             <input
               type="number"
-              step="0.1"
+              step="0.01"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               className="bg-dram-bg border border-dram-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"

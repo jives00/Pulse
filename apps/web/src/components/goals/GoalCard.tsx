@@ -188,14 +188,14 @@ export default function GoalCard({ goal, onUpdated, onDeleted, onLogProgress, on
         <div>
           <div className="text-xs text-slate-500 mb-0.5">Current</div>
           <div className="text-lg font-semibold text-white">
-            {current != null ? current.toLocaleString() : '—'}
+            {current != null ? current.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
             <span className="text-xs text-slate-500 ml-1">{goal.unit}</span>
           </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-500 mb-0.5">Target</div>
           <div className="text-lg font-semibold" style={{ color: catColor }}>
-            {goal.targetValue.toLocaleString()}
+            {goal.targetValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             <span className="text-xs text-slate-500 ml-1">{goal.unit}</span>
           </div>
         </div>
