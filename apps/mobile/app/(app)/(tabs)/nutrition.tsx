@@ -680,8 +680,16 @@ export default function NutritionScreen() {
     try {
       const entry = await addWater(token, date, oz);
       if (healthConnectEnabled) await writeHydrationRecord(entry, String(entry.id));
-      // load(true) is silent, so the ScrollView stays mounted and keeps its offset.
-      await load(true);
+      // Patch the water total in place instead of refetching the whole daily
+      // log: re-rendering every meal row lets Android hand focus to another
+      // child of the ScrollView, which scrolls it to that child (usually the
+      // bottom of the page). Nothing else on this screen changes from a water
+      // add, so a local update is enough.
+      setLog((prev) =>
+        prev && prev.date === entry.logDate
+          ? { ...prev, waterTotalOz: prev.waterTotalOz + entry.amountOz }
+          : prev
+      );
     }
     catch { Alert.alert('Error', 'Could not log water.'); }
   }
