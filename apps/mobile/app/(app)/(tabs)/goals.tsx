@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
 import SettingsPlanningTab from '../../../src/components/SettingsPlanningTab';
 import {
-  goalsV2Api, measurementsApi, goalsByCategory,
+  goalsV2Api, measurementsApi, goalsByCategory, localDateStr,
   CATALOG_BY_CATEGORY,
   type Goal, type GoalCategory,
   type CreateGoalPayload,
@@ -672,7 +672,7 @@ function AddGoalModal({ onClose, onCreated, c }: {
                     </TouchableOpacity>
                     {showDeadlinePicker && (
                       <DateTimePicker
-                        value={deadline ? new Date(deadline + 'T12:00:00') : new Date()}
+                        value={new Date((deadline || localDateStr()) + 'T12:00:00')}
                         mode="date"
                         display="default"
                         onChange={(event, selected) => {

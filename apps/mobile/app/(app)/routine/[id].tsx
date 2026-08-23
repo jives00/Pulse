@@ -13,7 +13,7 @@ import {
   type RoutineDetail, type RoutineExercise, type Exercise,
   type WorkoutSummary,
 } from '../../../src/api/client';
-import { KG_TO_LBS, shortDate, secondsToMMSS as _secondsToMMSS, type RoutineType } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, localDateStr, shortDate, secondsToMMSS as _secondsToMMSS, type RoutineType } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
@@ -447,7 +447,7 @@ export default function RoutineDetailScreen() {
 
             const lastDate = volumeHistory[volumeHistory.length - 1]?.date ?? null;
             const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 56);
-            const recentCount = volumeHistory.filter((h) => h.date >= cutoff.toISOString().split('T')[0]).length;
+            const recentCount = volumeHistory.filter((h) => h.date >= localDateStr(cutoff)).length;
             const avgPerWeek = recentCount > 0 ? (recentCount / 8).toFixed(1) + '×' : '—';
 
             const tiles = [
@@ -482,7 +482,7 @@ export default function RoutineDetailScreen() {
             const unitLabel = rt === 'steps' ? 'steps' : rt === 'cardio_distance' ? 'mi' : rt === 'cardio_duration' ? 'min' : 'lbs';
             const nowValue = chartData[chartData.length - 1].volumeLbs;
             const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
-            const cutoff30Str = cutoff30.toISOString().split('T')[0];
+            const cutoff30Str = localDateStr(cutoff30);
             const ago30 = [...chartData].filter((d) => d.date <= cutoff30Str).sort((a, b) => b.date.localeCompare(a.date))[0];
             const delta = ago30 ? nowValue - ago30.volumeLbs : null;
             const deltaPct = delta != null && ago30 && ago30.volumeLbs !== 0 ? (delta / ago30.volumeLbs) * 100 : null;

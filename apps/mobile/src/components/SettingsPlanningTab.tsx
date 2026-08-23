@@ -64,7 +64,6 @@ const REC_OPTS_WORKOUT: { value: AnyRec; label: string }[] = [
   { value: 'custom_cycle',    label: 'Custom cycle' },
 ];
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + n);
@@ -215,7 +214,7 @@ function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnTy
           </View>
           {showStartPicker && (
             <DateTimePicker
-              value={r.startDate ? new Date(r.startDate + 'T12:00:00') : new Date()}
+              value={new Date((r.startDate || localDateStr()) + 'T12:00:00')}
               mode="date"
               display="default"
               onChange={(event, selected) => {
@@ -228,7 +227,7 @@ function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnTy
           )}
           {showEndPicker && (
             <DateTimePicker
-              value={r.endDate ? new Date(r.endDate + 'T12:00:00') : new Date()}
+              value={new Date((r.endDate || localDateStr()) + 'T12:00:00')}
               mode="date"
               display="default"
               onChange={(event, selected) => {
@@ -253,7 +252,7 @@ function RecurrenceForm({ r, c, s, opts }: { r: RecState; c: Colors; s: ReturnTy
           </TouchableOpacity>
           {showStartPicker && (
             <DateTimePicker
-              value={r.startDate ? new Date(r.startDate + 'T12:00:00') : new Date()}
+              value={new Date((r.startDate || localDateStr()) + 'T12:00:00')}
               mode="date"
               display="default"
               onChange={(event, selected) => {
@@ -1083,7 +1082,7 @@ function CheckpointTabContent({ date, token, checkpoints, activeGoals, c, s, onS
           </TouchableOpacity>
           {showTargetDatePicker && (
             <DateTimePicker
-              value={targetDate ? new Date(targetDate + 'T12:00:00') : new Date()}
+              value={new Date((targetDate || localDateStr()) + 'T12:00:00')}
               mode="date"
               display="default"
               onChange={(event, selected) => {

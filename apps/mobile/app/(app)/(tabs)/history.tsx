@@ -24,7 +24,7 @@ import {
   type WorkoutSummary, type FoodLogHistoryDay, type FoodLogHistoryEntry, type BodyMeasurement,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
-import { KG_TO_LBS } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, localDateStr } from '../../../../../packages/api-client/src/index';
 import { fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 
@@ -55,17 +55,11 @@ const METRICS = [
 
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function rangeDates(days: number | null): { start?: string; end?: string } {
   if (days == null) return {};
-  const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - days);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: fmt(start), end: fmt(end) };
+  return { start: localDateStr(start), end: localDateStr() };
 }
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -206,7 +200,7 @@ export default function HistoryScreen() {
   }
 
   function openNewMeasurement(metric: string) {
-    setMeasModal({ entry: null, metric, value: '', date: todayStr(), isNew: true });
+    setMeasModal({ entry: null, metric, value: '', date: localDateStr(), isNew: true });
   }
 
   function openEditMeasurement(entry: BodyMeasurement) {
@@ -570,7 +564,7 @@ export default function HistoryScreen() {
                   </TouchableOpacity>
                   {showMeasDatePicker && (
                     <DateTimePicker
-                      value={measModal?.date ? new Date(measModal.date + 'T12:00:00') : new Date()}
+                      value={new Date((measModal?.date || localDateStr()) + 'T12:00:00')}
                       mode="date"
                       display="default"
                       onChange={(event, selected) => {

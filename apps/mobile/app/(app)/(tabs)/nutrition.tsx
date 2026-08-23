@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, KeyboardAvoidingView, Modal, Platform,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -157,6 +157,26 @@ export default function NutritionScreen() {
   const [scanningActive, setScanningActive] = useState(false);
   const [barcodeScanning, setBarcodeScanning] = useState(false); // lookup in-flight
   const swipe = useSwipeNav('nutrition');
+
+  // The screen stays mounted while the app is backgrounded, so a date picked
+  // yesterday is still selected when the app is reopened the next morning. Snap
+  // back to today when the calendar day changed while we were away; date nav
+  // within the same day is left alone.
+  const appState = useRef(AppState.currentState);
+  const activeDay = useRef(localDateStr());
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        const today = localDateStr();
+        if (today !== activeDay.current) {
+          activeDay.current = today;
+          setDate(today);
+        }
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
