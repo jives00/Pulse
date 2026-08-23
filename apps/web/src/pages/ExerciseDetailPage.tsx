@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exercisesApi, workoutsApi, defaultTrackedFields, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, longDate } from '@pulse/api-client';
+import { exercisesApi, workoutsApi, defaultTrackedFields, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, longDate, isVideoMedia } from '@pulse/api-client';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { EXERCISE_TYPES, TRACKED_FIELD_OPTIONS } from '../utils/exercises';
 
@@ -307,6 +307,19 @@ function MediaEmbed({ url }: { url: string }) {
       </div>
     );
   }
+  if (isVideoMedia(url)) {
+    return (
+      <video
+        src={url}
+        className="w-full rounded-lg object-contain max-h-80"
+        autoPlay
+        loop
+        muted
+        playsInline
+        controls
+      />
+    );
+  }
   return (
     <img
       src={url}
@@ -417,8 +430,9 @@ function EditModal({ exercise, categories, onSave, onClose }: {
         ...(field === 'media' ? { mediaKey: result.key, mediaUrlInput: '' } : {}),
         ...(field === 'muscle' ? { muscleImageKey: result.key, muscleImageUrlInput: '' } : {}),
       }));
-    } catch {
-      setUploadError('Upload failed — check the URL and try again.');
+    } catch (err) {
+      const detail = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUploadError(detail ?? 'Upload failed — check the URL and try again.');
     } finally {
       setUploadingField(null);
     }
@@ -432,15 +446,20 @@ function EditModal({ exercise, categories, onSave, onClose }: {
       if (field === 'cover') result = await exercisesApi.getCoverImageUploadUrl(exercise.id, file.type || 'image/jpeg');
       else if (field === 'media') result = await exercisesApi.getMediaUploadUrl(exercise.id, file.type || 'image/jpeg');
       else result = await exercisesApi.getMuscleImageUploadUrl(exercise.id, file.type || 'image/jpeg');
-      await fetch(result.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      const put = await fetch(result.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      if (!put.ok) {
+        // S3 rejects with an XML <Error><Message> body; surface it rather than a silent success.
+        const detail = (await put.text().catch(() => '')).match(/<Message>([^<]*)<\/Message>/)?.[1];
+        throw new Error(`S3 rejected the upload (${put.status})${detail ? `: ${detail}` : ''}`);
+      }
       setForm((f) => ({
         ...f,
         ...(field === 'cover' ? { coverImageKey: result.key } : {}),
         ...(field === 'media' ? { mediaKey: result.key } : {}),
         ...(field === 'muscle' ? { muscleImageKey: result.key } : {}),
       }));
-    } catch {
-      setUploadError('Upload failed — please try again.');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed — please try again.');
     } finally {
       setUploadingField(null);
     }

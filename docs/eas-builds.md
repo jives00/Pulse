@@ -115,6 +115,8 @@ If a package was added since the last APK build, verify:
 
 **Date picker:** `@react-native-community/datetimepicker` auto-links without a plugin. No extra config needed — it uses the Android system date/time picker dialog.
 
+**Video playback:** `expo-video` auto-links without a plugin — it only needs one for background playback or picture-in-picture, neither of which the exercise demo player uses. No `app.json` entry, no extra permissions.
+
 **Voice packages:** `expo-speech` (TTS) and `@react-native-voice/voice` (STT) auto-link without a plugin. The `RECORD_AUDIO` permission is declared in `app.json` under `android.permissions`. STT is wired via the custom `./plugins/withSpeechRecognizer` plugin (already in `app.json`).
 
 **Notifications:** `expo-notifications` is declared as a plugin in `app.json` with the app icon and `#1a3a4a` color. Two things beyond the plugin matter, both easy to get wrong because they fail silently rather than at build time:

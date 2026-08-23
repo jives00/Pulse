@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed, longDate } from '@pulse/api-client';
+import { workoutsApi, exercisesApi, routinesApi, measurementsApi, type WorkoutDetail, type WorkoutSummary, type WorkoutExercise, type ExerciseSet, type Exercise, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, formatElapsed, longDate, isVideoMedia } from '@pulse/api-client';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -29,6 +29,9 @@ function MediaEmbed({ url }: { url: string }) {
         />
       </div>
     );
+  }
+  if (isVideoMedia(url)) {
+    return <video src={url} className="w-full object-contain max-h-64" autoPlay loop muted playsInline />;
   }
   return <img src={url} alt="Exercise demo" className="w-full object-contain max-h-64" />;
 }

@@ -13,12 +13,28 @@ import {
   uploadExerciseMuscleImageFromUrl, getExerciseMuscleImageUploadUrl,
   type Exercise, type ExerciseStats, type ExerciseHistoryEntry,
 } from '../../../src/api/client';
-import { KG_TO_LBS, shortDate, formatDate as fmtDate, computePlateau } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, shortDate, formatDate as fmtDate, computePlateau, isVideoMedia } from '../../../../../packages/api-client/src/index';
 import * as ImagePicker from 'expo-image-picker';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuthStore } from '../../../src/store/auth';
 import { colors, fontSize, type Colors } from '../../../src/theme';
 import { useColors } from '../../../src/hooks/useColors';
 import { useSwipeNav } from '../../../src/hooks/useSwipeNav';
+
+function DemoVideo({ uri, style }: { uri: string; style: object }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return <VideoView style={style} player={player} nativeControls={false} contentFit="contain" />;
+}
+
+/** Exercise demo media is either a still image or a looping video clip. */
+function DemoMedia({ uri, style }: { uri: string; style: object }) {
+  if (isVideoMedia(uri)) return <DemoVideo uri={uri} style={style} />;
+  return <Image source={{ uri }} style={style} resizeMode="contain" />;
+}
 
 function fmtLbs(kg: number | null) {
   if (kg == null) return '—';
@@ -230,7 +246,7 @@ function HowToTab({ exercise }: { exercise: Exercise }) {
       {exercise.mediaUrl && (
         <View style={ts.section}>
           <Text style={ts.sectionTitle}>Demo</Text>
-          <Image source={{ uri: exercise.mediaUrl }} style={ts.mediaImage} resizeMode="contain" />
+          <DemoMedia uri={exercise.mediaUrl} style={ts.mediaImage} />
         </View>
       )}
 
@@ -360,7 +376,10 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
   async function pickAndUpload(field: 'cover' | 'media' | 'muscle') {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert('Permission required', 'Allow photo access to upload images.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: field === 'media' ? ImagePicker.MediaTypeOptions.All : ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+    });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     const contentType = asset.mimeType ?? 'image/jpeg';
@@ -372,7 +391,11 @@ function EditModal({ exercise, categories, onSaved, onClose }: {
       else uploadResult = await getExerciseMuscleImageUploadUrl(token, exercise.id, contentType);
       const localRes = await fetch(asset.uri);
       const blob = await localRes.blob();
-      await fetch(uploadResult.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': contentType } });
+      const put = await fetch(uploadResult.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': contentType } });
+      if (!put.ok) {
+        const detail = (await put.text().catch(() => '')).match(/<Message>([^<]*)<\/Message>/)?.[1];
+        throw new Error(`S3 rejected the upload (${put.status})${detail ? `: ${detail}` : ''}`);
+      }
       if (field === 'cover') setCoverImageKey(uploadResult.key);
       else if (field === 'media') setMediaKey(uploadResult.key);
       else setMuscleImageKey(uploadResult.key);

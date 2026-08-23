@@ -74,7 +74,7 @@ Note: `testing/mobile` has its own `node_modules` (isolated from root `testing/`
 | Layer | Stack |
 |---|---|
 | Frontend (web) | React 19, React Router v6, Zustand, Tailwind CSS v3, Recharts |
-| Mobile | Expo SDK 55, React Native 0.83, expo-router, Zustand + expo-secure-store, StyleSheet (not NativeWind), react-native-health-connect (steps sync), @react-native-voice/voice + expo-speech (voice input) |
+| Mobile | Expo SDK 55, React Native 0.83, expo-router, Zustand + expo-secure-store, StyleSheet (not NativeWind), react-native-health-connect (steps sync), @react-native-voice/voice + expo-speech (voice input), expo-video (exercise demo clips) |
 | Backend | Express 4, mysql2, bcryptjs, jsonwebtoken, Zod |
 | Storage | MySQL, AWS S3 (recipe photos) |
 | Auth | JWT — web: token in Zustand; mobile: token in expo-secure-store (key: `pulse-auth`) |

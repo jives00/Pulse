@@ -5,6 +5,7 @@ import { getPresignedUploadUrl, getPresignedGetUrl, uploadBuffer, clearPresigned
 
 import { parseId } from '../utils/routes';
 import { isSafePhotoUrl, resolveMediaUrl } from '../utils/media';
+import { keyWithExtension } from '@pulse/api-client';
 
 const router = Router();
 
@@ -380,7 +381,7 @@ router.post('/:id/cover-image-from-url', async (req, res) => {
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     if (!contentType.startsWith('image/')) { res.status(400).json({ error: 'URL does not point to an image' }); return; }
     const buffer = Buffer.from(await response.arrayBuffer());
-    const key = `exercises/${id}/cover/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/cover/${Date.now()}`, contentType);
     await uploadBuffer(key, buffer, contentType);
     clearPresignedUrlCache(key);
     res.json({ key });
@@ -396,7 +397,7 @@ router.post('/:id/cover-image', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
   try {
-    const key = `exercises/${id}/cover/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/cover/${Date.now()}`, contentType);
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
@@ -421,7 +422,7 @@ router.post('/:id/media-from-url', async (req, res) => {
     if (!response.ok) { res.status(400).json({ error: 'Could not fetch media from URL' }); return; }
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     const buffer = Buffer.from(await response.arrayBuffer());
-    const key = `exercises/${id}/media/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/media/${Date.now()}`, contentType);
     await uploadBuffer(key, buffer, contentType);
     clearPresignedUrlCache(key);
     res.json({ key });
@@ -437,7 +438,7 @@ router.post('/:id/media', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
   try {
-    const key = `exercises/${id}/media/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/media/${Date.now()}`, contentType);
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
@@ -459,7 +460,7 @@ router.post('/:id/muscle-image-from-url', async (req, res) => {
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     if (!contentType.startsWith('image/')) { res.status(400).json({ error: 'URL does not point to an image' }); return; }
     const buffer = Buffer.from(await response.arrayBuffer());
-    const key = `exercises/${id}/muscle/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/muscle/${Date.now()}`, contentType);
     await uploadBuffer(key, buffer, contentType);
     clearPresignedUrlCache(key);
     res.json({ key });
@@ -475,7 +476,7 @@ router.post('/:id/muscle-image', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const { contentType = 'image/jpeg' } = req.body as { contentType?: string };
   try {
-    const key = `exercises/${id}/muscle/${Date.now()}`;
+    const key = keyWithExtension(`exercises/${id}/muscle/${Date.now()}`, contentType);
     const uploadUrl = await getPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) {
