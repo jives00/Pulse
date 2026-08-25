@@ -75,3 +75,17 @@ export function matchesRecurrence(type: string, cfg: any, date: Date, startDate:
     default: return false;
   }
 }
+
+// Resolves the "today" anchor for an /upcoming window. Clients pass their own local
+// date as `from`; the server clock is only a fallback, since the container runs in UTC
+// and rolls over to tomorrow hours before the user's day actually ends.
+export function resolveFromDate(raw: unknown): string {
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    // Round-trip the parse: Date.parse accepts out-of-range days like 2026-02-31
+    // and silently rolls them into the next month.
+    const parsed = new Date(raw + 'T00:00:00.000Z');
+    if (!Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === raw) return raw;
+  }
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

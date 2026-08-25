@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
-import { parseConfig, dateStr, utcDate, describeRecurrence, matchesRecurrence } from '../utils/recurrence';
+import { parseConfig, dateStr, utcDate, describeRecurrence, matchesRecurrence, resolveFromDate } from '../utils/recurrence';
 
 const router = Router();
 
@@ -58,11 +58,10 @@ router.get('/', async (req, res) => {
   } catch (err) { console.error('[meal-schedules] error:', err); res.status(500).json({ error: 'Server error' }); }
 });
 
-// GET /api/meal-schedules/upcoming?days=30
+// GET /api/meal-schedules/upcoming?days=30&from=YYYY-MM-DD
 router.get('/upcoming', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
-  const d = new Date();
-  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const todayStr = resolveFromDate(req.query.from);
   const toDate   = new Date(todayStr + 'T00:00:00.000Z');
   toDate.setUTCDate(toDate.getUTCDate() + days - 1);
   const toStr = toDate.toISOString().slice(0, 10);

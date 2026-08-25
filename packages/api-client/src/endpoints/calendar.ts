@@ -1,4 +1,5 @@
 import { apiClient } from '../client';
+import { localDateStr } from '../utils/dates';
 
 export type MealSlotType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export type MealRecurrenceType = 'once' | 'daily' | 'every_other_day' | 'days_of_week' | 'every_x_days' | 'day_of_month' | 'custom_cycle';
@@ -121,7 +122,7 @@ export const nutritionSchedulesApi = {
   getAll: () =>
     apiClient.get<NutritionSchedule[]>('/nutrition-schedules').then((r) => r.data),
   getUpcoming: (days = 60) =>
-    apiClient.get<NutritionScheduleEvent[]>(`/nutrition-schedules/upcoming?days=${days}`).then((r) => r.data),
+    apiClient.get<NutritionScheduleEvent[]>(`/nutrition-schedules/upcoming?days=${days}&from=${localDateStr()}`).then((r) => r.data),
   create: (data: { dayTypeId?: number | null; calories?: number | null; proteinG?: number | null; carbsG?: number | null; fatG?: number | null; waterGoalOz?: number | null; recurrenceType: MealRecurrenceType; recurrenceConfig: any; startDate: string; endDate?: string | null }) =>
     apiClient.post<NutritionSchedule>('/nutrition-schedules', data).then((r) => r.data),
   update: (id: number, data: Partial<NutritionSchedule>) =>
@@ -134,7 +135,7 @@ export const mealSchedulesApi = {
   getAll: () =>
     apiClient.get<MealSchedule[]>('/meal-schedules').then((r) => r.data),
   getUpcoming: (days = 30) =>
-    apiClient.get<MealScheduleEvent[]>(`/meal-schedules/upcoming?days=${days}`).then((r) => r.data),
+    apiClient.get<MealScheduleEvent[]>(`/meal-schedules/upcoming?days=${days}&from=${localDateStr()}`).then((r) => r.data),
   create: (data: {
     mealSlot?: MealSlotType | null;
     label: string;

@@ -1,4 +1,5 @@
 import { apiClient } from '../client';
+import { localDateStr } from '../utils/dates';
 
 export type RecurrenceType = 'daily' | 'every_other_day' | 'days_of_week' | 'every_x_days' | 'day_of_month' | 'custom_cycle';
 
@@ -48,7 +49,7 @@ export const schedulesApi = {
     apiClient.get<WorkoutSchedule[]>('/schedules').then((r) => r.data),
 
   getUpcoming: (days = 14) =>
-    apiClient.get<UpcomingSession[]>(`/schedules/upcoming?days=${days}`).then((r) => r.data),
+    apiClient.get<UpcomingSession[]>(`/schedules/upcoming?days=${days}&from=${localDateStr()}`).then((r) => r.data),
 
   create: (data: {
     routineId?: number | null;

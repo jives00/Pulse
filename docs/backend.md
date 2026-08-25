@@ -44,10 +44,10 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
                        POST /api/measurements/sync  trigger WeightGurus → DB sync (last 7 days)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
 /api/steps/*           Steps CRUD — GET /?date= (defaults today), GET /history?days= (default 30, max 365; dates are YYYY-MM-DD), POST / (upsert day)
-/api/schedules/*       Workout schedules — GET / (active), GET /upcoming, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
+/api/schedules/*       Workout schedules — GET / (active), GET /upcoming?days=&from=, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
 /api/meal-plan/*       Meal plan entries — GET / (date range), POST /entries, DELETE /entries/:id; GET /templates, POST /templates, POST /templates/:id/apply, DELETE /templates/:id
-/api/meal-schedules/*  Recurring meal schedule entries — full CRUD
-/api/nutrition-schedules/* Recurring nutrition targets — full CRUD
+/api/meal-schedules/*  Recurring meal schedule entries — full CRUD; GET /upcoming?days=&from=
+/api/nutrition-schedules/* Recurring nutrition targets — full CRUD; GET /upcoming?days=&from=
 /api/day-types/*       Day type presets — GET/POST/PUT/DELETE /presets; GET /overrides, PUT /overrides/:date (upsert), DELETE /overrides/:date
 /api/goals-v2/*        Unified goals (body/nutrition/exercise/activity) — GET /, GET /:id, POST /, PATCH /:id, DELETE /:id, POST /:id/close, GET /nudges, GET /since?date=YYYY-MM-DD; milestones: GET /milestones, GET|POST /:id/milestones, PATCH|DELETE /:id/milestones/:mid; progress: GET|POST /:id/progress, DELETE /:id/progress/:pid. Replaced /api/user-goals and /api/goal-checkpoints
 /api/preferences       Feature modules + dashboard layout — GET / (always resolved through the catalog defaults), PUT / (partial merge; dashboardLayout merges per platform so a web-only save never wipes mobile)
@@ -56,6 +56,8 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/scrape/*          Recipe scraper — POST / (scrape URL → recipe), POST /estimate-nutrition
 /api/templates/*       Meal templates (named sets of foods) — GET /, POST /, PUT /:id, DELETE /:id
 ```
+
+The three `/upcoming` routes anchor their window on `from` — the **client's** local `YYYY-MM-DD`, appended automatically by the api-client `getUpcoming` helpers. The server clock is only a fallback: the container runs in UTC, so it reaches tomorrow hours before the user's day ends and would drop today from the results.
 
 ## Services
 

@@ -2,7 +2,7 @@
 import { pool } from '../config/database';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { parseId } from '../utils/routes';
-import { getDow, DOW_NAMES, dateStr, utcDate, describeRecurrence } from '../utils/recurrence';
+import { getDow, DOW_NAMES, dateStr, utcDate, describeRecurrence, resolveFromDate } from '../utils/recurrence';
 
 const router = Router();
 
@@ -174,12 +174,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ─── GET /api/schedules/upcoming?days=14 ──────────────────────────────────────
+// ─── GET /api/schedules/upcoming?days=14&from=YYYY-MM-DD ──────────────────────
 router.get('/upcoming', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
 
-  const d = new Date();
-  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const todayStr = resolveFromDate(req.query.from);
   const toDate   = new Date(todayStr + 'T00:00:00.000Z');
   toDate.setUTCDate(toDate.getUTCDate() + days - 1);
   const toStr = toDate.toISOString().slice(0, 10);
