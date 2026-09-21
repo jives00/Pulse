@@ -10,7 +10,20 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const router = Router();
 
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
+// Throttle password guessing from untrusted callers only. Rate-limiting the trusted
+// network protected nothing — /session hands that same account a full token from those
+// exact networks with no password — while being the one thing able to lock the only real
+// user out (10 per 15 minutes is easy to burn through when the mobile app is re-probing a
+// flaky connection, and the resulting 429 then reads as a bad password). Safe to key on
+// because isTrustedRequest reads socket.remoteAddress, never X-Forwarded-For, so
+// tunnelled/public requests are still limited.
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => isTrustedRequest(req),
+});
 
 // POST /api/auth/session — passwordless auto-login for trusted networks (LAN / Tailscale).
 // Returns the same 7-day JWT as /login for the single admin (user id 1) when the request

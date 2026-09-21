@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { configureClient } from '../../../packages/api-client/src/client';
 import { API_BASE } from '../src/api/config';
 import { resolveApiBase, resetApiBase } from '../src/api/apiBase';
+import { recoverSession } from '../src/api/session';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
@@ -96,6 +97,9 @@ export default function RootLayout() {
         resetApiBase();
         return resolveApiBase();
       },
+      // On a 401 (the 7-day JWT expired), mint a fresh one passwordlessly before
+      // falling back to onUnauthorized. Only succeeds on the LAN / Tailscale.
+      recoverSession,
     });
   }, [logout]);
 

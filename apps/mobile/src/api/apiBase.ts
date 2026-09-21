@@ -7,7 +7,10 @@ import { API_BASES } from './config';
 let resolvedBase: string | null = null;
 let resolvePromise: Promise<string | null> | null = null;
 
-async function probe(base: string, timeoutMs = 2500): Promise<boolean> {
+// 4s rather than 2.5s: the app is usually opened straight after the phone wakes, and
+// Tailscale/wifi can take a beat to come up. A probe that gives up too early resolves to
+// "no reachable base", which used to surface as the login screen.
+async function probe(base: string, timeoutMs = 4000): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

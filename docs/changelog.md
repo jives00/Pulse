@@ -4,6 +4,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## September 21, 2026
+
+### Backend
+- **An expired token stopped meaning "log in again"** — the JWT lives 7 days and there is no refresh endpoint, so it expires on a schedule; a 401 then logged the user out and showed the login screen. The passwordless `/auth/session` route already existed, but the mobile launch path only reached it when there was *no* stored token at all, so an expired one skipped it entirely — a guaranteed login screen roughly weekly, plus any 401 mid-session. The shared api-client now takes an optional `recoverSession` hook: on a 401 it mints a fresh token and retries the request once, and `onUnauthorized` only fires after that has also failed. `/auth/session`, `/auth/login` and `/auth/register` are exempt so recovery can't recurse and a bad password stays a bad password. Web leaves the hook unset and behaves exactly as before `477551d`
+- **The login limiter stopped locking the only real user out** — a flat 10 per 15 minutes covered `/login` *and* `/session` for every caller, trusted or not. Throttling the trusted network protected nothing, since `/session` hands that same account a full token from those exact IPs with no password, while the mobile app re-probing a flaky connection could burn the budget — and the resulting 429 rendered on screen as a bad password. It now skips trusted callers and allows 20 per 5 minutes for everyone else. Safe to key on because `isTrustedRequest` reads `socket.remoteAddress`, never `X-Forwarded-For`, so tunnelled requests are still limited `477551d`
+
+### Frontend – Mobile
+- **Launch stopped giving up on the first failed probe** — the app is usually opened the moment the phone wakes, before wifi or Tailscale have settled, and a single unreachable `/health` probe resolved to "no base" and sent the user to the login screen. Bootstrap now retries three times with a short backoff, re-probing between attempts, and the probe timeout went from 2.5s to 4s `477551d`
+- **The login screen stopped blaming the password for everything** — every failure read "Invalid username or password", including a dead NAS, a disconnected Tailscale and a 429 from the limiter, so a network blip got retried until it became a real lockout that still read as a typo. Failures are now classified per status; only a 401 implicates the password and only that renders in the error colour. Added a **Retry connection** link that re-probes the API bases and signs straight in via `/session` — what a force-close used to do `477551d`
+
 ## August 24, 2026
 
 ### Backend
