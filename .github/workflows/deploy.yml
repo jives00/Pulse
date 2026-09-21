@@ -74,6 +74,11 @@ jobs:
           java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Defaults to "tools platform-tools". The obsolete `tools` package was removed
+          # from Google's SDK repository, so sdkmanager now exits 1 on it and takes the
+          # whole job down before anything is built. Nothing here needs it.
+          packages: 'platform-tools'
       - run: pnpm install --frozen-lockfile
       - name: Write mobile .env
         run: |
