@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { exercisesApi, defaultTrackedFields, type Exercise } from '@pulse/api-client';
 import { useSettingsStore } from '../store/settings';
 import Spinner from '../components/Spinner';
@@ -69,6 +69,7 @@ function ExerciseCard({ exercise }: { exercise: Exercise }) {
 
 export default function ExercisesPage() {
   const { defaultExerciseSort } = useSettingsStore();
+  const navigate = useNavigate();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +127,8 @@ export default function ExercisesPage() {
       setExercises((prev) => [...prev, created]);
       if (!categories.includes(finalCategory)) setCategories((prev) => [...prev, finalCategory].sort());
       closeForm();
+      // Continue straight into the full editor so details can be filled in now
+      navigate(`/workouts/exercises/${created.id}?edit=1`);
     } catch {
       // keep form open
     } finally {

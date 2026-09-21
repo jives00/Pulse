@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { exercisesApi, workoutsApi, defaultTrackedFields, type Exercise, type ExerciseStats, type ExerciseHistoryEntry, type ExerciseSet, KG_TO_LBS, secondsToMMSS as _secondsToMMSS, shortDate, formatDate, longDate, isVideoMedia } from '@pulse/api-client';
 import { useEscapeKey } from '../hooks/useEscapeKey';
@@ -988,6 +988,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
 export default function ExerciseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
@@ -1026,6 +1027,15 @@ export default function ExerciseDetailPage() {
         setCategories(cats);
         setName(ex.name);
         setLastSessionEntry(hist[0] ?? null);
+      })
+      .then(() => {
+        // Arriving from "New Exercise" — drop straight into the full editor
+        if (searchParams.get('edit') === '1') {
+          setShowEdit(true);
+          const next = new URLSearchParams(searchParams);
+          next.delete('edit');
+          setSearchParams(next, { replace: true });
+        }
       })
       .catch(() => navigate('/workouts'))
       .finally(() => setLoading(false));
