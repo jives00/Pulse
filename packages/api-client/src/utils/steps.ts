@@ -155,3 +155,38 @@ export function buildStepsStats(
     windowKcal:  Math.round(windowTotal * STEPS_KCAL_PER_STEP),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Sync reconciliation
+// ---------------------------------------------------------------------------
+
+export interface StepsSyncBucket { date: string; steps: number; }
+export interface StepsSyncDay { date: string; steps: number; overwrite: boolean; }
+
+/**
+ * Decide which device-read day buckets are worth sending to the server.
+ *
+ * The asymmetry is the whole point. A sync can fire at any moment, so the bucket for the
+ * day the device is currently living in is a partial count that grows all day — it must
+ * be allowed to move the stored value in either direction. Every earlier day is settled,
+ * so it may only ever move the stored value *up*. Without that rule an early-morning
+ * sync overwrites a finished day with a near-zero partial, which is exactly how a busy
+ * day abroad ended up recorded as a quiet one.
+ *
+ * `today` is the caller's own local date, not the server's: a day is labelled by the
+ * clock the steps were walked under.
+ */
+export function selectStepsToSync(
+  buckets: StepsSyncBucket[],
+  stored: Map<string, number | null>,
+  today: string
+): StepsSyncDay[] {
+  return buckets
+    .filter((b) => {
+      if (b.steps <= 0) return false;
+      const have = stored.get(b.date);
+      if (have == null) return true;
+      return b.date === today ? b.steps !== have : b.steps > have;
+    })
+    .map((b) => ({ date: b.date, steps: b.steps, overwrite: b.date === today }));
+}

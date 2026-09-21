@@ -26,7 +26,7 @@ export type { WorkoutSchedule, UpcomingSession, ProgramTemplate, ProgramTemplate
 export { stepsApi } from './endpoints/steps';
 export { recoveryApi } from './endpoints/recovery';
 export type { RecoveryData, RecoveryLevel } from './endpoints/recovery';
-export type { StepsDay } from './endpoints/steps';
+export type { StepsDay, StepsBulkDay } from './endpoints/steps';
 // StepsEntry is an alias for StepsDay — kept for mobile compatibility
 export type { StepsDay as StepsEntry } from './endpoints/steps';
 export { mealPlanApi } from './endpoints/meal-plan';
@@ -113,5 +113,5 @@ export type { WeekBucket, PaceStatus, RoutineType } from './utils/calculations';
 export { buildWorkoutLine, formatDuration } from './utils/workoutLine';
 export { sortRoutines, compareRoutines } from './utils/routineSort';
 export type { SortableRoutine } from './utils/routineSort';
-export { buildStepsStats, STEPS_KCAL_PER_STEP } from './utils/steps';
-export type { StepsStats, StepsWindowDay, StepsDayPoint, BuildStepsStatsOptions } from './utils/steps';
+export { buildStepsStats, selectStepsToSync, STEPS_KCAL_PER_STEP } from './utils/steps';
+export type { StepsStats, StepsWindowDay, StepsDayPoint, BuildStepsStatsOptions, StepsSyncBucket, StepsSyncDay } from './utils/steps';

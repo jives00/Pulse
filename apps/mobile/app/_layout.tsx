@@ -10,9 +10,10 @@ import { recoverSession } from '../src/api/session';
 import { useAuthStore } from '../src/store/auth';
 import { getNotifications } from '../src/notifications';
 import { initializeHealthConnect, syncGrantedPermissions } from '../src/services/healthConnectPermissions';
-import { useHealthSteps } from '../src/hooks/useHealthSteps';
+import { useHealthSteps, deviceDateStr, STEPS_BACKFILL_DAYS } from '../src/hooks/useHealthSteps';
 import { useUpdateStore } from '../src/store/update';
 import { stepsApi } from '../../../packages/api-client/src/endpoints/steps';
+import { selectStepsToSync } from '../../../packages/api-client/src/utils/steps';
 import { useStepsStore } from '../src/store/steps';
 import { useColors } from '../src/hooks/useColors';
 import { useFeaturesStore } from '../src/store/features';
@@ -24,7 +25,7 @@ export default function RootLayout() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { updateAvailable, downloading, progress, dismissed, checkForUpdate, startUpdate, dismiss } = useUpdateStore();
-  const { readTodaySteps } = useHealthSteps();
+  const { readDailySteps } = useHealthSteps();
   const setLiveSteps = useStepsStore((s) => s.setLiveSteps);
   const appState = useRef(AppState.currentState);
   const featuresHydrate = useFeaturesStore((s) => s.hydrate);
@@ -54,16 +55,24 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!token || !activityEnabled || !healthConnectEnabled) return;
+    // Sync a trailing window rather than just today, so days the app was never opened
+    // still get filled in, and days that were only ever caught mid-morning get corrected
+    // once Health Connect has the full count. Dates come from the device's own clock —
+    // labelling them with a fixed home timezone is what misfiled steps taken abroad.
     const syncSteps = async () => {
       try {
-        const hcSteps = await readTodaySteps();
-        if (hcSteps == null || hcSteps <= 0) return;
-        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-        const stored = await stepsApi.getDay(today);
-        if (hcSteps !== stored.steps) {
-          await stepsApi.log(today, hcSteps, 'health_connect');
-        }
-        setLiveSteps(hcSteps);
+        const buckets = await readDailySteps(STEPS_BACKFILL_DAYS);
+        if (!buckets || buckets.length === 0) return;
+
+        const today = deviceDateStr();
+        const history = await stepsApi.getHistory(STEPS_BACKFILL_DAYS);
+        const stored = new Map(history.map((d) => [d.date, d.steps]));
+
+        const changed = selectStepsToSync(buckets, stored, today);
+        if (changed.length > 0) await stepsApi.logBulk(changed, 'health_connect');
+
+        const todayBucket = buckets.find((b) => b.date === today);
+        if (todayBucket) setLiveSteps(todayBucket.steps);
       } catch {
         // steps sync is best-effort
       }

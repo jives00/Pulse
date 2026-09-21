@@ -52,6 +52,8 @@ router.get('/history', async (req, res) => {
 });
 
 // POST /api/steps  { date?, steps, source? }
+// Single-day write for manual entry. Unconditional overwrite by design — a number the
+// user typed in should beat whatever a sync left behind. Automated syncs use /bulk.
 router.post('/', async (req, res) => {
   const { steps, source = 'manual' } = req.body;
   const date = req.body.date ?? localDateStr();
@@ -70,6 +72,81 @@ router.post('/', async (req, res) => {
     );
     console.log(`[steps] synced ${count.toLocaleString()} steps on ${date} (${source})`);
     res.status(201).json({ date, steps: count, source });
+  } catch (err) {
+    console.error('[steps] error:', err);
+    res.status(500).json({ error: 'Failed to log steps' });
+  }
+});
+
+// POST /api/steps/bulk  { days: [{ date, steps, overwrite? }], source? }
+//
+// Backfill entrypoint for Health Connect. The client sends a trailing window of
+// device-local days, so gaps left by days the app was never opened get filled in
+// retroactively. Days are merged with GREATEST rather than overwritten: a sync that
+// happens at 8am has only a partial count for the current day, and before this route
+// existed that partial silently replaced a complete total. Only the day the client is
+// currently living in (`overwrite`) is allowed to move a stored count downward, since
+// that one legitimately grows all day.
+router.post('/bulk', async (req, res) => {
+  const { days, source = 'health_connect' } = req.body;
+
+  if (!Array.isArray(days) || days.length === 0) {
+    res.status(400).json({ error: 'days must be a non-empty array' }); return;
+  }
+  if (days.length > 400) {
+    res.status(400).json({ error: 'days may contain at most 400 entries' }); return;
+  }
+
+  const rows: { date: string; steps: number; overwrite: boolean }[] = [];
+  for (const day of days) {
+    const date = String(day?.date ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: `invalid date: ${date}` }); return;
+    }
+    const count = Number(day?.steps);
+    if (!Number.isInteger(count) || count < 0 || count > 200000) {
+      res.status(400).json({ error: `steps for ${date} must be an integer between 0 and 200000` }); return;
+    }
+    rows.push({ date, steps: count, overwrite: Boolean(day?.overwrite) });
+  }
+
+  const overwrite = rows.filter((r) => r.overwrite);
+  const merge     = rows.filter((r) => !r.overwrite);
+
+  try {
+    let written = 0;
+
+    if (overwrite.length > 0) {
+      const values = overwrite.map(() => '(?, ?, ?, ?)').join(', ');
+      const params = overwrite.flatMap((r) => [req.userId, r.date, r.steps, source]);
+      const [result] = await pool.query<ResultSetHeader>(
+        `INSERT INTO steps_log (user_id, log_date, steps, source)
+         VALUES ${values}
+         ON DUPLICATE KEY UPDATE steps = VALUES(steps), source = VALUES(source), logged_at = CURRENT_TIMESTAMP`,
+        params
+      );
+      written += result.affectedRows;
+    }
+
+    if (merge.length > 0) {
+      const values = merge.map(() => '(?, ?, ?, ?)').join(', ');
+      const params = merge.flatMap((r) => [req.userId, r.date, r.steps, source]);
+      // Assignment order matters: MySQL evaluates ON DUPLICATE KEY UPDATE left to right,
+      // so source/logged_at must compare against the old `steps` before it is reassigned.
+      const [result] = await pool.query<ResultSetHeader>(
+        `INSERT INTO steps_log (user_id, log_date, steps, source)
+         VALUES ${values}
+         ON DUPLICATE KEY UPDATE
+           source    = IF(VALUES(steps) > steps, VALUES(source), source),
+           logged_at = IF(VALUES(steps) > steps, CURRENT_TIMESTAMP, logged_at),
+           steps     = GREATEST(steps, VALUES(steps))`,
+        params
+      );
+      written += result.affectedRows;
+    }
+
+    console.log(`[steps] bulk sync: ${rows.length} day(s) offered, ${written} row(s) written (${source})`);
+    res.status(201).json({ written });
   } catch (err) {
     console.error('[steps] error:', err);
     res.status(500).json({ error: 'Failed to log steps' });

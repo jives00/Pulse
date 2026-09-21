@@ -46,7 +46,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
                        POST /api/measurements/sync  trigger WeightGurus → DB sync (last 7 days)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped
-/api/steps/*           Steps CRUD — GET /?date= (defaults today), GET /history?days= (default 30, max 365; dates are YYYY-MM-DD), POST / (upsert day)
+/api/steps/*           Steps CRUD — GET /?date= (defaults today), GET /history?days= (default 30, max 365; dates are YYYY-MM-DD), POST / (upsert one day), POST /bulk (backfill a window)
 /api/schedules/*       Workout schedules — GET / (active), GET /upcoming?days=&from=, POST /, PUT /:id, DELETE /:id, POST /:id/override; GET /program-templates, POST /program-templates/:id/import
 /api/meal-plan/*       Meal plan entries — GET / (date range), POST /entries, DELETE /entries/:id; GET /templates, POST /templates, POST /templates/:id/apply, DELETE /templates/:id
 /api/meal-schedules/*  Recurring meal schedule entries — full CRUD; GET /upcoming?days=&from=
@@ -59,6 +59,17 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/scrape/*          Recipe scraper — POST / (scrape URL → recipe), POST /estimate-nutrition
 /api/templates/*       Meal templates (named sets of foods) — GET /, POST /, PUT /:id, DELETE /:id
 ```
+
+### Steps are labelled by the device's clock, and past days only move up
+
+`POST /api/steps/bulk` takes `{ days: [{ date, steps, overwrite? }], source? }` and is how Health Connect syncs. Two rules make it safe to call on every app foreground:
+
+- **Dates come from the device, not the server.** The mobile client buckets via Health Connect's own period-based daily aggregation and labels each bucket with the phone's current local date. A step walked in Madrid belongs to the Madrid day. The earlier implementation aggregated from device-local midnight but stamped the result with a hardcoded `America/Chicago` date; while abroad those disagree, so a morning sync filed a partial day onto the *previous* home date and destroyed a complete total.
+- **`overwrite` is only ever set for the day the client is currently in.** That day's count legitimately grows all day, so it may move in either direction. Every earlier day is merged with `GREATEST(steps, VALUES(steps))` and can only be revised upward. Note the assignment order in that statement — MySQL evaluates `ON DUPLICATE KEY UPDATE` left to right, so `source` and `logged_at` must be assigned *before* `steps`, while the old value is still readable.
+
+The client syncs a trailing 30-day window (`STEPS_BACKFILL_DAYS`), which matches Health Connect's own retention. This is what fills days the app was never opened on — a single-day read leaves those permanently blank, since nothing else ever revisits them. `selectStepsToSync` in `packages/api-client/src/utils/steps.ts` holds the reconciliation logic and is unit-tested.
+
+Single-day `POST /api/steps` still overwrites unconditionally. That path is manual entry, where a number the user typed should beat whatever a sync left behind.
 
 The three `/upcoming` routes anchor their window on `from` — the **client's** local `YYYY-MM-DD`, appended automatically by the api-client `getUpcoming` helpers. The server clock is only a fallback: the container runs in UTC, so it reaches tomorrow hours before the user's day ends and would drop today from the results.
 
