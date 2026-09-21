@@ -7,6 +7,8 @@ export interface RoutineSummary {
   name: string;
   notes: string | null;
   routineType: RoutineType;
+  archived: boolean;
+  archivedAt: string | null;
   exerciseCount: number;
   lastUsedDate: string | null;
   nextOccurrenceDate: string | null;
@@ -48,6 +50,8 @@ export interface RoutineDetail {
   name: string;
   notes: string | null;
   routineType: RoutineType;
+  archived: boolean;
+  archivedAt: string | null;
   coverImageUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -62,8 +66,11 @@ export interface RoutineGoal {
 }
 
 export const routinesApi = {
-  getAll: () =>
-    apiClient.get<RoutineSummary[]>('/routines').then((r) => r.data),
+  // archived: 'exclude' (default — active only) | 'include' (both) | 'only'
+  getAll: (opts?: { archived?: 'exclude' | 'include' | 'only' }) =>
+    apiClient
+      .get<RoutineSummary[]>('/routines', { params: opts?.archived ? { archived: opts.archived } : undefined })
+      .then((r) => r.data),
 
   get: (id: number) =>
     apiClient.get<RoutineDetail>(`/routines/${id}`).then((r) => r.data),
@@ -71,8 +78,13 @@ export const routinesApi = {
   create: (data: { name: string; notes?: string; routineType?: RoutineType }) =>
     apiClient.post<RoutineDetail>('/routines', data).then((r) => r.data),
 
-  update: (id: number, data: { name?: string; notes?: string; coverImageKey?: string | null; routineType?: RoutineType }) =>
+  update: (id: number, data: { name?: string; notes?: string; coverImageKey?: string | null; routineType?: RoutineType; archived?: boolean }) =>
     apiClient.put<RoutineDetail>(`/routines/${id}`, data).then((r) => r.data),
+
+  // Archiving hides a routine from the lists and pickers; its logged workouts,
+  // stats and exports are untouched.
+  setArchived: (id: number, archived: boolean) =>
+    apiClient.put<RoutineDetail>(`/routines/${id}`, { archived }).then((r) => r.data),
 
   getPhotoUploadUrl: (id: number, contentType: string) =>
     apiClient.post<{ uploadUrl: string; key: string }>(`/routines/${id}/photo`, { contentType }).then((r) => r.data),

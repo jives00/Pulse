@@ -43,7 +43,7 @@ All tables are MySQL InnoDB, utf8mb4. User-scoped tables have `user_id INT UNSIG
 |---|---|
 | `exercises` | `id`, `name`, `category`, `exercise_type` ENUM('weight','cardio','bodyweight','duration','resistance'), `muscles_primary` (JSON), `muscles_secondary` (JSON), `is_custom`, `instructions` TEXT NULL, `media_url`, `cover_image_url`, `muscle_image_url`, `notes` TEXT NULL, `tracked_fields` VARCHAR(100) DEFAULT 'reps,weight' |
 | `workout_logs` | `id`, `user_id`, `workout_date`, `name`, `duration_minutes`, `calories_burned`, `started_at` TIMESTAMP NULL, `paused_at` TIMESTAMP NULL, `total_paused_seconds` INT DEFAULT 0, `routine_id` INT NULL (FK to workout_routines), `completed` TINYINT(1) DEFAULT 0 |
-| `workout_routines` | `id`, `user_id`, `name`, `notes`, `cover_image_key`, `routine_type` ENUM('strength','bodyweight','cardio_distance','cardio_duration','steps') DEFAULT 'strength', `created_at`, `updated_at` |
+| `workout_routines` | `id`, `user_id`, `name`, `notes`, `cover_image_key`, `routine_type` ENUM('strength','bodyweight','cardio_distance','cardio_duration','steps') DEFAULT 'strength', `archived_at` TIMESTAMP NULL (migration 044 — NULL = active; archived routines are hidden from routine lists, pickers and upcoming schedules but keep every `workout_logs` row, so history, stats and exports are unchanged), `created_at`, `updated_at` |
 | `routine_exercises` | `id`, `routine_id`, `exercise_id`, `sort_order`, `notes` |
 | `routine_exercise_sets` | `id`, `routine_exercise_id`, `set_number`, `reps`, `weight_kg`, `additional_weight_kg` DECIMAL(6,2) NULL, `duration_seconds`, `distance_meters`, `steps` INT NULL |
 | `workout_exercises` | `id`, `workout_log_id`, `exercise_id`, `sort_order`, `notes` TEXT NULL |

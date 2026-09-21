@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { routinesApi, workoutsApi, stepsApi, localDateStr, type RoutineSummary, type WorkoutDetail } from '@pulse/api-client';
+import { routinesApi, workoutsApi, stepsApi, localDateStr, sortRoutines, type RoutineSummary, type WorkoutDetail } from '@pulse/api-client';
 import Spinner from '../components/Spinner';
 
 const STEPS_GOAL = 10_000;
@@ -117,13 +117,18 @@ function RoutineCard({
   return (
     <div
       onClick={onClick}
-      className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
+      className={`bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group ${routine.archived ? 'opacity-60' : ''}`}
     >
       {/* Image / stat area */}
       <div
         className="aspect-square bg-dram-bg relative overflow-hidden group/img"
         onClick={handleImageClick}
       >
+        {routine.archived && (
+          <span className="absolute top-1.5 left-1.5 z-10 bg-black/70 text-slate-300 text-sm px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Archived
+          </span>
+        )}
         {routine.coverImageUrl ? (
           <img
             src={routine.coverImageUrl}
@@ -190,6 +195,7 @@ export default function RoutinesPage() {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
@@ -198,7 +204,7 @@ export default function RoutinesPage() {
 
   useEffect(() => {
     Promise.all([
-      routinesApi.getAll(),
+      routinesApi.getAll({ archived: 'include' }),
       workoutsApi.getActive().catch(() => null),
     ]).then(([rs, active]) => {
       setRoutines(rs);
@@ -230,11 +236,22 @@ export default function RoutinesPage() {
     }
   }
 
+  const archivedCount = routines.filter((r) => r.archived).length;
+  const visibleRoutines = showArchived ? routines : routines.filter((r) => !r.archived);
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-dram-bg text-white">
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-4 border-b border-dram-border flex-shrink-0 flex items-center gap-3">
         <h1 className="text-xl font-semibold text-slate-200 flex-1">Routines</h1>
+        {archivedCount > 0 && (
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className="text-sm text-dram-muted hover:text-dram-accent transition-colors flex-shrink-0"
+          >
+            {showArchived ? 'Hide' : 'Show'} archived ({archivedCount})
+          </button>
+        )}
         <button
           onClick={() => setShowCreate(true)}
           className="bg-dram-accent text-black font-semibold px-4 py-2 rounded-lg text-sm hover:brightness-110 transition flex-shrink-0"
@@ -271,7 +288,7 @@ export default function RoutinesPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex justify-center mt-16"><Spinner size={10} /></div>
-        ) : routines.length === 0 ? (
+        ) : visibleRoutines.length === 0 ? (
           <div className="flex flex-col items-center mt-20 text-gray-600">
             <span className="text-5xl mb-3">📋</span>
             <p className="text-lg">No routines yet.</p>
@@ -283,7 +300,7 @@ export default function RoutinesPage() {
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-            {routines.map((r) => (
+            {sortRoutines(visibleRoutines).map((r) => (
               <RoutineCard
                 key={r.id}
                 routine={r}

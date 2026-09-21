@@ -10,13 +10,13 @@ import {
   getWorkouts, createWorkout, deleteWorkout, type WorkoutSummary,
   getExercises, getExerciseCategories, createCustomExercise, updateExercise, deleteExercise,
   type Exercise,
-  getRoutines, createRoutine, deleteRoutine, startRoutine, type RoutineSummary,
+  getRoutines, createRoutine, deleteRoutine, setRoutineArchived, startRoutine, type RoutineSummary,
   getMeasurements, addMeasurement, type BodyMeasurement,
   getPersonalBests, type PersonalBests,
   getActiveWorkout, type WorkoutDetail,
   getSteps, logSteps, type StepsEntry,
 } from '../../../src/api/client';
-import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate, goalsV2Api, type Goal } from '../../../../../packages/api-client/src/index';
+import { KG_TO_LBS, localDateStr, getWeekStart, formatDate as sharedFormatDate, goalsV2Api, sortRoutines, type Goal } from '../../../../../packages/api-client/src/index';
 import { useAuthStore } from '../../../src/store/auth';
 import { writeWeightRecord } from '../../../src/services/healthConnectWriter';
 import { useSettingsStore, type ExerciseSortOption } from '../../../src/store/settings';
@@ -243,6 +243,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   const grid = makeGridStyles(c);
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState<number | null>(null);
@@ -253,17 +254,10 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
     setLoading(true);
     try {
       const [data, active] = await Promise.all([
-        getRoutines(token),
+        getRoutines(token, { archived: 'include' }),
         getActiveWorkout(token).catch(() => null),
       ]);
-      const sorted = [...data].sort((a, b) => {
-        const aHasNext = a.nextOccurrenceDate != null;
-        const bHasNext = b.nextOccurrenceDate != null;
-        if (aHasNext && !bHasNext) return -1;
-        if (!aHasNext && bHasNext) return 1;
-        if (aHasNext && bHasNext) return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
-        return 0;
-      });
+      const sorted = sortRoutines(data);
       setRoutines(sorted);
       setActiveWorkout(active);
     } catch {
@@ -278,15 +272,8 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await getRoutines(token);
-      const sorted = [...data].sort((a, b) => {
-        const aHasNext = a.nextOccurrenceDate != null;
-        const bHasNext = b.nextOccurrenceDate != null;
-        if (aHasNext && !bHasNext) return -1;
-        if (!aHasNext && bHasNext) return 1;
-        if (aHasNext && bHasNext) return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
-        return 0;
-      });
+      const data = await getRoutines(token, { archived: 'include' });
+      const sorted = sortRoutines(data);
       setRoutines(sorted);
     } catch { /* ignore */ }
     finally { setRefreshing(false); }
@@ -319,9 +306,17 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
     }
   }
 
-  function handleDelete(r: RoutineSummary) {
-    Alert.alert('Delete', `Delete "${r.name}"?`, [
+  function handleLongPress(r: RoutineSummary) {
+    Alert.alert(r.name, r.archived
+      ? 'Unarchive to show this routine in the list again.'
+      : 'Archiving hides the routine but keeps its history and stats.', [
       { text: 'Cancel', style: 'cancel' },
+      {
+        text: r.archived ? 'Unarchive' : 'Archive', onPress: async () => {
+          try { await setRoutineArchived(token, r.id, !r.archived); load(); }
+          catch { Alert.alert('Error', 'Could not update routine.'); }
+        },
+      },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           try { await deleteRoutine(token, r.id); load(); }
@@ -331,12 +326,15 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
     ]);
   }
 
+  const archivedCount = routines.filter((r) => r.archived).length;
+  const visibleRoutines = showArchived ? routines : routines.filter((r) => !r.archived);
+
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />;
 
   return (
     <View style={{ flex: 1 }}>
       <FlatList
-        data={routines}
+        data={visibleRoutines}
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
         contentContainerStyle={grid.container}
@@ -357,9 +355,9 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
         ) : null}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={grid.card}
+            style={[grid.card, item.archived && grid.cardArchived]}
             onPress={() => router.push(`/(app)/routine/${item.id}`)}
-            onLongPress={() => handleDelete(item)}
+            onLongPress={() => handleLongPress(item)}
           >
             {item.coverImageUrl ? (
               <Image source={{ uri: item.coverImageUrl }} style={grid.photo} resizeMode="cover" />
@@ -370,6 +368,7 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
             )}
             <View style={grid.info}>
               <Text style={grid.name} numberOfLines={2}>{item.name}</Text>
+              {item.archived && <Text style={grid.archivedTag}>Archived</Text>}
               <Text style={grid.meta}>
                 {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
               </Text>
@@ -394,6 +393,13 @@ function RoutinesTab({ onStarted, createVisible, onCreateClose }: { onStarted: (
             <Text style={s.emptyHint}>Tap + New to create one.</Text>
           </View>
         }
+        ListFooterComponent={archivedCount > 0 ? (
+          <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={grid.archivedToggle}>
+            <Text style={grid.archivedToggleText}>
+              {showArchived ? 'Hide' : 'Show'} archived ({archivedCount})
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       />
 
       <Modal visible={createVisible} animationType="fade" transparent onRequestClose={() => { onCreateClose(); setNewName(''); }}>
@@ -1026,6 +1032,10 @@ function makeGridStyles(c: Colors) {
     meta: { color: c.muted, fontSize: fontSize.sm },
     sub: { color: c.muted, fontSize: fontSize.sm, marginTop: 2 },
     starting: { color: c.accent, fontSize: fontSize.sm, marginTop: 2 },
+    cardArchived: { opacity: 0.55 },
+    archivedTag: { color: c.muted, fontSize: fontSize.sm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+    archivedToggle: { alignItems: 'center', paddingVertical: 14 },
+    archivedToggleText: { color: c.muted, fontSize: fontSize.sm },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     dialog: { backgroundColor: c.card, borderRadius: 14, padding: 20, width: '80%', gap: 16 },
     dialogTitle: { fontSize: fontSize.base, fontWeight: '700', color: c.text },

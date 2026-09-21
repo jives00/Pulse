@@ -488,6 +488,7 @@ export default function RoutineDetailPage() {
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -572,6 +573,17 @@ export default function RoutineDetailPage() {
     }
   }
 
+  async function handleToggleArchive() {
+    if (!routine) return;
+    const next = !routine.archived;
+    setArchiving(true);
+    try {
+      await routinesApi.setArchived(routine.id, next);
+      setRoutine((prev) => prev ? { ...prev, archived: next } : prev);
+    } catch { /* ignore */ }
+    finally { setArchiving(false); }
+  }
+
   async function handleDelete() {
     if (!routine || !confirm('Delete this routine?')) return;
     try {
@@ -648,6 +660,11 @@ export default function RoutineDetailPage() {
           )}
 
           <div className="flex items-center gap-2 mt-0.5">
+            {routine.archived && (
+              <span className="bg-dram-border/40 text-slate-300 text-sm px-2 py-0.5 rounded-full uppercase tracking-wide">
+                Archived
+              </span>
+            )}
             <select
               value={routine.routineType ?? 'strength'}
               onChange={(e) => saveRoutineType(e.target.value as RoutineType)}
@@ -686,6 +703,16 @@ export default function RoutineDetailPage() {
             className="bg-dram-accent hover:brightness-110 disabled:opacity-50 text-black font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
           >
             {starting ? 'Starting…' : 'Start Routine'}
+          </button>
+          <button
+            onClick={handleToggleArchive}
+            disabled={archiving}
+            title={routine.archived
+              ? 'Show this routine in the routine list again'
+              : 'Hide this routine from the list — history and stats are kept'}
+            className="border border-dram-border text-dram-muted hover:text-dram-accent hover:border-dram-accent/40 disabled:opacity-50 rounded-lg px-3 py-2 text-sm transition-colors"
+          >
+            {archiving ? '…' : routine.archived ? 'Unarchive' : 'Archive'}
           </button>
           <button
             onClick={handleDelete}

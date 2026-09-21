@@ -192,6 +192,7 @@ router.get('/upcoming', async (req, res) => {
        WHERE ws.user_id = ?
          AND ws.start_date <= ?
          AND (ws.end_date IS NULL OR ws.end_date >= ?)
+         AND (ws.routine_id IS NULL OR wr.archived_at IS NULL)
        ORDER BY ws.id ASC`,
       [req.userId, toStr, todayStr]
     );
@@ -228,12 +229,14 @@ router.get('/upcoming', async (req, res) => {
 
     // Fetch all routines and exercises for name lookup in custom_cycle
     const [routineRows] = await pool.query<RowDataPacket[]>(
-      `SELECT id, name FROM workout_routines WHERE user_id = ?`,
+      `SELECT id, name, archived_at FROM workout_routines WHERE user_id = ?`,
       [req.userId]
     );
     const routineMap = new Map<number, string>();
+    const archivedRoutines = new Set<number>();
     for (const r of routineRows as RowDataPacket[]) {
       routineMap.set(r.id, r.name);
+      if (r.archived_at) archivedRoutines.add(r.id);
     }
 
     const [exerciseRows] = await pool.query<RowDataPacket[]>(
@@ -293,6 +296,13 @@ router.get('/upcoming', async (req, res) => {
               exerciseId = item.id ?? null;
               exerciseName = item.id ? (exerciseMap.get(item.id) || null) : null;
             }
+          }
+
+          // A custom_cycle can still name a routine that has since been archived —
+          // drop that occurrence rather than show a hidden routine on the calendar.
+          if (routineId && archivedRoutines.has(routineId)) {
+            cur.setUTCDate(cur.getUTCDate() + 1);
+            continue;
           }
 
           const cKey   = `${routineId}:${d}`;

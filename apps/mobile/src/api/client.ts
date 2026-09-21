@@ -456,8 +456,8 @@ export async function getExerciseHistory(_token: string, id: number, params?: { 
 
 // ─── Routines ─────────────────────────────────────────────────────────────────
 
-export async function getRoutines(_token: string): Promise<RoutineSummary[]> {
-  return routinesApi.getAll();
+export async function getRoutines(_token: string, opts?: { archived?: 'exclude' | 'include' | 'only' }): Promise<RoutineSummary[]> {
+  return routinesApi.getAll(opts);
 }
 
 export async function getRoutine(_token: string, id: number): Promise<RoutineDetail> {
@@ -466,6 +466,10 @@ export async function getRoutine(_token: string, id: number): Promise<RoutineDet
 
 export async function updateRoutine(_token: string, id: number, data: { name?: string; notes?: string; routineType?: string }): Promise<void> {
   await routinesApi.update(id, data as any);
+}
+
+export async function setRoutineArchived(_token: string, id: number, archived: boolean): Promise<void> {
+  await routinesApi.setArchived(id, archived);
 }
 
 export async function createRoutine(_token: string, data: { name: string; notes?: string }): Promise<{ id: number; name: string }> {

@@ -42,6 +42,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
                        POST /api/workouts/:id/estimate-calories  AI-estimates calories burned, saves to workout_logs.calories_burned
 /api/exercises/*       Exercise library CRUD — GET /, GET /:id, POST / (custom), PUT /:id (any), DELETE /:id (custom only), GET /:id/stats, GET /:id/history, GET /categories
 /api/routines/*        Saved workout routines CRUD + start (POST /:id/start creates workout from routine)
+                       GET /api/routines?archived=exclude|include|only (default exclude); PUT /:id { archived } archives/unarchives
 /api/measurements/*    Body measurements CRUD + goals (weight, waist, bicep, …)
                        POST /api/measurements/sync  trigger WeightGurus → DB sync (last 7 days)
 /api/export/*          Excel export — GET /excel?start=&end= returns a 7-sheet .xlsx (Daily Diary, Daily Summary, Weekly Summary, TDEE Breakdown, Workout Log, Body Measurements, Water Log); user-scoped

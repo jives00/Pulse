@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  getRoutine, updateRoutine, deleteRoutine, startRoutine,
+  getRoutine, updateRoutine, deleteRoutine, setRoutineArchived, startRoutine,
   addRoutineExercise, removeRoutineExercise, reorderRoutineExercises,
   getWorkouts, getExercises, getExerciseCategories, createCustomExercise,
   type RoutineDetail, type RoutineExercise, type Exercise,
@@ -361,6 +361,17 @@ export default function RoutineDetailScreen() {
     }
   }
 
+  async function handleToggleArchive() {
+    if (!routine) return;
+    const next = !routine.archived;
+    try {
+      await setRoutineArchived(token, routine.id, next);
+      setRoutine((prev) => prev ? { ...prev, archived: next } : prev);
+    } catch {
+      Alert.alert('Error', `Could not ${next ? 'archive' : 'unarchive'} routine.`);
+    }
+  }
+
   async function handleDelete() {
     if (!routine) return;
     Alert.alert('Delete Routine', `Delete "${routine.name}"?`, [
@@ -404,6 +415,12 @@ export default function RoutineDetailScreen() {
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
               <Text style={s.subtitle}>{routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}</Text>
+              {routine.archived && (
+                <>
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted }}>·</Text>
+                  <Text style={{ fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Archived</Text>
+                </>
+              )}
               <Text style={{ fontSize: fontSize.sm, color: c.muted }}>·</Text>
               <TouchableOpacity onPress={() => setShowTypePicker(true)}>
                 <Text style={{ fontSize: fontSize.sm, color: c.accent }}>
@@ -412,7 +429,10 @@ export default function RoutineDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity onPress={handleDelete} style={s.deleteBtn}>
+          <TouchableOpacity onPress={handleToggleArchive} style={s.deleteBtn}>
+            <Text style={s.deleteBtnText}>{routine.archived ? 'Unarchive' : 'Archive'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={[s.deleteBtn, { marginLeft: 6 }]}>
             <Text style={s.deleteBtnText}>Delete</Text>
           </TouchableOpacity>
         </View>

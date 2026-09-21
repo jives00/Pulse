@@ -263,6 +263,8 @@ async function getRoutineDetail(routineId: number, userId: number) {
     name: r.name,
     notes: r.notes ?? null,
     routineType: r.routine_type ?? 'strength',
+    archived: Boolean(r.archived_at),
+    archivedAt: r.archived_at ?? null,
     coverImageUrl: r.cover_image_key ? await getPresignedGetUrl(r.cover_image_key) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -272,12 +274,19 @@ async function getRoutineDetail(routineId: number, userId: number) {
 
 // GET /api/routines
 router.get('/', async (req, res) => {
+  // archived=exclude (default) | include | only — archived routines stay out of
+  // pickers and the default grid, but their history is untouched.
+  const archivedParam = String(req.query.archived ?? 'exclude');
+  const archivedFilter =
+    archivedParam === 'only'    ? 'AND wr.archived_at IS NOT NULL' :
+    archivedParam === 'include' ? '' :
+                                  'AND wr.archived_at IS NULL';
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT wr.*, COUNT(DISTINCT re.id) AS exercise_count
        FROM workout_routines wr
        LEFT JOIN routine_exercises re ON re.routine_id = wr.id
-       WHERE wr.user_id = ?
+       WHERE wr.user_id = ? ${archivedFilter}
        GROUP BY wr.id
        ORDER BY wr.name ASC`,
       [req.userId]
@@ -391,6 +400,8 @@ router.get('/', async (req, res) => {
       name: r.name,
       notes: r.notes ?? null,
       routineType: r.routine_type ?? 'strength',
+      archived: Boolean(r.archived_at),
+      archivedAt: r.archived_at ?? null,
       exerciseCount: Number(r.exercise_count),
       lastUsedDate: lastUsedMap[r.id] ?? null,
       nextOccurrenceDate: nextOccurrenceMap[r.id] ?? null,
@@ -462,13 +473,14 @@ router.put('/:id', async (req, res) => {
   if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!await ownsRoutine(id, req.userId)) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const { name, notes, coverImageKey, routineType } = req.body;
+  const { name, notes, coverImageKey, routineType, archived } = req.body;
   try {
     const updates: string[] = [];
     const values: unknown[] = [];
     if (name !== undefined) { updates.push('name=?'); values.push(name); }
     if (notes !== undefined) { updates.push('notes=?'); values.push(notes ?? null); }
     if (routineType !== undefined) { updates.push('routine_type=?'); values.push(routineType); }
+    if (archived !== undefined) { updates.push('archived_at=?'); values.push(archived ? new Date() : null); }
     if (coverImageKey !== undefined) {
       updates.push('cover_image_key=?');
       values.push(coverImageKey?.trim() || null);

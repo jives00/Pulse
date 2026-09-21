@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import QuickLogModal from '../components/QuickLogModal';
 import {
   workoutsApi, routinesApi, exercisesApi, stepsApi,
-  defaultTrackedFields, localDateStr,
+  defaultTrackedFields, localDateStr, sortRoutines,
   type WorkoutSummary, type WorkoutDetail,
   type RoutineSummary, type Exercise,
   KG_TO_LBS, secondsToMMSS,
@@ -20,10 +20,15 @@ function RoutineCardInTab({ routine }: { routine: RoutineSummary }) {
   return (
     <div
       onClick={() => navigate(`/workouts/routines/${routine.id}`)}
-      className="bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group"
+      className={`bg-dram-card overflow-hidden border border-dram-border hover:border-dram-accent/50 transition cursor-pointer group ${routine.archived ? 'opacity-60' : ''}`}
     >
       {/* Image */}
       <div className="aspect-square bg-dram-bg relative overflow-hidden">
+        {routine.archived && (
+          <span className="absolute top-1.5 left-1.5 z-10 bg-black/70 text-slate-300 text-sm px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Archived
+          </span>
+        )}
         {routine.coverImageUrl ? (
           <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover group-hover:opacity-80 transition" />
         ) : (
@@ -55,6 +60,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
   const navigate = useNavigate();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDetail | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
@@ -65,7 +71,7 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
 
   useEffect(() => {
     Promise.all([
-      routinesApi.getAll(),
+      routinesApi.getAll({ archived: 'include' }),
       workoutsApi.getActive().catch(() => null),
     ]).then(([rs, active]) => {
       setRoutines(rs);
@@ -90,6 +96,9 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
     } catch { setCreating(false); }
   }
 
+  const archivedCount = routines.filter((r) => r.archived).length;
+  const visibleRoutines = showArchived ? routines : routines.filter((r) => !r.archived);
+
   return (
     <>
       {activeWorkout && (
@@ -113,9 +122,19 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
       )}
 
       <div className="px-9 py-4">
+        {archivedCount > 0 && (
+          <div className="flex justify-end -mt-1 mb-3">
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="text-sm text-dram-muted hover:text-dram-accent transition-colors"
+            >
+              {showArchived ? 'Hide' : 'Show'} archived ({archivedCount})
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center mt-8"><Spinner size={10} /></div>
-        ) : routines.length === 0 ? (
+        ) : visibleRoutines.length === 0 ? (
           <div className="flex flex-col items-center mt-12 text-gray-600">
             <span className="text-5xl mb-3">📋</span>
             <p className="text-lg">No routines yet.</p>
@@ -123,21 +142,9 @@ const RoutinesTab = forwardRef<RoutinesTabHandle>(function RoutinesTab(_, ref) {
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-            {[...routines]
-              .sort((a, b) => {
-                // Sort by next scheduled occurrence first, then routines without schedule at the end
-                const aHasNext = a.nextOccurrenceDate != null;
-                const bHasNext = b.nextOccurrenceDate != null;
-                if (aHasNext && !bHasNext) return -1;
-                if (!aHasNext && bHasNext) return 1;
-                if (aHasNext && bHasNext) {
-                  return a.nextOccurrenceDate!.localeCompare(b.nextOccurrenceDate!);
-                }
-                return 0;
-              })
-              .map((r) => {
-                return <RoutineCardInTab key={r.id} routine={r} />;
-              })}
+            {sortRoutines(visibleRoutines).map((r) => (
+              <RoutineCardInTab key={r.id} routine={r} />
+            ))}
           </div>
         )}
       </div>
