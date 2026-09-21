@@ -14,6 +14,7 @@ import {
   buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
   resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
   resolveGoalCard, type GoalCardConfig,
+  weeklyPace, type WeeklyGoalDirection, GLASS_OZ,
   type DashboardWidgetKey, type LayoutEntry, type StoredDashboardLayout, type WidgetGroup,
 } from '@pulse/api-client';
 import { copyText } from '../utils/clipboard';
@@ -510,59 +511,67 @@ const RECOVERY_COLOR: Record<string, string> = { high: COL_GOOD, medium: '#D4A84
 
 // ─── This week ────────────────────────────────────────────────────────────────
 
-function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysIn }: {
+function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysIn, direction }: {
   label: string; val: number; goal: number; fmtv: string; fmtg: string; daysIn: number;
+  direction: WeeklyGoalDirection;
 }) {
-  const pct = clamp(val / goal);
-  const expected = goal * (daysIn / 7);
-  const paceStatus = pct >= 1 ? 'done' : val >= expected * 0.95 ? 'ahead' : val >= expected * 0.75 ? 'close' : 'behind';
-  const paceColor = paceStatus === 'done' || paceStatus === 'ahead' ? COL_GOOD : paceStatus === 'close' ? '#D4A843' : COL_WARN;
-  const paceLabel = paceStatus === 'done' ? 'Done' : paceStatus === 'ahead' ? 'On pace' : paceStatus === 'close' ? 'Close' : 'Behind';
+  const pace = weeklyPace({ val, goal, daysIn, direction });
+  const paceColor = pace.tone === 'good' ? COL_GOOD : pace.tone === 'caution' ? '#D4A843' : COL_WARN;
+  const barColor = pace.exceeded ? COL_WARN : ACCENT;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span className="micro" style={{ fontSize: T.small, color: MUTED }}>{label}</span>
-        <span style={{ padding: '2px 8px', borderRadius: 99, background: paceColor + '28', color: paceColor, fontSize: T.small, fontWeight: 600, letterSpacing: '.02em' }}>{paceLabel}</span>
+        <span style={{ padding: '2px 8px', borderRadius: 99, background: paceColor + '28', color: paceColor, fontSize: T.small, fontWeight: 600, letterSpacing: '.02em' }}>{pace.label}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span className="font-display" style={{ fontSize: T.sub, fontWeight: 600, color: TEXT }}>{fmtv}</span>
         <span className="font-mono" style={{ fontSize: T.small, color: MUTED2 }}>/ {fmtg}</span>
       </div>
       <div style={{ position: 'relative', height: 5, background: LINE_SOFT, borderRadius: 2, overflow: 'visible' }}>
-        <div style={{ height: '100%', width: `${pct * 100}%`, background: ACCENT, opacity: 0.85, borderRadius: 2 }} />
+        <div style={{ height: '100%', width: `${pace.pct * 100}%`, background: barColor, opacity: 0.85, borderRadius: 2 }} />
         <div style={{ position: 'absolute', top: -6, bottom: -6, left: `calc(${(daysIn / 7) * 100}% - 1.5px)`, width: 3, background: 'rgba(255,255,255,0.75)', borderRadius: 1 }} />
       </div>
     </div>
   );
 }
 
-function ThisWeek({ summary, newGoals, workouts, thisWeekBucket, foodLogHistory, weekStart }: {
+function ThisWeek({ summary, newGoals, workouts, thisWeekBucket, foodLogHistory, waterWeekHistory, weekStart }: {
   summary: NutritionSummary | null; newGoals: Goal[]; workouts: WorkoutSummary[];
-  thisWeekBucket: WeekBucket; foodLogHistory: FoodLogHistoryDay[]; weekStart: string;
+  thisWeekBucket: WeekBucket; foodLogHistory: FoodLogHistoryDay[]; waterWeekHistory: WaterHistoryDay[]; weekStart: string;
 }) {
   const today = localDateStr();
   const daysIn = Math.min(7, Math.max(1,
     Math.ceil((new Date(today + 'T00:00:00').getTime() - new Date(weekStart + 'T00:00:00').getTime()) / 86400000) + 1
   ));
-  const weekCal = foodLogHistory.filter(d => d.date >= weekStart && d.date <= today).reduce((s, d) => s + d.calories, 0);
-  const weekProt = foodLogHistory.filter(d => d.date >= weekStart && d.date <= today).reduce((s, d) => s + d.protein, 0);
-  const calGoal = summary?.nutrition.goals?.calories ?? 0;
-  const protGoal = summary?.nutrition.goals?.proteinG ?? 0;
-  const workoutGoal = newGoals.find(g => g.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? 0;
+  const inWeek = (d: { date: string }) => d.date >= weekStart && d.date <= today;
+  const weekCal = foodLogHistory.filter(inWeek).reduce((s, d) => s + d.calories, 0);
+  const weekProt = foodLogHistory.filter(inWeek).reduce((s, d) => s + d.protein, 0);
+  const weekWaterOz = waterWeekHistory.filter(inWeek).reduce((s, d) => s + d.totalOz, 0);
+  const g = summary?.nutrition.goals;
+  // Weekly targets are set explicitly where the user has them; otherwise the daily goal × 7.
+  const calGoal = g?.weeklyCalories ?? (g?.calories ? g.calories * 7 : 0);
+  const protGoal = g?.weeklyProteinG ?? (g?.proteinG ? g.proteinG * 7 : 0);
+  const waterGoalOz = g?.weeklyWaterGoalOz ?? (g?.waterGoalOz ? g.waterGoalOz * 7 : 0);
+  // Water reads in 8 oz glasses everywhere else in the app, so the weekly card matches.
+  const waterGlasses = weekWaterOz / GLASS_OZ;
+  const waterGoalGlasses = Math.round(waterGoalOz / GLASS_OZ);
+  const workoutGoal = newGoals.find(gl => gl.catalogKey === 'exercise_workouts_per_week')?.targetValue ?? 0;
   const workoutActual = workouts.filter(w => w.workoutDate >= weekStart && w.workoutDate <= today).length;
-  const volGoal = newGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? 0;
+  const volGoal = newGoals.find(gl => gl.catalogKey === 'exercise_volume_per_week')?.targetValue ?? 0;
   const items = [
-    calGoal   > 0 && { label: 'Calories', val: weekCal,                   goal: calGoal * 7,    fmtv: fmt(weekCal),            fmtg: `${fmt(calGoal * 7)} kcal` },
-    protGoal  > 0 && { label: 'Protein',  val: weekProt,                  goal: protGoal * 7,   fmtv: `${Math.round(weekProt)}g`, fmtg: `${protGoal * 7}g` },
-    workoutGoal>0 && { label: 'Workouts', val: workoutActual,              goal: workoutGoal,    fmtv: String(workoutActual),   fmtg: `of ${workoutGoal}` },
-    volGoal   > 0 && { label: 'Volume',   val: thisWeekBucket.volumeLbs,  goal: volGoal,        fmtv: fmt(thisWeekBucket.volumeLbs), fmtg: `${fmt(volGoal)} lb` },
-  ].filter(Boolean) as { label: string; val: number; goal: number; fmtv: string; fmtg: string }[];
+    calGoal    > 0 && { label: 'Calories', val: weekCal,                  goal: calGoal,     direction: 'ceiling' as const, fmtv: fmt(weekCal),                 fmtg: `${fmt(calGoal)} kcal` },
+    protGoal   > 0 && { label: 'Protein',  val: weekProt,                 goal: protGoal,    direction: 'floor'   as const, fmtv: `${Math.round(weekProt)}g`,   fmtg: `${Math.round(protGoal)}g` },
+    waterGoalGlasses > 0 && { label: 'Water', val: waterGlasses,         goal: waterGoalGlasses, direction: 'floor' as const, fmtv: waterGlasses.toFixed(1), fmtg: `${waterGoalGlasses} glasses` },
+    workoutGoal> 0 && { label: 'Workouts', val: workoutActual,            goal: workoutGoal, direction: 'floor'   as const, fmtv: String(workoutActual),        fmtg: `of ${workoutGoal}` },
+    volGoal    > 0 && { label: 'Volume',   val: thisWeekBucket.volumeLbs, goal: volGoal,     direction: 'floor'   as const, fmtv: fmt(thisWeekBucket.volumeLbs), fmtg: `${fmt(volGoal)} lb` },
+  ].filter(Boolean) as { label: string; val: number; goal: number; direction: WeeklyGoalDirection; fmtv: string; fmtg: string }[];
 
   if (!items.length) return <div style={{ fontSize: T.body, color: MUTED2 }}>Set goals to track weekly progress.</div>;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: '20px 0' }}>
       {items.map((m, i) => (
-        <div key={i} style={{ paddingLeft: i % 3 !== 0 ? 28 : 0, paddingRight: i % 3 !== 2 ? 28 : 0, borderLeft: i % 3 !== 0 ? `1px solid ${LINE_SOFT}` : 'none' }}>
+        <div key={i} style={{ paddingLeft: i !== 0 ? 20 : 0, paddingRight: i !== items.length - 1 ? 20 : 0, borderLeft: i !== 0 ? `1px solid ${LINE_SOFT}` : 'none' }}>
           <WeeklyProgressRow {...m} daysIn={daysIn} />
         </div>
       ))}
@@ -1550,7 +1559,7 @@ const WIDGET_RENDERERS: Record<DashboardWidgetKey, WidgetRenderDef> = {
     panelled: true,
     meta: (ctx) => `day ${Math.min(7, Math.ceil((new Date(ctx.today + 'T00:00:00').getTime() - new Date(ctx.weekStart + 'T00:00:00').getTime()) / 86400000) + 1)} of 7`,
     render: (ctx) => (
-      <ThisWeek summary={ctx.summary} newGoals={ctx.newGoals} workouts={ctx.workouts} thisWeekBucket={ctx.thisWeekBucket} foodLogHistory={ctx.foodLogHistory} weekStart={ctx.weekStart} />
+      <ThisWeek summary={ctx.summary} newGoals={ctx.newGoals} workouts={ctx.workouts} thisWeekBucket={ctx.thisWeekBucket} foodLogHistory={ctx.foodLogHistory} waterWeekHistory={ctx.waterWeekHistory} weekStart={ctx.weekStart} />
     ),
   },
 

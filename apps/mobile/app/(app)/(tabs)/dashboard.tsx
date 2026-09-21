@@ -24,6 +24,7 @@ import {
   goalsV2Api, resolveLayout, buildStepsStats,
   buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
   resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
+  weeklyPace, type WeeklyGoalDirection, GLASS_OZ,
   type WeekBucket, type Goal, type NutritionSummary, type DashboardWidgetKey,
   type GoalSincePoint,
 } from '../../../../../packages/api-client/src/index';
@@ -123,20 +124,19 @@ function CardHeader({ title, meta, c }: { title: string; meta?: string; c: Color
 }
 
 // ── Weekly progress row ───────────────────────────────────────────────────────
-function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysElapsed, c }: {
-  label: string; val: number; goal: number; fmtv: string; fmtg: string; daysElapsed: number; c: Colors;
+function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysElapsed, direction, c }: {
+  label: string; val: number; goal: number; fmtv: string; fmtg: string; daysElapsed: number;
+  direction: WeeklyGoalDirection; c: Colors;
 }) {
-  const pct = Math.min(val / goal, 1);
-  const expected = goal * (daysElapsed / 7);
-  const paceStatus: 'done' | 'ahead' | 'close' | 'behind' = pct >= 1 ? 'done' : val >= expected * 0.95 ? 'ahead' : val >= expected * 0.75 ? 'close' : 'behind';
-  const paceColor = paceStatus === 'done' || paceStatus === 'ahead' ? COL_GOOD : paceStatus === 'close' ? COL_GOLD : COL_WARN;
-  const paceLabel = paceStatus === 'done' ? 'Done' : paceStatus === 'ahead' ? 'On pace' : paceStatus === 'close' ? 'Close' : 'Behind';
+  const pace = weeklyPace({ val, goal, daysIn: daysElapsed, direction });
+  const paceColor = pace.tone === 'good' ? COL_GOOD : pace.tone === 'caution' ? COL_GOLD : COL_WARN;
+  const barColor = pace.exceeded ? COL_WARN : COL_GOLD;
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ fontSize: fontSize.sm, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
         <View style={{ borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: paceColor + '28' }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: paceColor }}>{paceLabel}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: paceColor }}>{pace.label}</Text>
         </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -144,7 +144,7 @@ function WeeklyProgressRow({ label, val, goal, fmtv, fmtg, daysElapsed, c }: {
         <Text style={{ fontSize: fontSize.sm, color: c.muted, fontVariant: ['tabular-nums'] }}>/ {fmtg}</Text>
       </View>
       <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'visible' }}>
-        <View style={{ height: '100%', width: `${pct * 100}%` as any, borderRadius: 3, backgroundColor: COL_GOLD, opacity: 0.85 }} />
+        <View style={{ height: '100%', width: `${pace.pct * 100}%` as any, borderRadius: 3, backgroundColor: barColor, opacity: 0.85 }} />
         <View style={{ position: 'absolute', top: -4, bottom: -4, left: `${(daysElapsed / 7) * 100}%` as any, width: 2, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 1 }} />
       </View>
     </View>
@@ -557,8 +557,15 @@ export default function DashboardV4Screen() {
   });
   const weekCalories = weekDays.reduce((s, d) => s + (foodByDate[d]?.calories ?? 0), 0);
   const weekProtein  = weekDays.reduce((s, d) => s + (foodByDate[d]?.protein ?? 0), 0);
-  const weekCalGoal  = caloriesGoal ? caloriesGoal * 7 : null;
-  const weekProtGoal = proteinGoal  ? proteinGoal  * 7 : null;
+  const weekWaterOz  = waterWeekHistory.filter((d) => d.date >= currentWeekStart && d.date <= todayStr).reduce((s, d) => s + d.totalOz, 0);
+  // Weekly targets are set explicitly where the user has them; otherwise the daily goal x 7.
+  const nGoals       = nutritionSummary?.nutrition.goals;
+  const weekCalGoal  = nGoals?.weeklyCalories ?? (caloriesGoal ? caloriesGoal * 7 : null);
+  const weekProtGoal = nGoals?.weeklyProteinG ?? (proteinGoal  ? proteinGoal  * 7 : null);
+  const weekWaterGoalOz = nGoals?.weeklyWaterGoalOz ?? (nGoals?.waterGoalOz ? nGoals.waterGoalOz * 7 : null);
+  // Water reads in 8 oz glasses everywhere else in the app, so the weekly card matches.
+  const weekWaterGlasses = weekWaterOz / GLASS_OZ;
+  const weekWaterGoalGlasses = weekWaterGoalOz ? Math.round(weekWaterGoalOz / GLASS_OZ) : null;
   const daysIn = weekDays.filter((d) => d <= todayStr && foodByDate[d]?.calories).length;
   const daysElapsed = Math.min(7, Math.max(1, Math.ceil((new Date(todayStr + 'T00:00:00').getTime() - new Date(currentWeekStart + 'T00:00:00').getTime()) / 86400000) + 1));
   const weekVolumeLbs = workouts.filter((w) => getWeekStart(w.workoutDate) === currentWeekStart).reduce((s, w) => s + (w.totalVolumeKg ?? 0) * KG_TO_LBS, 0);
@@ -716,11 +723,12 @@ export default function DashboardV4Screen() {
     weeklyProgress: () => {
       const volGoal = activeGoals.find(g => g.catalogKey === 'exercise_volume_per_week')?.targetValue ?? 0;
       const items = [
-        (weekCalGoal ?? 0) > 0   ? { label: 'Calories', val: weekCalories,  goal: weekCalGoal!,       fmtv: weekCalories.toLocaleString(),              fmtg: `${weekCalGoal!.toLocaleString()} kcal` }      : null,
-        (weekProtGoal ?? 0) > 0  ? { label: 'Protein',  val: weekProtein,   goal: weekProtGoal!,      fmtv: `${Math.round(weekProtein)}g`,               fmtg: `${weekProtGoal!}g` }                          : null,
-        weekWorkoutGoal          ? { label: 'Workouts', val: weekWorkouts,   goal: weekWorkoutGoal,    fmtv: String(weekWorkouts),                        fmtg: `of ${weekWorkoutGoal}` }                      : null,
-        volGoal > 0              ? { label: 'Volume',   val: weekVolumeLbs,  goal: volGoal,            fmtv: Math.round(weekVolumeLbs).toLocaleString(),  fmtg: `${Math.round(volGoal).toLocaleString()} lb` } : null,
-      ].filter(Boolean) as { label: string; val: number; goal: number; fmtv: string; fmtg: string }[];
+        (weekCalGoal ?? 0) > 0   ? { label: 'Calories', val: weekCalories,  goal: weekCalGoal!,       direction: 'ceiling' as const, fmtv: weekCalories.toLocaleString(),              fmtg: `${weekCalGoal!.toLocaleString()} kcal` }      : null,
+        (weekProtGoal ?? 0) > 0  ? { label: 'Protein',  val: weekProtein,   goal: weekProtGoal!,      direction: 'floor'   as const, fmtv: `${Math.round(weekProtein)}g`,               fmtg: `${Math.round(weekProtGoal!)}g` }              : null,
+        (weekWaterGoalGlasses ?? 0) > 0 ? { label: 'Water', val: weekWaterGlasses, goal: weekWaterGoalGlasses!, direction: 'floor' as const, fmtv: weekWaterGlasses.toFixed(1),  fmtg: `${weekWaterGoalGlasses!} glasses` }           : null,
+        weekWorkoutGoal          ? { label: 'Workouts', val: weekWorkouts,  goal: weekWorkoutGoal,    direction: 'floor'   as const, fmtv: String(weekWorkouts),                        fmtg: `of ${weekWorkoutGoal}` }                      : null,
+        volGoal > 0              ? { label: 'Volume',   val: weekVolumeLbs, goal: volGoal,            direction: 'floor'   as const, fmtv: Math.round(weekVolumeLbs).toLocaleString(),  fmtg: `${Math.round(volGoal).toLocaleString()} lb` } : null,
+      ].filter(Boolean) as { label: string; val: number; goal: number; direction: WeeklyGoalDirection; fmtv: string; fmtg: string }[];
       if (!items.length) return null;
       return (
         <View style={s.card}>

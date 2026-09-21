@@ -92,6 +92,10 @@ export { fmt2, titleFor, resolveUnit, fmtGoalValue, normDateStr, fmtDeadline, fm
          emptyMessageFor, linregSlope, etaDaysFor, tdeeSlopePerDay, supportsTdeeProjection } from './goalCardLogic';
 export type { GoalCardStatus, GoalCardSubject, DatedValue, TDEEProjectionInput } from './goalCardLogic';
 
+// Weekly goal progress pace logic shared by web + mobile
+export { weeklyPace } from './weeklyPace';
+export type { WeeklyPace, WeeklyPaceInput, WeeklyPaceStatus, WeeklyPaceTone, WeeklyGoalDirection } from './weeklyPace';
+
 // "Progress since a date" widget logic shared by web + mobile
 export { buildGoalSinceRows, changeLabelFor, fmtSinceDate,
          shiftDate, pointAt, averageAt, readingAt,
