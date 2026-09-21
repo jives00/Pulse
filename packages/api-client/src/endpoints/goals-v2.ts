@@ -137,6 +137,16 @@ export const goalsV2Api = {
   getSince: (date: string) =>
     apiClient.get<GoalSincePoint[]>('/goals-v2/since', { params: { date } }).then(r => r.data),
 
+  /**
+   * The metric's present reading for a goal that doesn't exist yet — used to prefill
+   * the starting value when creating one. null when the metric isn't auto-tracked or
+   * has no data.
+   */
+  getCurrentValue: (catalogKey: GoalCatalogKey, sourceId?: number | null) =>
+    apiClient.get<{ currentValue: number | null }>('/goals-v2/current-value', {
+      params: { catalogKey, ...(sourceId != null ? { sourceId } : {}) },
+    }).then(r => r.data.currentValue),
+
   create: (data: CreateGoalPayload) =>
     apiClient.post<Goal>('/goals-v2', data).then(r => r.data),
 

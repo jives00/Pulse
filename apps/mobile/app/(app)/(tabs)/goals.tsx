@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput,
@@ -438,6 +438,10 @@ function AddGoalModal({ onClose, onCreated, c }: {
 
   const [name, setName]               = useState('');
   const [startValue, setStartValue]   = useState('');
+  const [prefilling, setPrefilling]   = useState(false);
+  const [prefilled, setPrefilled]     = useState(false);
+  // Once the user types a start value it is theirs — a later prefill must not stomp it.
+  const startTouched = useRef(false);
   const [targetValue, setTargetValue] = useState('');
   const [deadline, setDeadline]       = useState('');
   const [saving, setSaving]           = useState(false);
@@ -459,9 +463,29 @@ function AddGoalModal({ onClose, onCreated, c }: {
       .finally(() => setLoadingSources(false));
   }, [step, selected]);
 
+  // Prefill the start value from whatever we already track for this metric, so a
+  // weight goal opens with today's weight instead of a blank box.
+  useEffect(() => {
+    if (step !== 3 || !selected || startTouched.current) return;
+    let cancelled = false;
+    setPrefilling(true);
+    goalsV2Api.getCurrentValue(selected.key, sourceId !== '' ? Number(sourceId) : null)
+      .then(v => {
+        if (cancelled || startTouched.current || v == null) return;
+        setStartValue(String(v));
+        setPrefilled(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPrefilling(false); });
+    return () => { cancelled = true; };
+  }, [step, selected, sourceId]);
+
   function pickCatalogEntry(entry: GoalCatalogEntry) {
     setSelected(entry);
     setName(entry.label);
+    startTouched.current = false;
+    setStartValue('');
+    setPrefilled(false);
     setStep(entry.needsSource ? 2 : 3);
   }
 
@@ -637,13 +661,16 @@ function AddGoalModal({ onClose, onCreated, c }: {
                         <TextInput
                           style={[s.input, { flex: 1, color: c.text, borderColor: c.border, backgroundColor: c.bg }]}
                           value={startValue}
-                          onChangeText={setStartValue}
+                          onChangeText={t => { startTouched.current = true; setPrefilled(false); setStartValue(t); }}
                           keyboardType="decimal-pad"
-                          placeholder="Current"
+                          placeholder={prefilling ? 'Loading…' : 'Current'}
                           placeholderTextColor={c.muted}
                         />
                         <Text style={{ color: c.muted, fontSize: fontSize.xs }}>{selected.defaultUnit}</Text>
                       </View>
+                      {prefilled && (
+                        <Text style={{ color: c.muted, fontSize: fontSize.xs }}>Your current value</Text>
+                      )}
                     </View>
                     <View style={{ flex: 1, gap: 4 }}>
                       <Text style={[s.fieldLabel, { color: c.muted }]}>Target value</Text>

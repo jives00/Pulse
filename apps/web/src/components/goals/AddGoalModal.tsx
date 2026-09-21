@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   CATALOG_BY_CATEGORY,
   goalsV2Api, routinesApi, exercisesApi,
@@ -33,6 +33,11 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
   // Step 3 fields
   const [name, setName]           = useState('');
   const [startValue, setStartValue] = useState('');
+  const [prefilling, setPrefilling] = useState(false);
+  const [prefilled, setPrefilled]   = useState(false);
+  // Once the user types in the starting value it is theirs — a later prefill must not
+  // stomp it, including when they step back and forward through the wizard.
+  const startTouched = useRef(false);
   const [targetValue, setTargetValue] = useState('');
   const [deadline, setDeadline]   = useState('');
   const [saving, setSaving]       = useState(false);
@@ -50,9 +55,29 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
       .finally(() => setLoadingSources(false));
   }, [step, selected]);
 
+  // Prefill the starting value from whatever we already track for this metric, so a
+  // weight goal opens with today's weight instead of a blank box.
+  useEffect(() => {
+    if (step !== 3 || !selected || startTouched.current) return;
+    let cancelled = false;
+    setPrefilling(true);
+    goalsV2Api.getCurrentValue(selected.key, sourceId !== '' ? Number(sourceId) : null)
+      .then(v => {
+        if (cancelled || startTouched.current || v == null) return;
+        setStartValue(String(v));
+        setPrefilled(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPrefilling(false); });
+    return () => { cancelled = true; };
+  }, [step, selected, sourceId]);
+
   function pickCatalogEntry(entry: GoalCatalogEntry) {
     setSelected(entry);
     setName(entry.label);
+    startTouched.current = false;
+    setStartValue('');
+    setPrefilled(false);
     if (entry.needsSource) {
       setStep(2);
     } else {
@@ -232,12 +257,13 @@ export default function AddGoalModal({ onClose, onCreated }: Props) {
                     type="number"
                     step="any"
                     value={startValue}
-                    onChange={e => setStartValue(e.target.value)}
-                    placeholder="Current"
+                    onChange={e => { startTouched.current = true; setPrefilled(false); setStartValue(e.target.value); }}
+                    placeholder={prefilling ? 'Loading…' : 'Current'}
                     className="flex-1 bg-dram-bg border border-dram-border rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-dram-accent"
                   />
                   <span className="text-xs text-slate-500 shrink-0">{selected.defaultUnit}</span>
                 </div>
+                {prefilled && <p className="mt-1 text-xs text-slate-500">Your current value</p>}
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Target value</label>

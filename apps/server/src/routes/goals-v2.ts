@@ -134,6 +134,32 @@ router.get('/nudges', loadFeatures, async (req, res) => {
   } catch (err) { console.error('[goals-v2] GET /nudges', err); res.status(500).json({ error: 'Server error' }); }
 });
 
+// GET /api/goals-v2/current-value?catalogKey=...&sourceId=...
+// What a metric reads right now, for a goal that does not exist yet — the Add Goal
+// form uses it to prefill the starting value from data we already track. Reuses
+// CURRENT_VALUE_SQL against a one-row derived table shaped like the goals row that
+// is about to be created, so a prefill can never drift from what the card will show.
+// Metrics with no authoritative source (manual-log goals) return null, as does a
+// metric with no data yet. Registered ahead of /:id.
+router.get('/current-value', async (req, res) => {
+  const catalogKey = String(req.query.catalogKey ?? '');
+  const sourceIdRaw = req.query.sourceId;
+  const sourceId = sourceIdRaw != null && sourceIdRaw !== '' ? Number(sourceIdRaw) : null;
+  if (!catalogKey) { res.status(400).json({ error: 'catalogKey required' }); return; }
+  if (!isAutoTracked(catalogKey)) { res.json({ currentValue: null }); return; }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT ${CURRENT_VALUE_SQL} AS current_value
+       FROM (SELECT CAST(? AS SIGNED) AS user_id, ? AS catalog_key,
+                    CAST(? AS SIGNED) AS source_id, NULL AS id) g`,
+      [req.userId, catalogKey, sourceId]
+    );
+    const v = (rows as RowDataPacket[])[0]?.current_value;
+    res.json({ currentValue: v != null ? Math.round(Number(v) * 100) / 100 : null });
+  } catch (err) { console.error('[goals-v2] GET /current-value', err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // GET /api/goals-v2/since?date=YYYY-MM-DD
 // Two numbers per active goal: where it stood on the given date and where it stands
 // now. Registered ahead of /:id — Express matches in declaration order, so a later
