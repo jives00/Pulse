@@ -776,7 +776,7 @@ export default function RoutineDetailPage() {
           {/* Right column — exercises */}
           <div className="p-6 space-y-4 lg:overflow-y-auto">
             {/* Cover image */}
-            <div className="relative aspect-square bg-dram-bg overflow-hidden border border-dram-border">
+            <div className="relative aspect-[16/9] max-h-56 bg-dram-bg overflow-hidden border border-dram-border">
               {routine.coverImageUrl && (
                 <img src={routine.coverImageUrl} alt={routine.name} className="w-full h-full object-cover" />
               )}
