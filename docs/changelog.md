@@ -7,10 +7,10 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 ## September 22, 2026
 
 ### Backend
-- **`PUT /api/foods/:id/nutrition`** — corrects the per-100g calories/carbs/protein/fat on any food, including Open Food Facts and USDA rows that the general `PUT /api/foods/:id` refuses to touch because they aren't custom. Omitted fields are left alone. Barcode lookups return the cached `foods` row for as long as `barcode_cache` points at it, so a correction sticks for every future scan of that barcode `bdfe968`
+- **`PUT /api/foods/:id/nutrition`** — corrects the per-100g calories/carbs/protein/fat on any food, including Open Food Facts and USDA rows that the general `PUT /api/foods/:id` refuses to touch because they aren't custom. Omitted fields are left alone. Barcode lookups return the cached `foods` row for as long as `barcode_cache` points at it, so a correction sticks for every future scan of that barcode `b56705f`
 
 ### Frontend – Mobile
-- **Fixing a scanned product's macros actually does something now** — the barcode review card has always had editable Cal/P/C/F fields, but on "Add all" only QR-scraped inline items used them; foods were logged from the cached Open Food Facts values and recipes from the saved recipe, so edits silently vanished. Changed food macros are now converted back to per-100g and saved to the product before the entry is logged (the log computes from the food row, so the order matters); only the fields you touched are written, so untouched ones keep their exact values instead of picking up per-serving rounding. Edited recipe items are logged as a one-off override and leave the saved recipe alone. The card says which of the two will happen `bdfe968`
+- **Fixing a scanned product's macros actually does something now** — the barcode review card has always had editable Cal/P/C/F fields, but on "Add all" only QR-scraped inline items used them; foods were logged from the cached Open Food Facts values and recipes from the saved recipe, so edits silently vanished. Changed food macros are now converted back to per-100g and saved to the product before the entry is logged (the log computes from the food row, so the order matters); only the fields you touched are written, so untouched ones keep their exact values instead of picking up per-serving rounding. Edited recipe items are logged as a one-off override and leave the saved recipe alone. The card says which of the two will happen `b56705f`
 
 ## September 21, 2026
 
