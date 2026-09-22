@@ -27,6 +27,10 @@ export const foodsApi = {
   update: (id: number, payload: Partial<CreateFoodPayload>) =>
     apiClient.put<Food>(`/foods/${id}`, payload).then((r) => r.data),
 
+  // Per-100g values; works on non-custom (barcode/USDA) foods too.
+  correctNutrition: (id: number, nutrition: Partial<Pick<Food['nutrition'], 'calories' | 'carbs' | 'protein' | 'fat'>>) =>
+    apiClient.put<Food>(`/foods/${id}/nutrition`, nutrition).then((r) => r.data),
+
   delete: (id: number) =>
     apiClient.delete(`/foods/${id}`).then((r) => r.data),
 

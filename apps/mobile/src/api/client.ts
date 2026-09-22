@@ -549,6 +549,15 @@ export async function getFoodByBarcode(_token: string, barcode: string): Promise
   }
 }
 
+// Per-100g values; fixes a barcode product's macros for future scans.
+export async function correctFoodNutrition(
+  _token: string,
+  id: number,
+  nutrition: { calories?: number; carbs?: number; protein?: number; fat?: number }
+): Promise<Food> {
+  return foodsApi.correctNutrition(id, nutrition);
+}
+
 // Totals for a described meal ("a burrito bowl with chicken"), not per-100g values.
 export async function estimateMeal(
   _token: string,

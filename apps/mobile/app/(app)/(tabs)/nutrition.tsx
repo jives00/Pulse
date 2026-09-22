@@ -10,7 +10,7 @@ import {
   editNutritionLogEntry, getFoodById, addWater,
   searchFoods, searchRecipes, getRecipeByBarcode, getFoodByBarcode, logRecipeToNutrition,
   aiModifyRecipe, logModifiedRecipe, logInline, estimateMeal, getFrequentFoods,
-  scrapeRecipe,
+  scrapeRecipe, correctFoodNutrition,
   type DailyLog, type NutritionLogEntry, type MealSlot, type Food, type ServingSize,
   type RecipeSearchResult, type FrequentFood,
 } from '../../../src/api/client';
@@ -66,6 +66,49 @@ type BarcodeQueueItem = {
   editCarbs: string;
   editFat: string;
 };
+
+// Per-serving macro strings for the review card, derived from a food's per-100g values.
+function servingMacros(food: Food, serving: ServingSize) {
+  const per = (v: number) => String(Math.round(v * serving.grams / 100));
+  return {
+    editCalories: per(food.nutrition.calories),
+    editProtein: per(food.nutrition.protein),
+    editCarbs: per(food.nutrition.carbs),
+    editFat: per(food.nutrition.fat),
+  };
+}
+
+const MACRO_FIELDS = [
+  ['editCalories', 'calories'],
+  ['editProtein', 'protein'],
+  ['editCarbs', 'carbs'],
+  ['editFat', 'fat'],
+] as const;
+
+// Macros the user changed on a scanned food, converted back to per-100g for saving.
+function foodCorrection(item: BarcodeQueueItem) {
+  if (item.type !== 'food' || !item.food || !item.serving || !(item.serving.grams > 0)) return null;
+  const orig = servingMacros(item.food, item.serving);
+  const correction: Partial<Record<(typeof MACRO_FIELDS)[number][1], number>> = {};
+  for (const [editKey, key] of MACRO_FIELDS) {
+    if (item[editKey] === orig[editKey]) continue;
+    const v = parseFloat(item[editKey]);
+    if (Number.isFinite(v) && v >= 0) correction[key] = v * 100 / item.serving.grams;
+  }
+  return Object.keys(correction).length ? correction : null;
+}
+
+// True when a scanned recipe's macros no longer match the saved recipe.
+function recipeEdited(item: BarcodeQueueItem) {
+  if (item.type !== 'recipe' || !item.recipe) return false;
+  const r = item.recipe;
+  const orig = (v: number | null | undefined) => (v != null ? String(Math.round(v)) : '');
+  return item.editName !== r.name
+    || item.editCalories !== orig(r.calories)
+    || item.editProtein !== orig(r.protein_g)
+    || item.editCarbs !== orig(r.carbs_g)
+    || item.editFat !== orig(r.fat_g);
+}
 
 function formatDate(dateStr: string) {
   const today = localDateStr();
@@ -351,10 +394,7 @@ export default function NutritionScreen() {
           serving: def,
           quantity: '1',
           editName: food.name,
-          editCalories: def ? String(Math.round(food.nutrition.calories * def.grams / 100)) : '',
-          editProtein: def ? String(Math.round(food.nutrition.protein * def.grams / 100)) : '',
-          editCarbs: def ? String(Math.round(food.nutrition.carbs * def.grams / 100)) : '',
-          editFat: def ? String(Math.round(food.nutrition.fat * def.grams / 100)) : '',
+          ...(def ? servingMacros(food, def) : { editCalories: '', editProtein: '', editCarbs: '', editFat: '' }),
         };
         setBarcodeQueue((q) => [...q, item]);
         scannedRef.current = false;
@@ -541,6 +581,18 @@ export default function NutritionScreen() {
             carbs_g: parseFloat(item.editCarbs) * qty || 0,
             fat_g: parseFloat(item.editFat) * qty || 0,
           });
+        } else if (item.type === 'recipe' && item.recipe && recipeEdited(item)) {
+          // One-off override; fix the recipe itself in the recipe editor.
+          return logModifiedRecipe(token, {
+            recipeId: item.recipe.id,
+            meal: addMeal!,
+            logDate: date,
+            name: item.editName.trim() || item.recipe.name,
+            calories: parseFloat(item.editCalories) * qty || 0,
+            protein_g: parseFloat(item.editProtein) * qty || 0,
+            carbs_g: parseFloat(item.editCarbs) * qty || 0,
+            fat_g: parseFloat(item.editFat) * qty || 0,
+          });
         } else if (item.type === 'recipe' && item.recipe) {
           return logRecipeToNutrition(token, {
             recipeId: item.recipe.id,
@@ -549,6 +601,9 @@ export default function NutritionScreen() {
             logDate: date,
           });
         } else if (item.type === 'food' && item.food && item.serving) {
+          // Save corrected macros to the product first — the log entry is computed from them
+          const correction = foodCorrection(item);
+          if (correction) await correctFoodNutrition(token, item.food.id, correction);
           const entry = await addLogEntry(token, {
             logDate: date,
             meal: addMeal!,
@@ -1174,16 +1229,7 @@ export default function NutritionScreen() {
                             <TouchableOpacity
                               key={sv.id}
                               style={[s.servingRow, item.serving?.id === sv.id && s.servingRowActive, { marginBottom: 0 }]}
-                              onPress={() => {
-                                const def = sv;
-                                updateQueueItem(item.key, {
-                                  serving: def,
-                                  editCalories: String(Math.round(item.food!.nutrition.calories * def.grams / 100)),
-                                  editProtein: String(Math.round(item.food!.nutrition.protein * def.grams / 100)),
-                                  editCarbs: String(Math.round(item.food!.nutrition.carbs * def.grams / 100)),
-                                  editFat: String(Math.round(item.food!.nutrition.fat * def.grams / 100)),
-                                });
-                              }}
+                              onPress={() => updateQueueItem(item.key, { serving: sv, ...servingMacros(item.food!, sv) })}
                             >
                               <Text style={[s.servingLabel, item.serving?.id === sv.id && { color: c.accent }]}>{sv.label}</Text>
                             </TouchableOpacity>
@@ -1246,6 +1292,12 @@ export default function NutritionScreen() {
                       <Text style={s.nutritionPreview}>
                         {Math.round(cal * qty)} kcal · P: {Math.round(pro * qty)}g · C: {Math.round(carb * qty)}g · F: {Math.round(fat * qty)}g
                       </Text>
+                      {foodCorrection(item) && (
+                        <Text style={s.reviewEditNote}>Corrected macros will be saved to this product for future scans.</Text>
+                      )}
+                      {recipeEdited(item) && (
+                        <Text style={s.reviewEditNote}>Logged with these values; the saved recipe is unchanged.</Text>
+                      )}
                     </View>
                   );
                 })}
@@ -1770,6 +1822,7 @@ function makeStyles(c: Colors) {
     servingLabel: { fontSize: fontSize.sm, color: c.text },
     quantityInput: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, fontSize: fontSize.base, color: c.text, backgroundColor: c.card },
     nutritionPreview: { fontSize: fontSize.sm, color: c.muted, marginTop: 12, textAlign: 'center' },
+    reviewEditNote: { fontSize: fontSize.xs, color: c.accent, marginTop: 6, textAlign: 'center' },
     confirmBtn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
     confirmBtnText: { fontSize: fontSize.base, fontWeight: '700', color: c.bg },
     // Action sheet

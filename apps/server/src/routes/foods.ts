@@ -184,6 +184,38 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// Corrects the per-100g macros of any food, including Open Food Facts / USDA
+// records, which are otherwise read-only. Barcode lookups return the cached row,
+// so the fix sticks for future scans. Omitted fields are left unchanged.
+router.put('/:id/nutrition', async (req, res) => {
+  try {
+    const fields = { calories: 'calories_per100', carbs: 'carbs_per100', protein: 'protein_per100', fat: 'fat_per100' } as const;
+    const sets: string[] = [];
+    const params: number[] = [];
+    for (const [key, col] of Object.entries(fields)) {
+      const v = req.body?.[key];
+      if (v == null) continue;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+        res.status(400).json({ error: `${key} must be a non-negative number` }); return;
+      }
+      sets.push(`${col}=?`);
+      params.push(v);
+    }
+    if (!sets.length) { res.status(400).json({ error: 'No nutrition fields provided' }); return; }
+
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE foods SET ${sets.join(', ')} WHERE id=?`,
+      [...params, req.params.id]
+    );
+    if (!result.affectedRows) { res.status(404).json({ error: 'Not found' }); return; }
+    const food = await getFoodWithServings(Number(req.params.id));
+    res.json(food);
+  } catch (err) {
+    console.error('[foods] error:', err);
+    res.status(500).json({ error: 'Failed to update nutrition' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const [inLog] = await pool.query<RowDataPacket[]>(

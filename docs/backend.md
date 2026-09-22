@@ -31,6 +31,7 @@ DELETE /api/auth/data?scope=recipes|history|workouts|goals|links
 /api/tags/*
 /api/links/*
 /api/foods/*           USDA food search + custom foods
+                       PUT  /api/foods/:id/nutrition      correct per-100g macros on any food (incl. barcode/OFF); used by mobile barcode review
 /api/log/*             Nutrition log (meals, water)
                        GET  /api/log/history?limit=90     last N days of food log entries grouped by `date (per-day totals + per-meal entry list)
                        POST /api/log/recipe               log a recipe to nutrition (creates shadow food if needed)
