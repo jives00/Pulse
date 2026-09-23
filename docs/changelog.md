@@ -8,16 +8,16 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ### Backend
 - **`PUT /api/foods/:id/nutrition`** — corrects the per-100g calories/carbs/protein/fat on any food, including Open Food Facts and USDA rows that the general `PUT /api/foods/:id` refuses to touch because they aren't custom. Omitted fields are left alone. Barcode lookups return the cached `foods` row for as long as `barcode_cache` points at it, so a correction sticks for every future scan of that barcode `b56705f`
-- **`GET /api/water/entries`** — individual water entries (newest first) for an optional `start`/`end` range, so the history screens can list and delete them. `DELETE /api/water/:id` already existed but nothing called it; a mis-tapped glass or bottle could not be undone anywhere `ffab872`
+- **`GET /api/water/entries`** — individual water entries (newest first) for an optional `start`/`end` range, so the history screens can list and delete them. `DELETE /api/water/:id` already existed but nothing called it; a mis-tapped glass or bottle could not be undone anywhere `da7fb07`
 
 ### Frontend – Web
-- **Water entries can be deleted from History** — the Nutrition tab of `/history` now shows a Water section in each day's card (day total plus every entry with its time), each with a × that confirms before deleting. Water lives in its own table, so days with only water logged get a card too. Covers the last 90 days `ffab872`
-- **Goal progress since a date shows where each goal is headed** — the card's columns are now Goal · start date · Today · Target / Date · Change · To goal. Target / Date gives the target with its deadline and days left underneath (orange once overdue, "No deadline" when unset); To goal is the total still to cover ("5 lbs to lose", "1,200 steps to go") or ✓ Goal reached. The target/remaining/days-left logic lives in `buildGoalSinceRows` so web and mobile agree `ffab872`
+- **Water entries can be deleted from History** — the Nutrition tab of `/history` now shows a Water section in each day's card (day total plus every entry with its time), each with a × that confirms before deleting. Water lives in its own table, so days with only water logged get a card too. Covers the last 90 days `da7fb07`
+- **Goal progress since a date shows where each goal is headed** — the card's columns are now Goal · start date · Today · Target / Date · Change · To goal. Target / Date gives the target with its deadline and days left underneath (orange once overdue, "No deadline" when unset); To goal is the total still to cover ("5 lbs to lose", "1,200 steps to go") or ✓ Goal reached. The target/remaining/days-left logic lives in `buildGoalSinceRows` so web and mobile agree `da7fb07`
 
 ### Frontend – Mobile
 - **Fixing a scanned product's macros actually does something now** — the barcode review card has always had editable Cal/P/C/F fields, but on "Add all" only QR-scraped inline items used them; foods were logged from the cached Open Food Facts values and recipes from the saved recipe, so edits silently vanished. Changed food macros are now converted back to per-100g and saved to the product before the entry is logged (the log computes from the food row, so the order matters); only the fields you touched are written, so untouched ones keep their exact values instead of picking up per-serving rounding. Edited recipe items are logged as a one-off override and leave the saved recipe alone. The card says which of the two will happen `b56705f`
-- **Water entries can be deleted from History** — History → Nutrition now shows a Water section in each day's card with every entry's time and amount and a ✕ that confirms before deleting; water-only days get a card too `ffab872`
-- **Goal progress since a date shows the target** — under each goal: its target and deadline beside the change, then days left (orange once overdue) beside how much is still to go, or ✓ Goal reached `ffab872`
+- **Water entries can be deleted from History** — History → Nutrition now shows a Water section in each day's card with every entry's time and amount and a ✕ that confirms before deleting; water-only days get a card too `da7fb07`
+- **Goal progress since a date shows the target** — under each goal: its target and deadline beside the change, then days left (orange once overdue) beside how much is still to go, or ✓ Goal reached `da7fb07`
 
 ## September 21, 2026
 
