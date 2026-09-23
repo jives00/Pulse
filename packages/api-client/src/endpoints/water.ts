@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import type { WaterDay } from '../nutrition';
+import type { WaterDay, WaterEntry } from '../nutrition';
 
 export interface WaterHistoryDay { date: string; totalOz: number; }
 export interface WaterHistory { goalOz: number; days: WaterHistoryDay[]; }
@@ -10,6 +10,10 @@ export const waterApi = {
 
   getHistory: (start: string, end: string) =>
     apiClient.get<WaterHistory>('/water/history', { params: { start, end } }).then((r) => r.data),
+
+  /** Individual entries in a date range, newest first. Either bound may be omitted. */
+  getEntries: (params?: { start?: string; end?: string }) =>
+    apiClient.get<WaterEntry[]>('/water/entries', { params }).then((r) => r.data),
 
   add: (date: string, amountOz: number) =>
     apiClient.post('/water', { date, amountOz }).then((r) => r.data),

@@ -21,7 +21,8 @@ import { useFeaturesStore } from '../../../src/store/features';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getWorkouts, deleteWorkout, getFoodLogHistory, getMeasurements, addMeasurement, updateMeasurement, deleteMeasurement,
-  type WorkoutSummary, type FoodLogHistoryDay, type FoodLogHistoryEntry, type BodyMeasurement,
+  getWaterEntries, deleteWater,
+  type WorkoutSummary, type FoodLogHistoryDay, type FoodLogHistoryEntry, type BodyMeasurement, type WaterEntry,
 } from '../../../src/api/client';
 import { useAuthStore } from '../../../src/store/auth';
 import { KG_TO_LBS, localDateStr } from '../../../../../packages/api-client/src/index';
@@ -113,6 +114,17 @@ function mealTotals(entries: FoodLogHistoryEntry[]) {
   };
 }
 
+function fmtWaterTime(loggedAt: string): string {
+  return new Date(loggedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** One day in the nutrition list — a day can have food, water, or both. */
+interface NutritionHistoryDay {
+  date: string;
+  food: FoodLogHistoryDay | null;
+  water: WaterEntry[];
+}
+
 interface MeasModalState {
   entry: BodyMeasurement | null;
   metric: string;
@@ -146,6 +158,20 @@ export default function HistoryScreen() {
   const [nutritionLoading, setNutritionLoading] = useState(true);
   const [nutritionRefreshing, setNutritionRefreshing] = useState(false);
   const [foodDetail, setFoodDetail] = useState<FoodLogHistoryEntry | null>(null);
+  const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
+  const waterEnabled = features.water;
+
+  // Water lives in its own table, so a day with only water logged still gets a card —
+  // that's where an accidental tap gets undone.
+  const nutritionDays = useMemo<NutritionHistoryDay[]>(() => {
+    const byDate = new Map<string, NutritionHistoryDay>();
+    for (const d of foodDays) byDate.set(d.date, { date: d.date, food: d, water: [] });
+    for (const w of waterEntries) {
+      if (!byDate.has(w.logDate)) byDate.set(w.logDate, { date: w.logDate, food: null, water: [] });
+      byDate.get(w.logDate)!.water.push(w);
+    }
+    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date));
+  }, [foodDays, waterEntries]);
 
   // Measurements
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
@@ -161,9 +187,12 @@ export default function HistoryScreen() {
     setNutritionLoading(true);
     setMeasLoading(true);
     getWorkouts(token, { limit: 1000, ...dateParams }).then(setWorkouts).catch(() => {}).finally(() => setWorkoutsLoading(false));
-    getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {}).finally(() => setNutritionLoading(false));
+    Promise.all([
+      getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {}),
+      waterEnabled ? getWaterEntries(token, dateParams).then(setWaterEntries).catch(() => {}) : setWaterEntries([]),
+    ]).finally(() => setNutritionLoading(false));
     getMeasurements(token, dateParams).then(setMeasurements).catch(() => {}).finally(() => setMeasLoading(false));
-  }, [token, dateParams]);
+  }, [token, dateParams, waterEnabled]);
 
   const refreshWorkouts = useCallback(async () => {
     setWorkoutsRefreshing(true);
@@ -173,9 +202,12 @@ export default function HistoryScreen() {
 
   const refreshNutrition = useCallback(async () => {
     setNutritionRefreshing(true);
-    await getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {});
+    await Promise.all([
+      getFoodLogHistory(token, dateParams).then(setFoodDays).catch(() => {}),
+      waterEnabled ? getWaterEntries(token, dateParams).then(setWaterEntries).catch(() => {}) : undefined,
+    ]);
     setNutritionRefreshing(false);
-  }, [token, dateParams]);
+  }, [token, dateParams, waterEnabled]);
 
   const refreshMeasurements = useCallback(async () => {
     setMeasRefreshing(true);
@@ -194,6 +226,24 @@ export default function HistoryScreen() {
           await deleteWorkout(token, id).catch(() => {});
           setWorkouts((prev) => prev.filter((w) => w.id !== id));
           setDeletingWorkoutId(null);
+        },
+      },
+    ]);
+  }
+
+  function handleDeleteWater(entry: WaterEntry) {
+    Alert.alert('Delete Water', `Delete ${entry.amountOz} oz logged at ${fmtWaterTime(entry.loggedAt)}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteWater(token, entry.id);
+            setWaterEntries((prev) => prev.filter((w) => w.id !== entry.id));
+          } catch {
+            Alert.alert('Error', 'Could not delete water entry.');
+          }
         },
       },
     ]);
@@ -358,14 +408,14 @@ export default function HistoryScreen() {
         {activeTab === 'nutrition' && (
           nutritionLoading ? (
             <ActivityIndicator color={c.accent} style={{ marginTop: 60 }} />
-          ) : foodDays.length === 0 ? (
+          ) : nutritionDays.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>🥗</Text>
               <Text style={styles.emptyText}>No nutrition logs in range</Text>
             </View>
           ) : (
             <FlatList
-              data={foodDays}
+              data={nutritionDays}
               keyExtractor={(day) => day.date}
               contentContainerStyle={styles.list}
               refreshControl={<RefreshControl refreshing={nutritionRefreshing} onRefresh={refreshNutrition} tintColor={c.accent} />}
@@ -373,28 +423,34 @@ export default function HistoryScreen() {
               windowSize={5}
               removeClippedSubviews
               renderItem={({ item: day }) => {
-                const byMeal = day.entries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
+                const foodEntries = day.food?.entries ?? [];
+                const byMeal = foodEntries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
                   if (!acc[e.meal]) acc[e.meal] = [];
                   acc[e.meal].push(e);
                   return acc;
                 }, {});
-                const dayTotal = mealTotals(day.entries);
+                const dayTotal = mealTotals(foodEntries);
+                const meals = MEAL_ORDER.filter((m) => byMeal[m]?.length);
+                const waterTotal = Math.round(day.water.reduce((sum, w) => sum + w.amountOz, 0) * 10) / 10;
                 return (
                   <View style={{ marginBottom: 20 }}>
                     <Text style={styles.sectionHeader}>{dayLabel(day.date)}</Text>
                     <View style={styles.card}>
-                      <View style={styles.dayTotals}>
-                        {[['Cal', String(dayTotal.cal)], ['Protein', `${dayTotal.protein}g`], ['Carbs', `${dayTotal.carbs}g`], ['Fat', `${dayTotal.fat}g`]].map(([label, val]) => (
-                          <View key={label} style={{ flex: 1 }}>
-                            <Text style={styles.dayTotalLabel}>{label}</Text>
-                            <Text style={styles.dayTotalValue}>{val}</Text>
-                          </View>
-                        ))}
-                      </View>
-                      {MEAL_ORDER.filter((m) => byMeal[m]?.length).map((meal, mIdx, arr) => {
+                      {day.food && (
+                        <View style={styles.dayTotals}>
+                          {[['Cal', String(dayTotal.cal)], ['Protein', `${dayTotal.protein}g`], ['Carbs', `${dayTotal.carbs}g`], ['Fat', `${dayTotal.fat}g`]].map(([label, val]) => (
+                            <View key={label} style={{ flex: 1 }}>
+                              <Text style={styles.dayTotalLabel}>{label}</Text>
+                              <Text style={styles.dayTotalValue}>{val}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      {meals.map((meal, mIdx, arr) => {
                         const totals = mealTotals(byMeal[meal]);
+                        const divider = mIdx < arr.length - 1 || day.water.length > 0;
                         return (
-                          <View key={meal} style={[styles.mealSection, mIdx < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border }]}>
+                          <View key={meal} style={[styles.mealSection, divider && { borderBottomWidth: 1, borderBottomColor: c.border }]}>
                             <View style={styles.mealHeader}>
                               <Text style={styles.mealName}>{meal.charAt(0).toUpperCase() + meal.slice(1)}</Text>
                               <Text style={styles.mealMeta}>{totals.cal} cal · {totals.protein}g P · {totals.carbs}g C · {totals.fat}g F</Text>
@@ -411,6 +467,28 @@ export default function HistoryScreen() {
                           </View>
                         );
                       })}
+                      {day.water.length > 0 && (
+                        <View style={styles.mealSection}>
+                          <View style={styles.mealHeader}>
+                            <Text style={styles.mealName}>Water</Text>
+                            <Text style={styles.mealMeta}>{waterTotal} oz</Text>
+                          </View>
+                          {day.water.map((w) => (
+                            <View key={w.id} style={[styles.foodRow, { alignItems: 'center' }]}>
+                              <Text style={styles.foodName}>{fmtWaterTime(w.loggedAt)}</Text>
+                              <Text style={styles.foodCal}>{w.amountOz} oz</Text>
+                              <TouchableOpacity
+                                onPress={() => handleDeleteWater(w)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                style={{ paddingLeft: 14 }}
+                                accessibilityLabel={`Delete ${w.amountOz} oz of water`}
+                              >
+                                <Text style={{ fontSize: fontSize.sm, color: c.muted }}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   </View>
                 );

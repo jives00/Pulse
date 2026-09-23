@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  workoutsApi, logApi, measurementsApi,
+  workoutsApi, logApi, measurementsApi, waterApi, localDateStr,
   type WorkoutSummary,
-  type FoodLogHistoryDay, type FoodLogHistoryEntry,
+  type FoodLogHistoryDay, type FoodLogHistoryEntry, type WaterEntry,
   type BodyMeasurement,
   KG_TO_LBS,
 } from '@pulse/api-client';
@@ -165,6 +165,20 @@ function MeasurementModal({
 }
 
 
+function fmtWaterTime(loggedAt: string): string {
+  return new Date(loggedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+/** Days of water entries to load — roughly matches the 90 logged days of food. */
+const WATER_HISTORY_DAYS = 90;
+
+/** One day in the nutrition list — a day can have food, water, or both. */
+interface NutritionHistoryDay {
+  date: string;
+  food: FoodLogHistoryDay | null;
+  water: WaterEntry[];
+}
+
 export default function History() {
   const navigate = useNavigate();
   const features = useFeatures();
@@ -182,6 +196,7 @@ export default function History() {
   const [foodLogDays, setFoodLogDays] = useState<FoodLogHistoryDay[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(true);
   const [foodDetail, setFoodDetail] = useState<FoodLogHistoryEntry | null>(null);
+  const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
 
   // Measurements state
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
@@ -191,9 +206,38 @@ export default function History() {
 
   useEffect(() => {
     workoutsApi.getAll({ limit: 200 }).then(setWorkouts).finally(() => setWorkoutsLoading(false));
-    logApi.getHistory({ limit: 90 }).then(setFoodLogDays).finally(() => setNutritionLoading(false));
+    const waterStart = new Date();
+    waterStart.setDate(waterStart.getDate() - (WATER_HISTORY_DAYS - 1));
+    Promise.all([
+      logApi.getHistory({ limit: 90 }).then(setFoodLogDays),
+      features.water
+        ? waterApi.getEntries({ start: localDateStr(waterStart) }).then(setWaterEntries).catch(() => {})
+        : undefined,
+    ]).finally(() => setNutritionLoading(false));
     measurementsApi.getAll().then(setMeasurements).finally(() => setMeasurementsLoading(false));
-  }, []);
+  }, [features.water]);
+
+  // Water lives in its own table, so a day with only water logged still gets a card —
+  // that's where an accidental glass/bottle tap gets undone.
+  const nutritionDays: NutritionHistoryDay[] = (() => {
+    const byDate = new Map<string, NutritionHistoryDay>();
+    for (const d of foodLogDays) byDate.set(d.date, { date: d.date, food: d, water: [] });
+    for (const w of waterEntries) {
+      if (!byDate.has(w.logDate)) byDate.set(w.logDate, { date: w.logDate, food: null, water: [] });
+      byDate.get(w.logDate)!.water.push(w);
+    }
+    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date));
+  })();
+
+  async function handleDeleteWater(entry: WaterEntry) {
+    if (!confirm(`Delete ${entry.amountOz} oz of water logged at ${fmtWaterTime(entry.loggedAt)}?`)) return;
+    try {
+      await waterApi.delete(entry.id);
+      setWaterEntries((prev) => prev.filter((w) => w.id !== entry.id));
+    } catch {
+      alert('Could not delete water entry.');
+    }
+  }
 
   async function handleDeleteWorkout(e: React.MouseEvent, id: number) {
     e.stopPropagation();
@@ -330,25 +374,25 @@ export default function History() {
           )
         ) : activeTab === 'nutrition' ? (
           /* ── Nutrition log history ───────────────────────────────── */
-          foodLogDays.length === 0 ? (
+          nutritionDays.length === 0 ? (
             <div className="flex flex-col items-center mt-20 text-gray-600">
               <span className="text-5xl mb-3">🥗</span>
               <p className="text-lg">No nutrition logs yet.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-6 max-w-2xl">
-              {foodLogDays.map((day) => {
-                const byMeal = day.entries.reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
+              {nutritionDays.map(({ date, food: day, water }) => {
+                const byMeal = (day?.entries ?? []).reduce<Record<string, FoodLogHistoryEntry[]>>((acc, e) => {
                   if (!acc[e.meal]) acc[e.meal] = [];
                   acc[e.meal].push(e);
                   return acc;
                 }, {});
                 return (
-                  <div key={day.date}>
-                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{dayLabel(day.date)}</p>
+                  <div key={date}>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-2">{dayLabel(date)}</p>
                     <div className="bg-dram-card border border-dram-border overflow-hidden">
                       {/* Day totals */}
-                      <div className="px-4 py-3 border-b border-dram-border flex gap-6">
+                      {day && <div className="px-4 py-3 border-b border-dram-border flex gap-6">
                         <div>
                           <p className="text-sm text-gray-500 uppercase tracking-wide">Calories</p>
                           <p className="text-base font-semibold text-white">{day.calories.toLocaleString()}</p>
@@ -365,11 +409,11 @@ export default function History() {
                           <p className="text-sm text-gray-500 uppercase tracking-wide">Fat</p>
                           <p className="text-base font-semibold text-white">{mealFat(day.entries)}g</p>
                         </div>
-                      </div>
+                      </div>}
 
                       {/* Meals */}
                       {MEAL_ORDER.filter((m) => byMeal[m]?.length).map((meal, mIdx, arr) => (
-                        <div key={meal} className={mIdx < arr.length - 1 ? 'border-b border-dram-border' : ''}>
+                        <div key={meal} className={mIdx < arr.length - 1 || water.length > 0 ? 'border-b border-dram-border' : ''}>
                           {/* Meal header */}
                           <div className="px-4 pt-3 pb-1 flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-300 capitalize">{meal}</p>
@@ -396,6 +440,34 @@ export default function History() {
                           </div>
                         </div>
                       ))}
+
+                      {/* Water */}
+                      {water.length > 0 && (
+                        <div>
+                          <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-300">Water</p>
+                            <p className="text-sm text-gray-500">
+                              {Math.round(water.reduce((sum, w) => sum + w.amountOz, 0) * 10) / 10} oz
+                            </p>
+                          </div>
+                          <div className="pb-2">
+                            {water.map((w) => (
+                              <div key={w.id} className="flex items-center justify-between gap-2 px-4 py-1.5">
+                                <span className="text-base text-white flex-1">{fmtWaterTime(w.loggedAt)}</span>
+                                <span className="text-sm text-gray-400 shrink-0">{w.amountOz} oz</span>
+                                <button
+                                  onClick={() => handleDeleteWater(w)}
+                                  className="text-gray-500 hover:text-red-400 transition text-lg px-1 leading-none shrink-0"
+                                  title="Delete water entry"
+                                  aria-label={`Delete ${w.amountOz} oz of water`}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

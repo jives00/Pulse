@@ -97,7 +97,7 @@ export { weeklyPace } from './weeklyPace';
 export type { WeeklyPace, WeeklyPaceInput, WeeklyPaceStatus, WeeklyPaceTone, WeeklyGoalDirection } from './weeklyPace';
 
 // "Progress since a date" widget logic shared by web + mobile
-export { buildGoalSinceRows, changeLabelFor, fmtSinceDate,
+export { buildGoalSinceRows, changeLabelFor, remainingLabelFor, daysLeftLabel, fmtSinceDate,
          shiftDate, pointAt, averageAt, readingAt,
          SINCE_LOOKBACK_DAYS, SINCE_AVERAGE_WINDOW_DAYS, SINCE_AVERAGED_KEYS } from './goalSince';
 export type { GoalSinceRow, DatedReading } from './goalSince';

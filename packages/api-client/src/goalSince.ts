@@ -6,7 +6,7 @@
 
 import type { Goal, GoalSincePoint } from './endpoints/goals-v2';
 import { resolveGoalCard } from './goalCardConfig';
-import { fmtGoalValue, goalDirection, resolveUnit, titleFor } from './goalCardLogic';
+import { daysUntil, fmtDeadline, fmtGoalValue, goalDirection, isGoalAchieved, resolveUnit, titleFor } from './goalCardLogic';
 
 export interface GoalSinceRow {
   goalId:       number;
@@ -26,6 +26,20 @@ export interface GoalSinceRow {
   changeLabel:  string;
   sinceLabel:   string;
   currentLabel: string;
+
+  // ── Where it's headed ──
+  targetValue:    number;
+  targetLabel:    string;
+  deadline:       string | null;
+  /** "Dec 31, 2026", or null when the goal has no deadline. */
+  deadlineLabel:  string | null;
+  /** Days until the deadline — negative once it has passed. Null without a deadline. */
+  daysLeft:       number | null;
+  achieved:       boolean;
+  /** Distance still to cover toward the target, always >= 0 (0 once achieved). */
+  remaining:      number;
+  /** "10 lbs to lose" / "1,200 steps to go" / "Goal reached". */
+  remainingLabel: string;
 }
 
 /**
@@ -57,6 +71,10 @@ export function buildGoalSinceRows(
     const dir   = goalDirection(goal, resolveGoalCard(goal.catalogKey, goal.cardConfig));
     const delta = p.delta ?? p.currentValue - p.sinceValue;
 
+    const achieved  = isGoalAchieved(p.currentValue, goal.targetValue, dir);
+    const remaining = achieved ? 0 : Math.abs(goal.targetValue - p.currentValue);
+    const daysLeft  = daysUntil(goal.deadline);
+
     return [{
       goalId:       goal.id,
       title:        titleFor(goal),
@@ -71,6 +89,15 @@ export function buildGoalSinceRows(
       changeLabel:  changeLabelFor(goal.catalogKey, delta, unit),
       sinceLabel:   fmtGoalValue(p.sinceValue, unit),
       currentLabel: fmtGoalValue(p.currentValue, unit),
+
+      targetValue:    goal.targetValue,
+      targetLabel:    fmtGoalValue(goal.targetValue, unit),
+      deadline:       goal.deadline,
+      deadlineLabel:  goal.deadline ? fmtDeadline(goal.deadline) : null,
+      daysLeft,
+      achieved,
+      remaining,
+      remainingLabel: remainingLabelFor(goal.catalogKey, remaining, dir, unit),
     }];
   });
 }
@@ -80,6 +107,23 @@ export function changeLabelFor(catalogKey: string, delta: number, unit: string):
   const magnitude = fmtGoalValue(Math.abs(delta), unit);
   if (MASS_METRICS.has(catalogKey)) return `${delta < 0 ? 'Lost' : 'Gained'} ${magnitude}`;
   return `${delta < 0 ? 'Down' : 'Up'} ${magnitude}`;
+}
+
+export function remainingLabelFor(
+  catalogKey: string, remaining: number, dir: 'up' | 'down', unit: string,
+): string {
+  if (remaining <= 0) return 'Goal reached';
+  const magnitude = fmtGoalValue(remaining, unit);
+  if (MASS_METRICS.has(catalogKey)) return `${magnitude} to ${dir === 'down' ? 'lose' : 'gain'}`;
+  return `${magnitude} to go`;
+}
+
+/** "100 days left" / "Due today" / "12 days overdue". Empty without a deadline. */
+export function daysLeftLabel(daysLeft: number | null): string {
+  if (daysLeft == null) return '';
+  if (daysLeft === 0) return 'Due today';
+  if (daysLeft < 0) return `${-daysLeft} day${daysLeft === -1 ? '' : 's'} overdue`;
+  return `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`;
 }
 
 /** "Jan 1, 2026" — the widget labels both ends of the comparison with a real date. */

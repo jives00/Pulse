@@ -11,7 +11,7 @@ import {
   type RoutineSummary, type RoutineDetail, type FoodLogHistoryDay, type TDEEBreakdown,
   type WeekBucket, type UpcomingSession, type RecoveryData, type WaterDay, type StepsDay, type WaterHistoryDay,
   goalsV2Api, type Goal, type UpdateGoalPayload, type GoalSincePoint,
-  buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
+  buildGoalSinceRows, fmtSinceDate, daysLeftLabel, resolveSinceDate, withSinceDate,
   resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
   resolveGoalCard, type GoalCardConfig,
   weeklyPace, type WeeklyGoalDirection, GLASS_OZ,
@@ -1341,14 +1341,15 @@ function RecentSessions({ workouts, navigate }: { workouts: WorkoutSummary[]; na
 
 // ─── Goal progress since a date ───────────────────────────────────────────────
 // Two readings per goal — where it stood on a date you pick, where it stands today —
-// and the change between them. The join and the wording live in buildGoalSinceRows
-// (packages/api-client/src/goalSince.ts) so this and the mobile card can't disagree
-// about whether a change counts as progress.
+// and the change between them — plus the target it's headed for and how far is left.
+// The join and the wording live in buildGoalSinceRows (packages/api-client/src/goalSince.ts)
+// so this and the mobile card can't disagree about whether a change counts as progress.
 
 /** Header and body rows share one column template so the values line up. */
 const SINCE_ROW: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(120px, 1.6fr) minmax(90px, 1fr) minmax(90px, 1fr) minmax(110px, 1fr)',
+  gridTemplateColumns:
+    'minmax(110px, 1.4fr) minmax(80px, 1fr) minmax(80px, 1fr) minmax(110px, 1.2fr) minmax(100px, 1.1fr) minmax(100px, 1.1fr)',
   alignItems: 'baseline',
   gap: 12,
 };
@@ -1451,26 +1452,44 @@ function GoalSince({ goals, points, since, goalIds, loading, onChangeSince, onCh
             <span style={{ fontSize: T.label, color: MUTED }}>Goal</span>
             <span style={{ fontSize: T.label, color: MUTED }}>{fmtSinceDate(since)}</span>
             <span style={{ fontSize: T.label, color: MUTED }}>Today</span>
+            <span style={{ fontSize: T.label, color: MUTED }}>Target / Date</span>
             <span style={{ fontSize: T.label, color: MUTED, textAlign: 'right' as const }}>Change</span>
+            <span style={{ fontSize: T.label, color: MUTED, textAlign: 'right' as const }}>To goal</span>
           </div>
-          {rows.map((r) => (
-            <div key={r.goalId} style={{ ...SINCE_ROW, padding: '10px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
-              <div style={{ fontSize: T.body, color: TEXT, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                {r.title}
+          {rows.map((r) => {
+            const overdue = !r.achieved && r.daysLeft != null && r.daysLeft < 0;
+            return (
+              <div key={r.goalId} style={{ ...SINCE_ROW, padding: '10px 0', borderTop: `1px solid ${LINE_SOFT}` }}>
+                <div style={{ fontSize: T.body, color: TEXT, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                  {r.title}
+                </div>
+                <div className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{r.sinceLabel}</div>
+                <div className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{r.currentLabel}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{r.targetLabel}</div>
+                  <div style={{ fontSize: T.small, color: overdue ? COL_WARN : MUTED2, marginTop: 2 }}>
+                    {r.deadlineLabel ?? 'No deadline'}
+                    {r.deadlineLabel && !r.achieved && ` · ${daysLeftLabel(r.daysLeft)}`}
+                  </div>
+                </div>
+                <div
+                  className="font-mono"
+                  style={{
+                    fontSize: T.body, fontWeight: 600, textAlign: 'right' as const,
+                    color: r.improved == null ? MUTED2 : r.improved ? COL_GOOD : COL_WARN,
+                  }}
+                >
+                  {r.delta != null && r.delta !== 0 && (r.delta > 0 ? '▲ ' : '▼ ')}{r.changeLabel}
+                </div>
+                <div
+                  className="font-mono"
+                  style={{ fontSize: T.body, fontWeight: 600, textAlign: 'right' as const, color: r.achieved ? COL_GOOD : ACCENT }}
+                >
+                  {r.achieved ? '✓ ' : ''}{r.remainingLabel}
+                </div>
               </div>
-              <div className="font-mono" style={{ fontSize: T.body, color: MUTED }}>{r.sinceLabel}</div>
-              <div className="font-mono" style={{ fontSize: T.body, color: TEXT }}>{r.currentLabel}</div>
-              <div
-                className="font-mono"
-                style={{
-                  fontSize: T.body, fontWeight: 600, textAlign: 'right' as const,
-                  color: r.improved == null ? MUTED2 : r.improved ? COL_GOOD : COL_WARN,
-                }}
-              >
-                {r.delta != null && r.delta !== 0 && (r.delta > 0 ? '▲ ' : '▼ ')}{r.changeLabel}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -307,6 +307,14 @@ export async function addWater(_token: string, date: string, amountOz: number): 
   return waterApi.add(date, amountOz);
 }
 
+export async function getWaterEntries(_token: string, params?: { start?: string; end?: string }): Promise<WaterEntry[]> {
+  return waterApi.getEntries(params);
+}
+
+export async function deleteWater(_token: string, id: number): Promise<void> {
+  await waterApi.delete(id);
+}
+
 export async function getWaterHistory(_token: string, start: string, end: string): Promise<WaterHistory> {
   return waterApi.getHistory(start, end);
 }

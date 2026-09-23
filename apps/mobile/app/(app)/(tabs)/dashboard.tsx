@@ -22,7 +22,7 @@ import {
   KG_TO_LBS, localDateStr, getWeekStart,
   computeHighlights, buildWeeklyData, buildWorkoutLine,
   goalsV2Api, resolveLayout, buildStepsStats,
-  buildGoalSinceRows, fmtSinceDate, resolveSinceDate, withSinceDate,
+  buildGoalSinceRows, fmtSinceDate, daysLeftLabel, resolveSinceDate, withSinceDate,
   resolveSinceGoalIds, withSinceGoalIds, titleFor, fmt2,
   weeklyPace, type WeeklyGoalDirection, GLASS_OZ,
   type WeekBucket, type Goal, type NutritionSummary, type DashboardWidgetKey,
@@ -876,6 +876,7 @@ export default function DashboardV4Screen() {
     // Two readings per goal — where it stood on the picked date, where it stands
     // today — and the change between. buildGoalSinceRows does the join and the
     // wording so this and the web card can't disagree about what counts as progress.
+    // Under each goal: its target and deadline, and how much is left to get there.
     goalSince: () => {
       const rows = buildGoalSinceRows(activeGoals, sincePoints, sinceGoalIds);
       const shown = sinceGoalIds ? activeGoals.filter((g) => sinceGoalIds.includes(g.id)).length : activeGoals.length;
@@ -980,12 +981,29 @@ export default function DashboardV4Screen() {
                       {r.currentLabel}
                     </Text>
                   </View>
-                  <Text style={{
-                    marginTop: 2, fontSize: 12, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'],
-                    color: r.improved == null ? c.muted : r.improved ? COL_GOOD : COL_WARN,
-                  }}>
-                    {r.delta != null && r.delta !== 0 ? (r.delta > 0 ? '▲ ' : '▼ ') : ''}{r.changeLabel}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 8 }}>
+                    <Text numberOfLines={1} style={{ flex: 1, fontSize: 11, color: c.muted }}>
+                      Target <Text style={{ color: c.text, fontVariant: ['tabular-nums'] }}>{r.targetLabel}</Text>
+                      {r.deadlineLabel ? <Text> · by {r.deadlineLabel}</Text> : null}
+                    </Text>
+                    <Text style={{
+                      fontSize: 12, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'],
+                      color: r.improved == null ? c.muted : r.improved ? COL_GOOD : COL_WARN,
+                    }}>
+                      {r.delta != null && r.delta !== 0 ? (r.delta > 0 ? '▲ ' : '▼ ') : ''}{r.changeLabel}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 8 }}>
+                    <Text numberOfLines={1} style={{
+                      flex: 1, fontSize: 11,
+                      color: !r.achieved && r.daysLeft != null && r.daysLeft < 0 ? COL_WARN : c.muted,
+                    }}>
+                      {r.achieved ? '' : r.deadlineLabel ? daysLeftLabel(r.daysLeft) : 'No deadline'}
+                    </Text>
+                    <Text style={{ fontSize: 12, textAlign: 'right', fontVariant: ['tabular-nums'], color: r.achieved ? COL_GOOD : COL_GOLD }}>
+                      {r.achieved ? '✓ ' : ''}{r.remainingLabel}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </View>

@@ -89,6 +89,33 @@ router.get('/history', async (req, res) => {
   }
 });
 
+// GET /api/water/entries?start=YYYY-MM-DD&end=YYYY-MM-DD — individual entries, newest
+// first, so the history list can offer a delete on each one.
+router.get('/entries', async (req, res) => {
+  const { start, end } = req.query as { start?: string; end?: string };
+  const params: unknown[] = [req.userId];
+  let dateClause = '';
+  if (start) { dateClause += ' AND log_date >= ?'; params.push(start); }
+  if (end)   { dateClause += ' AND log_date <= ?'; params.push(end); }
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, log_date, amount_oz, logged_at FROM water_log
+       WHERE user_id = ?${dateClause}
+       ORDER BY log_date DESC, logged_at DESC`,
+      params
+    );
+    res.json(rows.map((r) => ({
+      id: r.id,
+      logDate: r.log_date instanceof Date ? r.log_date.toISOString().slice(0, 10) : String(r.log_date),
+      amountOz: Number(r.amount_oz),
+      loggedAt: r.logged_at,
+    })));
+  } catch (err) {
+    console.error('[water] error:', err);
+    res.status(500).json({ error: 'Failed to fetch water entries' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     await pool.execute('DELETE FROM water_log WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
