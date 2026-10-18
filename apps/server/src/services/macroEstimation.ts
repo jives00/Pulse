@@ -71,6 +71,7 @@ const mealNutritionTool = {
   schema: {
     type: 'object' as const,
     properties: {
+      portion:    { type: 'string', description: 'the portion assumed, with its weight, e.g. "1 square, ~250g"' },
       calories:   { type: 'number', description: 'total kcal for the whole portion described' },
       carbs_g:    { type: 'number', description: 'total carbohydrates in grams for the whole portion' },
       protein_g:  { type: 'number', description: 'total protein in grams for the whole portion' },
@@ -79,7 +80,7 @@ const mealNutritionTool = {
       sodium_mg:  { type: 'number', description: 'total sodium in milligrams for the whole portion' },
       confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'estimation confidence' },
     },
-    required: ['calories', 'carbs_g', 'protein_g', 'fat_g', 'confidence'],
+    required: ['portion', 'calories', 'carbs_g', 'protein_g', 'fat_g', 'confidence'],
   },
 };
 
@@ -90,9 +91,13 @@ export async function estimateMeal(payload: MealEstimatePayload): Promise<MealEs
     `Estimate the nutrition for this meal as eaten: ${description}`,
     '',
     'Return TOTALS for the entire portion described — not per 100g and not per serving.',
-    'If a restaurant or brand is named, use that chain\'s actual menu item, including the full portion',
-    'they serve. Restaurant entrees are frequently 800-1500 kcal; do not anchor low.',
-    'If no portion is stated, assume one typical full serving as a person would eat it.',
+    'First decide the portion and its weight in grams, then compute nutrition for that weight.',
+    'If a portion or quantity is stated, use exactly that.',
+    'If no restaurant or brand is named, assume one standard home-cooked serving as a recipe or',
+    'nutrition label would list it (e.g. one square of lasagna ~250g, one cup of chili, one burger) —',
+    'not a restaurant-sized plate.',
+    'If a restaurant or brand is named, use that chain\'s actual menu item and the full portion they',
+    'serve; restaurant entrees often run far larger than home servings, so do not anchor low for those.',
   ].join('\n');
 
   const input = await runWithTools({ model: 'haiku', prompt, tool: mealNutritionTool });

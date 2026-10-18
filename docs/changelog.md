@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## October 18, 2026
+
+### Backend
+- **Describe a Meal no longer inflates home-cooked meals** — the "restaurant entrees run 800-1500 kcal, don't anchor low" guidance applied to every description, so plain "lasagna" came back at 850-1200 kcal. That guidance now only applies when a restaurant or brand is named; unbranded meals default to one standard home serving, and the model must pick a portion weight before computing nutrition. "lasagna" now estimates ~420 kcal, "Olive Garden Lasagna Classico" ~1050 `0d6461d`
+
 ## September 22, 2026
 
 ### Backend
