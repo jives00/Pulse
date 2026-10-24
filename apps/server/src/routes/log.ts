@@ -88,26 +88,33 @@ function rowToEntry(row: RowDataPacket) {
 router.get('/frequent', async (req, res) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
+      // Count first, then join the default serving: selecting ss.* alongside GROUP BY f.id
+      // fails under ONLY_FULL_GROUP_BY.
       `SELECT f.id, f.name, f.brand,
-              COUNT(DISTINCT fl.id) AS log_count,
+              top.log_count,
               ss.id AS serving_size_id, ss.label AS serving_label, ss.grams AS serving_grams,
               ROUND(f.calories_per100 * ss.grams / 100) AS calories_per_serving,
               ROUND(f.protein_per100 * ss.grams / 100, 1) AS protein_per_serving,
               ROUND(f.carbs_per100 * ss.grams / 100, 1) AS carbs_per_serving,
               ROUND(f.fat_per100 * ss.grams / 100, 1) AS fat_per_serving
-       FROM food_log fl
-       JOIN foods f ON f.id = fl.food_id
+       FROM (
+         SELECT fl.food_id, COUNT(*) AS log_count
+         FROM food_log fl
+         JOIN foods f ON f.id = fl.food_id
+         WHERE fl.user_id = ?
+           AND fl.log_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+           AND (f.source IS NULL OR f.source != 'quick_log')
+         GROUP BY fl.food_id
+         ORDER BY log_count DESC
+         LIMIT 10
+       ) top
+       JOIN foods f ON f.id = top.food_id
        LEFT JOIN serving_sizes ss ON ss.id = (
          SELECT id FROM serving_sizes
          WHERE food_id = f.id AND is_default = 1
          ORDER BY id LIMIT 1
        )
-       WHERE fl.user_id = ?
-         AND fl.log_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-         AND (f.source IS NULL OR f.source != 'quick_log')
-       GROUP BY f.id
-       ORDER BY log_count DESC
-       LIMIT 10`,
+       ORDER BY top.log_count DESC`,
       [req.userId]
     );
 

@@ -4,6 +4,11 @@ Tracking changes since April 19, 2026 @ 8:39 PM.
 
 ---
 
+## October 23, 2026
+
+### Backend
+- **Frequent foods load again** — `GET /log/frequent` failed on the NAS's MySQL with "Expression #5 of SELECT list is not in GROUP BY clause" (`ONLY_FULL_GROUP_BY`), because the default serving's columns were selected alongside `GROUP BY f.id`. The top 10 foods are now counted in a subquery and joined to their default serving afterwards `694a57a`
+
 ## October 18, 2026
 
 ### Backend
